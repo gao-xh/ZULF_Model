@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+runs/
+*.pt
+*.ckpt
+*.h5
+*.npz
+*.npy
+*.jsonl.gz
+local.json
+.DS_Store

@@ -1,0 +1,84 @@
+# Implementation plan and ledger
+
+Status legend: `[x]` done and tested, `[~]` implemented with open items,
+`[ ]` not started. Each completed item names the test module that covers it.
+Update this file in the same commit as the work.
+
+Source plan: "ZULF spectrum-to-J self-trained model" (2026-09-24). Phase
+numbers below follow that plan.
+
+## Phase A: foundation (this repository's first milestone)
+
+The goal is a complete, tested skeleton of every component, with interfaces
+fixed, so later phases are experiments rather than restructuring.
+
+| Step | Deliverable | Status | Tests |
+| --- | --- | --- | --- |
+| A1 | Docs: architecture, conventions, decisions, agent rules | [x] | `scripts/check_ascii.py` |
+| A2 | `ProblemSpec` single source of problem dimensions | [ ] | `tests/test_spec.py` |
+| A3 | Nucleus registry, `SpinSystem`, `Component`, `Interpretation`, equivalence, permutation matching, JSON | [ ] | `tests/test_spinsystem.py` |
+| A4 | Physics: operators, collective sectors, transitions, protocol | [ ] | `tests/test_physics.py` |
+| A5 | Rendering: acquisition operator, analytic renderer, perturbations, features | [ ] | `tests/test_render.py` |
+| A6 | Generator: graphs, coupling rules, isotopologues, random J, sources, splits, storage | [ ] | `tests/test_generator.py` |
+| A7 | Codec: canonical order, J bins, tokens, grammar, set targets | [ ] | `tests/test_codec.py` |
+| A8 | Models: interface, CNN encoder, set baseline, CNN+Transformer, beam search | [ ] | `tests/test_models.py` |
+| A9 | Training: datasets, losses, metrics, trainer, curriculum, checkpoints | [ ] | `tests/test_training.py` |
+| A10 | Solver: observed spectra, parameterization, forward, refine, batch, held-out | [ ] | `tests/test_solver.py` |
+| A11 | Evaluation: proposers, identifiability, basin, benchmark | [ ] | `tests/test_evaluation.py` |
+| A12 | Fine-tuning: failure classification, focused sampling, loop | [ ] | `tests/test_finetune.py` |
+| A13 | CLI, configs, end-to-end smoke pipeline, throughput script | [ ] | `tests/test_cli.py`, `scripts/smoke_pipeline.py` |
+
+## Phase 0: basis (plan week 1)
+
+- [ ] Freeze protocol after Q1 (`configs/protocol_v1.json`).
+- [ ] Freeze acquisition and grid after Q2 (`configs/acquisition_v1.json`).
+- [ ] Throughput table for 8-spin CHN components, CPU and GPU, with and
+      without equivalence sectors; 9-12 spin interface check
+      (`scripts/throughput.py`, results recorded here).
+- [ ] Cross-check transitions against `ZULF_Analysis_Tools.jfit.transitions`
+      for the fitted isopropylamine J (optional test, skipped without that repo).
+
+## Phase 1: data generator (plan weeks 2-3)
+
+- [ ] Verify coupling ranges against literature (Q3); record sources in
+      `configs/couplings_v1.json`.
+- [ ] Generate and freeze `gen-v1` train/validation/test shards with family
+      splits and an unseen-topology test set; record digests here.
+
+## Phase 2: M0 feasibility (plan weeks 4-5)
+
+- [ ] Measure solver basin of attraction per coupling type
+      (`evaluation.basin`), set J bin widths from it.
+- [ ] Identifiability pairs (`evaluation.identifiability`).
+- [ ] Freeze pass criteria before training (coverage@k, J tolerance,
+      held-out threshold, budget).
+- [ ] Train CNN set baseline; benchmark against random multistart and graph
+      search at equal simulation budget.
+
+## Phase 3: general solver (plan weeks 4-6, parallel)
+
+- [ ] Reproduce the isopropylamine staged-fit result with `solver.refine`
+      and explicit ties (requires Q2 data).
+- [ ] Recovery tests on random generated systems from perturbed starts.
+
+## Phase 4: architecture comparison (plan weeks 6-9)
+
+- [ ] Train CNN+Transformer; compare (a) graph search, (b) CNN set, (c)
+      CNN+Transformer under identical budgets.
+
+## Phase 5: closed loop (continuous)
+
+- [ ] Dev-set failure mining and focused resampling rounds; each round records
+      generator version, data digest and metrics.
+
+## Phase 6: blind test (plan weeks 10-11)
+
+- [ ] Freeze model, generator and protocol; run on molecules from Q9.
+
+## Phase 7 (optional): J to structure
+
+- [ ] Not started. The generator already records graphs for paired data.
+
+## Measurements
+
+No measurements recorded yet.
