@@ -61,22 +61,38 @@ def product_operators(spins: Tuple[Fraction, ...]):
     real pair operators S_i . S_j for i < j keyed by (i, j).
     """
     dims = [int(2 * s + 1) for s in spins]
+    locals_ = [angular_momentum(s) for s in spins]
+
+    def embed(factors: Dict[int, np.ndarray]) -> np.ndarray:
+        # Consecutive identity factors are merged into one identity (fewer, larger Kronecker products).
+        full = np.ones((1, 1), dtype=complex)
+        identity = 1
+        for k, d in enumerate(dims):
+            if k in factors:
+                if identity > 1:
+                    full = np.kron(full, np.eye(identity))
+                    identity = 1
+                full = np.kron(full, factors[k])
+            else:
+                identity *= d
+        return np.kron(full, np.eye(identity)) if identity > 1 else full
+
     site_ops: List[Tuple[np.ndarray, np.ndarray, np.ndarray]] = []
-    for site, s in enumerate(spins):
-        local = angular_momentum(s)
-        embedded = []
-        for op in local:
-            full = np.ones((1, 1), dtype=complex)
-            for k, d in enumerate(dims):
-                full = np.kron(full, op if k == site else np.eye(d))
-            embedded.append(full)
-        site_ops.append(tuple(embedded))
+    for site in range(len(spins)):
+        site_ops.append(tuple(_frozen(embed({site: op})) for op in locals_[site]))
     pairs = {}
     for i in range(len(spins)):
         for j in range(i + 1, len(spins)):
-            value = sum(a @ b for a, b in zip(site_ops[i], site_ops[j]))
-            pairs[(i, j)] = np.ascontiguousarray(value.real)
+            # S_i . S_j built directly as Kronecker products (no dense matrix products).
+            value = sum(embed({i: locals_[i][a], j: locals_[j][a]}) for a in range(3))
+            pairs[(i, j)] = _frozen(np.ascontiguousarray(value.real))
     return site_ops, pairs
+
+
+def _frozen(array: np.ndarray) -> np.ndarray:
+    """Cached operators are shared; mark them read-only."""
+    array.setflags(write=False)
+    return array
 
 
 def full_space_spins(spins: Sequence[Fraction]) -> Tuple[Fraction, ...]:

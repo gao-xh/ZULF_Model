@@ -9,6 +9,12 @@
 
 Noise, drift and interference come from `PerturbationConfig` and can all be
 disabled (`noiseless=True`).
+
+When the problem spec requests `grid.phasing = "corrected"`, every rendered
+spectrum is multiplied by the exact inverse of its zero/first-order phase
+(global phase, phase delay and crop reference) and then by a small residual
+error drawn from `residual_phase0_range_rad` and `residual_delay_range_s`,
+mimicking manual phasing of experimental spectra.
 """
 from __future__ import annotations
 
@@ -28,6 +34,7 @@ from .acquisition import Acquisition
 from .features import spectrum_features
 from .grid import SpectrumGrid
 from .perturb import PerturbationConfig, RenderParams, render_observation, render_signal, sample_render_params
+from .phasing import correction_phasor, reference_delay_s
 from .renderer import ContinuousRenderer, Renderer
 
 MODES = ("pure", "fixed", "randomized", "continuous")
@@ -45,6 +52,9 @@ class ProcessingConfig:
     remove_mean_probability: float = 0.5
     time_origin_range_s: Tuple[float, float] = (0.0, 0.0)
     renderer_backend: str = "auto"  # auto | analytic (never builds an FID) | time (NUFFT FID)
+    # Residual error of the phase correction (used only when spec.grid.phasing == "corrected").
+    residual_phase0_range_rad: Tuple[float, float] = (-0.1, 0.1)
+    residual_delay_range_s: Tuple[float, float] = (-5e-5, 5e-5)
 
     def __post_init__(self):
         if self.mode not in MODES:
@@ -91,6 +101,9 @@ class RenderedSample:
     params: dict
     interpretation: Interpretation
     timings_ms: dict = field(default_factory=dict)
+    # Same systems with contributions replaced by the rendered weights (abundance times response gain);
+    # used for training targets so that contribution targets describe what the spectrum shows.
+    target: Optional[Interpretation] = None
 
 
 class SampleRenderer:
@@ -132,7 +145,8 @@ class SampleRenderer:
             transitions = self.component_transitions(interpretation)
         stamps["transitions"] = time.perf_counter() - t0
         contributions = [c.contribution for c in interpretation.components]
-        params = sample_render_params(rng, transitions, self.perturbation, noiseless=self.noiseless)
+        params = sample_render_params(rng, transitions, self.perturbation, noiseless=self.noiseless,
+                                      contributions=contributions)
         f = self.grid.frequencies_hz
         if self.processing.mode == "continuous":
             acquisition = self.processing.base()
@@ -150,11 +164,23 @@ class SampleRenderer:
             with self.timer.section("sample.observation"):
                 spectrum, clean = render_observation(self.renderer(acquisition), transitions, params, f, contributions)
         stamps["render"] = time.perf_counter() - t0 - stamps["transitions"]
+        params_dict = params.to_dict()
+        if self.spec.grid.phasing == "corrected":
+            reference = 0.0 if self.processing.mode == "continuous" else reference_delay_s(acquisition)
+            error0 = float(rng.uniform(*self.processing.residual_phase0_range_rad))
+            error1 = float(rng.uniform(*self.processing.residual_delay_range_s))
+            phasor = correction_phasor(f, params.global_phase_rad - error0,
+                                       params.phase_delay_s + reference - error1)
+            spectrum, clean = spectrum * phasor, clean * phasor
+            params_dict["phasing"] = {"residual_phase0_rad": error0, "residual_delay_s": error1,
+                                      "reference_delay_s": reference}
         features, scale = spectrum_features(spectrum, self.spec.grid.channels)
         stamps["total"] = time.perf_counter() - t0
         self.timer.add("sample.total", stamps["total"])
-        return RenderedSample(features, scale, spectrum, clean, acquisition.to_dict(), params.to_dict(),
-                              interpretation, {k: 1000 * v for k, v in stamps.items()})
+        weights = [c.contribution * abs(comp.gain) for c, comp in zip(interpretation.components, params.components)]
+        target = interpretation.with_contributions(weights)
+        return RenderedSample(features, scale, spectrum, clean, acquisition.to_dict(), params_dict,
+                              interpretation, {k: 1000 * v for k, v in stamps.items()}, target)
 
     @staticmethod
     def _spectral_noise(params: RenderParams, clean: np.ndarray, size: int) -> np.ndarray:

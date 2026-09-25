@@ -29,6 +29,11 @@ class PerturbationConfig:
     global_phase_range_rad: Tuple[float, float] = (-np.pi, np.pi)
     phase_delay_range_s: Tuple[float, float] = (-0.002, 0.002)
     component_gain_log10_range: Tuple[float, float] = (-0.3, 0.3)
+    # "jitter": weight = abundance-based contribution times 10**U(component_gain_log10_range);
+    # "free": weight = 10**U(free_weight_log10_range) independent of abundance (relaxation, polarization
+    # transfer and detection can change isotopologue ratios arbitrarily).
+    component_ratio_mode: str = "jitter"
+    free_weight_log10_range: Tuple[float, float] = (-1.5, 0.0)
     component_phase_spread_rad: float = 0.2
     snr_range: Tuple[float, float] = (5.0, 500.0)
     drift_probability: float = 0.3
@@ -105,10 +110,17 @@ def _log_uniform(rng, lo, hi, size=None):
 
 
 def sample_render_params(rng: np.random.Generator, transitions: Sequence[TransitionList],
-                         config: PerturbationConfig, noiseless: bool = False) -> RenderParams:
-    """Draw nuisance parameters for a list of component transition lists."""
+                         config: PerturbationConfig, noiseless: bool = False,
+                         contributions: Optional[Sequence[float]] = None) -> RenderParams:
+    """Draw nuisance parameters for a list of component transition lists.
+
+    The rendered weight of component c is contributions[c] * |gain_c|. In "free" ratio mode the gain
+    magnitude is chosen so that the weight is 10**U(free_weight_log10_range) regardless of abundance.
+    """
+    if config.component_ratio_mode not in ("jitter", "free"):
+        raise ValueError("component_ratio_mode must be 'jitter' or 'free'.")
     comps = []
-    for tl in transitions:
+    for index, tl in enumerate(transitions):
         base = _log_uniform(rng, *config.rate_range_per_s)
         edges = np.zeros(0)
         if len(tl) > 1 and rng.random() < config.family_split_probability:
@@ -116,8 +128,12 @@ def sample_render_params(rng: np.random.Generator, transitions: Sequence[Transit
             edges = np.array([rng.uniform(lo, hi)])
         rates = base * np.exp(rng.normal(0, config.family_rate_spread, len(edges) + 1))
         rates = np.clip(rates, *config.rate_range_per_s)
-        gain = 10 ** rng.uniform(*config.component_gain_log10_range) * np.exp(
-            1j * rng.normal(0, config.component_phase_spread_rad))
+        if config.component_ratio_mode == "free":
+            nominal = float(contributions[index]) if contributions is not None else 1.0
+            magnitude = 10 ** rng.uniform(*config.free_weight_log10_range) / max(nominal, 1e-300)
+        else:
+            magnitude = 10 ** rng.uniform(*config.component_gain_log10_range)
+        gain = magnitude * np.exp(1j * rng.normal(0, config.component_phase_spread_rad))
         sigma = 0.0
         if rng.random() < config.gaussian_probability:
             sigma = float(_log_uniform(rng, *config.gaussian_sigma_range_hz))

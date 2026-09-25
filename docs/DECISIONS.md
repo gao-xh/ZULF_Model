@@ -155,6 +155,41 @@ and intensities is a candidate explanation for model misfit. It is exposed as
 sector decomposition and checked against full-space propagation. It is not
 fitted by default; any use must be reported with the result.
 
+## D20. Phase-corrected input as an option (2026-09-25)
+
+Experimental spectra are phased by hand (zero- and first-order) and read as
+the real part. `ProblemSpec.grid.phasing = "corrected"` reproduces this: each
+training spectrum is multiplied by the exact inverse of its global phase,
+phase delay and crop reference, then by a residual error drawn from
+`ProcessingConfig.residual_phase0_range_rad` and `residual_delay_range_s`, so
+the model tolerates imperfect manual phasing. Inference applies the same
+operator with the operator's phase0 and delay (`render.phasing`); the crop
+reference is added from the acquisition, so the values do not depend on the
+crop. The negative-frequency mirror term of a real FID keeps its conjugate
+phase, so correction is exact only up to that term (about 0.1 percent of the
+peak in the tests). The default stays "none" (real and imaginary channels with
+random phase). Channel count of the encoder follows the spec.
+
+## D21. Free component ratios; targets use rendered weights (2026-09-25)
+
+Relaxation during transfer, polarization and detection change isotopologue
+ratios, so `PerturbationConfig.component_ratio_mode = "free"` draws each
+component weight from `free_weight_log10_range` independently of abundance.
+In every mode the contribution targets (set head and tokens, and component
+order) are the rendered weights, abundance times response gain, not the
+nominal abundances, so the network is not asked to predict a quantity the
+spectrum does not show.
+
+## D22. Pre-rendered shards next to live rendering (2026-09-25)
+
+Rendering an experimental-route sample costs about 0.16 s on one core, too
+slow to feed a GPU from a few workers. `training.prerender` writes shards
+(float16 features, padded targets, JSON interpretations, manifest with the
+spec digest) with seeds (seed, shard index), resumable and parallel.
+`data.prerendered` (or a curriculum stage override `prerendered`) trains from
+them; mismatched spec digests are refused. Live rendering stays the reference
+and the default.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

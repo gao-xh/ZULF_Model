@@ -17,6 +17,7 @@ from ..physics.transitions import TransitionCache
 from ..render.acquisition import evaluate_spectrum, process_record
 from ..render.features import spectrum_features
 from ..render.grid import SpectrumGrid
+from ..render.phasing import phase_correct
 from ..render.renderer import ContinuousRenderer, Renderer
 from ..solver.observed import ObservedSpectrum
 from ..spec import ProblemSpec
@@ -33,15 +34,24 @@ class CandidateProposer(ABC):
 
 class ModelProposer(CandidateProposer):
     """Wraps a trained CandidateModel. The observed spectrum is re-evaluated on the
-    model grid through its acquisition when a stored FID is available."""
+    model grid through its acquisition when a stored FID is available.
+
+    Models trained with `grid.phasing = "corrected"` need the operator's phase
+    correction: `phasing = {"phase0_rad": ..., "delay_s": ...}` (see render.phasing);
+    the crop reference of the acquisition is added automatically.
+    """
     name = "model"
 
-    def __init__(self, model, grid: SpectrumGrid, channels=("real", "imag"), device: str = "cpu", **propose_kwargs):
+    def __init__(self, model, grid: SpectrumGrid, channels=("real", "imag"), device: str = "cpu",
+                 phasing: Optional[dict] = None, **propose_kwargs):
         self.model = model.to(device).eval()
         self.grid = grid
         self.channels = channels
         self.device = device
+        self.phasing = phasing
         self.kwargs = propose_kwargs
+        if getattr(model.spec.grid, "phasing", "none") == "corrected" and not phasing:
+            raise ValueError("This model expects phase-corrected spectra; pass phasing={'phase0_rad', 'delay_s'}.")
 
     def features(self, observed: ObservedSpectrum) -> np.ndarray:
         if observed.reprocessable:
@@ -50,6 +60,9 @@ class ModelProposer(CandidateProposer):
         else:
             values = np.interp(self.grid.frequencies_hz, observed.frequencies_hz, observed.values.real) + 1j * np.interp(
                 self.grid.frequencies_hz, observed.frequencies_hz, observed.values.imag)
+        if self.phasing:
+            values = phase_correct(values, self.grid.frequencies_hz, float(self.phasing.get("phase0_rad", 0.0)),
+                                   float(self.phasing.get("delay_s", 0.0)), observed.acquisition)
         return spectrum_features(values, self.channels)[0]
 
     def propose(self, observed: ObservedSpectrum, k: int) -> List[Interpretation]:

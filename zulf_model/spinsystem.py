@@ -380,6 +380,14 @@ class Interpretation:
         return cls(tuple(Component.from_dict(c) for c in data["components"]), data.get("score"),
                    dict(data.get("metadata", {})))
 
+    def with_contributions(self, contributions: Sequence[float]) -> "Interpretation":
+        """Same components with new relative contributions (for example rendered weights)."""
+        values = [float(v) for v in contributions]
+        if len(values) != len(self.components):
+            raise ValueError("One contribution per component is required.")
+        return Interpretation(tuple(Component(c.system, v, c.label, dict(c.metadata))
+                                    for c, v in zip(self.components, values)), self.score, dict(self.metadata))
+
     def key(self, nuclei_order: Sequence[str], decimals: int = 1) -> tuple:
         """Hashable approximate identity for deduplicating candidate lists."""
         parts = []

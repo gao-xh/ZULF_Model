@@ -53,6 +53,14 @@ class GridSpec:
     zero_fill: int = 1
     spacing_hz: Optional[float] = None
     channels: Tuple[str, ...] = ("real", "imag")
+    # "none": spectra keep their (random) zero/first-order phase; the model sees real and imaginary parts.
+    # "corrected": spectra are phase corrected (training: exact correction plus a small residual error;
+    # inference: operator-supplied phase0 and delay), matching manual 0/1-order phasing, e.g. channels ("real",).
+    phasing: str = "none"
+
+    def __post_init__(self):
+        if self.phasing not in ("none", "corrected"):
+            raise ValueError("grid.phasing must be 'none' or 'corrected'.")
 
 
 @dataclass(frozen=True)

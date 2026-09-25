@@ -32,7 +32,7 @@ checked against held-out acquisitions.
 | `zulf_model.generator` | Molecule-like heavy-atom graphs, rule-based J assignment, isotopologue enumeration, random-J mode, sample specification, family-based splits, shard storage. | spinsystem, physics, render |
 | `zulf_model.codec` | Canonical ordering, J binning, token vocabulary and grammar, fixed-size set targets with masks. | spinsystem |
 | `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
-| `zulf_model.training` | Torch datasets over generator or shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
+| `zulf_model.training` | Torch datasets over generator or shards, pre-rendered feature shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
 | `zulf_model.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
 | `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search), local identifiability, solver basin measurement, benchmark runner. | solver, generator |
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
@@ -83,6 +83,8 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Solver objective | `solver.forward.MixtureForward` | Magnitude or windowed objectives, background terms. |
 | Global search | `solver.search.PatternObjective`, `global_search` | Other phase-insensitive objectives or search strategies that return distinct starting vectors for `refine(initial_points=...)`. |
 | Evolution field | `physics.protocol.Protocol.field_ut` | Residual static field during evolution; exact in the sector decomposition. |
+| Input phasing | `spec.GridSpec.phasing`, `render.phasing` | "none" (random phase, real+imag) or "corrected" (manual-style 0/1-order phasing, real part). |
+| Training data source | `training.prerender.PrerenderedDataset` | Live rendering (default) or pre-rendered shards; any iterable of items in the `make_item` format. |
 
 ## Data flow for one training sample
 

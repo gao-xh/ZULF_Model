@@ -1,0 +1,65 @@
+{
+  "problem": "problem_v1_phased.json",
+  "generator": "generator_v1.json",
+  "processing": "processing_randomized_phased_v1.json",
+  "perturbation": "perturbation_experimental_free_ratio_v1.json",
+  "protocol": "protocol_v1.json",
+  "model": "model_cnn_transformer_v1.json",
+  "train": {
+    "steps": 10000,
+    "batch_size": 32,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.01,
+    "warmup_steps": 500,
+    "min_lr_fraction": 0.05,
+    "grad_clip": 1.0,
+    "log_every": 50,
+    "eval_every": 1000,
+    "checkpoint_every": 1000,
+    "eval_propose_k": 10,
+    "eval_propose_limit": 64,
+    "coverage_tolerance_hz": 1.0,
+    "early_stopping_patience": 0,
+    "seed": 0,
+    "device": "auto",
+    "amp": "auto",
+    "num_workers": 0,
+    "renders_per_system": 4,
+    "output_dir": "runs/cnn_transformer_phased_v1",
+    "curriculum": [
+      {
+        "until_step": 3000,
+        "name": "high_snr_single",
+        "overrides": {
+          "perturbation": {
+            "snr_range": [
+              100.0,
+              1000.0
+            ]
+          },
+          "mixture": {
+            "extra_molecule_probability": 0.0
+          }
+        }
+      },
+      {
+        "until_step": 6000,
+        "name": "moderate",
+        "overrides": {
+          "perturbation": {
+            "snr_range": [
+              20.0,
+              500.0
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "validation": {
+    "count": 512,
+    "split": "val",
+    "seed": 99,
+    "batch_size": 32
+  }
+}

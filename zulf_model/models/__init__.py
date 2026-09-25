@@ -25,6 +25,10 @@ def build_model(spec: ProblemSpec, config: ModelConfig) -> CandidateModel:
     MODEL_KINDS.setdefault("cnn_transformer", CNNTransformerModel)
     if config.kind not in MODEL_KINDS:
         raise ValueError(f"Unknown model kind '{config.kind}'. Known: {sorted(MODEL_KINDS)}")
+    channels = len(spec.grid.channels)
+    if config.encoder.in_channels != channels:
+        import dataclasses
+        config = dataclasses.replace(config, encoder=dataclasses.replace(config.encoder, in_channels=channels))
     return MODEL_KINDS[config.kind](spec, config)
 
 

@@ -21,11 +21,13 @@ from ..spinsystem import Interpretation
 
 
 def make_item(rendered, codec: InterpretationCodec, sample: Optional[Sample] = None) -> dict:
-    enc = codec.encode(rendered.interpretation)
+    """Targets use the rendered weights (`rendered.target`) so contribution targets match the spectrum."""
+    target = rendered.target if getattr(rendered, "target", None) is not None else rendered.interpretation
+    enc = codec.encode(target)
     item = {"features": rendered.features, "scale": rendered.scale, "tokens": enc.tokens,
-            "j_offsets": enc.j_offsets, "interpretation": rendered.interpretation,
+            "j_offsets": enc.j_offsets, "interpretation": target,
             "family_id": sample.family_id if sample else "", "render_ms": rendered.timings_ms.get("total", 0.0)}
-    item.update(codec.encode_set(rendered.interpretation))
+    item.update(codec.encode_set(target))
     return item
 
 

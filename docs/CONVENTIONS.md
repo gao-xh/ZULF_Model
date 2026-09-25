@@ -62,6 +62,14 @@ exact zero field. The isotropy argument above no longer holds with a field:
 a longitudinal field shifts lines only at second order, a transverse field
 splits them at first order (for a 13C-1H pair by `(gamma_H + gamma_C) B / 2`).
 
+Phase correction (`render.phasing`): a line of complex amplitude a appears in
+the processed spectrum as a times exp(i (phase0 + 2 pi f delay)) times the
+lineshape, where delay includes the Fourier reference of the crop
+(`time_origin_s + start_sample / fs` for `phase_reference = "crop_start"`).
+Correction multiplies by the inverse; the real part is then absorption with
+the physical line signs. A first-order phase given in degrees across a
+spectral width SW converts to delay = phase1 / 360 / SW.
+
 For molecules with only two nucleus types and any longitudinal preparation
 `sum_n w_n I_z,n` with z detection, the line shape of each component is
 independent of the weights `w_n` up to one overall scale, because the total

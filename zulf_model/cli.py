@@ -6,6 +6,7 @@
     zulf-model submit NAME --json '{...}'      (background job; poll with `tool get_job`)
     zulf-model serve-mcp
     zulf-model train RUN_CONFIG [--max-steps N]
+    zulf-model prerender RUN_CONFIG OUTPUT_DIR --count N [--shard-size 1024] [--workers W] [--stage NAME]
     zulf-model diagnose AVERAGE.npy 0.ini
     zulf-model throughput [--samples N]
 
@@ -52,6 +53,16 @@ def main(argv=None) -> int:
     train = sub.add_parser("train")
     train.add_argument("run_config")
     train.add_argument("--max-steps", type=int)
+    pre = sub.add_parser("prerender")
+    pre.add_argument("run_config")
+    pre.add_argument("output")
+    pre.add_argument("--count", type=int, required=True)
+    pre.add_argument("--shard-size", type=int, default=1024)
+    pre.add_argument("--workers", type=int, default=1)
+    pre.add_argument("--split", default="train")
+    pre.add_argument("--seed", type=int, default=0)
+    pre.add_argument("--stage", default="")
+    pre.add_argument("--feature-dtype", default="float16", choices=["float16", "float32"])
     diag = sub.add_parser("diagnose")
     diag.add_argument("average_npy")
     diag.add_argument("ini")
@@ -82,6 +93,11 @@ def main(argv=None) -> int:
             if args.max_steps:
                 payload["max_steps"] = args.max_steps
             result = reg.call("train_model", payload)
+        elif args.command == "prerender":
+            from .training.prerender import PrerenderRequest, prerender
+            result = prerender(PrerenderRequest(args.run_config, args.output, args.count, args.shard_size,
+                                                args.split, args.seed, args.stage, args.workers,
+                                                args.feature_dtype))
         elif args.command == "diagnose":
             result = reg.call("diagnose_fid", {"source": {"average_npy": args.average_npy, "ini": args.ini}})
         elif args.command == "throughput":

@@ -1,0 +1,48 @@
+{
+  "nuclei": [
+    "13C",
+    "15N",
+    "1H"
+  ],
+  "spin_counts": [
+    8
+  ],
+  "max_components": 4,
+  "max_group_size": 6,
+  "j_bins": {
+    "segments": [
+      [
+        20.0,
+        0.25
+      ],
+      [
+        60.0,
+        0.5
+      ],
+      [
+        200.0,
+        1.0
+      ],
+      [
+        300.0,
+        2.0
+      ]
+    ]
+  },
+  "grid": {
+    "f_min_hz": 1.0,
+    "f_max_hz": 400.0,
+    "zero_fill": 1,
+    "spacing_hz": null,
+    "channels": [
+      "real"
+    ],
+    "phasing": "corrected"
+  },
+  "contribution": {
+    "log10_min": -4.0,
+    "log10_max": 0.0,
+    "bins": 17
+  },
+  "name": "problem-v1-phased"
+}

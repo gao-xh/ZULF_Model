@@ -3,6 +3,11 @@
 Keys (each value is an inline dict or a path to a JSON file):
 problem, generator, processing, perturbation, protocol, model, train, validation.
 Curriculum stages may override `perturbation`, `processing` and `mixture`.
+
+Optional `data: {"prerendered": DIR}` trains from pre-rendered shards
+(`training.prerender`) instead of live rendering; a curriculum stage may name
+its own shard directory with the override key `prerendered`. Relative paths
+resolve against the run configuration.
 """
 from __future__ import annotations
 
@@ -52,6 +57,7 @@ class TrainingSetup:
             base = Path(config).resolve().parent
             config = json.loads(Path(config).read_text(encoding="utf-8"))
         self.raw = config
+        self.base = base
         self.spec = ProblemSpec.from_dict(_load(config.get("problem"), base)) if config.get("problem") else ProblemSpec()
         self.generator_config = dict(_load(config.get("generator"), base))
         couplings = self.generator_config.get("couplings_path")
@@ -81,7 +87,23 @@ class TrainingSetup:
     def collator(self) -> Collator:
         return Collator(self.codec, self.renderer.grid.frequencies_hz)
 
+    def prerendered_path(self, stage: CurriculumStage) -> Optional[Path]:
+        value = stage.overrides.get("prerendered") or (self.raw.get("data") or {}).get("prerendered")
+        if not value:
+            return None
+        path = Path(value)
+        if not path.is_absolute() and self.base is not None and not path.exists():
+            path = self.base / path
+        return path
+
     def loader_factory(self, stage: CurriculumStage, step: int) -> Iterable[dict]:
+        path = self.prerendered_path(stage)
+        if path is not None:
+            from .prerender import PrerenderedDataset, as_torch_dataset
+            dataset = as_torch_dataset(PrerenderedDataset(path, self.spec.digest(), seed=self.train_config.seed + step))
+            return DataLoader(dataset, batch_size=self.train_config.batch_size, collate_fn=self.collator(),
+                              num_workers=self.train_config.num_workers,
+                              persistent_workers=self.train_config.num_workers > 0)
         renderer = self.make_renderer(stage.overrides)
         sampler = build_default_sampler(self.spec, dict(self.generator_config,
                                                         mixture=dict(self.generator_config.get("mixture", {}),

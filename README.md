@@ -47,7 +47,9 @@ python -m unittest discover -s tests              # full test suite
 python scripts/smoke_pipeline.py                  # generate -> train -> propose -> refine
 zulf-model tools list                             # agent tools
 zulf-model diagnose AVERAGE.npy 0.ini             # per-dataset processing diagnostics
-zulf-model train configs/run_cnn_set_v1.json      # training run
+zulf-model train configs/run_cnn_set_v1.json      # training run (live rendering)
+zulf-model prerender configs/run_cnn_set_phased_v1.json runs/shards/phased --count 200000 --workers 8
+                                                   # pre-render shards, then set "data": {"prerendered": ...}
 zulf-model tools export --format anthropic        # tool schemas for the Claude API
 python -m zulf_model.agent.mcp_server             # MCP server for Claude Code / Codex
 ```

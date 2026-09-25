@@ -29,6 +29,9 @@ fixed, so later phases are experiments rather than restructuring.
 | A13 | CLI, configs, end-to-end smoke pipeline, throughput script | [x] | `tests/test_agent.py`, `scripts/smoke_pipeline.py` |
 | A14 | AI agent layer: tool registry, MCP server, Anthropic/OpenAI export, jobs, skill guide | [x] | `tests/test_agent.py` |
 | A15 | Per-dataset diagnostics and solver nuisance terms (exponential, damped sinusoid, template) | [x] | `tests/test_solver.py` |
+| A16 | Global pattern search for refinement starts; optional residual field in the protocol | [x] | `tests/test_search.py` |
+| A17 | Phase-corrected real-part input (`grid.phasing`), free component ratios, rendered-weight targets | [x] | `tests/test_phasing.py` |
+| A18 | Pre-rendered training shards (`zulf-model prerender`, `data.prerendered`) | [x] | `tests/test_prerender.py` |
 
 ## Phase 0: basis (plan week 1)
 
@@ -69,6 +72,13 @@ fixed, so later phases are experiments rather than restructuring.
       H-H 8.2 Hz. Not accepted: needs recipe comparison (explicit nuisance
       baseline vs SG), held-out group averages and comparison with the
       earlier tool's fitted values.
+- [~] Global pattern search (D18) places the strongest methine line at the
+      observed 133.4 Hz, where every local fit from the earlier start failed;
+      the joint search-then-refine run on the real average is pending. With
+      JHH fixed at 6.4 Hz the methine multiplet intensities still do not match
+      (pattern cost about 0.2 on 127-141 Hz); a residual field (D19) improves
+      it only marginally at its bound. Paused at the user's request in favour
+      of training work; next questions are the pulse sequence and shield field.
 - [ ] Recovery tests on random generated systems from perturbed starts.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
@@ -122,3 +132,15 @@ CPU container (4 cores, no GPU), commit after "NUFFT renderer":
 | Rendered training sample (mixture, noise, randomized processing, 16384-point record, 6537-point grid) | about 60 ms, of which about 39 ms transition lists (cached per system) |
 | Continuous (infinite-record) route, same grid | about 0.5-0.9 s per sample (exact reference route, not for bulk training) |
 | Sampler acceptance (8-spin natural isotopologues by rejection) | about 0.27 |
+
+CPU container, after the operator and NUFFT speedups (commit "Phased input,
+free ratios, pre-rendered shards"):
+
+| Quantity | Value |
+| --- | --- |
+| Transition lists per 8-spin CHN sample (uncached) | 110 ms before, 55 ms after (pair operators built as Kronecker products) |
+| NUFFT, 150 lines x 65516 samples | 43 ms before, 13 ms after (fast FFT length; relative error 1.6e-11) |
+| Rendered sample, experimental route (instrument nuisances, SG, 65516-point record, phased) | 338 ms before, 160 ms after |
+| Rendered sample, verification problem (4-6 spins, pure, 8192 points, 3268-point grid) | about 20 ms |
+| Pre-rendered shard size (float16, one channel, 6.5k-point grid) | about 18 KB per item |
+| Training step, CNN set v1 (1.47 M parameters), batch 32, 3268-point grid, CPU 4 threads | about 0.55 s |
