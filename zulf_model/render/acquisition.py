@@ -4,6 +4,10 @@
 mean removal. `evaluate_spectrum` is the only implementation of the finite
 record Fourier sum. Simulated and experimental data both pass through them
 (the analytic renderer is tested against them).
+
+Every processing step is optional. The default `Acquisition` is pure: no crop,
+no SG baseline subtraction, no mean removal, time origin zero. Experimental
+recipes switch steps on explicitly in configuration.
 """
 from __future__ import annotations
 
@@ -25,7 +29,7 @@ class Acquisition:
     stop_sample: Optional[int] = None
     sg_window: int = 0
     sg_order: int = 2
-    remove_mean: bool = True
+    remove_mean: bool = False
     time_origin_s: float = 0.0
 
     def __post_init__(self):
@@ -45,6 +49,24 @@ class Acquisition:
             raise ValueError("SG window must be odd, larger than the order and no longer than the record.")
         if not math.isfinite(self.time_origin_s):
             raise ValueError("time_origin_s must be finite.")
+
+    @classmethod
+    def pure(cls, sampling_rate_hz: float, points: int) -> "Acquisition":
+        """Sampling only: every processing step off."""
+        return cls(sampling_rate_hz, points)
+
+    @property
+    def is_pure(self) -> bool:
+        return (self.start_sample == 0 and self.stop_sample == self.points and not self.sg_window
+                and not self.remove_mean and self.time_origin_s == 0.0)
+
+    def without_processing(self) -> "Acquisition":
+        return Acquisition.pure(self.sampling_rate_hz, self.points)
+
+    def with_processing(self, **changes) -> "Acquisition":
+        data = self.to_dict()
+        data.update(changes)
+        return Acquisition.from_dict(data)
 
     @property
     def n(self) -> int:

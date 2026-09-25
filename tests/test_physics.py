@@ -52,6 +52,20 @@ class ClosedFormTests(unittest.TestCase):
         s = SpinSystem(("1H", "1H"), np.array([[0, 7.0], [7.0, 0]]))
         self.assertEqual(len(compute_transitions(s)), 0)
 
+    def test_global_sign_flip_leaves_spectrum_unchanged(self):
+        system = random_system(("1H", "13C", "1H", "15N", "1H"), 21)
+        flipped = SpinSystem(system.isotopes, -system.couplings_hz)
+        a, b = compute_transitions(system), compute_transitions(flipped)
+        np.testing.assert_allclose(a.frequencies_hz, b.frequencies_hz, atol=1e-9)
+        np.testing.assert_allclose(a.amplitudes, b.amplitudes, atol=1e-12)
+
+    def test_relative_sign_is_observable(self):
+        j = np.array([[0, 140.0, -5.0], [140.0, 0, 7.0], [-5.0, 7.0, 0]])
+        a = compute_transitions(SpinSystem(("13C", "1H", "1H"), j))
+        j2 = j.copy(); j2[0, 2] = j2[2, 0] = 5.0
+        b = compute_transitions(SpinSystem(("13C", "1H", "1H"), j2))
+        self.assertFalse(len(a) == len(b) and np.allclose(a.frequencies_hz, b.frequencies_hz))
+
     def test_negative_coupling_same_frequency_magnitude(self):
         pos = compute_transitions(xh_n(1, 90.0))
         neg = compute_transitions(xh_n(1, -90.0))

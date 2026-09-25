@@ -49,6 +49,16 @@ class SpinSystemTests(unittest.TestCase):
         self.assertAlmostEqual(match.rms_error_hz, 0.0, places=12)
         np.testing.assert_allclose(shuffled.permute(match.permutation).couplings_hz, s.couplings_hz)
 
+    def test_global_sign_equivalence(self):
+        s = isopropyl_like()
+        flipped = SpinSystem(s.isotopes, -s.couplings_hz)
+        self.assertEqual(best_permutation(s, flipped).sign, -1)
+        self.assertAlmostEqual(best_permutation(s, flipped).rms_error_hz, 0.0)
+        self.assertGreater(best_permutation(s, flipped, allow_global_sign=False).rms_error_hz, 1.0)
+        c1 = canonicalize(s, ("13C", "1H"))
+        c2 = canonicalize(flipped, ("13C", "1H"))
+        np.testing.assert_allclose(c1.observable_couplings(), c2.observable_couplings())
+
     def test_matching_rejects_different_composition(self):
         a = isopropyl_like()
         b = SpinSystem(("1H",) * 6 + ("13C", "13C"), np.zeros((8, 8)))
@@ -63,7 +73,7 @@ class SpinSystemTests(unittest.TestCase):
         b = a + noise + noise.T
         sa, sb = SpinSystem(iso, a), SpinSystem(iso, b)
         best = min(((a - b[np.ix_(p, p)]) ** 2).sum() for p in all_isotope_preserving_permutations(iso))
-        m = best_permutation(sa, sb)
+        m = best_permutation(sa, sb, allow_global_sign=False)
         got = ((a - b[np.ix_(m.permutation, m.permutation)]) ** 2).sum()
         self.assertAlmostEqual(got, best, places=10)
 

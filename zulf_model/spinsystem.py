@@ -213,7 +213,27 @@ def canonical_permutation(system: SpinSystem, nuclei_order: Sequence[str]) -> Li
     return [i for group in canonical_group_order(system, nuclei_order) for i in group]
 
 
-def canonicalize(system: SpinSystem, nuclei_order: Sequence[str]) -> SpinSystem:
+def canonical_sign(system: SpinSystem) -> int:
+    """Global sign making the largest-magnitude observable heteronuclear coupling positive.
+
+    Falls back to the largest observable coupling of any kind; returns +1 for a
+    system without observable couplings.
+    """
+    j = system.observable_couplings()
+    iso = np.array(system.isotopes, dtype=object)
+    hetero = iso[:, None] != iso[None, :]
+    for mask in (hetero, np.ones_like(hetero)):
+        values = np.where(mask, j, 0.0)
+        idx = np.unravel_index(np.argmax(np.abs(values)), values.shape)
+        if abs(values[idx]) > 0:
+            return 1 if values[idx] > 0 else -1
+    return 1
+
+
+def canonicalize(system: SpinSystem, nuclei_order: Sequence[str], fix_sign: bool = True) -> SpinSystem:
+    """Canonical spin order and (optionally) canonical global J sign."""
+    if fix_sign and canonical_sign(system) < 0:
+        system = SpinSystem(system.isotopes, -system.couplings_hz, system.groups)
     return system.permute(canonical_permutation(system, nuclei_order))
 
 
@@ -228,20 +248,31 @@ class MatchResult:
     max_abs_error_hz: float
     exact: bool
     nodes: int
+    sign: int = 1
 
     @property
     def matched(self) -> bool:
         return self.permutation is not None
 
 
-def best_permutation(reference: SpinSystem, other: SpinSystem, node_limit: int = 200000) -> MatchResult:
+def best_permutation(reference: SpinSystem, other: SpinSystem, node_limit: int = 200000,
+                     allow_global_sign: bool = True) -> MatchResult:
     """Find the isotope-preserving relabelling of `other` closest to `reference`.
 
-    Returns `permutation` such that `other.permute(permutation)` is compared with
-    `reference` elementwise. Uses branch and bound on the squared coupling
-    error; `exact` is False when the node limit stopped the search, in which case
-    the best permutation found (seeded by an assignment heuristic) is returned.
+    Returns `permutation` and `sign` such that `sign * other.permute(permutation)`
+    is compared with `reference` on observable couplings. A global sign flip of
+    every J leaves a zero-field spectrum unchanged under the default protocol,
+    so it is allowed by default. Uses branch and bound on the squared coupling
+    error; `exact` is False when the node limit stopped the search.
     """
+    if allow_global_sign:
+        plus = best_permutation(reference, other, node_limit, False)
+        flipped = SpinSystem(other.isotopes, -other.couplings_hz, other.groups)
+        minus = best_permutation(reference, flipped, node_limit, False)
+        if minus.matched and minus.rms_error_hz < plus.rms_error_hz:
+            minus.sign = -1
+            return minus
+        return plus
     n = reference.n_spins
     if other.n_spins != n or sorted(reference.isotopes) != sorted(other.isotopes):
         return MatchResult(None, math.inf, math.inf, True, 0)

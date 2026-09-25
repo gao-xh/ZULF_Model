@@ -55,6 +55,12 @@ spectrum. This matches `ZULF_Analysis_Tools` (x preparation and detection).
 Ideal instantaneous rotations can be inserted after the drop through
 `Protocol.pulses`; they are an extension point and not part of v1 data.
 
+## Global sign
+
+Negating every J leaves the zero-field spectrum unchanged for real preparation
+and detection operators. Comparisons allow one global sign flip; canonical
+forms make the largest observable heteronuclear coupling positive.
+
 ## Transition lists
 
 Using eigenvectors with ascending energies, each pair `a < b` with
@@ -71,14 +77,20 @@ an explicit, recorded relative threshold.
 
 ## Acquisition and preprocessing (single operator)
 
-The experimental FID is a real sequence `x[m]`, `m = 0..N-1`, sampled at
-`fs`, recorded at time `t_m = time_origin_s + m / fs`.
+Every processing step is optional and off by default (the pure route). An
+experimental recipe turns steps on explicitly in `configs/acquisition_*.json`.
+A second pure route, `ContinuousRenderer`, gives infinite-record Lorentzian
+spectra with no sampling at all.
 
-1. Savitzky-Golay baseline subtraction on the full record with mirror edges:
-   `y = x - savgol_filter(x, sg_window, sg_order, mode="mirror")`. Window 0
-   disables this step.
-2. Crop to samples `start_sample <= m < stop_sample`; `n = stop - start`.
-3. Optional removal of the retained mean (default true).
+The FID is a real sequence `x[m]`, `m = 0..N-1`, sampled at `fs`, recorded at
+time `t_m = time_origin_s + m / fs` (default origin 0).
+
+1. Optional Savitzky-Golay baseline subtraction on the full record with mirror
+   edges: `y = x - savgol_filter(x, sg_window, sg_order, mode="mirror")`.
+   Window 0 (default) disables this step.
+2. Optional crop to samples `start_sample <= m < stop_sample`;
+   `n = stop - start` (default: the full record).
+3. Optional removal of the retained mean (default false).
 4. Spectrum at any frequency `f`:
    `X(f) = (1/n) sum_{m=start}^{stop-1} y[m] exp(-2 pi i f (m - start) / fs)`.
 

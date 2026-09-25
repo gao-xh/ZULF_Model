@@ -95,6 +95,27 @@ class RendererTests(unittest.TestCase):
         np.testing.assert_allclose(sorted(peaks), [140.0, 280.0], atol=acq.native_spacing_hz)
 
 
+class PureRouteTests(unittest.TestCase):
+    def test_default_acquisition_is_pure(self):
+        acq = Acquisition(1000.0, 4000)
+        self.assertTrue(acq.is_pure)
+        self.assertFalse(ACQS[1].is_pure)
+        self.assertTrue(ACQS[1].without_processing().is_pure)
+        rng = np.random.default_rng(0)
+        x = rng.normal(size=acq.points)
+        np.testing.assert_array_equal(process_record(x, acq), x)
+
+    def test_continuous_matches_long_finite_record(self):
+        from zulf_model.render import ContinuousRenderer
+        tl = random_transitions(11, count=6, f_max=300.0)
+        acq = Acquisition(1000.0, 40000)
+        grid = SpectrumGrid.for_acquisition(acq, 1, 400)
+        finite = Renderer(acq).render(tl, 3.0, grid.frequencies_hz)
+        # (1/n) sum_m x_m e^{-i w m} approximates (fs/n) integral; T = n / fs.
+        pure = ContinuousRenderer(acq.n / acq.sampling_rate_hz).render(tl, 3.0, grid.frequencies_hz)
+        self.assertLess(np.abs(finite - pure).max() / np.abs(finite).max(), 5e-3)
+
+
 class PerturbationTests(unittest.TestCase):
     def test_noise_level_calibration(self):
         acq = Acquisition(1000.0, 8000)

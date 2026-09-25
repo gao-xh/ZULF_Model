@@ -179,3 +179,43 @@ class Renderer:
         if include_dc:
             out += np.real(transitions.dc * gain)
         return out
+
+
+class ContinuousRenderer:
+    """Pure route: infinite-record spectrum with no sampling or processing.
+
+    X(f) = (1/T) integral_0^inf x(t) exp(-2 pi i f t) dt for the damped real FID,
+    i.e. complex Lorentzians at +f_k and their mirror terms at -f_k. `T`
+    (`normalization_s`) only sets the scale; with T equal to a record length
+    the result approximates the finite-record renderer when the signal has
+    decayed within that record. Rates must be positive.
+    """
+
+    def __init__(self, normalization_s: float = 1.0):
+        if not normalization_s > 0:
+            raise ValueError("normalization_s must be positive.")
+        self.normalization_s = normalization_s
+
+    def render(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
+               gain: complex = 1.0, phase_delay_s: float = 0.0) -> np.ndarray:
+        f = np.asarray(frequencies_hz, float)
+        if not len(transitions):
+            return np.zeros(len(f), complex)
+        fk = transitions.frequencies_hz
+        r = np.full(len(fk), float(rates)) if np.isscalar(rates) else np.asarray(rates, float)[transitions.families]
+        if np.any(r <= 0) or not np.isfinite(r).all():
+            raise ValueError("Continuous rendering needs finite positive rates.")
+        a = transitions.amplitudes * gain * np.exp(2j * np.pi * fk * phase_delay_s)
+        out = np.empty(len(f), complex)
+        step = max(1, 4_000_000 // max(1, len(fk)))
+        for first in range(0, len(f), step):
+            ff = f[first:first + step, None]
+            positive = (a / 2) / (r + 2j * np.pi * (ff - fk))
+            negative = (np.conj(a) / 2) / (r + 2j * np.pi * (ff + fk))
+            out[first:first + step] = (positive + negative).sum(axis=1)
+        return out / self.normalization_s
+
+    def render_pair(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
+                    phase_delay_s: float = 0.0) -> np.ndarray:
+        return np.column_stack([self.render(transitions, rates, frequencies_hz, 1.0, phase_delay_s),
+                                self.render(transitions, rates, frequencies_hz, 1j, phase_delay_s)])

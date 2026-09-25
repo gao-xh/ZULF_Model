@@ -68,6 +68,33 @@ J matrices with masks). The Transformer decodes a grammar-constrained token
 sequence over magnetic-equivalence groups. Both decode to `Interpretation`, so
 evaluation and solver are model-agnostic.
 
+## D10. Device policy for CUDA and Apple MPS (2026-09-25)
+
+Simulation and rendering run in NumPy float64 on the CPU (MPS lacks float64);
+networks train in float32 through `zulf_model.device`, which selects
+cuda, mps or cpu. AMP defaults to bf16/fp16 on CUDA and off on MPS.
+Checkpoints store CPU tensors and load with `map_location`.
+
+## D11. Processing is optional; the pure route is the default (2026-09-25)
+
+`Acquisition()` defaults to no crop, no SG, no mean removal and zero time
+origin. `ContinuousRenderer` gives infinite-record Lorentzian spectra with no
+sampling at all. Experimental recipes enable steps explicitly; training can
+use `processing.mode` = pure, fixed or randomized.
+
+## D12. Global J sign is unobservable (2026-09-25)
+
+Negating every J negates all energies; with real preparation and detection
+operators frequencies and amplitudes are unchanged (tested). Matching allows
+one global sign flip; canonical forms make the largest observable
+heteronuclear coupling positive. Relative signs remain observable (tested).
+Pulsed protocols with complex operators must revisit this.
+
+## D13. Signal-free components are rejected by the generator (2026-09-25)
+
+Components without an observable heteronuclear coupling (for example only
+protons) give no zero-field signal and are never emitted.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.
