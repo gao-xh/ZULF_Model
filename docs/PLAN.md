@@ -108,6 +108,24 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Train CNN+Transformer; compare (a) graph search, (b) CNN set, (c)
       CNN+Transformer under identical budgets.
 
+## Model optimization roadmap (from the second survey, docs/REFERENCES.md)
+
+Ordered by expected gain per effort; each item is measured on the same
+verification data before adoption.
+
+- [ ] Rerank the top-k beam by short solver fits (residual), adding mutation
+      neighbours (13C/15N swap, group size +/-1) for the observed confusions.
+- [~] Faster rendering: total-M blocks inside each collective sector (done,
+      exact, transition lists 42 ms -> 15 ms per 8-spin sample); next a
+      batched GPU renderer with blocks of at most 32.
+- [ ] J decoding: local expectation over bin probabilities, a Wasserstein
+      term over bin centres, then coarse-to-fine J tokens.
+- [ ] Weak components: explain-away second pass (fit, subtract, re-run),
+      noise-component augmentation and end-of-sequence down-weighting.
+- [ ] Encoder: peak-token stream with high-resolution frequency features and
+      pairwise frequency-difference attention; diverse beam search by
+      structure prefix.
+
 ## Phase 5: closed loop (continuous)
 
 - [ ] Dev-set failure mining and focused resampling rounds; each round records

@@ -92,3 +92,47 @@ system inversion was found (confirm with a Scholar search).
    calibration against DFT J data (CHAMPS, IMPRESSION-G2) is a Phase 1 task.
 7. First real benchmark candidates: Andrews et al. 2026 molecules and the
    local isopropylamine data; ZULFPy is a simulator and solver comparison.
+
+## Second survey: optimizations for the current bottlenecks (2026-09-25)
+
+Bottlenecks from the CPU verification runs: (a) J-token accuracy within one
+bin about 12 percent; (b) weak second components missed; (c) 13C versus 15N
+and proton-count confusion; (d) top-1 far below top-10; (e) rendering
+throughput. Tags as above; arxiv, PubMed and ScienceDirect pages could not be
+opened from the environment, so [V] here means confirmed from search snippets
+or opened GitHub pages.
+
+| Item | Link | How to apply |
+| --- | --- | --- |
+| Farebrother et al. 2024 ICML, "Stop Regressing" (HL-Gauss) [V] | https://arxiv.org/abs/2403.03950 | Our soft neighbour-bin targets are close already; decode J by the local expectation over bin probabilities instead of the argmax, sigma relative to the nonuniform bin width (a). |
+| Imani, White et al. 2026 JMLR, histogram loss [V] | https://github.com/marthawhite/Histogram_loss | Gains come from optimization; keep classification for J (a). |
+| Song and Bahri 2025 TMLR, decoding-based regression [V] | https://arxiv.org/abs/2501.19383 | Coarse-to-fine J: a coarse token (about 2 Hz) then a fine token (about 0.1 Hz), smaller better-populated softmaxes (a). |
+| Zausinger et al. 2025 ICML, Number Token Loss [V] | https://github.com/tum-ai/number-token-loss | Add a Wasserstein term over J-bin centres to the token loss (a). |
+| Golkar et al. 2023, xVal [V] | https://arxiv.org/abs/2310.02989 | Continuous embedding of already decoded J as decoder input; weaker as an output head. |
+| Li, He et al. 2024 NeurIPS, per-token diffusion loss [V] | https://arxiv.org/abs/2406.11838 | Heavier continuous J head; low priority. |
+| PANPE 2024, reflectorch (MIT, GPU simulator) [V] | https://github.com/schreiber-lab/reflectorch | Network proposals plus likelihood refinement of many candidates; template for on-GPU simulation in training (d, e). |
+| SpecCal 2026 [V] | https://arxiv.org/abs/2607.27788 | Rerank beam candidates by solver residual after a short fit; add mutation neighbours (13C/15N swap, group size +/-1) (c, d). |
+| Casanovo 2024 Nat. Commun. (Apache-2.0) [V] | https://github.com/Noble-Lab/casanovo | Cheap physical consistency filters inside beam search (d). |
+| BayesFlow [V] | https://github.com/bayesflow-org | Calibrated structure classifier as reranker (d). |
+| DreaMS 2025 Nat. Biotechnol. (MIT) [V] | https://github.com/pluskal-lab/DreaMS | Peak tokens with high-resolution Fourier frequency features and pairwise-difference attention; differences encode J in ZULF (a). |
+| NMRTrans 2026 [V] | https://arxiv.org/abs/2602.10158 | Peak-set input for NMR performs well on experimental spectra (a). |
+| Pix2Seq 2022 ICLR [V] | https://arxiv.org/abs/2109.10852 | Fake-component sequence augmentation and EOS down-weighting to raise recall of weak components (b). |
+| NMRQNet 2023; Raman iterative unmixing 2025; DeepRaman 2023 [V] | https://github.com/XiaqiongFan/DeepRaman | Explain-away: fit the dominant component, subtract, re-run for the next (b). |
+| Asymmetric Loss, Ridnik et al. 2021 ICCV [V] | - | Existence and weight tokens; oversample 1-10 percent weights (b). |
+| Diverse Beam Search, Vijayakumar et al. AAAI 2018 [V] | https://arxiv.org/abs/1610.02424 | Group beams by structure prefix so top-10 differ in structure, not only in J (c, d). |
+| Scheduled sampling for transformers 2019 [V] | - | Two-pass decoding to reduce J-token error compounding (a). |
+| JMR 368:107792 2024, neural nets for strongly coupled spectra [V] | - | Simulated-only training; real-data obstacles reported. |
+| PINN for ABC/ABCD J extraction 2026 [V] | https://www.sciencedirect.com/science/article/pii/S2949747726000217 | Auxiliary losses from multiplet rules; peak-list input; physics refinement (a). |
+| 2D-JCOG 2026 Anal. Chem. [V] | - | Auxiliary head for which peak pairs share a J (a, c). |
+| Zaleski and Prozument 2018 J. Chem. Phys. 149, 104106 [V] | - | Rotational spectra: classify Hamiltonian type, then regress constants; supports structure-then-J. |
+| Stern and Sheberstov 2023 [V] | https://mr.copernicus.org/articles/4/87/2023/ | Block-diagonalize by total F_z (adopted: `physics.transitions` M blocks). |
+| PyTorch issue 175585 [V] | - | Batched CUDA eigh is fast up to n = 32 and slows sharply above; keep blocks at or below 32 for a GPU renderer (e). |
+
+No dedicated ML-for-ZULF paper from 2022-2026 was found; a DDNP-ZULF
+perspective (arXiv 2307.06973) proposes ML for the inverse problem [V].
+
+Ranked plan (gain per effort): (1) rerank top-k by short solver fits plus
+mutation neighbours; (2) GPU batched renderer on F_z blocks; (3) J decoding:
+local expectation, Wasserstein term, coarse-to-fine tokens; (4) explain-away
+second pass and Pix2Seq-style augmentation for weak components; (5) peak-token
+stream with pairwise frequency-difference attention and diverse beam search.

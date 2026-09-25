@@ -169,12 +169,15 @@ def _block_amplitudes(h: np.ndarray, rho: np.ndarray, det: np.ndarray, weight: f
 
 def compute_transitions(system: SpinSystem, protocol: Protocol = SUDDEN_DROP, method: str = "sectors",
                         tolerance_hz: float = MERGE_TOLERANCE_HZ,
-                        relative_zero: float = NUMERICAL_ZERO_RELATIVE) -> TransitionList:
+                        relative_zero: float = NUMERICAL_ZERO_RELATIVE, m_blocking: bool = True) -> TransitionList:
     """Transition list of one spin system under a protocol.
 
     `method="sectors"` combines each magnetic-equivalence group into collective
     spins and diagonalizes each product of total-spin sectors separately;
     `method="full"` diagonalizes the full product space (reference, small n).
+    With longitudinal preparation and detection and no transverse field or
+    pulse, each sector is further split by total M (`m_blocking`), which is
+    exact because coherences between different M carry no amplitude.
     """
     if method == "sectors":
         nodes = _node_structure(system)
@@ -194,6 +197,7 @@ def compute_transitions(system: SpinSystem, protocol: Protocol = SUDDEN_DROP, me
     amps: List[np.ndarray] = []
     dc = 0.0 + 0.0j
     pair_index = [(i, j) for i in range(len(nodes)) for j in range(i + 1, len(nodes)) if gj[i, j] != 0]
+    m_blocks = m_blocking and not protocol.pulses and protocol.field_ut[0] == 0.0 and protocol.field_ut[1] == 0.0
     for combo in itertools.product(*choices):
         spins = tuple(Fraction(s) for s, _ in combo)
         multiplicity = int(np.prod([m for _, m in combo]))
@@ -220,6 +224,21 @@ def compute_transitions(system: SpinSystem, protocol: Protocol = SUDDEN_DROP, me
             h_use = np.ascontiguousarray(np.real(h))
         else:
             h_use = np.asarray(h, complex)
+        if m_blocks:
+            # Longitudinal preparation and detection are diagonal in the product basis and the
+            # Hamiltonian conserves total M (zero field or a field along z), so coherences between
+            # different M carry no amplitude: diagonalize each M block separately (exact).
+            total_m = np.real(np.diag(sum(ops[2] for ops in site_ops)))
+            keys = np.round(2 * total_m).astype(int)
+            for value in np.unique(keys):
+                idx = np.flatnonzero(keys == value)
+                block = np.ix_(idx, idx)
+                f, a, block_dc = _block_amplitudes(h_use[block], rho[block], det[block], multiplicity * norm,
+                                                   tolerance_hz, real)
+                freqs.append(f)
+                amps.append(a.astype(complex))
+                dc += block_dc
+            continue
         f, a, block_dc = _block_amplitudes(h_use, rho, det, multiplicity * norm, tolerance_hz, real)
         freqs.append(f)
         amps.append(a.astype(complex))

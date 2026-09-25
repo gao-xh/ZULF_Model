@@ -144,5 +144,23 @@ class MergeTests(unittest.TestCase):
         self.assertLess(get_registry().gamma("15N"), 0)
 
 
+class MBlockingTests(unittest.TestCase):
+    def test_m_blocks_match_unblocked_sectors(self):
+        from zulf_model.generator import build_default_sampler
+        from zulf_model.physics.protocol import Protocol
+        from zulf_model.spec import ProblemSpec
+        t = np.linspace(0, 0.2, 60)
+        samples = build_default_sampler(ProblemSpec()).generate(6, seed=7)
+        for sample in samples:
+            for component in sample.interpretation.components:
+                for protocol in (Protocol(), Protocol(field_ut=(0.0, 0.0, 0.05))):
+                    blocked = compute_transitions(component.system, protocol, m_blocking=True)
+                    plain = compute_transitions(component.system, protocol, m_blocking=False)
+                    self.assertEqual(len(blocked), len(plain))
+                    ref = plain.signal(t)
+                    self.assertLess(np.max(np.abs(blocked.signal(t) - ref)), 1e-10 * np.max(np.abs(ref)))
+                    self.assertAlmostEqual(abs(blocked.dc - plain.dc), 0.0, delta=1e-10 * max(abs(plain.dc), 1.0))
+
+
 if __name__ == "__main__":
     unittest.main()
