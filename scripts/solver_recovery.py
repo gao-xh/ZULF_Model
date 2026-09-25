@@ -33,7 +33,7 @@ def main():
     parser.add_argument("--spin-counts", default="4,5,6")
     parser.add_argument("--tolerance-hz", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--strategies", default="local,search")
+    parser.add_argument("--strategies", default="local,search,anneal")
     parser.add_argument("--budget-s", type=float, default=900.0,
                         help="Wall-clock budget per refinement; budget exhaustion is recorded in the flags.")
     args = parser.parse_args()
@@ -49,6 +49,9 @@ def main():
         "local": RefineSettings(starts=1, policy=policy, max_seconds=args.budget_s, max_evaluations=20000),
         "search": RefineSettings(policy=policy, max_seconds=2 * args.budget_s, max_evaluations=20000,
                                  search=dict(popsize=10, maxiter=40, max_seconds=90, solutions=3)),
+        "anneal": RefineSettings(policy=policy, max_seconds=2 * args.budget_s, max_evaluations=20000,
+                                 search=dict(method="dual_annealing", annealing_maxiter=200, max_seconds=90,
+                                             solutions=3)),
     }
     chosen = [s for s in args.strategies.split(",") if s in strategies]
     rng = np.random.default_rng(args.seed)
