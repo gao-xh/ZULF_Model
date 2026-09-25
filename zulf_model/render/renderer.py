@@ -31,7 +31,9 @@ import numpy as np
 from scipy.special import wofz
 
 from ..physics.transitions import TransitionList
-from .acquisition import Acquisition, evaluate_spectrum, process_record
+from ..timing import Timer
+from .acquisition import Acquisition, _fft_length, evaluate_spectrum, process_record
+from .nufft import nufft_type1
 
 Rates = Union[float, Sequence[float], np.ndarray]
 
@@ -69,11 +71,17 @@ class Renderer:
     sampled path (time-domain synthesis followed by the acquisition operator).
     """
 
+    BACKENDS = ("auto", "analytic", "time")
+
     def __init__(self, acquisition: Acquisition, chunk_frequencies: int = 2048,
-                 stability_limit: float = 8.0):
+                 stability_limit: float = 8.0, backend: str = "auto", timer: Timer = None):
+        if backend not in self.BACKENDS:
+            raise ValueError(f"backend must be one of {self.BACKENDS}.")
         self.acq = acquisition
         self.chunk = chunk_frequencies
         self.stability_limit = stability_limit
+        self.backend = backend
+        self.timer = timer or Timer(enabled=False)
         self.sampled_calls = 0
         self.analytic_calls = 0
         self.coef = acquisition.sg_coefficients()
@@ -154,10 +162,13 @@ class Renderer:
         sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
         logz, c = self._modes(transitions, rates, gain, phase_delay_s)
         unstable = len(self.coef) and float(np.max(-logz.real)) * self.half > self.stability_limit
-        if unstable or np.any(sigma > 0):
+        use_time = self.backend == "time" or (self.backend == "auto" and (
+            unstable or np.any(sigma > 0) or _fft_length(f, self.acq) is not None))
+        if use_time:
             self.sampled_calls += 1
-            fid = self.synthesize(transitions, rates, gain, phase_delay_s, gaussian_sigma_hz=gaussian_sigma_hz)
-            return evaluate_spectrum(process_record(fid, self.acq), self.acq, f)
+            with self.timer.section("render.time_domain"):
+                fid = self.synthesize(transitions, rates, gain, phase_delay_s, gaussian_sigma_hz=gaussian_sigma_hz)
+                return evaluate_spectrum(process_record(fid, self.acq), self.acq, f)
         self.analytic_calls += 1
         if len(self.coef):
             gainz = 1 - np.exp(np.outer(self.offsets, logz)).T @ self.coef
@@ -188,22 +199,43 @@ class Renderer:
     # -- time-domain reference ---------------------------------------------------
     def synthesize(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
                    phase_delay_s: float = 0.0, include_dc: bool = False,
-                   gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
-        """Real FID over the full record (reference, Gaussian broadening, noise injection)."""
-        logz, c = self._modes(transitions, rates, gain, phase_delay_s)
+                   gaussian_sigma_hz: Rates = 0.0, method: str = "nufft") -> np.ndarray:
+        """Real FID over the full record.
+
+        x(t_m) = Re(sum_k A_k exp((2 pi i f_k - R_k) t_m - (2 pi sigma_k t_m)^2 / 2)),
+        t_m = time_origin + m / fs. Transitions sharing (R, sigma) are summed with
+        a type-1 NUFFT (`method="nufft"`, relative error about 1e-12) or directly
+        (`method="direct"`, reference).
+        """
+        acq = self.acq
+        out = np.zeros(acq.points)
+        if not len(transitions):
+            return out
+        f = transitions.frequencies_hz
+        r = _per_transition(rates, transitions, "Decay rates")
         sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
-        sigma_all = np.concatenate([sigma, sigma])
-        times = self.acq.times()
-        m = np.arange(self.acq.points)
-        out = np.zeros(self.acq.points)
-        step = max(1, 2_000_000 // max(1, len(logz)))
-        broadened = bool(np.any(sigma_all > 0))
-        for first in range(0, len(m), step):
-            block = m[first:first + step]
-            modes = np.exp(np.outer(block, logz))
-            if broadened:
-                modes = modes * np.exp(-0.5 * (2 * np.pi * np.outer(times[block], sigma_all)) ** 2)
-            out[first:first + step] = (modes @ c).real
+        a = transitions.amplitudes * gain * np.exp(2j * np.pi * f * (phase_delay_s + acq.time_origin_s))
+        times = acq.times()
+        omega = 2 * np.pi * f / acq.sampling_rate_hz
+        keys = np.stack([r, sigma], axis=1)
+        unique, inverse = np.unique(keys, axis=0, return_inverse=True)
+        inverse = np.asarray(inverse).ravel()
+        for g, (rate, sig) in enumerate(unique):
+            members = inverse == g
+            if method == "nufft":
+                with self.timer.section("render.nufft"):
+                    oscillation = nufft_type1(omega[members], a[members], acq.points)
+            elif method == "direct":
+                m = np.arange(acq.points)
+                oscillation = np.zeros(acq.points, complex)
+                step = max(1, 2_000_000 // max(1, int(members.sum())))
+                for first in range(0, acq.points, step):
+                    block = m[first:first + step]
+                    oscillation[first:first + step] = np.exp(1j * np.outer(block, omega[members])) @ a[members]
+            else:
+                raise ValueError("method must be 'nufft' or 'direct'.")
+            envelope = np.exp(-rate * times - 0.5 * (2 * np.pi * sig * times) ** 2)
+            out += (envelope * oscillation).real
         if include_dc:
             out += np.real(transitions.dc * gain)
         return out
@@ -226,13 +258,20 @@ class ContinuousRenderer:
 
     @staticmethod
     def _line(a: np.ndarray, r: np.ndarray, sigma: np.ndarray, offset: np.ndarray) -> np.ndarray:
-        """integral_0^inf a exp(-(r + 2 pi i offset) t - (2 pi sigma t)^2 / 2) dt, elementwise."""
+        """integral_0^inf a exp(-(r + 2 pi i offset) t - (2 pi sigma t)^2 / 2) dt, elementwise.
+
+        Columns with sigma = 0 are Lorentzian; others use the Faddeeva function:
+        integral = sqrt(pi / 2) / b * w(i k / (sqrt(2) b)), b = 2 pi sigma.
+        """
         k = r + 2j * np.pi * offset
-        lorentz = a / np.where(sigma > 0, 1.0, k)
-        b = np.where(sigma > 0, 2 * np.pi * sigma, 1.0)
-        # integral = sqrt(pi / (2 b^2)) * w(i k / (sqrt(2) b)), with w the Faddeeva function.
-        voigt = a * np.sqrt(np.pi / 2) / b * wofz(1j * k / (np.sqrt(2) * b))
-        return np.where(sigma > 0, voigt, lorentz)
+        out = np.empty(np.broadcast(a, k).shape, complex)
+        voigt = sigma > 0
+        lorentz = ~voigt
+        out[:, lorentz] = (a[lorentz] / k[:, lorentz])
+        if np.any(voigt):
+            b = 2 * np.pi * sigma[voigt]
+            out[:, voigt] = a[voigt] * np.sqrt(np.pi / 2) / b * wofz(1j * k[:, voigt] / (np.sqrt(2) * b))
+        return out
 
     def render(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
                gain: complex = 1.0, phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:

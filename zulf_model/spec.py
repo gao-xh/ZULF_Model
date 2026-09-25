@@ -11,7 +11,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -51,6 +51,7 @@ class GridSpec:
     f_min_hz: float = 1.0
     f_max_hz: float = 400.0
     zero_fill: int = 1
+    spacing_hz: Optional[float] = None
     channels: Tuple[str, ...] = ("real", "imag")
 
 

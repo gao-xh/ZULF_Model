@@ -54,17 +54,34 @@ class AcquisitionTests(unittest.TestCase):
 
 
 class RendererTests(unittest.TestCase):
-    def test_matches_time_domain_processing(self):
+    def test_analytic_matches_direct_time_domain_processing(self):
         tl = random_transitions(1)
         rates = np.array([0.7, 40.0])
         for acq in ACQS:
-            renderer = Renderer(acq)
+            renderer = Renderer(acq, backend="analytic")
             for zf in (1, 3):
                 grid = SpectrumGrid.for_acquisition(acq, 1, 390, zf)
                 a = renderer.render(tl, rates, grid.frequencies_hz, gain=0.3 - 0.8j, phase_delay_s=0.002)
-                fid = renderer.synthesize(tl, rates, gain=0.3 - 0.8j, phase_delay_s=0.002)
+                fid = renderer.synthesize(tl, rates, gain=0.3 - 0.8j, phase_delay_s=0.002, method="direct")
                 b = evaluate_spectrum(process_record(fid, acq), acq, grid.frequencies_hz)
                 self.assertLess(np.abs(a - b).max() / np.abs(b).max(), 1e-10, msg=str(acq))
+
+    def test_time_backend_matches_analytic(self):
+        tl = random_transitions(6, count=40)
+        for acq in ACQS:
+            grid = SpectrumGrid.for_acquisition(acq, 1, 390, 2)
+            a = Renderer(acq, backend="analytic").render(tl, np.array([0.5, 3.0]), grid.frequencies_hz, 1 - 1j)
+            b = Renderer(acq, backend="time").render(tl, np.array([0.5, 3.0]), grid.frequencies_hz, 1 - 1j)
+            self.assertLess(np.abs(a - b).max() / np.abs(a).max(), 1e-9, msg=str(acq))
+
+    def test_nufft_matches_direct_sum(self):
+        from zulf_model.render.nufft import nufft_type1
+        rng = np.random.default_rng(3)
+        for n, k in ((257, 7), (4000, 300)):
+            w = rng.uniform(-np.pi, 2 * np.pi, k)
+            a = rng.normal(size=k) + 1j * rng.normal(size=k)
+            ref = np.exp(1j * np.outer(np.arange(n), w)) @ a
+            self.assertLess(np.abs(nufft_type1(w, a, n) - ref).max() / np.abs(ref).max(), 1e-10)
 
     def test_fast_decay_and_wide_window(self):
         acq = Acquisition(500.0, 3000, start_sample=20, sg_window=1001, sg_order=2)
@@ -72,7 +89,8 @@ class RendererTests(unittest.TestCase):
         renderer = Renderer(acq)
         grid = SpectrumGrid.for_acquisition(acq, 1, 240)
         a = renderer.render(tl, 60.0, grid.frequencies_hz)
-        b = evaluate_spectrum(process_record(renderer.synthesize(tl, 60.0), acq), acq, grid.frequencies_hz)
+        b = evaluate_spectrum(process_record(renderer.synthesize(tl, 60.0, method="direct"), acq), acq,
+                              grid.frequencies_hz)
         self.assertLess(np.abs(a - b).max() / np.abs(b).max(), 1e-9)
 
     def test_render_pair_linearity(self):

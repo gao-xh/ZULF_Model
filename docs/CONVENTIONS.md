@@ -98,10 +98,13 @@ Native bins are `f = k fs / n`. A zero-fill factor `z` gives `f = k fs/(n z)`;
 this is an exact evaluation of the same finite record, not added information.
 No apodization is applied. The first decoded point is retained.
 
-Simulated spectra go through exactly this operator: the renderer evaluates it
-analytically for damped oscillations, including mirror-edge SG corrections and
-mean removal, and is tested against time-domain synthesis followed by
-`process_record`.
+Simulated spectra go through exactly this operator. Two exact backends exist:
+the analytic backend evaluates it in closed form for damped oscillations
+(mirror-edge SG corrections, mean removal); the time backend synthesizes the
+FID with a type-1 NUFFT (relative error about 1e-12) and calls
+`process_record` and `evaluate_spectrum`. The time backend is chosen
+automatically when the grid is FFT-compatible or Gaussian broadening is used.
+Mixtures and nuisances are summed as one FID and processed once.
 
 ## Model input features
 

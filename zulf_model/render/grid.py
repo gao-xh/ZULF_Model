@@ -37,8 +37,22 @@ class SpectrumGrid:
         return cls(np.arange(k0, k1 + 1) * step, zero_fill)
 
     @classmethod
+    def uniform(cls, f_min_hz: float, f_max_hz: float, spacing_hz: float) -> "SpectrumGrid":
+        """Multiples of `spacing_hz` inside [f_min, f_max], excluding zero."""
+        k0 = max(1, int(math.ceil(f_min_hz / spacing_hz - 1e-9)))
+        k1 = int(math.floor(f_max_hz / spacing_hz + 1e-9))
+        if k1 < k0:
+            raise ValueError("Grid range contains no points.")
+        return cls(np.arange(k0, k1 + 1) * spacing_hz)
+
+    @classmethod
     def from_spec(cls, spec: GridSpec, acquisition: Acquisition) -> "SpectrumGrid":
-        return cls.for_acquisition(acquisition, spec.f_min_hz, spec.f_max_hz, spec.zero_fill)
+        """Model grid: explicit spacing if configured, else the full record's bins times zero fill.
+
+        Using the full (uncropped) record length keeps the grid fixed when crops vary.
+        """
+        spacing = spec.spacing_hz or acquisition.sampling_rate_hz / (acquisition.points * spec.zero_fill)
+        return cls.uniform(spec.f_min_hz, min(spec.f_max_hz, acquisition.nyquist_hz), spacing)
 
     def band_membership(self, ranges: Sequence[Tuple[float, float]]) -> np.ndarray:
         """Band index per grid point, -1 outside every band. Ranges must be disjoint."""

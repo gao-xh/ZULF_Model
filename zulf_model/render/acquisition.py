@@ -128,15 +128,28 @@ def process_record(fid: np.ndarray, acquisition: Acquisition) -> np.ndarray:
     return y
 
 
-def _zero_fill_factor(frequencies: np.ndarray, acquisition: Acquisition, max_factor: int = 64) -> Optional[int]:
-    """Return z if all frequencies lie on the grid k fs / (n z), else None."""
+def _fft_length(frequencies: np.ndarray, acquisition: Acquisition, max_factor: int = 64) -> Optional[int]:
+    """Return an FFT length M >= n such that every frequency is k fs / M, else None.
+
+    Covers native bins, integer zero filling, and uniform grids whose spacing
+    divides the sampling rate (for example a fixed model grid used with a
+    cropped record).
+    """
     f = np.asarray(frequencies, float)
+    fs, n = acquisition.sampling_rate_hz, acquisition.n
     if not len(f):
-        return 1
-    for z in range(1, max_factor + 1):
-        k = f * acquisition.n * z / acquisition.sampling_rate_hz
+        return n
+    candidates = [n * z for z in range(1, max_factor + 1)]
+    if len(f) > 1:
+        spacing = float(np.min(np.diff(f)))
+        if spacing > 0:
+            m = int(round(fs / spacing))
+            if m >= n and m <= n * max_factor * 4:
+                candidates.insert(0, m)
+    for m in candidates:
+        k = f * m / fs
         if np.allclose(k, np.round(k), atol=1e-6, rtol=0) and np.all(np.round(k) >= 0):
-            return z
+            return m
     return None
 
 
@@ -152,10 +165,10 @@ def evaluate_spectrum(processed: np.ndarray, acquisition: Acquisition, frequenci
     if y.shape[-1] != n:
         raise ValueError("Processed record length does not match the acquisition.")
     f = np.asarray(frequencies_hz, float)
-    z = _zero_fill_factor(f, acquisition)
-    if z is not None:
-        spectrum = np.fft.rfft(y, n=n * z, axis=-1) / n
-        k = np.round(f * n * z / acquisition.sampling_rate_hz).astype(int)
+    m_fft = _fft_length(f, acquisition)
+    if m_fft is not None:
+        spectrum = np.fft.rfft(y, n=m_fft, axis=-1) / n
+        k = np.round(f * m_fft / acquisition.sampling_rate_hz).astype(int)
         return spectrum[..., k]
     m = np.arange(n)
     out = np.empty(y.shape[:-1] + (len(f),), dtype=complex)

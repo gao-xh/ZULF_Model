@@ -159,14 +159,37 @@ def additive_time_domain(acquisition: Acquisition, params: RenderParams, signal_
     return fid
 
 
+def mixture_fid(renderer: Renderer, transitions: Sequence[TransitionList], params: RenderParams,
+                contributions: Sequence[float]) -> np.ndarray:
+    """Noiseless real FID of the whole mixture over the full record."""
+    total = np.zeros(renderer.acq.points)
+    phase = np.exp(1j * params.global_phase_rad)
+    for tl, comp, weight in zip(transitions, params.components, contributions):
+        labelled = tl.split_families(comp.family_edges_hz)
+        total += renderer.synthesize(labelled, comp.rates_per_s, comp.gain * phase * weight,
+                                     params.phase_delay_s, gaussian_sigma_hz=comp.gaussian_sigma_hz)
+    return total
+
+
 def render_observation(renderer: Renderer, transitions: Sequence[TransitionList], params: RenderParams,
                        frequencies_hz: np.ndarray, contributions: Sequence[float]) -> Tuple[np.ndarray, np.ndarray]:
-    """Return (noisy spectrum, noiseless spectrum) on `frequencies_hz`."""
-    clean = render_signal(renderer, transitions, params, frequencies_hz, contributions)
+    """Return (noisy spectrum, noiseless spectrum) on `frequencies_hz`.
+
+    Signal and nuisances are summed as one real FID, which then passes once
+    through the acquisition operator, exactly as experimental data would.
+    """
+    acq = renderer.acq
+    timer = renderer.timer
+    with timer.section("observation.synthesize"):
+        clean_fid = mixture_fid(renderer, transitions, params, contributions)
+    with timer.section("observation.process"):
+        clean = evaluate_spectrum(process_record(clean_fid, acq), acq, frequencies_hz)
     if params.snr is None:
         return clean.copy(), clean
     peak = float(np.abs(clean).max()) if len(clean) else 0.0
     noise_std = peak / params.snr if peak > 0 else 1.0
-    fid = additive_time_domain(renderer.acq, params, peak, noise_std)
-    extra = evaluate_spectrum(process_record(fid, renderer.acq), renderer.acq, frequencies_hz)
-    return clean + extra, clean
+    with timer.section("observation.nuisance"):
+        fid = clean_fid + additive_time_domain(acq, params, peak, noise_std)
+    with timer.section("observation.process"):
+        noisy = evaluate_spectrum(process_record(fid, acq), acq, frequencies_hz)
+    return noisy, clean

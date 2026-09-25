@@ -15,11 +15,11 @@ fixed, so later phases are experiments rather than restructuring.
 | Step | Deliverable | Status | Tests |
 | --- | --- | --- | --- |
 | A1 | Docs: architecture, conventions, decisions, agent rules | [x] | `scripts/check_ascii.py` |
-| A2 | `ProblemSpec` single source of problem dimensions | [ ] | `tests/test_spec.py` |
-| A3 | Nucleus registry, `SpinSystem`, `Component`, `Interpretation`, equivalence, permutation matching, JSON | [ ] | `tests/test_spinsystem.py` |
-| A4 | Physics: operators, collective sectors, transitions, protocol | [ ] | `tests/test_physics.py` |
-| A5 | Rendering: acquisition operator, analytic renderer, perturbations, features | [ ] | `tests/test_render.py` |
-| A6 | Generator: graphs, coupling rules, isotopologues, random J, sources, splits, storage | [ ] | `tests/test_generator.py` |
+| A2 | `ProblemSpec` single source of problem dimensions | [x] | `tests/test_spec.py` |
+| A3 | Nucleus registry, `SpinSystem`, `Component`, `Interpretation`, equivalence, permutation matching, JSON | [x] | `tests/test_spinsystem.py` |
+| A4 | Physics: operators, collective sectors, transitions, protocol | [x] | `tests/test_physics.py` |
+| A5 | Rendering: optional processing operator, analytic + NUFFT time-domain renderers, continuous Voigt route, perturbations, features, sample pipeline, timers | [x] | `tests/test_render.py` |
+| A6 | Generator: graphs, coupling rules, isotopologues, random J, sources, splits, storage | [x] | `tests/test_generator.py` |
 | A7 | Codec: canonical order, J bins, tokens, grammar, set targets | [ ] | `tests/test_codec.py` |
 | A8 | Models: interface, CNN encoder, set baseline, CNN+Transformer, beam search | [ ] | `tests/test_models.py` |
 | A9 | Training: datasets, losses, metrics, trainer, curriculum, checkpoints | [ ] | `tests/test_training.py` |
@@ -81,4 +81,12 @@ fixed, so later phases are experiments rather than restructuring.
 
 ## Measurements
 
-No measurements recorded yet.
+CPU container (4 cores, no GPU), commit after "NUFFT renderer":
+
+| Quantity | Value |
+| --- | --- |
+| Transition list, 8-spin CHN component, median over generated samples | about 140 transitions |
+| NUFFT synthesis, 2000 transitions x 16384 samples | 8.5 ms, relative error 6e-12 |
+| Rendered training sample (mixture, noise, randomized processing, 16384-point record, 6537-point grid) | about 60 ms, of which about 39 ms transition lists (cached per system) |
+| Continuous (infinite-record) route, same grid | about 0.5-0.9 s per sample (exact reference route, not for bulk training) |
+| Sampler acceptance (8-spin natural isotopologues by rejection) | about 0.27 |
