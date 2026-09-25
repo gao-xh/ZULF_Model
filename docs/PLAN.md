@@ -96,8 +96,11 @@ isopropylamine, tert-butylamine, diethylamine (neat and 50% in d-benzene),
 dipropylamine (several dilutions), triethylamine, ethylenediamine,
 N-ethylmethylamine, N,N-dimethylethylenediamine, pyridine series including 1%
 15N-enriched, L-alanine, L-lactic acid, WC in CDCl3, Nsime3, ethanol,
-methyl dimethylphosphonate. Container access to drive.google.com is currently
-blocked by the environment network policy; averaged FIDs can be uploaded instead.
+methyl dimethylphosphonate; a "py_dil" folder adds 10 and 33 mol% pyridine.
+The Drive connector can list these files but returns content inline, which does
+not scale to zips of this size, and direct download hosts are blocked by the
+environment network policy. Averaged FIDs (npy plus ini, a few MB each) can be
+uploaded instead.
 Isopropylamine is the development molecule (never a blind test); blind-test
 candidates are chosen from the rest before models are frozen (Q9).
 
