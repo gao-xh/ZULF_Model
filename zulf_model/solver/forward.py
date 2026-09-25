@@ -90,6 +90,43 @@ class MixtureForward:
                                                       delay, self.p.sigma(values, c)))
         return cols
 
+    def nuisance_columns(self, values: Dict[str, float]) -> np.ndarray:
+        """One complex column per real nuisance amplitude, through the observed operator."""
+        terms = self.p.policy.nuisance
+        if not terms:
+            return np.zeros((len(self.f), 0), complex)
+        acq = self.obs.acquisition
+        if acq is None:
+            raise ValueError("Nuisance terms need a finite-record acquisition.")
+        fs = acq.sampling_rate_hz
+        t0 = acq.time_origin_s
+        cols = []
+        with self.timer.section("solver.nuisance"):
+            for i, term in enumerate(terms):
+                kind = term["kind"]
+                if kind == "exponential":
+                    rate = math.exp(values[f"n{i}.log_rate"])
+                    logz = np.array([-rate / fs])
+                    c = np.array([math.exp(-rate * t0)])
+                    cols.append(self.renderer.render_modes(logz, c, self.f)[:, 0])
+                elif kind == "damped_sinusoid":
+                    rate = math.exp(values[f"n{i}.log_rate"])
+                    lam = -rate + 2j * math.pi * values[f"n{i}.frequency"]
+                    logz = np.array([lam, np.conj(lam)]) / fs
+                    base = np.exp(np.array([lam, np.conj(lam)]) * t0) / 2
+                    cos_c = base
+                    sin_c = base * np.array([-1j, 1j])
+                    cols.extend(self.renderer.render_modes(logz, np.column_stack([cos_c, sin_c]), self.f).T)
+                elif kind == "template":
+                    from ..render.acquisition import evaluate_spectrum, process_record
+                    template = np.asarray(term["template"], float)
+                    shift = values.get(f"n{i}.shift_s", 0.0)
+                    if shift:
+                        times = np.arange(len(template)) / fs
+                        template = np.interp(times - shift, times, template, left=template[0], right=template[-1])
+                    cols.append(evaluate_spectrum(process_record(template, acq), acq, self.f))
+        return np.column_stack(cols) if cols else np.zeros((len(self.f), 0), complex)
+
     def _background_columns(self) -> np.ndarray:
         """Complex polynomial (Legendre-scaled coordinate) per band: columns 1 and i per power."""
         bands = np.unique(self.band)
@@ -108,6 +145,17 @@ class MixtureForward:
         return out
 
     @staticmethod
+    def _background_real(background: np.ndarray, n_columns: int) -> np.ndarray:
+        """Real coefficient vector from the complex packing used in results.
+
+        Background coefficients are stored as complex numbers packing pairs of
+        real column coefficients (re, im); a trailing odd column stores its
+        real coefficient in the real part.
+        """
+        real = np.ravel(np.column_stack([background.real, background.imag]))
+        return real[:n_columns]
+
+    @staticmethod
     def _real_system(design: np.ndarray, target: np.ndarray, weight: np.ndarray):
         a = np.vstack([(design * weight[:, None]).real, (design * weight[:, None]).imag])
         b = np.r_[(target * weight).real, (target * weight).imag]
@@ -119,9 +167,12 @@ class MixtureForward:
         cols = self.component_columns(values)
         n_comp = len(cols)
         bg_cols = self._background_columns() if self.background else np.zeros((len(self.f), 0), complex)
+        nuisance = self.nuisance_columns(values)
+        if nuisance.shape[1]:
+            bg_cols = np.column_stack([bg_cols, nuisance])
         if fixed_gains is not None:
             gains = np.asarray(fixed_gains, complex)
-            background = np.zeros(bg_cols.shape[1] // 2, complex) if fixed_background is None else fixed_background
+            background = np.zeros((bg_cols.shape[1] + 1) // 2, complex) if fixed_background is None else fixed_background
         elif self.gain_model == "complex":
             design = np.column_stack(cols + [bg_cols]) if n_comp else bg_cols
             a, b = self._real_system(design, self.y, self.weight)
@@ -129,13 +180,15 @@ class MixtureForward:
             coef = np.linalg.lstsq(a / norms, b, rcond=1e-10)[0] / norms
             gains = coef[0:2 * n_comp:2] + 1j * coef[1:2 * n_comp:2]
             rest = coef[2 * n_comp:]
+            if len(rest) % 2:
+                rest = np.r_[rest, 0.0]
             background = rest[0::2] + 1j * rest[1::2]
         else:
             gains, background = self._shared_phase(cols, bg_cols)
         model = sum(col @ np.array([g.real, g.imag]) for col, g in zip(cols, gains)) if n_comp else 0
         component_spectra = [col @ np.array([g.real, g.imag]) for col, g in zip(cols, gains)]
         if len(background):
-            model = model + bg_cols @ np.ravel(np.column_stack([background.real, background.imag]))
+            model = model + bg_cols @ self._background_real(background, bg_cols.shape[1])
         diff = (model - self.y) * self.weight / self.norm
         residual = np.r_[diff.real, diff.imag]
         return Prediction(np.asarray(model, complex), component_spectra, gains, np.asarray(background, complex),
@@ -224,5 +277,7 @@ class MixtureForward:
             fitted = sum(np.cos(phi) * a * col[:, 0] + np.sin(phi) * a * col[:, 1] for a, col in zip(amp, cols))
             ab, target = self._real_system(bg_cols, self.y - fitted, self.weight)
             coef = np.linalg.lstsq(ab, target, rcond=1e-12)[0]
+            if len(coef) % 2:
+                coef = np.r_[coef, 0.0]
             background = coef[0::2] + 1j * coef[1::2]
         return gains, background

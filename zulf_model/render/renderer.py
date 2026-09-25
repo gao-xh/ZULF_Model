@@ -203,7 +203,6 @@ class Renderer:
 
     def _analytic(self, transitions: TransitionList, rates: Rates, f: np.ndarray, gains, phase_delay_s: float):
         """Analytic processed spectra for several gains at once: shape (F, len(gains))."""
-        self.analytic_calls += 1
         logz, c_unit = self._modes(transitions, rates, 1.0, phase_delay_s)
         half = len(logz) // 2
         coeffs = []
@@ -212,7 +211,23 @@ class Renderer:
             c[:half] *= g
             c[half:] *= np.conj(g)
             coeffs.append(c)
-        c = np.column_stack(coeffs)                       # (2T, G)
+        return self.render_modes(logz, np.column_stack(coeffs), f)
+
+    def render_modes(self, logz: np.ndarray, c: np.ndarray, f: np.ndarray) -> np.ndarray:
+        """Processed spectra of x[m] = sum_j c[j, g] exp(logz_j m) for each column g: shape (F, G).
+
+        The caller supplies modes whose sums are real signals (conjugate pairs or
+        real exponentials). Used for transitions and for nuisance terms.
+        """
+        self.analytic_calls += 1
+        f = np.asarray(f, float)
+        c = np.asarray(c, complex)
+        if c.ndim == 1:
+            c = c[:, None]
+        if len(self.coef) and float(np.max(-logz.real)) * self.half > self.stability_limit:
+            m = np.arange(self.acq.points)
+            signals = np.stack([(np.exp(np.outer(m, logz)) @ c[:, g]).real for g in range(c.shape[1])])
+            return evaluate_spectrum(process_record(signals, self.acq), self.acq, f).T
         if len(self.coef):
             gainz = 1 - np.exp(np.outer(self.offsets, logz)).T @ self.coef
         else:

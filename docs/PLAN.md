@@ -24,8 +24,8 @@ fixed, so later phases are experiments rather than restructuring.
 | A8 | Models: interface, CNN encoder, set baseline, CNN+Transformer, beam search | [x] | `tests/test_models.py` |
 | A9 | Training: datasets, losses, metrics, trainer, curriculum, checkpoints | [x] | `tests/test_training.py` |
 | A10 | Solver: observed spectra, parameterization, forward, refine, batch, held-out, matched linewidth continuation | [x] | `tests/test_solver.py` |
-| A11 | Evaluation: proposers, identifiability, basin, benchmark | [ ] | `tests/test_evaluation.py` |
-| A12 | Fine-tuning: failure classification, focused sampling, loop | [ ] | `tests/test_finetune.py` |
+| A11 | Evaluation: proposers, identifiability, basin, benchmark | [~] | `tests/test_evaluation.py` |
+| A12 | Fine-tuning: failure classification, focused sampling, loop | [~] | `tests/test_finetune.py` |
 | A13 | CLI, configs, end-to-end smoke pipeline, throughput script | [ ] | `tests/test_cli.py`, `scripts/smoke_pipeline.py` |
 
 ## Phase 0: basis (plan week 1)
@@ -78,6 +78,25 @@ fixed, so later phases are experiments rather than restructuring.
 ## Phase 7 (optional): J to structure
 
 - [ ] Not started. The generator already records graphs for paired data.
+
+## Experimental data inventory (user Google Drive, "Metabolites/Low Gamma")
+
+"Good Scan Data" and "Raw Data" folders hold zipped NMRduino runs (0.2-2 GB each):
+isopropylamine, tert-butylamine, diethylamine (neat and 50% in d-benzene),
+dipropylamine (several dilutions), triethylamine, ethylenediamine,
+N-ethylmethylamine, N,N-dimethylethylenediamine, pyridine series including 1%
+15N-enriched, L-alanine, L-lactic acid, WC in CDCl3, Nsime3, ethanol,
+methyl dimethylphosphonate. Container access to drive.google.com is currently
+blocked by the environment network policy; averaged FIDs can be uploaded instead.
+Isopropylamine is the development molecule (never a blind test); blind-test
+candidates are chosen from the rest before models are frozen (Q9).
+
+Isopropylamine average (10000 scans, fs 4000 Hz, 65516 decoded points,
+16.4 s): the ADC plateau (about 28848) is present in every acquisition for the
+first about 3 ms, followed by about 500 Hz ringing decaying by about 25 ms and a
+slow baseline of about -1.5e4 ADC decaying over seconds. Three exponentials
+from 30 ms leave 73 ADC RMS versus 116 for SG801 (single test, not yet a
+chosen recipe). Processing parameters are chosen per dataset.
 
 ## Measurements
 

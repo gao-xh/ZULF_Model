@@ -48,11 +48,19 @@ class ParameterPolicy:
     initial_sigma_hz: float = 0.05
     fit_phase_delay: bool = False
     phase_delay_bounds_s: Tuple[float, float] = (-0.01, 0.01)
+    # Nuisance terms rendered through the same operator; linear amplitudes are real and unconstrained.
+    # {"kind": "exponential", "rate_bounds_per_s": [lo, hi], "initial_rate_per_s": r}
+    # {"kind": "damped_sinusoid", "frequency_bounds_hz": [lo, hi], "initial_frequency_hz": f,
+    #  "rate_bounds_per_s": [lo, hi], "initial_rate_per_s": r}
+    # {"kind": "template", "template": [...full-record samples...], "shift_bounds_s": [lo, hi]}
+    nuisance: Tuple[dict, ...] = ()
 
     @classmethod
     def from_dict(cls, data: dict) -> "ParameterPolicy":
-        return cls(**{k: (tuple(v) if isinstance(v, list) else v) for k, v in data.items()
-                      if k in cls.__dataclass_fields__})
+        data = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+        if "nuisance" in data:
+            data["nuisance"] = tuple(dict(t) for t in data["nuisance"])
+        return cls(**{k: (tuple(v) if isinstance(v, list) else v) for k, v in data.items()})
 
 
 @dataclass
@@ -106,6 +114,22 @@ class Parameterization:
         if policy.fit_phase_delay:
             lo, hi = policy.phase_delay_bounds_s
             params.append(Parameter("phase_delay", 0.0, lo, hi, True, "phase_delay"))
+        for i, term in enumerate(policy.nuisance):
+            kind = term.get("kind")
+            if kind in ("exponential", "damped_sinusoid"):
+                lo, hi = term.get("rate_bounds_per_s", (0.01, 100.0))
+                r0 = float(np.clip(term.get("initial_rate_per_s", math.sqrt(lo * hi)), lo, hi))
+                params.append(Parameter(f"n{i}.log_rate", math.log(r0), math.log(lo), math.log(hi), True,
+                                        "nuisance", -1, (i,)))
+            if kind == "damped_sinusoid":
+                lo, hi = term["frequency_bounds_hz"]
+                f0 = float(np.clip(term.get("initial_frequency_hz", (lo + hi) / 2), lo, hi))
+                params.append(Parameter(f"n{i}.frequency", f0, lo, hi, True, "nuisance", -1, (i,)))
+            if kind == "template" and term.get("shift_bounds_s"):
+                lo, hi = term["shift_bounds_s"]
+                params.append(Parameter(f"n{i}.shift_s", 0.0, lo, hi, True, "nuisance", -1, (i,)))
+            if kind not in ("exponential", "damped_sinusoid", "template"):
+                raise ValueError(f"Unknown nuisance kind '{kind}'.")
         return cls(layouts, params, {}, policy)
 
     # -- editing ------------------------------------------------------------------------

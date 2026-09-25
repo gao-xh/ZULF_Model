@@ -116,3 +116,30 @@ class SolverTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NuisanceTests(unittest.TestCase):
+    def test_exponential_baseline_and_ringing_are_absorbed(self):
+        truth = methyl_isotopologue()
+        acq = Acquisition(1000.0, 6000, start_sample=30)
+        renderer = Renderer(acq)
+        t = acq.times()
+        signal = renderer.synthesize(compute_transitions(truth), 1.5, gain=np.exp(0.4j))
+        baseline = -2e3 * np.exp(-0.8 * t) + 400 * np.exp(-12.0 * t)
+        ringing = 800 * np.exp(-60 * t) * np.cos(2 * np.pi * 180.0 * t + 0.3)
+        obs = ObservedSpectrum.from_fid(signal + baseline + ringing, acq, RANGES)
+        nuisance = ({"kind": "exponential", "rate_bounds_per_s": [0.2, 5.0], "initial_rate_per_s": 1.0},
+                    {"kind": "exponential", "rate_bounds_per_s": [5.0, 50.0], "initial_rate_per_s": 10.0},
+                    {"kind": "damped_sinusoid", "frequency_bounds_hz": [170.0, 190.0], "initial_frequency_hz": 181.0,
+                     "rate_bounds_per_s": [20.0, 200.0], "initial_rate_per_s": 50.0})
+        start = Interpretation((Component(perturbed(truth, 0.3)),))
+        plain = refine(start, obs, RefineSettings(starts=1, continuation_rates_per_s=(3.0, 0.0)))
+        modeled = refine(start, obs, RefineSettings(starts=1, continuation_rates_per_s=(3.0, 0.0),
+                                                    policy=ParameterPolicy(nuisance=nuisance)))
+        err_plain = best_permutation(truth, plain.interpretation.components[0].system).max_abs_error_hz
+        err_model = best_permutation(truth, modeled.interpretation.components[0].system).max_abs_error_hz
+        self.assertLess(modeled.relative_residual, 1e-4)
+        self.assertLess(err_model, 1e-3)
+        self.assertGreater(err_plain, 10 * err_model)
+        # Nuisance rates are weakly identified from band tails; only a loose check.
+        self.assertAlmostEqual(np.exp(modeled.parameters["n0.log_rate"]), 0.8, delta=0.04)
