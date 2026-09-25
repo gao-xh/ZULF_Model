@@ -122,6 +122,10 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Train CNN+Transformer; compare (a) graph search, (b) CNN set, (c)
       CNN+Transformer under identical budgets.
 
+> Note (D27): every coverage number above was measured with the
+> hash-seed-dependent split and is inflated by train/validation leakage;
+> clean re-runs after the fix are recorded below.
+
 ## Model optimization roadmap (from the second survey, docs/REFERENCES.md)
 
 Ordered by expected gain per effort; each item is measured on the same

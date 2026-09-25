@@ -142,11 +142,11 @@ class MoleculeGraph:
     def wl_colors(self, rounds: Optional[int] = None) -> List[int]:
         """Weisfeiler-Lehman color classes including isotope labels and bond orders."""
         n = self.n_atoms()
-        colors = [hash((self.elements[i], self.labels.get(i, ""), self.hybridization(i), self.aromatic[i]))
+        colors = [_stable_hash((self.elements[i], self.labels.get(i, ""), self.hybridization(i), self.aromatic[i]))
                   for i in range(n)]
         colors = _compress(colors)
         for _ in range(rounds or n):
-            new = [hash((colors[i], tuple(sorted((colors[k], self.bond_order(i, k)) for k in self.neighbors(i)))))
+            new = [_stable_hash((colors[i], tuple(sorted((colors[k], self.bond_order(i, k)) for k in self.neighbors(i)))))
                    for i in range(n)]
             new = _compress(new)
             if len(set(new)) == len(set(colors)):
@@ -179,6 +179,11 @@ class MoleculeGraph:
 
     def copy(self) -> "MoleculeGraph":
         return MoleculeGraph(list(self.elements), dict(self.bonds), list(self.aromatic), dict(self.labels))
+
+
+def _stable_hash(value) -> int:
+    """Process-independent hash (Python's hash() of strings changes with PYTHONHASHSEED)."""
+    return int(hashlib.blake2b(repr(value).encode(), digest_size=8).hexdigest(), 16)
 
 
 def _compress(values: Sequence[int]) -> List[int]:

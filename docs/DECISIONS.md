@@ -255,6 +255,23 @@ continuation (D14): data and model are broadened identically and the
 broadening is lowered step by step. Which global method recovers more
 systems is to be measured with `scripts/solver_recovery.py`.
 
+## D27. Generator output must not depend on the Python hash seed (2026-09-25)
+
+`MoleculeGraph.wl_colors` used Python's `hash()`, which is randomized per
+process for strings. Colour numbering, skeleton hashes and therefore family
+ids and the train/val/test split differed between processes, and the same
+seed produced different molecules. Pre-rendering with several worker
+processes mixed split definitions, so the training-time validation set of the
+CPU verification runs overlapped with training families: the logged coverage
+(CNN+Transformer structure@10 0.45, J@10 0.30) is inflated. Re-evaluating
+the same checkpoint in a fresh process gave structure@10 0.15-0.19 and J@10
+about 0.01-0.02 (still not clean, since that process's split also overlaps
+the workers'). Fix: a hashlib-based stable hash; a regression test runs the
+generator under three PYTHONHASHSEED values and requires identical samples
+and splits. All verification numbers recorded before this fix are
+superseded; relative comparisons made inside one process (set versus
+sequence model, beam versus solver rerank) keep their direction.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

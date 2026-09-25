@@ -123,5 +123,29 @@ class SamplerTests(unittest.TestCase):
         self.assertEqual([s.to_dict() for s in again], [s.to_dict() for s in samples])
 
 
+class CrossProcessDeterminismTests(unittest.TestCase):
+    def test_samples_and_splits_do_not_depend_on_python_hash_seed(self):
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+        code = ("import hashlib, json\n"
+                "from zulf_model.generator import build_default_sampler\n"
+                "from zulf_model.spec import ProblemSpec\n"
+                "s = build_default_sampler(ProblemSpec(spin_counts=(4, 5, 6), max_components=2))\n"
+                "xs = list(s.generate(12, seed=5, split='val')) + list(s.generate(12, seed=5, split='train'))\n"
+                "print(hashlib.sha256(json.dumps([[x.family_id, x.interpretation.to_dict()] for x in xs], "
+                "sort_keys=True, default=str).encode()).hexdigest())\n")
+        root = str(Path(__file__).resolve().parents[1])
+        digests = set()
+        for seed in ("1", "2", "977"):
+            env = dict(os.environ, PYTHONHASHSEED=seed)
+            out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=root,
+                                 timeout=300)
+            self.assertEqual(out.returncode, 0, msg=out.stderr)
+            digests.add(out.stdout.strip())
+        self.assertEqual(len(digests), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
