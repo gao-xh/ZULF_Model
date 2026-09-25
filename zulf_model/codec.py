@@ -293,12 +293,27 @@ class InterpretationCodec:
             components.append(Component(system, weight, "decoded"))
         return Interpretation(tuple(components), score)
 
+    # -- group classes ------------------------------------------------------------------
+    @property
+    def n_group_classes(self) -> int:
+        """Number of (nucleus, size) classes; the padding class has this index."""
+        return len(self.spec.nuclei) * self.spec.max_group_size
+
+    def group_class(self, nucleus: str, size: int) -> int:
+        return self.spec.nucleus_index(nucleus) * self.spec.max_group_size + (size - 1)
+
+    def class_group(self, index: int) -> Tuple[str, int]:
+        return self.spec.nuclei[index // self.spec.max_group_size], index % self.spec.max_group_size + 1
+
     # -- padded set targets ----------------------------------------------------------
     def encode_set(self, interpretation: Interpretation) -> Dict[str, np.ndarray]:
-        """Fixed-size targets with masks: K = max_components, S = max_spins.
+        """Fixed-size targets with masks: K = max_components, S = max_spins, G = S group slots.
 
-        Spins are expanded from canonical groups; `group_id` marks equivalence.
-        Isotope class index len(nuclei) is padding.
+        Group level (used by the set model): `group_class` (nucleus, size) per
+        canonical group slot with padding class `n_group_classes`, `group_mask`
+        and `group_couplings` between groups. Spin level (kept for analysis):
+        spins expanded from canonical groups, `group_id` marks equivalence,
+        isotope class index len(nuclei) is padding.
         """
         k_max, s_max = self.spec.max_components, self.spec.max_spins
         pad = len(self.spec.nuclei)
@@ -307,7 +322,10 @@ class InterpretationCodec:
                "spin_mask": np.zeros((k_max, s_max), np.float32),
                "group_id": np.full((k_max, s_max), -1, np.int64),
                "couplings": np.zeros((k_max, s_max, s_max), np.float32),
-               "log10_contribution": np.zeros(k_max, np.float32)}
+               "log10_contribution": np.zeros(k_max, np.float32),
+               "group_class": np.full((k_max, s_max), self.n_group_classes, np.int64),
+               "group_mask": np.zeros((k_max, s_max), np.float32),
+               "group_couplings": np.zeros((k_max, s_max, s_max), np.float32)}
         comps = self._ordered_components(interpretation)
         top = max(c.contribution for c in comps) or 1.0
         for k, c in enumerate(comps[:k_max]):
@@ -323,6 +341,10 @@ class InterpretationCodec:
             out["group_id"][k, :n] = index
             out["couplings"][k, :n, :n] = j
             out["log10_contribution"][k] = math.log10(max(c.contribution / top, 1e-12))
+            g = len(groups)
+            out["group_class"][k, :g] = [self.group_class(nucleus, size) for nucleus, size in groups]
+            out["group_mask"][k, :g] = 1
+            out["group_couplings"][k, :g, :g] = gj
         return out
 
     def decode_set(self, arrays: Dict[str, np.ndarray], threshold: float = 0.5,

@@ -199,6 +199,21 @@ spec digest) with seeds (seed, shard index), resumable and parallel.
 them; mismatched spec digests are refused. Live rendering stays the reference
 and the default.
 
+## D23. Set head predicts equivalence groups, not spins (2026-09-25)
+
+The first CPU verification run (4-6 spins, 1000 steps) showed that the
+spin-level set head never formed magnetic-equivalence groups (every candidate
+had singleton groups, so structure coverage stayed at 0.008), mis-sized
+components, and regressed J to averages because spin slots of the same nucleus
+swap order between similar samples. The head now predicts, per component slot,
+a (nucleus, group size) class for each canonical group slot plus group-pair J,
+exactly the representation of the token grammar. Decoding is a small dynamic
+program: groups packed at the front, nucleus order non-decreasing, total spins
+in `spin_counts`, at least two nuclei; the system is built with
+`SpinSystem.from_group_couplings`, so equivalence is exact. Codec set targets
+gain `group_class`, `group_mask` and `group_couplings` (spin-level keys are
+kept for analysis); older shards must be re-rendered.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

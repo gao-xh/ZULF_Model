@@ -31,7 +31,7 @@ checked against held-out acquisitions.
 | `zulf_model.render` | Acquisition and the single preprocessing operator; exact analytic rendering of transition lists through that operator; perturbations; model input features. | physics |
 | `zulf_model.generator` | Molecule-like heavy-atom graphs, rule-based J assignment, isotopologue enumeration, random-J mode, sample specification, family-based splits, shard storage. | spinsystem, physics, render |
 | `zulf_model.codec` | Canonical ordering, J binning, token vocabulary and grammar, fixed-size set targets with masks. | spinsystem |
-| `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
+| `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline over equivalence groups, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
 | `zulf_model.training` | Torch datasets over generator or shards, pre-rendered feature shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
 | `zulf_model.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
 | `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search), local identifiability, solver basin measurement, benchmark runner. | solver, generator |

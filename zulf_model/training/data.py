@@ -42,7 +42,8 @@ class Collator:
         batch = {"features": torch.as_tensor(np.stack([i["features"] for i in items])),
                  "frequency_hz": self.frequency_hz,
                  "scale": torch.as_tensor([i["scale"] for i in items], dtype=torch.float32)}
-        for key in ("component_mask", "isotope", "spin_mask", "group_id", "couplings", "log10_contribution"):
+        for key in ("component_mask", "isotope", "spin_mask", "group_id", "couplings", "log10_contribution",
+            "group_class", "group_mask", "group_couplings"):
             batch[key] = torch.as_tensor(np.stack([i[key] for i in items]))
         length = max(len(i["tokens"]) for i in items)
         pad = self.codec.vocab[PAD]

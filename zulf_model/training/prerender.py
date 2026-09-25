@@ -27,7 +27,8 @@ from typing import Dict, Iterator, List, Optional, Sequence
 
 import numpy as np
 
-SET_KEYS = ("component_mask", "isotope", "spin_mask", "group_id", "couplings", "log10_contribution")
+SET_KEYS = ("component_mask", "isotope", "spin_mask", "group_id", "couplings", "log10_contribution",
+            "group_class", "group_mask", "group_couplings")
 MANIFEST = "manifest.json"
 
 
