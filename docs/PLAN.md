@@ -74,6 +74,20 @@ fixed, so later phases are experiments rather than restructuring.
       strong 6.5 Hz, 1H-1H 4.0 Hz, 13C-1H weak 37 Hz. Conclusion: the stack
       learns, the scale is far too small; real runs need a GPU and 1e5+ steps.
       The earlier spin-level head reached structure coverage 0.008 (D23).
+- [x] Same data and steps for the CNN+Transformer (`model_cnn_transformer_v1`,
+      1.66 M parameters, about 1.2 s per step on CPU). Validation at steps
+      500 / 1000 / 1500 / 2000 / 2500 / 3000: structure coverage@1 0.04 /
+      0.07 / 0.13 / 0.28 / 0.35 / 0.41; structure coverage@10 0.15 / 0.33 /
+      0.31 / 0.42 / 0.40 / 0.45; J coverage (all J within 1 Hz)@1 0 / 0.02 /
+      0.05 / 0.09 / 0.13 / 0.17; @10 0.03 / 0.10 / 0.16 / 0.26 / 0.27 / 0.30;
+      component-count accuracy 0.79 at step 3000. Median J errors after
+      structure match at step 3000: 13C-1H strong 1.2 Hz, 13C-1H weak 1.9 Hz,
+      1H-1H 0.2 Hz, 15N-1H weak 0.7 Hz, but 15N-1H strong 115 Hz (relative
+      sign of 1J(15N,1H), which is negative, versus 1J(13C,1H), positive).
+      At the step-1000 checkpoint the soft-target entropy floor of the token
+      loss is 1.07 nats (KL 1.74 above it), structure-token accuracy 0.73,
+      J-token accuracy within one bin 0.12. Decision: the sequence model is
+      the main model; the set model stays as a baseline.
 - [ ] Train CNN set baseline; benchmark against random multistart and graph
       search at equal simulation budget.
 
