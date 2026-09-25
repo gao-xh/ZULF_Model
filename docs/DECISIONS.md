@@ -225,6 +225,24 @@ recovered to 0.007 Hz from 0.5 and 2 Hz starts and the delay to 0.923 ms
 (true 0.918 ms). Real data need it too (isopropylamine: about 6 ms).
 `ParameterPolicy.fit_phase_delay` now defaults to True (bounds +/-10 ms).
 
+## D25. Refinement against experiments always tries opposite signs (2026-09-25)
+
+Only the global sign of all J is unobservable. Relative signs are observable
+whenever the coupling network connects the spins, even through a single
+coupling of a few hertz (13C-15N-H-H test system: flipping only 1J(NH)
+changes the spectrum by 19-26 percent; with no couplings between the CH and
+NH parts it changes nothing). The evidence sits in small splittings that the
+network misreads (CPU verification: 15N-1H strong median error 115 Hz, a sign
+error) and that a local fit cannot cross, because a coupling whose interval
+excludes zero never changes sign. `RefineSettings.sign_variants` therefore
+adds, for every candidate, variants with one large coupling flipped and with
+all couplings of one heteronuclear group flipped (`solver.variants`), removes
+variants equivalent under the global sign, refines all of them and keeps every
+branch. Rule for experimental work: enable it whenever J are refined against
+an experimental spectrum, and report which sign variant won and by how much
+(held-out ranking when available). Matching should also allow independent
+sign flips of disconnected coupling blocks (not yet implemented).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

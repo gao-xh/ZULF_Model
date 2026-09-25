@@ -266,8 +266,10 @@ def propose_candidates(args: dict) -> dict:
 @REGISTRY.tool("refine_candidates",
                "Refine candidate interpretations against an averaged FID (all branches kept). Held-out FIDs give "
                "frozen-prediction ranking. Settings follow RefineSettings (policy for bounds, ties via "
-               "'ties', nuisance terms, background order, continuation, and 'search' for a phase-insensitive "
-               "global pattern search that supplies the starts). 'protocol' follows physics.Protocol "
+               "'ties', nuisance terms, background order, continuation, 'search' for a phase-insensitive "
+               "global pattern search that supplies the starts, and 'sign_variants': true to also refine "
+               "candidates with large couplings sign-flipped, which should always be enabled for experimental "
+               "spectra). 'protocol' follows physics.Protocol "
                "(for example field_ut for a residual static field). Long-running for large records.",
                {"type": "object", "properties": {
                    "candidates": {"type": "array", "items": INTERPRETATION}, "source": FID_SOURCE,

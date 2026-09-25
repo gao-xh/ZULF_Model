@@ -114,6 +114,44 @@ class SolverTests(unittest.TestCase):
         self.assertIn("continuation_unavailable_without_fid", res.flags)
 
 
+class SignVariantTests(unittest.TestCase):
+    @staticmethod
+    def cn_system(j_nh):
+        j = np.zeros((4, 4))
+        for (a, b), v in {(0, 2): 140.0, (1, 3): j_nh, (0, 1): -5.0, (0, 3): 3.0, (1, 2): -2.0, (2, 3): 5.0}.items():
+            j[a, b] = j[b, a] = v
+        return SpinSystem(("13C", "15N", "1H", "1H"), j)
+
+    def test_variants_skip_global_equivalents(self):
+        from zulf_model.solver.variants import sign_variants
+        pair = Interpretation((Component(SpinSystem(("13C", "1H"), np.array([[0.0, 140.0], [140.0, 0.0]]))),))
+        self.assertEqual(sign_variants(pair, 10.0), [])
+        variants = sign_variants(Interpretation((Component(self.cn_system(70.0)),)), 10.0)
+        self.assertTrue(variants)
+        labels = [v.metadata["sign_variant"] for v in variants]
+        self.assertEqual(len(labels), len(set(labels)))
+
+    def test_opposite_sign_is_recovered_only_with_variants(self):
+        truth = self.cn_system(-70.0)
+        obs = observe([truth], [2.0 * np.exp(0.3j)], rate=1.0, ranges=[(40.0, 230.0)])
+        wrong = Interpretation((Component(perturbed(self.cn_system(70.0), 0.3)),))
+        policy = ParameterPolicy(coupling_margin_hz=5.0, rate_bounds_per_s=(0.1, 10.0))
+        plain = refine_candidates([wrong], obs, settings=RefineSettings(starts=1, policy=policy))
+        with_variants = refine_candidates([wrong], obs, settings=RefineSettings(starts=1, policy=policy,
+                                                                                sign_variants=True))
+        def nh(result):
+            system = result.interpretation.components[0].system
+            match = best_permutation(truth, system)
+            aligned = match.sign * system.permute(match.permutation).couplings_hz
+            return aligned[1, 3], match.max_abs_error_hz
+        self.assertGreater(nh(plain[0])[0], 0)
+        value, error = nh(with_variants[0])
+        self.assertAlmostEqual(value, -70.0, delta=0.05)
+        self.assertLess(error, 0.05)
+        self.assertLess(with_variants[0].relative_residual, plain[0].relative_residual)
+        self.assertIn("sign_variant", with_variants[0].interpretation.metadata)
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -32,7 +32,10 @@ or processing in chat, and never invent numbers that a tool did not return.
    couplings shared across isotopologues, `settings.policy.nuisance` for
    explicit instrument baseline terms, and `settings.search` when the starting
    J values may be several linewidths off (global pattern search supplies the
-   starts).
+   starts). Always set `settings.sign_variants: true` against experimental
+   spectra: relative J signs are observable only through small splittings and
+   a local fit cannot cross zero for large couplings; report the winning
+   variant and the residual margin to the runner-up.
 6. Compare recipes: a parameter that moves between recipes beyond its tolerance is
    processing-sensitive and must be reported as such.
 7. Optional: `identifiability` for the chosen candidate.

@@ -45,6 +45,9 @@ class RefineSettings:
     fixed: tuple = ()     # parameter names held at their candidate values
     policy: ParameterPolicy = field(default_factory=ParameterPolicy)
     search: Optional[dict] = None   # SearchSettings fields; when set, a global pattern search supplies the starts
+    sign_variants: bool = False     # also refine candidates with large couplings sign-flipped (D25)
+    sign_variant_min_hz: Optional[float] = None   # default: |J| whose interval excludes zero
+    max_sign_variants: int = 16
 
     def parameterize(self, candidate: Interpretation) -> Parameterization:
         param = Parameterization.from_interpretation(candidate, self.policy)
@@ -268,10 +271,21 @@ def refine_candidates(candidates: Sequence[Interpretation], observed: ObservedSp
     """Refine every candidate independently and keep all branches.
 
     Ranking: mean frozen held-out residual when held-out spectra are supplied,
-    otherwise training residual (flagged `provisional_ranking`).
+    otherwise training residual (flagged `provisional_ranking`). With
+    `settings.sign_variants`, every candidate is accompanied by variants whose
+    large couplings have the opposite sign (`solver.variants`); each variant
+    keeps the index of its source candidate and records the flip.
     """
-    results = []
+    from .variants import crossing_threshold_hz, sign_variants
+    expanded = []
     for index, candidate in enumerate(candidates):
+        expanded.append((index, candidate))
+        if settings.sign_variants:
+            threshold = (settings.sign_variant_min_hz if settings.sign_variant_min_hz is not None
+                         else crossing_threshold_hz(settings.policy))
+            expanded += [(index, v) for v in sign_variants(candidate, threshold, settings.max_sign_variants)]
+    results = []
+    for index, candidate in expanded:
         param = settings.parameterize(candidate)
         try:
             result = refine(candidate, observed, settings, protocol, param, timer)
@@ -279,6 +293,8 @@ def refine_candidates(candidates: Sequence[Interpretation], observed: ObservedSp
             results.append(None)
             continue
         result.candidate_index = index
+        if "sign_variant" in candidate.metadata:
+            result.interpretation.metadata["sign_variant"] = candidate.metadata["sign_variant"]
         param_frozen = Parameterization.from_interpretation(result.interpretation, settings.policy)
         result.validation = [frozen_prediction(result, param_frozen, h, settings, protocol) for h in held_out]
         if not held_out:

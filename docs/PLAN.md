@@ -129,6 +129,10 @@ verification data before adoption.
 
 - [ ] Rerank the top-k beam by short solver fits (residual), adding mutation
       neighbours (13C/15N swap, group size +/-1) for the observed confusions.
+- [x] Sign variants in refinement (D25, `RefineSettings.sign_variants`); to be
+      enabled for every refinement against experimental spectra.
+- [~] Noise-free training control: same systems and steps as the noisy
+      CNN+Transformer run, to separate missing information from model limits.
 - [~] Faster rendering: total-M blocks inside each collective sector (done,
       exact, transition lists 42 ms -> 15 ms per 8-spin sample); next a
       batched GPU renderer with blocks of at most 32.
