@@ -59,6 +59,21 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Identifiability pairs (`evaluation.identifiability`).
 - [ ] Freeze pass criteria before training (coverage@k, J tolerance,
       held-out threshold, budget).
+- [~] CPU verification of the training stack (`configs/run_verify_cpu.json`:
+      4-6 spins, up to 2 components, phased real input, 48k pre-rendered
+      spectra, CNN set v1 with the group-level head (D23), batch 32, 3000
+      steps at about 1 s per step). Validation (128 samples) at steps
+      500 / 1000 / 1500 / 2000 / 2500 / 3000: loss 1.06 / 0.86 / 0.74 / 0.67 /
+      0.67 / 0.59; structure coverage@10 0.06 / 0.08 / 0.06 / 0.06 / 0.09 /
+      0.07; J coverage within 1 Hz 0. All loss terms were still falling. At
+      step 2500 the dominant component is right in composition 27 percent and
+      group structure 22 percent of top-1 proposals; the main confusions are
+      13C versus 15N and the proton count; the model almost always proposes
+      one component (component-count accuracy 0.61 equals the one-component
+      fraction). Median J errors after structure match at step 3000: 13C-1H
+      strong 6.5 Hz, 1H-1H 4.0 Hz, 13C-1H weak 37 Hz. Conclusion: the stack
+      learns, the scale is far too small; real runs need a GPU and 1e5+ steps.
+      The earlier spin-level head reached structure coverage 0.008 (D23).
 - [ ] Train CNN set baseline; benchmark against random multistart and graph
       search at equal simulation budget.
 
