@@ -78,7 +78,8 @@ class ActiveLearningLoop:
             entry = {"round": round_index, "generator_version": GENERATOR_VERSION,
                      "failures": dict(histogram), "success_rate": histogram.get("success", 0) / max(1, len(records))}
             history.append(entry)
-            (self.output / "rounds.jsonl").open("a", encoding="utf-8").write(json.dumps(entry) + "\n")
+            with (self.output / "rounds.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry) + "\n")
             if round_index == self.config.rounds - 1:
                 break
             sampler = self.mixed_sampler(records)
