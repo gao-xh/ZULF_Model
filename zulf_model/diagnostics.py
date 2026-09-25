@@ -51,7 +51,9 @@ def plateau_end(x: np.ndarray, relative_tolerance: float = 1e-3, min_length: int
     if len(head) < min_length:
         return 0, None
     level = float(np.median(head[:min_length]))
-    tolerance = max(relative_tolerance * abs(level), 1.0)
+    tail = x[-min(len(x) // 4, 4000):]
+    noise = float(np.std(np.diff(tail))) / np.sqrt(2) if len(tail) > 10 else 0.0
+    tolerance = max(relative_tolerance * abs(level), 3 * noise, 1e-12)
     run = 0
     for value in head:
         if abs(value - level) <= tolerance:
