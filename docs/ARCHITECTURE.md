@@ -36,8 +36,11 @@ checked against held-out acquisitions.
 | `zulf_model.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
 | `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search), local identifiability, solver basin measurement, benchmark runner. | solver, generator |
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
-| `zulf_model.io` | Loading averaged FIDs (npy/npz, legacy NMRduino DAT decoding). | render |
-| `zulf_model.cli` | Command line entry points. | all |
+| `zulf_model.io` | Loading averaged FIDs (npy, legacy NMRduino DAT decoding, INI parsing, group averaging). | - |
+| `zulf_model.diagnostics` | Per-dataset FID diagnostics (first point, saturation plateau, ringing end, baseline fits) and candidate processing recipes. | - |
+| `zulf_model.agent` | Tool registry shared by the JSON CLI, the MCP server and exported Anthropic/OpenAI tool schemas; background jobs. | all |
+| `zulf_model.device`, `zulf_model.timing` | CUDA/MPS/CPU policy; built-in timers. | - |
+| `zulf_model.cli` | Command line entry points (thin layer over the agent registry). | agent |
 
 Only `models`, `training`, `finetune` and parts of `evaluation` import torch.
 Physics, rendering, generation and refinement run on NumPy/SciPy alone.
@@ -101,6 +104,18 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 3. The solver refines each candidate independently, keeping every branch.
 4. Frozen parameters are evaluated on held-out acquisition groups. Ranking uses
    held-out prediction, not training residual.
+
+## AI agent interface
+
+`zulf_model.agent.tools` registers typed tools (JSON schema in, JSON out):
+describe_project, simulate_transitions, render_spectrum, diagnose_fid,
+process_fid, generate_samples, train_model, propose_candidates,
+refine_candidates, identifiability, submit_job, get_job, cancel_job, list_jobs.
+The same registry is served over MCP (`python -m zulf_model.agent.mcp_server`),
+exported for the Anthropic and OpenAI APIs (`zulf-model tools export`), and
+called by the CLI. Long-running tools run as background jobs whose status
+survives client reconnects. `skills/zulf-model/SKILL.md` tells an agent the
+workflow and what it may and may not conclude.
 
 ## Reuse of earlier projects
 

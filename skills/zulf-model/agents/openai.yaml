@@ -1,0 +1,6 @@
+interface:
+  display_name: "ZULF Model"
+  short_description: "Simulate, propose and refine ZULF NMR spin interpretations"
+  default_prompt: "Use $zulf-model to diagnose my averaged ZULF FID, propose candidate spin systems and refine them with held-out validation."
+policy:
+  allow_implicit_invocation: true

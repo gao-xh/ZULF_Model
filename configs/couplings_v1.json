@@ -1,0 +1,146 @@
+{
+  "status": "Approximate literature-style ranges; verify against sources before freezing (open question Q3, docs/REFERENCES.md).",
+  "rotor_averaging": true,
+  "long_range_zero_probability": 0.5,
+  "perturbation_relative": 0.0,
+  "rules": {
+    "1J_CH": {
+      "sp3": [
+        120.0,
+        135.0
+      ],
+      "sp2": [
+        150.0,
+        170.0
+      ],
+      "ar": [
+        155.0,
+        168.0
+      ],
+      "sp": [
+        245.0,
+        255.0
+      ],
+      "electronegative_shift": [
+        3.0,
+        8.0
+      ]
+    },
+    "1J_NH": {
+      "range": [
+        -95.0,
+        -70.0
+      ]
+    },
+    "1J_CC": {
+      "sp3-sp3": [
+        32.0,
+        40.0
+      ],
+      "sp2": [
+        50.0,
+        75.0
+      ],
+      "ar": [
+        52.0,
+        60.0
+      ],
+      "sp": [
+        60.0,
+        80.0
+      ]
+    },
+    "1J_CN": {
+      "range": [
+        -15.0,
+        -4.0
+      ]
+    },
+    "2J_HH": {
+      "sp3": [
+        -16.0,
+        -8.0
+      ],
+      "sp2": [
+        -3.0,
+        3.0
+      ]
+    },
+    "2J_CH": {
+      "range": [
+        -6.0,
+        6.0
+      ]
+    },
+    "2J_NH": {
+      "range": [
+        -5.0,
+        5.0
+      ]
+    },
+    "2J_heavy": {
+      "range": [
+        -3.0,
+        3.0
+      ]
+    },
+    "3J_HH": {
+      "karplus": [
+        7.76,
+        -1.1,
+        1.4
+      ],
+      "cis": [
+        6.0,
+        12.0
+      ],
+      "trans": [
+        12.0,
+        18.0
+      ],
+      "ortho": [
+        6.5,
+        8.5
+      ]
+    },
+    "3J_CH": {
+      "karplus": [
+        4.5,
+        -0.9,
+        0.9
+      ],
+      "range": [
+        0.0,
+        10.0
+      ]
+    },
+    "3J_NH": {
+      "range": [
+        -5.0,
+        5.0
+      ]
+    },
+    "3J_heavy": {
+      "range": [
+        -2.0,
+        2.0
+      ]
+    },
+    "4J_HH_meta": {
+      "range": [
+        1.0,
+        3.0
+      ]
+    },
+    "long": {
+      "laplace_scale": 0.4,
+      "clip": 3.0
+    },
+    "para": {
+      "range": [
+        0.0,
+        1.0
+      ]
+    }
+  }
+}

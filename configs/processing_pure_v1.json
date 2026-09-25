@@ -1,0 +1,6 @@
+{
+  "mode": "pure",
+  "sampling_rate_hz": 4000.0,
+  "points": 65516,
+  "renderer_backend": "auto"
+}

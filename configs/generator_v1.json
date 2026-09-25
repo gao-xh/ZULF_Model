@@ -1,0 +1,45 @@
+{
+  "couplings_path": "couplings_v1.json",
+  "graph": {
+    "heavy_atoms": [
+      2,
+      7
+    ],
+    "element_weights": {
+      "C": 0.75,
+      "N": 0.15,
+      "O": 0.1
+    },
+    "ring_closure_probability": 0.25,
+    "aromatic_ring_probability": 0.15,
+    "aromatic_nitrogen_probability": 0.2,
+    "double_bond_probability": 0.2,
+    "triple_bond_probability": 0.03
+  },
+  "isotopologues": {
+    "natural_probability": 0.7,
+    "include_natural_n15": true,
+    "labeled_max_labels": 3,
+    "exchangeable_protons": "drop"
+  },
+  "random_j": {
+    "heteronuclei": [
+      1,
+      2
+    ],
+    "group_probability": 0.5
+  },
+  "mixture": {
+    "source_weights": {
+      "molecule": 0.85,
+      "random_j": 0.15
+    },
+    "extra_molecule_probability": 0.15
+  },
+  "splits": {
+    "val_fraction": 0.05,
+    "test_unseen_fraction": 0.05,
+    "test_seen_fraction": 0.02,
+    "salt": "gen-v1"
+  }
+}

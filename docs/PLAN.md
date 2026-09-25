@@ -26,7 +26,9 @@ fixed, so later phases are experiments rather than restructuring.
 | A10 | Solver: observed spectra, parameterization, forward, refine, batch, held-out, matched linewidth continuation | [x] | `tests/test_solver.py` |
 | A11 | Evaluation: proposers, identifiability, basin, benchmark | [x] | `tests/test_evaluation.py` |
 | A12 | Fine-tuning: failure classification, focused sampling, loop | [x] | `tests/test_finetune.py` |
-| A13 | CLI, configs, end-to-end smoke pipeline, throughput script | [ ] | `tests/test_cli.py`, `scripts/smoke_pipeline.py` |
+| A13 | CLI, configs, end-to-end smoke pipeline, throughput script | [x] | `tests/test_agent.py`, `scripts/smoke_pipeline.py` |
+| A14 | AI agent layer: tool registry, MCP server, Anthropic/OpenAI export, jobs, skill guide | [x] | `tests/test_agent.py` |
+| A15 | Per-dataset diagnostics and solver nuisance terms (exponential, damped sinusoid, template) | [x] | `tests/test_solver.py` |
 
 ## Phase 0: basis (plan week 1)
 
@@ -57,8 +59,14 @@ fixed, so later phases are experiments rather than restructuring.
 
 ## Phase 3: general solver (plan weeks 4-6, parallel)
 
-- [ ] Reproduce the isopropylamine staged-fit result with `solver.refine`
-      and explicit ties (requires Q2 data).
+- [~] Reproduce the isopropylamine staged-fit result with `solver.refine`
+      and explicit ties. First run on the uploaded 10000-scan average
+      (recipe crop 100 ms + SG801 + band quadratic background, bands 110-150
+      and 230-275 Hz, starting J from the earlier tool): relative residual
+      0.063, methine rate at its 20/s bound (flag `search_boundary`), vicinal
+      H-H 8.2 Hz. Not accepted: needs recipe comparison (explicit nuisance
+      baseline vs SG), held-out group averages and comparison with the
+      earlier tool's fitted values.
 - [ ] Recovery tests on random generated systems from perturbed starts.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)

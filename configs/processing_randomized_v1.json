@@ -1,0 +1,19 @@
+{
+  "mode": "randomized",
+  "sampling_rate_hz": 4000.0,
+  "points": 65516,
+  "start_s_range": [
+    0.05,
+    0.25
+  ],
+  "sg_window_choices": [
+    0,
+    201,
+    801
+  ],
+  "sg_order_choices": [
+    2
+  ],
+  "remove_mean_probability": 0.5,
+  "renderer_backend": "auto"
+}

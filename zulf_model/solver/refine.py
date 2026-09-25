@@ -40,13 +40,26 @@ class RefineSettings:
     band_weighting: str = "equal"
     diff_step: float = 1e-6
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
+    ties: tuple = ()      # ((leader, follower, ...), ...) parameter names; missing names are skipped
+    fixed: tuple = ()     # parameter names held at their candidate values
     policy: ParameterPolicy = field(default_factory=ParameterPolicy)
+
+    def parameterize(self, candidate: Interpretation) -> Parameterization:
+        param = Parameterization.from_interpretation(candidate, self.policy)
+        for group in self.ties:
+            names = [n for n in group if n in param.parameters]
+            if len(names) >= 2:
+                param.tie(names[0], *names[1:])
+        param.fix(*[n for n in self.fixed if n in param.parameters])
+        return param
 
     @classmethod
     def from_dict(cls, data: dict) -> "RefineSettings":
         data = dict(data)
         policy = ParameterPolicy.from_dict(data.pop("policy", {}))
         data = {k: (tuple(v) if isinstance(v, list) else v) for k, v in data.items() if k in cls.__dataclass_fields__}
+        if "ties" in data:
+            data["ties"] = tuple(tuple(g) for g in data["ties"])
         return cls(policy=policy, **data)
 
 
@@ -102,7 +115,7 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
            protocol: Protocol = SUDDEN_DROP, parameterization: Optional[Parameterization] = None,
            timer: Optional[Timer] = None) -> RefinementResult:
     timer = timer or Timer()
-    param = parameterization or Parameterization.from_interpretation(candidate, settings.policy)
+    param = parameterization or settings.parameterize(candidate)
 
     def make_forward(extra: float) -> MixtureForward:
         """Matched continuation: the same extra apodization is applied to data and model."""
@@ -236,7 +249,7 @@ def refine_candidates(candidates: Sequence[Interpretation], observed: ObservedSp
     """
     results = []
     for index, candidate in enumerate(candidates):
-        param = Parameterization.from_interpretation(candidate, settings.policy)
+        param = settings.parameterize(candidate)
         try:
             result = refine(candidate, observed, settings, protocol, param, timer)
         except ValueError as exc:

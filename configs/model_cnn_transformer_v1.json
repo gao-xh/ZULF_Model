@@ -1,0 +1,60 @@
+{
+  "kind": "cnn_transformer",
+  "encoder": {
+    "in_channels": 2,
+    "d_model": 128,
+    "stages": [
+      [
+        32,
+        9,
+        2
+      ],
+      [
+        64,
+        9,
+        2
+      ],
+      [
+        96,
+        7,
+        2
+      ],
+      [
+        128,
+        7,
+        2
+      ],
+      [
+        128,
+        5,
+        2
+      ]
+    ],
+    "dropout": 0.1,
+    "frequency_features": 32,
+    "frequency_min_period_hz": 0.5,
+    "frequency_max_period_hz": 2000.0,
+    "transformer_layers": 2,
+    "heads": 4,
+    "feedforward": 256,
+    "max_tokens": 1024
+  },
+  "set_head": {
+    "decoder_layers": 3,
+    "heads": 4,
+    "feedforward": 256,
+    "j_scale_hz": 100.0,
+    "weight_exists": 1.0,
+    "weight_isotope": 1.0,
+    "weight_j": 1.0,
+    "weight_contribution": 0.2
+  },
+  "sequence_head": {
+    "decoder_layers": 3,
+    "heads": 4,
+    "feedforward": 256,
+    "label_smoothing": 0.05,
+    "j_neighbor_sigma_bins": 1.0,
+    "weight_offset": 0.5
+  }
+}

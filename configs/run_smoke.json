@@ -1,0 +1,64 @@
+{
+  "problem": {
+    "spin_counts": [
+      8
+    ],
+    "max_components": 3
+  },
+  "processing": {
+    "mode": "pure",
+    "sampling_rate_hz": 1000.0,
+    "points": 2048
+  },
+  "perturbation": {
+    "snr_range": [
+      50.0,
+      500.0
+    ],
+    "gaussian_probability": 0.0
+  },
+  "model": {
+    "kind": "cnn_set",
+    "encoder": {
+      "d_model": 32,
+      "stages": [
+        [
+          16,
+          9,
+          4
+        ],
+        [
+          32,
+          7,
+          4
+        ]
+      ],
+      "transformer_layers": 1,
+      "heads": 2,
+      "feedforward": 64
+    },
+    "set_head": {
+      "decoder_layers": 1,
+      "heads": 2,
+      "feedforward": 64
+    }
+  },
+  "train": {
+    "steps": 20,
+    "batch_size": 4,
+    "warmup_steps": 2,
+    "log_every": 5,
+    "eval_every": 10,
+    "checkpoint_every": 10,
+    "eval_propose_k": 3,
+    "eval_propose_limit": 4,
+    "device": "auto",
+    "output_dir": "runs/smoke",
+    "renders_per_system": 2
+  },
+  "validation": {
+    "count": 4,
+    "batch_size": 2,
+    "seed": 5
+  }
+}

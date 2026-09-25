@@ -113,6 +113,22 @@ the negative-frequency mirror term. Gains are always represented by two real
 columns (response to 1 and to i); the shared-phase model uses
 cos(phi) col0 + sin(phi) col1.
 
+## D16. One tool registry for agents, CLI and MCP (2026-09-25)
+
+Claude and GPT agents use the same typed tools as the command line. Tools
+return JSON and file paths, never large arrays, and restate the interpretation
+rules. Long-running tools run as background jobs. The MCP server and API
+exports are generated from the registry so they cannot drift apart.
+
+## D17. Processing recipes are proposed per dataset (2026-09-25)
+
+Crop, SG window and nuisance terms differ between experiments.
+`diagnostics.diagnose_fid` reports the first-point anomaly, saturation plateau,
+ringing end (local envelope decay rate) and baseline fits, and lists candidate
+recipes. None is chosen automatically; recipes are compared on held-out
+acquisitions, and parameters that move between recipes are reported as
+processing-sensitive.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

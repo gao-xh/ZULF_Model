@@ -53,7 +53,13 @@ class TrainingSetup:
             config = json.loads(Path(config).read_text(encoding="utf-8"))
         self.raw = config
         self.spec = ProblemSpec.from_dict(_load(config.get("problem"), base)) if config.get("problem") else ProblemSpec()
-        self.generator_config = _load(config.get("generator"), base)
+        self.generator_config = dict(_load(config.get("generator"), base))
+        couplings = self.generator_config.get("couplings_path")
+        if couplings and not Path(couplings).is_absolute() and base is not None:
+            generator_ref = config.get("generator")
+            gen_dir = (base / generator_ref).parent if isinstance(generator_ref, str) else base
+            if (gen_dir / couplings).exists():
+                self.generator_config["couplings_path"] = str(gen_dir / couplings)
         self.processing = ProcessingConfig.from_dict(_load(config.get("processing"), base))
         self.perturbation = PerturbationConfig.from_dict(_load(config.get("perturbation"), base))
         protocol = _load(config.get("protocol"), base)

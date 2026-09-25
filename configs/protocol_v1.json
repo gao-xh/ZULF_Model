@@ -1,0 +1,10 @@
+{
+  "name": "sudden_drop",
+  "preparation": "gamma",
+  "detection": "gamma",
+  "pulses": [],
+  "normalize_by_dimension": true,
+  "time_origin_s": 0.0,
+  "frozen": false,
+  "notes": "Confirm against the laboratory sequence (open question Q1)."
+}
