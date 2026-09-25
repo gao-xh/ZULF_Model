@@ -70,6 +70,7 @@ class RefinementResult:
     gains: List[complex]
     background: List[complex]
     relative_residual: float
+    signal_relative_residual: float
     band_relative_residuals: List[float]
     boundary_hits: List[str]
     flags: List[str]
@@ -93,6 +94,7 @@ class RefinementResult:
 
     def summary(self) -> dict:
         return {"candidate_index": self.candidate_index, "relative_residual": self.relative_residual,
+                "signal_relative_residual": self.signal_relative_residual,
                 "band_relative_residuals": self.band_relative_residuals,
                 "validation_relative_residual": self.validation_residual, "flags": self.flags,
                 "boundary_hits": self.boundary_hits, "converged": self.converged,
@@ -214,7 +216,8 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
     interp = param.interpretation(values, contributions / top)
     interp.metadata.update(source="solver", flags=flags)
     relative = float(np.linalg.norm(final.model - forward.y) / max(np.linalg.norm(forward.y), 1e-30))
-    return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative,
+    signal_relative = float(np.linalg.norm(final.model - forward.y) / max(forward.background_only_residual(values), 1e-30))
+    return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative, signal_relative,
                             _band_residuals(forward, final), hits,
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,
                             final.model, final.component_spectra)

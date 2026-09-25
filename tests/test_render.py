@@ -231,6 +231,21 @@ class PerturbationTests(unittest.TestCase):
         b, _ = render_observation(renderer, [tl], again, grid.frequencies_hz, [1.0])
         np.testing.assert_allclose(a, b)
 
+    def test_instrument_response_is_reproducible_and_bounded(self):
+        acq = Acquisition(1000.0, 4000, start_sample=100, sg_window=201, sg_order=2)
+        renderer = Renderer(acq)
+        tl = random_transitions(8)
+        cfg = PerturbationConfig(instrument_probability=1.0, ringing_probability=1.0, saturation_probability=1.0)
+        params = sample_render_params(np.random.default_rng(2), [tl], cfg)
+        self.assertIn("baseline", params.instrument)
+        grid = SpectrumGrid.for_acquisition(acq, 1, 390)
+        a, clean = render_observation(renderer, [tl], params, grid.frequencies_hz, [1.0])
+        from zulf_model.render.perturb import RenderParams
+        b, _ = render_observation(renderer, [tl], RenderParams.from_dict(params.to_dict()), grid.frequencies_hz, [1.0])
+        np.testing.assert_allclose(a, b)
+        self.assertTrue(np.isfinite(a).all())
+        self.assertGreater(np.abs(a - clean).max(), 0)
+
     def test_features(self):
         x, scale = spectrum_features(np.array([3 + 4j, 0, 0, 0]), ("real", "imag", "magnitude"))
         self.assertEqual(x.shape, (3, 4))

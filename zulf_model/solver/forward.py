@@ -194,6 +194,22 @@ class MixtureForward:
         return Prediction(np.asarray(model, complex), component_spectra, gains, np.asarray(background, complex),
                           residual, float(residual @ residual))
 
+    def background_only_residual(self, values: Dict[str, float]) -> float:
+        """Norm of what remains after fitting only background and nuisance columns.
+
+        Used as the denominator of the signal-relative residual, so a large
+        smooth background cannot make a poor molecular fit look good.
+        """
+        bg_cols = self._background_columns() if self.background else np.zeros((len(self.f), 0), complex)
+        nuisance = self.nuisance_columns(values)
+        if nuisance.shape[1]:
+            bg_cols = np.column_stack([bg_cols, nuisance])
+        if not bg_cols.shape[1]:
+            return float(np.linalg.norm(self.y))
+        a, b = self._real_system(bg_cols, self.y, np.ones(len(self.y)))
+        coef = np.linalg.lstsq(a, b, rcond=1e-12)[0]
+        return float(np.linalg.norm(a @ coef - b))
+
     def _shared_phase(self, cols, bg_cols):
         """Common phase with nonnegative component amplitudes; background unconstrained.
 

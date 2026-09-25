@@ -46,24 +46,52 @@ def main():
     parser.add_argument("--background-order", type=int, default=2)
     parser.add_argument("--budget-s", type=float, default=1800.0)
     parser.add_argument("--ranges", default="110,150;230,275")
+    parser.add_argument("--nuisance-exponentials", type=int, default=0,
+                        help="Explicit exponential baseline terms (recipe B uses 3 with --sg-window 0).")
+    parser.add_argument("--remove-mean", type=int, default=1)
+    parser.add_argument("--staged", action="store_true",
+                        help="Anchor the methyl-13C component on the high band first, then refine jointly.")
+    parser.add_argument("--starts", type=int, default=1)
+    parser.add_argument("--continuation", default="10,3,1,0")
     args = parser.parse_args()
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
     exp = load_average(args.average, args.ini)
     acq = Acquisition(exp.sampling_rate_hz, exp.points, start_sample=int(round(args.start_s * exp.sampling_rate_hz)),
-                      sg_window=args.sg_window, sg_order=2, remove_mean=True)
+                      sg_window=args.sg_window, sg_order=2, remove_mean=bool(args.remove_mean))
     ranges = [tuple(float(v) for v in r.split(",")) for r in args.ranges.split(";")]
     obs = ObservedSpectrum.from_fid(exp.fid, acq, ranges)
     candidate = Interpretation((Component(methine(), 1.0, "methine-13C"), Component(methyl(), 2.0, "methyl-13C")))
-    policy = ParameterPolicy(coupling_margin_hz=10.0, coupling_margin_relative=0.05, rate_bounds_per_s=(0.05, 20.0))
+    bands = [(0.1, 3.0), (1.0, 30.0), (10.0, 300.0)]
+    nuisance = tuple({"kind": "exponential", "rate_bounds_per_s": list(bands[k % 3]),
+                      "initial_rate_per_s": float(np.sqrt(bands[k % 3][0] * bands[k % 3][1]))}
+                     for k in range(args.nuisance_exponentials))
+    policy = ParameterPolicy(coupling_margin_hz=10.0, coupling_margin_relative=0.05, rate_bounds_per_s=(0.05, 20.0),
+                             nuisance=nuisance)
+    continuation = tuple(float(v) for v in args.continuation.split(","))
+    timer = Timer()
+    settings = RefineSettings(starts=args.starts, background_order=args.background_order, max_seconds=args.budget_s,
+                              max_evaluations=100000, policy=policy, continuation_rates_per_s=continuation,
+                              start_spread_hz=2.0)
+    stages = []
+    if args.staged:
+        high = obs.restricted([ranges[-1]])
+        anchor_candidate = Interpretation((Component(methyl(), 1.0, "methyl-13C"),))
+        anchor_param = Parameterization.from_interpretation(anchor_candidate, policy)
+        anchor_param.fix("c0.J0-1")
+        anchor_param.tie("c0.J0-2", "c0.J1-2")
+        anchor = refine(anchor_candidate, high, settings, parameterization=anchor_param, timer=timer)
+        stages.append({"stage": "methyl anchor on high band", **{k: anchor.summary()[k] for k in (
+            "relative_residual", "signal_relative_residual", "flags", "parameters")}})
+        v = anchor.parameters
+        candidate = Interpretation((Component(methine(jhh=v["c0.J0-2"]), 1.0, "methine-13C"),
+                                    Component(methyl(v["c0.J0-3"], v["c0.J0-2"], v["c0.J2-3"], v["c0.J1-3"]), 2.0,
+                                              "methyl-13C")))
     param = Parameterization.from_interpretation(candidate, policy)
     param.tie("c0.J0-1", "c1.J0-2", "c1.J1-2").fix("c1.J0-1")
-    timer = Timer()
-    settings = RefineSettings(starts=1, background_order=args.background_order, max_seconds=args.budget_s,
-                              max_evaluations=100000, policy=policy)
     result = refine(candidate, obs, settings, parameterization=param, timer=timer)
     summary = result.summary()
-    summary.update(acquisition=acq.to_dict(), source=exp.source, timing=timer.report())
+    summary.update(acquisition=acq.to_dict(), source=exp.source, timing=timer.report(), stages=stages)
     (out / "result.json").write_text(json.dumps(summary, indent=2, default=float), encoding="utf-8")
     np.savez(out / "spectra.npz", frequency_hz=obs.frequencies_hz, observed=obs.values, model=result.prediction,
              components=np.array(result.component_spectra), band=obs.band_index)
@@ -84,8 +112,10 @@ def main():
         fig.savefig(out / "fit_real.png", dpi=120)
     except ImportError:
         pass
-    print(json.dumps({k: summary[k] for k in ("relative_residual", "band_relative_residuals", "flags",
-                                               "evaluations", "elapsed_s")}, default=float))
+    print(json.dumps({k: summary[k] for k in ("relative_residual", "signal_relative_residual", "band_relative_residuals",
+                                               "flags", "evaluations", "elapsed_s")}, default=float))
+    for stage in stages:
+        print(json.dumps(stage, default=float))
     print(json.dumps({k: round(float(v), 4) for k, v in result.parameters.items()}))
 
 
