@@ -87,6 +87,22 @@ class ModelTests(unittest.TestCase):
             self.assertTrue(model.grammar.validate(h.tokens))
 
 
+class JDecodingTests(unittest.TestCase):
+    def test_expectation_decoding_runs_and_validates(self):
+        spec = ProblemSpec(spin_counts=(4,), max_components=1)
+        model = build_model(spec, ModelConfig(kind="cnn_transformer",
+                                              encoder=EncoderConfig(d_model=32, stages=((16, 9, 4),), transformer_layers=0,
+                                                                    heads=2, feedforward=32),
+                                              sequence_head=SequenceHeadConfig(decoder_layers=1, heads=2, feedforward=32)))
+        features = torch.randn(1, len(spec.grid.channels), 256)
+        frequency = torch.linspace(1.0, 400.0, 256)
+        for decoding in ("offset", "expectation"):
+            out = model.propose(features, frequency, k=2, j_decoding=decoding)
+            self.assertEqual(len(out), 1)
+        with self.assertRaises(ValueError):
+            model.propose(features, frequency, k=1, j_decoding="median")
+
+
 class GroupDecodingTests(unittest.TestCase):
     def test_oracle_logits_decode_to_truth_with_groups(self):
         from zulf_model.codec import InterpretationCodec

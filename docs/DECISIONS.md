@@ -214,6 +214,17 @@ in `spin_counts`, at least two nuclei; the system is built with
 gain `group_class`, `group_mask` and `group_couplings` (spin-level keys are
 kept for analysis); older shards must be re-rendered.
 
+## D24. The solver fits the first-order phase by default (2026-09-25)
+
+The simulated recovery benchmark failed on 4- and 5-group systems even from
+the true couplings (relative residual 0.24, a weak coupling pushed from
+-0.39 Hz to its bound) because observations carry a random delay (first-order
+phase, up to 2 ms) while the solver fitted only a shared zero-order phase; the
+couplings absorbed the phase error. With the delay fitted, the same system is
+recovered to 0.007 Hz from 0.5 and 2 Hz starts and the delay to 0.923 ms
+(true 0.918 ms). Real data need it too (isopropylamine: about 6 ms).
+`ParameterPolicy.fit_phase_delay` now defaults to True (bounds +/-10 ms).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

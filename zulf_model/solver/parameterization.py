@@ -46,7 +46,9 @@ class ParameterPolicy:
     fit_sigma: bool = False
     sigma_bounds_hz: Tuple[float, float] = (1e-3, 5.0)
     initial_sigma_hz: float = 0.05
-    fit_phase_delay: bool = False
+    # First-order phase as a time delay. Fitted by default: every acquisition has one (dead time,
+    # switching), and a shared zero-order phase alone forces the couplings to absorb it (D24).
+    fit_phase_delay: bool = True
     phase_delay_bounds_s: Tuple[float, float] = (-0.01, 0.01)
     # Nuisance terms rendered through the same operator; linear amplitudes are real and unconstrained.
     # {"kind": "exponential", "rate_bounds_per_s": [lo, hi], "initial_rate_per_s": r}

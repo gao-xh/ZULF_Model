@@ -126,7 +126,30 @@ class CNNTransformerModel(CandidateModel):
         return torch.as_tensor(np.stack([self.grammar.allowed(s) for s in states]), device=device)
 
     @torch.no_grad()
-    def beam_search(self, memory: torch.Tensor, beam_size: int = 8, length_penalty: float = 0.6) -> List[Hypothesis]:
+    def _j_offset(self, logp_row: torch.Tensor, index: int, offset: float, j_decoding: str, window: int) -> float:
+        """Within-bin offset for a chosen J token.
+
+        "offset": the regression head (default). "expectation": probability-weighted
+        mean of bin centres within +/- `window` bins of the chosen bin (a local
+        expectation over the soft histogram), expressed as an offset of the chosen
+        bin and clipped to it.
+        """
+        if j_decoding == "offset":
+            return offset
+        if j_decoding != "expectation":
+            raise ValueError("j_decoding must be 'offset' or 'expectation'.")
+        start = self.vocab.j_start
+        k = index - start
+        lo, hi = max(0, k - window), min(self.vocab.j_bins, k + window + 1)
+        p = logp_row[start + lo:start + hi].float().exp().cpu().numpy()
+        if not np.isfinite(p).all() or p.sum() <= 0:
+            return offset
+        centers = self.codec.j.centers[lo:hi]
+        value = float((p * centers).sum() / p.sum())
+        return float(np.clip((value - self.codec.j.centers[k]) / self.codec.j.widths[k], -0.5, 0.5))
+
+    def beam_search(self, memory: torch.Tensor, beam_size: int = 8, length_penalty: float = 0.6,
+                    j_decoding: str = "offset", j_window: int = 2) -> List[Hypothesis]:
         """memory: (1, T, D). Returns finished hypotheses sorted by normalized score."""
         bos = self.vocab[BOS]
         start = self.grammar.advance(GrammarState(), bos)
@@ -146,7 +169,8 @@ class CNNTransformerModel(CandidateModel):
                 for value, index in zip(top_values[b].tolist(), top_index[b].tolist()):
                     if not math.isfinite(value):
                         continue
-                    offset = float(offsets[b, -1]) if self.vocab.is_j(index) else math.nan
+                    offset = (self._j_offset(logp[b], index, float(offsets[b, -1]), j_decoding, j_window)
+                              if self.vocab.is_j(index) else math.nan)
                     candidates.append(Hypothesis(hyp.tokens + [index], hyp.offsets + [offset],
                                                  self.grammar.advance(hyp.state, index), hyp.logp + value))
             candidates.sort(key=lambda h: -h.logp)
@@ -191,13 +215,14 @@ class CNNTransformerModel(CandidateModel):
 
     @torch.no_grad()
     def propose(self, features, frequency_hz, k: int = 5, beam_size: Optional[int] = None,
-                samples: int = 0, temperature: float = 1.0) -> List[List[Interpretation]]:
+                samples: int = 0, temperature: float = 1.0, j_decoding: str = "offset",
+                j_window: int = 2) -> List[List[Interpretation]]:
         was_training = self.training
         self.eval()
         memory = self.encode(features, frequency_hz)
         results = []
         for b in range(features.shape[0]):
-            hyps = self.beam_search(memory[b:b + 1], beam_size or max(k, 4))
+            hyps = self.beam_search(memory[b:b + 1], beam_size or max(k, 4), j_decoding=j_decoding, j_window=j_window)
             if samples:
                 hyps += self.sample(memory[b:b + 1], samples, temperature)
             candidates, seen = [], set()
