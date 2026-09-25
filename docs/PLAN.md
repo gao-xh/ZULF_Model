@@ -37,8 +37,10 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Throughput table for 8-spin CHN components, CPU and GPU, with and
       without equivalence sectors; 9-12 spin interface check
       (`scripts/throughput.py`, results recorded here).
-- [ ] Cross-check transitions against `ZULF_Analysis_Tools.jfit.transitions`
-      for the fitted isopropylamine J (optional test, skipped without that repo).
+- [x] Cross-check transitions against `ZULF_Analysis_Tools.jfit.transitions`:
+      both isopropylamine isotopologues agree (16 and 108 transitions,
+      frequencies and normalized weights to 1e-12; `tests/test_crosscheck.py`,
+      skipped without that repository).
 
 ## Phase 1: data generator (plan weeks 2-3)
 
