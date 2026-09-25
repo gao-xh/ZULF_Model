@@ -127,8 +127,25 @@ fixed, so later phases are experiments rather than restructuring.
 Ordered by expected gain per effort; each item is measured on the same
 verification data before adoption.
 
-- [ ] Rerank the top-k beam by short solver fits (residual), adding mutation
-      neighbours (13C/15N swap, group size +/-1) for the observed confusions.
+- [~] Rerank the top-k beam by short solver fits (residual). Measured with
+      `scripts/rerank_eval.py` on 40 simulated validation observations (noisy
+      FID, random phase and delay, automatic phasing, CNN+Transformer after
+      3000 CPU steps, k = 10, 10 s solver budget per candidate):
+
+      | Decoding | structure@1 | structure@10 | J@1 (1 Hz) | J@10 (1 Hz) |
+      | --- | --- | --- | --- | --- |
+      | beam, offset head | 0.225 | 0.30 | 0.05 | 0.20 |
+      | beam, local expectation | 0.225 | 0.30 | 0.05 | 0.20 |
+      | solver rerank | 0.30 | 0.30 | 0.225 | 0.225 |
+      | solver rerank, J within 0.1 Hz | 0.30 | 0.30 | 0.20 | 0.20 |
+
+      Reranking moves every structure-correct candidate to rank 1 and raises
+      J@1 4.5-fold (two-component samples 0 -> 0.26); expectation decoding
+      changes nothing. Coverage here (structure@10 0.30) is below the
+      training-time validation (0.45), which uses exact phasing and spectral
+      noise; automatic phasing and FID-domain noise cost part of it. About
+      100 s per sample on a contended CPU. Next: mutation neighbours (13C/15N
+      swap, group size +/-1) and sign variants inside the rerank.
 - [x] Sign variants in refinement (D25, `RefineSettings.sign_variants`); to be
       enabled for every refinement against experimental spectra.
 - [~] Noise-free training control: same systems and steps as the noisy
