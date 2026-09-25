@@ -15,17 +15,41 @@ normalized DTFT) is evaluated in closed form:
 
 `tests/test_render.py` checks this against time-domain synthesis followed by
 `process_record` and `evaluate_spectrum`.
+
+Line broadening: each transition decays exponentially with its rate R
+(Lorentzian, homogeneous) and optionally carries a Gaussian frequency
+distribution of standard deviation sigma (inhomogeneous), giving the envelope
+exp(-R t - (2 pi sigma t)^2 / 2), i.e. a Voigt line. Rates and sigmas are
+scalars or per-family tables. Finite-record rendering with sigma > 0 uses the
+exact sampled path; the continuous renderer uses the Faddeeva function.
 """
 from __future__ import annotations
 
 from typing import Sequence, Union
 
 import numpy as np
+from scipy.special import wofz
 
 from ..physics.transitions import TransitionList
 from .acquisition import Acquisition, evaluate_spectrum, process_record
 
 Rates = Union[float, Sequence[float], np.ndarray]
+
+
+def _per_transition(values: Rates, transitions: TransitionList, name: str, positive: bool = False) -> np.ndarray:
+    """Expand a scalar or per-family table to one value per transition."""
+    if np.isscalar(values):
+        out = np.full(len(transitions), float(values))
+    else:
+        out = np.asarray(values, float)[transitions.families]
+    if not np.isfinite(out).all() or np.any(out < 0) or (positive and np.any(out <= 0)):
+        raise ValueError(f"{name} must be finite and {'positive' if positive else 'nonnegative'}.")
+    return out
+
+
+def gaussian_envelope(times_s: np.ndarray, sigma_hz: float) -> np.ndarray:
+    """exp(-(2 pi sigma t)^2 / 2): FID envelope of a Gaussian frequency distribution with std sigma."""
+    return np.exp(-0.5 * (2 * np.pi * sigma_hz * np.asarray(times_s)) ** 2)
 
 
 def _geometric(L: np.ndarray, n: int) -> np.ndarray:
@@ -64,13 +88,7 @@ class Renderer:
     # -- mode bookkeeping ----------------------------------------------------
     def _modes(self, transitions: TransitionList, rates: Rates, gain: complex, phase_delay_s: float):
         f = transitions.frequencies_hz
-        if np.isscalar(rates):
-            r = np.full(len(f), float(rates))
-        else:
-            table = np.asarray(rates, float)
-            r = table[transitions.families]
-        if np.any(r < 0) or not np.isfinite(r).all():
-            raise ValueError("Decay rates must be finite and nonnegative.")
+        r = _per_transition(rates, transitions, "Decay rates")
         lam = -r + 2j * np.pi * f
         a = transitions.amplitudes * gain * np.exp(2j * np.pi * f * phase_delay_s)
         t0 = self.acq.time_origin_s
@@ -128,15 +146,17 @@ class Renderer:
         return _geometric(-1j * omega, self.acq.n) / self.acq.n
 
     def render(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
-               gain: complex = 1.0, phase_delay_s: float = 0.0) -> np.ndarray:
-        """Processed complex spectrum of the damped transitions at `frequencies_hz`."""
+               gain: complex = 1.0, phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
+        """Processed complex spectrum of the broadened transitions at `frequencies_hz`."""
         f = np.asarray(frequencies_hz, float)
         if not len(transitions):
             return np.zeros(len(f), complex)
+        sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
         logz, c = self._modes(transitions, rates, gain, phase_delay_s)
-        if len(self.coef) and float(np.max(-logz.real)) * self.half > self.stability_limit:
+        unstable = len(self.coef) and float(np.max(-logz.real)) * self.half > self.stability_limit
+        if unstable or np.any(sigma > 0):
             self.sampled_calls += 1
-            fid = self.synthesize(transitions, rates, gain, phase_delay_s)
+            fid = self.synthesize(transitions, rates, gain, phase_delay_s, gaussian_sigma_hz=gaussian_sigma_hz)
             return evaluate_spectrum(process_record(fid, self.acq), self.acq, f)
         self.analytic_calls += 1
         if len(self.coef):
@@ -156,26 +176,34 @@ class Renderer:
         return spectrum
 
     def render_pair(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
-                    phase_delay_s: float = 0.0) -> np.ndarray:
+                    phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
         """Columns for real and imaginary parts of a complex gain: shape (F, 2).
 
         spectrum(g) = Re(g) * col0 + Im(g) * col1, used for variable projection.
         """
-        col0 = self.render(transitions, rates, frequencies_hz, 1.0, phase_delay_s)
-        col1 = self.render(transitions, rates, frequencies_hz, 1j, phase_delay_s)
+        col0 = self.render(transitions, rates, frequencies_hz, 1.0, phase_delay_s, gaussian_sigma_hz)
+        col1 = self.render(transitions, rates, frequencies_hz, 1j, phase_delay_s, gaussian_sigma_hz)
         return np.column_stack([col0, col1])
 
     # -- time-domain reference ---------------------------------------------------
     def synthesize(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
-                   phase_delay_s: float = 0.0, include_dc: bool = False) -> np.ndarray:
-        """Real FID over the full record (reference and noise injection)."""
+                   phase_delay_s: float = 0.0, include_dc: bool = False,
+                   gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
+        """Real FID over the full record (reference, Gaussian broadening, noise injection)."""
         logz, c = self._modes(transitions, rates, gain, phase_delay_s)
+        sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
+        sigma_all = np.concatenate([sigma, sigma])
+        times = self.acq.times()
         m = np.arange(self.acq.points)
         out = np.zeros(self.acq.points)
         step = max(1, 2_000_000 // max(1, len(logz)))
+        broadened = bool(np.any(sigma_all > 0))
         for first in range(0, len(m), step):
             block = m[first:first + step]
-            out[first:first + step] = (np.exp(np.outer(block, logz)) @ c).real
+            modes = np.exp(np.outer(block, logz))
+            if broadened:
+                modes = modes * np.exp(-0.5 * (2 * np.pi * np.outer(times[block], sigma_all)) ** 2)
+            out[first:first + step] = (modes @ c).real
         if include_dc:
             out += np.real(transitions.dc * gain)
         return out
@@ -196,26 +224,37 @@ class ContinuousRenderer:
             raise ValueError("normalization_s must be positive.")
         self.normalization_s = normalization_s
 
+    @staticmethod
+    def _line(a: np.ndarray, r: np.ndarray, sigma: np.ndarray, offset: np.ndarray) -> np.ndarray:
+        """integral_0^inf a exp(-(r + 2 pi i offset) t - (2 pi sigma t)^2 / 2) dt, elementwise."""
+        k = r + 2j * np.pi * offset
+        lorentz = a / np.where(sigma > 0, 1.0, k)
+        b = np.where(sigma > 0, 2 * np.pi * sigma, 1.0)
+        # integral = sqrt(pi / (2 b^2)) * w(i k / (sqrt(2) b)), with w the Faddeeva function.
+        voigt = a * np.sqrt(np.pi / 2) / b * wofz(1j * k / (np.sqrt(2) * b))
+        return np.where(sigma > 0, voigt, lorentz)
+
     def render(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
-               gain: complex = 1.0, phase_delay_s: float = 0.0) -> np.ndarray:
+               gain: complex = 1.0, phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
         f = np.asarray(frequencies_hz, float)
         if not len(transitions):
             return np.zeros(len(f), complex)
         fk = transitions.frequencies_hz
-        r = np.full(len(fk), float(rates)) if np.isscalar(rates) else np.asarray(rates, float)[transitions.families]
-        if np.any(r <= 0) or not np.isfinite(r).all():
-            raise ValueError("Continuous rendering needs finite positive rates.")
+        r = _per_transition(rates, transitions, "Decay rates")
+        sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
+        if np.any((r <= 0) & (sigma <= 0)):
+            raise ValueError("Each transition needs a positive rate or a positive Gaussian sigma.")
         a = transitions.amplitudes * gain * np.exp(2j * np.pi * fk * phase_delay_s)
         out = np.empty(len(f), complex)
-        step = max(1, 4_000_000 // max(1, len(fk)))
+        step = max(1, 2_000_000 // max(1, len(fk)))
         for first in range(0, len(f), step):
             ff = f[first:first + step, None]
-            positive = (a / 2) / (r + 2j * np.pi * (ff - fk))
-            negative = (np.conj(a) / 2) / (r + 2j * np.pi * (ff + fk))
+            positive = self._line(a / 2, r, sigma, ff - fk)
+            negative = self._line(np.conj(a) / 2, r, sigma, ff + fk)
             out[first:first + step] = (positive + negative).sum(axis=1)
         return out / self.normalization_s
 
     def render_pair(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
-                    phase_delay_s: float = 0.0) -> np.ndarray:
-        return np.column_stack([self.render(transitions, rates, frequencies_hz, 1.0, phase_delay_s),
-                                self.render(transitions, rates, frequencies_hz, 1j, phase_delay_s)])
+                    phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
+        return np.column_stack([self.render(transitions, rates, frequencies_hz, 1.0, phase_delay_s, gaussian_sigma_hz),
+                                self.render(transitions, rates, frequencies_hz, 1j, phase_delay_s, gaussian_sigma_hz)])

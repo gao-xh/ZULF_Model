@@ -116,6 +116,44 @@ class PureRouteTests(unittest.TestCase):
         self.assertLess(np.abs(finite - pure).max() / np.abs(finite).max(), 5e-3)
 
 
+class BroadeningTests(unittest.TestCase):
+    def test_gaussian_finite_record_matches_time_domain(self):
+        tl = random_transitions(12, count=5)
+        acq = ACQS[2]
+        renderer = Renderer(acq)
+        grid = SpectrumGrid.for_acquisition(acq, 1, 390)
+        a = renderer.render(tl, np.array([0.5, 2.0]), grid.frequencies_hz, 0.7j, 0.001, np.array([0.3, 1.2]))
+        t = acq.times()
+        # Independent reference: explicit sum of broadened real oscillations.
+        fam = tl.families
+        env = np.exp(-np.outer(t, np.array([0.5, 2.0])[fam]) - 0.5 * (2 * np.pi * np.outer(t, np.array([0.3, 1.2])[fam])) ** 2)
+        amp = tl.amplitudes * 0.7j * np.exp(2j * np.pi * tl.frequencies_hz * 0.001)
+        fid = (env * np.exp(2j * np.pi * np.outer(t, tl.frequencies_hz)) @ amp).real
+        b = evaluate_spectrum(process_record(fid, acq), acq, grid.frequencies_hz)
+        self.assertLess(np.abs(a - b).max() / np.abs(b).max(), 1e-10)
+
+    def test_continuous_voigt_matches_numerical_integral(self):
+        from scipy.integrate import quad
+        from zulf_model.render import ContinuousRenderer
+        tl = TransitionList(np.array([50.0]), np.array([1.0 + 0.5j]))
+        f = np.array([48.0, 50.0, 51.3])
+        got = ContinuousRenderer().render(tl, 2.0, f, gaussian_sigma_hz=0.8)
+        for k, fk in enumerate(f):
+            def integrand(t, part):
+                x = (np.exp(-2.0 * t - 0.5 * (2 * np.pi * 0.8 * t) ** 2)
+                     * ((1.0 + 0.5j) * np.exp(2j * np.pi * 50.0 * t)).real * np.exp(-2j * np.pi * fk * t))
+                return x.real if part == 0 else x.imag
+            ref = quad(integrand, 0, 3, args=(0,), limit=2000)[0] + 1j * quad(integrand, 0, 3, args=(1,), limit=2000)[0]
+            self.assertAlmostEqual(abs(got[k] - ref) / abs(ref), 0.0, places=6)
+
+    def test_pure_gaussian_line(self):
+        from zulf_model.render import ContinuousRenderer
+        tl = TransitionList(np.array([80.0]), np.array([1.0 + 0j]))
+        spec = ContinuousRenderer().render(tl, 0.0, np.linspace(70, 90, 201), gaussian_sigma_hz=1.0)
+        self.assertTrue(np.isfinite(spec).all())
+        self.assertAlmostEqual(float(np.linspace(70, 90, 201)[np.argmax(spec.real)]), 80.0, places=6)
+
+
 class PerturbationTests(unittest.TestCase):
     def test_noise_level_calibration(self):
         acq = Acquisition(1000.0, 8000)

@@ -22,6 +22,8 @@ from .renderer import Renderer
 @dataclass(frozen=True)
 class PerturbationConfig:
     rate_range_per_s: Tuple[float, float] = (0.3, 6.0)
+    gaussian_probability: float = 0.5
+    gaussian_sigma_range_hz: Tuple[float, float] = (0.02, 1.0)
     family_rate_spread: float = 0.3
     family_split_probability: float = 0.3
     global_phase_range_rad: Tuple[float, float] = (-np.pi, np.pi)
@@ -54,6 +56,7 @@ class ComponentRender:
     rates_per_s: np.ndarray
     family_edges_hz: np.ndarray
     gain: complex
+    gaussian_sigma_hz: float = 0.0
 
 
 @dataclass
@@ -68,7 +71,8 @@ class RenderParams:
 
     def to_dict(self) -> dict:
         return {"components": [{"rates_per_s": c.rates_per_s.tolist(), "family_edges_hz": c.family_edges_hz.tolist(),
-                                "gain": [c.gain.real, c.gain.imag]} for c in self.components],
+                                "gain": [c.gain.real, c.gain.imag], "gaussian_sigma_hz": c.gaussian_sigma_hz}
+                               for c in self.components],
                 "global_phase_rad": self.global_phase_rad, "phase_delay_s": self.phase_delay_s,
                 "snr": self.snr, "drift": self.drift, "interference": self.interference,
                 "noise_seed": self.noise_seed}
@@ -76,7 +80,8 @@ class RenderParams:
     @classmethod
     def from_dict(cls, data: dict) -> "RenderParams":
         comps = [ComponentRender(np.asarray(c["rates_per_s"], float), np.asarray(c["family_edges_hz"], float),
-                                 complex(*c["gain"])) for c in data["components"]]
+                                 complex(*c["gain"]), float(c.get("gaussian_sigma_hz", 0.0)))
+                 for c in data["components"]]
         return cls(comps, data["global_phase_rad"], data["phase_delay_s"], data["snr"], data["drift"],
                    list(data["interference"]), int(data["noise_seed"]))
 
@@ -99,7 +104,10 @@ def sample_render_params(rng: np.random.Generator, transitions: Sequence[Transit
         rates = np.clip(rates, *config.rate_range_per_s)
         gain = 10 ** rng.uniform(*config.component_gain_log10_range) * np.exp(
             1j * rng.normal(0, config.component_phase_spread_rad))
-        comps.append(ComponentRender(rates, edges, complex(gain)))
+        sigma = 0.0
+        if rng.random() < config.gaussian_probability:
+            sigma = float(_log_uniform(rng, *config.gaussian_sigma_range_hz))
+        comps.append(ComponentRender(rates, edges, complex(gain), sigma))
     params = RenderParams(comps, float(rng.uniform(*config.global_phase_range_rad)),
                           float(rng.uniform(*config.phase_delay_range_s)), noise_seed=int(rng.integers(2**31)))
     if noiseless:
@@ -125,7 +133,7 @@ def render_signal(renderer: Renderer, transitions: Sequence[TransitionList], par
     for tl, comp, weight in zip(transitions, params.components, contributions):
         labelled = tl.split_families(comp.family_edges_hz)
         total += renderer.render(labelled, comp.rates_per_s, frequencies_hz, comp.gain * phase * weight,
-                                 params.phase_delay_s)
+                                 params.phase_delay_s, comp.gaussian_sigma_hz)
     return total
 
 

@@ -110,11 +110,14 @@ root-mean-square of the magnitude over the grid) and presented as channels
 `[real, imag]` with an optional `magnitude` channel. The scale is returned with
 the features so predictions of relative contribution can be mapped back.
 
-## Decay model
+## Line broadening
 
 Each component (or each transition family inside a component) has one
-effective exponential rate. This is a phenomenological effective T2*, not a
-microscopic relaxation model.
+effective exponential rate R (homogeneous, Lorentzian, absorption FWHM R/pi)
+and an optional Gaussian frequency spread with standard deviation sigma in Hz
+(inhomogeneous: field inhomogeneity, scan-to-scan jitter). The FID envelope is
+`exp(-R t - (2 pi sigma t)^2 / 2)`, giving Voigt lines. These are
+phenomenological effective parameters, not a microscopic relaxation model.
 
 ## Spin ordering and equality of interpretations
 
