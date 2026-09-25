@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
-from scipy.optimize import differential_evolution, minimize, nnls
+from scipy.optimize import differential_evolution, dual_annealing, minimize, nnls
 
 from ..physics.protocol import SUDDEN_DROP, Protocol
 from ..physics.transitions import TransitionCache
@@ -56,6 +56,8 @@ class SearchSettings:
     rate_grid: int = 32
     kernel_zero_fill: int = 16     # lineshape table density relative to the record length
     include_rates: bool = True
+    method: str = "differential_evolution"   # or "dual_annealing" (generalized simulated annealing)
+    annealing_maxiter: int = 300
 
     @classmethod
     def from_dict(cls, data: Optional[dict]) -> "SearchSettings":
@@ -235,12 +237,28 @@ def global_search(parameterization: Parameterization, observed: ObservedSpectrum
         return time.perf_counter() - start > settings.max_seconds
 
     bounds = list(zip(lower[index], upper[index]))
-    de = differential_evolution(cost, bounds, popsize=settings.popsize, maxiter=settings.maxiter, seed=settings.seed,
-                                tol=1e-8, polish=False, init="sobol", callback=callback, x0=base[index])
+    if settings.method == "differential_evolution":
+        de = differential_evolution(cost, bounds, popsize=settings.popsize, maxiter=settings.maxiter,
+                                    seed=settings.seed, tol=1e-8, polish=False, init="sobol", callback=callback,
+                                    x0=base[index])
+        population = getattr(de, "population", np.atleast_2d(de.x))
+        energies = getattr(de, "population_energies", np.array([de.fun]))
+    elif settings.method == "dual_annealing":
+        # Independent annealing runs (different seeds) until enough distinct minima or the budget is used.
+        found_x, found_f = [], []
+        for run in range(max(1, settings.solutions) * 2):
+            if time.perf_counter() - start > settings.max_seconds:
+                break
+            res = dual_annealing(cost, bounds, maxiter=settings.annealing_maxiter, seed=settings.seed + run,
+                                 x0=base[index] if run == 0 else None, no_local_search=True,
+                                 callback=lambda x, f, context: time.perf_counter() - start > settings.max_seconds)
+            found_x.append(np.asarray(res.x, float))
+            found_f.append(float(res.fun))
+        population, energies = np.array(found_x), np.array(found_f)
+    else:
+        raise ValueError("SearchSettings.method must be 'differential_evolution' or 'dual_annealing'.")
     if time.perf_counter() - start > settings.max_seconds:
         flags.append("search_budget_exhausted")
-    population = getattr(de, "population", np.atleast_2d(de.x))
-    energies = getattr(de, "population_energies", np.array([de.fun]))
     order = np.argsort(energies)
     couplings = np.array([parameterization.parameters[n].kind == "coupling" for n in searched])
     chosen: List[np.ndarray] = []

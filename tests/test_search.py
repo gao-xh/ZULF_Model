@@ -96,6 +96,16 @@ class GlobalSearchTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             refine(self.far, self.obs, RefineSettings(policy=POLICY), initial_points=[np.zeros(2)])
 
+    def test_dual_annealing_option(self):
+        settings = RefineSettings(policy=POLICY, continuation_rates_per_s=(0.0,),
+                                  search=dict(method="dual_annealing", annealing_maxiter=150, max_seconds=60,
+                                              solutions=2))
+        result = refine(self.far, self.obs, settings)
+        self.assertLess(best_permutation(self.truth, result.interpretation.components[0].system).max_abs_error_hz, 1e-3)
+        with self.assertRaises(ValueError):
+            global_search(Parameterization.from_interpretation(self.far, POLICY), self.obs,
+                          SearchSettings(method="annealing"))
+
     def test_search_requires_fid(self):
         from zulf_model.solver import ObservedSpectrum
         bare = ObservedSpectrum(self.obs.frequencies_hz, self.obs.values, self.obs.acquisition, self.obs.band_index)

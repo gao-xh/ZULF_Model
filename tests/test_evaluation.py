@@ -141,5 +141,29 @@ class FineTuneTests(unittest.TestCase):
         self.assertGreater(sampler.config.source_weights["focused"], 0)
 
 
+class BlockSignMatchingTests(unittest.TestCase):
+    @staticmethod
+    def system(j_nh, linked):
+        from zulf_model.spinsystem import SpinSystem
+        j = np.zeros((4, 4))
+        values = {(0, 2): 140.0, (1, 3): j_nh}
+        if linked:
+            values.update({(0, 1): -5.0, (0, 3): 3.0, (1, 2): -2.0, (2, 3): 5.0})
+        for (a, b), v in values.items():
+            j[a, b] = j[b, a] = v
+        return SpinSystem(("13C", "15N", "1H", "1H"), j)
+
+    def test_relative_sign_free_only_between_disconnected_blocks(self):
+        from zulf_model.evaluation.matching import coupling_blocks, coupling_error
+        from zulf_model.spinsystem import SpinSystem
+        self.assertEqual(len(coupling_blocks(self.system(-70.0, False))), 2)
+        self.assertEqual(len(coupling_blocks(self.system(-70.0, True))), 1)
+        self.assertLess(coupling_error(self.system(-70.0, False), self.system(70.0, False))[0], 1e-9)
+        self.assertAlmostEqual(coupling_error(self.system(-70.0, True), self.system(70.0, True))[0], 140.0)
+        truth = self.system(-70.0, True)
+        flipped = SpinSystem(truth.isotopes, -truth.couplings_hz)
+        self.assertLess(coupling_error(truth, flipped)[0], 1e-9)
+
+
 if __name__ == "__main__":
     unittest.main()

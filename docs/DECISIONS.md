@@ -240,8 +240,20 @@ all couplings of one heteronuclear group flipped (`solver.variants`), removes
 variants equivalent under the global sign, refines all of them and keeps every
 branch. Rule for experimental work: enable it whenever J are refined against
 an experimental spectrum, and report which sign variant won and by how much
-(held-out ranking when available). Matching should also allow independent
-sign flips of disconnected coupling blocks (not yet implemented).
+(held-out ranking when available). Matching allows an independent sign per
+connected block of the true coupling network (`evaluation.matching.
+coupling_blocks`), since only disconnected blocks have unobservable relative
+signs; the relabelling is also searched on |J|.
+
+## D26. Simulated annealing as an alternative global search (2026-09-25)
+
+`SearchSettings.method = "dual_annealing"` runs scipy's generalized simulated
+annealing on the pattern objective (independent seeded runs until enough
+distinct minima or the budget), next to the default differential evolution.
+The solver's deterministic counterpart of annealing is the matched linewidth
+continuation (D14): data and model are broadened identically and the
+broadening is lowered step by step. Which global method recovers more
+systems is to be measured with `scripts/solver_recovery.py`.
 
 ## Open questions
 
