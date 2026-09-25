@@ -17,7 +17,7 @@ from ..physics.transitions import TransitionCache
 from ..render.acquisition import evaluate_spectrum, process_record
 from ..render.features import spectrum_features
 from ..render.grid import SpectrumGrid
-from ..render.phasing import phase_correct
+from ..render.phasing import estimate_phase, phase_correct
 from ..render.renderer import ContinuousRenderer, Renderer
 from ..solver.observed import ObservedSpectrum
 from ..spec import ProblemSpec
@@ -38,7 +38,8 @@ class ModelProposer(CandidateProposer):
 
     Models trained with `grid.phasing = "corrected"` need the operator's phase
     correction: `phasing = {"phase0_rad": ..., "delay_s": ...}` (see render.phasing);
-    the crop reference of the acquisition is added automatically.
+    the crop reference of the acquisition is added automatically. `{"auto": True}`
+    estimates both from the spectrum (`render.phasing.estimate_phase`).
     """
     name = "model"
 
@@ -61,8 +62,14 @@ class ModelProposer(CandidateProposer):
             values = np.interp(self.grid.frequencies_hz, observed.frequencies_hz, observed.values.real) + 1j * np.interp(
                 self.grid.frequencies_hz, observed.frequencies_hz, observed.values.imag)
         if self.phasing:
-            values = phase_correct(values, self.grid.frequencies_hz, float(self.phasing.get("phase0_rad", 0.0)),
-                                   float(self.phasing.get("delay_s", 0.0)), observed.acquisition)
+            phasing = dict(self.phasing)
+            if phasing.get("auto"):
+                estimate = estimate_phase(values, self.grid.frequencies_hz, observed.acquisition,
+                                          **{k: v for k, v in phasing.items() if k != "auto"})
+                phasing = {"phase0_rad": estimate["phase0_rad"], "delay_s": estimate["delay_s"]}
+                self.last_phasing = estimate
+            values = phase_correct(values, self.grid.frequencies_hz, float(phasing.get("phase0_rad", 0.0)),
+                                   float(phasing.get("delay_s", 0.0)), observed.acquisition)
         return spectrum_features(values, self.channels)[0]
 
     def propose(self, observed: ObservedSpectrum, k: int) -> List[Interpretation]:

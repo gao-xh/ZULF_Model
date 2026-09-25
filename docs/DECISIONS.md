@@ -170,6 +170,15 @@ phase, so correction is exact only up to that term (about 0.1 percent of the
 peak in the tests). The default stays "none" (real and imaginary channels with
 random phase). Channel count of the encoder follows the spec.
 
+Automatic phasing (`render.phasing.estimate_phase`, `phasing = {"auto": true}`
+at inference) handles lines of either sign: after a running-median background
+removal in the crop frame (where the broadband tail of a cropped record is
+smooth), each strong peak's phase is taken from a symmetric complex window sum
+at a parabolically refined centre, and phase0 plus delay are fitted modulo pi.
+Synthetic recovery: phase within 0.07 rad, delay within 0.05 ms. Background
+removal and phasing must happen in this order: after first-order correction the
+crop tail becomes a sinusoid with period 1 / crop time.
+
 ## D21. Free component ratios; targets use rendered weights (2026-09-25)
 
 Relaxation during transfer, polarization and detection change isotopologue

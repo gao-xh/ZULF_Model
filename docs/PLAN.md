@@ -79,6 +79,13 @@ fixed, so later phases are experiments rather than restructuring.
       (pattern cost about 0.2 on 127-141 Hz); a residual field (D19) improves
       it only marginally at its bound. Paused at the user's request in favour
       of training work; next questions are the pulse sequence and shield field.
+      Automatic phasing of the real average (crop 100 ms, SG801) gives
+      phase0 -64 deg and delay -6.1 ms relative to the first recorded sample
+      (misfit 0.065 over 14 peaks): spin evolution starts about 6 ms after the
+      record starts. Across 110-150 Hz this is about 1.5 rad of first-order
+      phase that the refinement (shared phase, no delay) could not follow; the
+      next refinement should fix the delay at this value or fit it
+      (`policy.fit_phase_delay`).
 - [ ] Recovery tests on random generated systems from perturbed starts.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)

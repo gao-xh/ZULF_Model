@@ -236,13 +236,15 @@ def train_model(args: dict) -> dict:
 @REGISTRY.tool("propose_candidates",
                "Propose top-k spin interpretations for an averaged FID with a trained model checkpoint. Models "
                "trained on phase-corrected spectra need 'phasing' (phase0_rad and delay_s, the first-order phase "
-               "as a time; the crop reference is added automatically).",
+               "as a time; the crop reference is added automatically), or {'auto': true} to estimate both "
+               "from the spectrum.",
                {"type": "object", "properties": {"model_path": {"type": "string"}, "source": FID_SOURCE,
                                                   "acquisition": ACQUISITION, "k": {"type": "integer", "default": 5},
                                                   "device": {"type": "string", "default": "cpu"},
                                                   "phasing": {"type": "object", "properties": {
                                                       "phase0_rad": {"type": "number"},
-                                                      "delay_s": {"type": "number"}}}},
+                                                      "delay_s": {"type": "number"},
+                                                      "auto": {"type": "boolean"}}}},
                 "required": ["model_path", "source"]})
 def propose_candidates(args: dict) -> dict:
     from ..evaluation import ModelProposer
@@ -254,9 +256,10 @@ def propose_candidates(args: dict) -> dict:
     acq = _acquisition(exp, args.get("acquisition"))
     grid = SpectrumGrid.from_spec(model.spec.grid, acq.without_processing())
     obs = ObservedSpectrum(grid.frequencies_hz, np.zeros(len(grid), complex), acq, None, "", {}, exp.fid)
-    candidates = ModelProposer(model, grid, model.spec.grid.channels, args["device"],
-                               phasing=args.get("phasing")).propose(obs, args["k"])
+    proposer = ModelProposer(model, grid, model.spec.grid.channels, args["device"], phasing=args.get("phasing"))
+    candidates = proposer.propose(obs, args["k"])
     return {"candidates": [c.to_dict() for c in candidates], "acquisition": acq.to_dict(),
+            "phasing": getattr(proposer, "last_phasing", args.get("phasing")),
             "note": "Network proposals; refine and validate before interpreting."}
 
 
