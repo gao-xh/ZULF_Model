@@ -99,15 +99,27 @@ class CNNTransformerModel(CandidateModel):
         target = batch["tokens"][:, 1:]
         valid = target != self.vocab[PAD]
         logp = out["logits"].float().log_softmax(-1)
-        ce = -(self.soft_targets(target) * logp).sum(-1)
+        q = self.soft_targets(target)
+        ce = -(q * logp).sum(-1)
         ce = (ce * valid).sum() / valid.sum().clamp(min=1)
         mask = batch["j_offset_mask"][:, 1:]
         off = ((out["offsets"].float() - batch["j_offsets"][:, 1:]) ** 2 * mask).sum() / mask.sum().clamp(min=1)
         total = ce + head.weight_offset * off
         with torch.no_grad():
-            accuracy = ((out["logits"].argmax(-1) == target) & valid).sum() / valid.sum().clamp(min=1)
-        return total, {"loss": total.item(), "token_ce": ce.item(), "offset_mse": off.item(),
-                       "token_accuracy": accuracy.item()}
+            n_valid = valid.sum().clamp(min=1)
+            # Entropy of the soft targets: the floor of token_ce; token_ce - floor is the KL that can be learned.
+            floor = (-(q * q.clamp(min=1e-30).log()).sum(-1) * valid).sum() / n_valid
+            predicted = out["logits"].argmax(-1)
+            accuracy = ((predicted == target) & valid).sum() / n_valid
+            is_j = (target >= self.vocab.j_start) & (target < self.vocab.j_start + self.vocab.j_bins) & valid
+            structural = valid & ~is_j
+            structure_accuracy = ((predicted == target) & structural).sum() / structural.sum().clamp(min=1)
+            j_near = ((predicted - target).abs() <= 1) & is_j
+            j_accuracy_1bin = j_near.sum() / is_j.sum().clamp(min=1)
+        return total, {"loss": total.item(), "token_ce": ce.item(), "token_ce_floor": floor.item(),
+                       "token_kl": (ce - floor).item(), "offset_mse": off.item(),
+                       "token_accuracy": accuracy.item(), "structure_token_accuracy": structure_accuracy.item(),
+                       "j_token_accuracy_1bin": j_accuracy_1bin.item()}
 
     # -- decoding -----------------------------------------------------------------
     def _grammar_mask(self, states: List[GrammarState], device) -> torch.Tensor:
