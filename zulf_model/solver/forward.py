@@ -10,8 +10,10 @@ the linear response in closed form:
   on a grid inside the projection) and nonnegative real amplitudes per
   component, as expected when all components share one acquisition.
 
-Optional per-band complex constants absorb residual baselines (off by default,
-because they can bias decay estimates).
+Optional per-band complex polynomial backgrounds (`background_order` >= 0)
+absorb smooth residual baselines, such as the low-frequency tail of an
+incompletely removed FID baseline. Off by default (-1) because they can bias
+decay estimates; any use is recorded in the result.
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
-from scipy.optimize import nnls
+from scipy.optimize import brentq, nnls
 
 from ..physics.protocol import SUDDEN_DROP, Protocol
 from ..physics.transitions import TransitionCache
@@ -42,7 +44,7 @@ class Prediction:
 
 class MixtureForward:
     def __init__(self, parameterization: Parameterization, observed: ObservedSpectrum,
-                 protocol: Protocol = SUDDEN_DROP, gain_model: str = "shared_phase", background: bool = False,
+                 protocol: Protocol = SUDDEN_DROP, gain_model: str = "shared_phase", background: int = -1,
                  band_weighting: str = "equal", timer: Optional[Timer] = None, phase_grid: int = 72):
         if gain_model not in ("complex", "shared_phase"):
             raise ValueError("gain_model must be 'complex' or 'shared_phase'.")
@@ -52,7 +54,8 @@ class MixtureForward:
         self.obs = observed
         self.protocol = protocol
         self.gain_model = gain_model
-        self.background = background
+        self.background_order = int(background) if not isinstance(background, bool) else (0 if background else -1)
+        self.background = self.background_order >= 0
         self.timer = timer or Timer(enabled=False)
         self.phase_grid = phase_grid
         self.cache = TransitionCache(256)
@@ -88,12 +91,20 @@ class MixtureForward:
         return cols
 
     def _background_columns(self) -> np.ndarray:
+        """Complex polynomial (Legendre-scaled coordinate) per band: columns 1 and i per power."""
         bands = np.unique(self.band)
-        out = np.zeros((len(self.f), 2 * len(bands)), complex)
-        for k, b in enumerate(bands):
+        order = self.background_order
+        out = np.zeros((len(self.f), 2 * len(bands) * (order + 1)), complex)
+        col = 0
+        for b in bands:
             m = self.band == b
-            out[m, 2 * k] = 1.0
-            out[m, 2 * k + 1] = 1j
+            f = self.f[m]
+            u = (f - (f.max() + f.min()) / 2) / max((f.max() - f.min()) / 2, 1e-12)
+            for power in range(order + 1):
+                basis = np.polynomial.legendre.legval(u, [0] * power + [1])
+                out[m, col] = basis
+                out[m, col + 1] = 1j * basis
+                col += 2
         return out
 
     @staticmethod
@@ -131,44 +142,87 @@ class MixtureForward:
                           residual, float(residual @ residual))
 
     def _shared_phase(self, cols, bg_cols):
-        """Grid-then-refine search of a common phase with nonnegative amplitudes.
+        """Common phase with nonnegative component amplitudes; background unconstrained.
 
         A real FID's spectrum is not complex-linear in the gain (mirror term), so
-        the response to gain exp(i phi) is cos(phi) col0 + sin(phi) col1.
+        the response to gain exp(i phi) is cos(phi) col0 + sin(phi) col1. The
+        background is projected out once; for each phase only a K x K
+        nonnegative least-squares problem remains (Gram-matrix form), so the
+        grid-then-golden phase search is cheap.
         """
-        best = None
+        c0 = np.column_stack([col[:, 0] for col in cols])
+        c1 = np.column_stack([col[:, 1] for col in cols])
+        a0, y = self._real_system(c0, self.y, self.weight)
+        a1, _ = self._real_system(c1, self.y, self.weight)
+        if bg_cols.shape[1]:
+            ab, _ = self._real_system(bg_cols, self.y, self.weight)
+            q, _ = np.linalg.qr(ab)
+            project = lambda m: m - q @ (q.T @ m)
+            a0, a1, y_res = project(a0), project(a1), project(y[:, None])[:, 0]
+        else:
+            y_res = y
+        g00, g01, g11 = a0.T @ a0, a0.T @ a1, a1.T @ a1
+        r0, r1 = a0.T @ y_res, a1.T @ y_res
+        yy = float(y_res @ y_res)
+        k = len(cols)
 
         def solve(phi):
-            design = np.column_stack([np.cos(phi) * col[:, 0] + np.sin(phi) * col[:, 1] for col in cols])
-            a, b = self._real_system(design, self.y, self.weight)
-            if bg_cols.shape[1]:
-                abg, _ = self._real_system(bg_cols, self.y, self.weight)
-                # Background is signed: split into positive and negative parts for NNLS.
-                a = np.hstack([a, abg, -abg])
-            norms = np.maximum(np.linalg.norm(a, axis=0), 1e-30)
-            coef, rnorm = nnls(a / norms, b, maxiter=50 * a.shape[1])
-            return coef / norms, rnorm
+            c, s_ = np.cos(phi), np.sin(phi)
+            gram = c * c * g00 + c * s_ * (g01 + g01.T) + s_ * s_ * g11
+            rhs = c * r0 + s_ * r1
+            scale = np.sqrt(np.maximum(np.diag(gram), 1e-300))
+            gram_n = gram / np.outer(scale, scale)
+            rhs_n = rhs / scale
+            try:
+                chol = np.linalg.cholesky(gram_n + 1e-12 * np.eye(k))
+            except np.linalg.LinAlgError:
+                chol = np.linalg.cholesky(gram_n + 1e-8 * np.eye(k))
+            target = np.linalg.solve(chol, rhs_n)
+            amp_n, _ = nnls(chol.T, target, maxiter=50 * k)
+            amp = amp_n / scale
+            value = yy - 2 * amp @ rhs + amp @ gram @ amp
+            return amp, value
 
-        grid = np.linspace(-np.pi, np.pi, self.phase_grid, endpoint=False)
-        for phi in grid:
-            coef, rnorm = solve(phi)
-            if best is None or rnorm < best[2]:
-                best = (phi, coef, rnorm)
+        def derivative(phi):
+            """dV/dphi for the unconstrained amplitudes (no cancellation of O(1) terms at the optimum)."""
+            c, s_ = np.cos(phi), np.sin(phi)
+            gram = c * c * g00 + c * s_ * (g01 + g01.T) + s_ * s_ * g11
+            d_gram = 2 * c * s_ * (g11 - g00) + (c * c - s_ * s_) * (g01 + g01.T)
+            rhs = c * r0 + s_ * r1
+            d_rhs = -s_ * r0 + c * r1
+            amp = np.linalg.solve(gram + 1e-14 * np.trace(gram) * np.eye(k), rhs)
+            return -2 * amp @ d_rhs + amp @ d_gram @ amp
+
+        best = None
+        for phi in np.linspace(-np.pi, np.pi, self.phase_grid, endpoint=False):
+            amp, value = solve(phi)
+            if best is None or value < best[2]:
+                best = (phi, amp, value)
         step = 2 * np.pi / self.phase_grid
         lo, hi = best[0] - step, best[0] + step
-        for _ in range(40):  # golden-section refinement
-            m1, m2 = lo + 0.382 * (hi - lo), lo + 0.618 * (hi - lo)
-            if solve(m1)[1] < solve(m2)[1]:
-                hi = m2
-            else:
-                lo = m1
-        phi = (lo + hi) / 2
-        coef, _ = solve(phi)
-        n = len(cols)
-        gains = coef[:n] * np.exp(1j * phi)
+        phi = best[0]
+        try:
+            d_lo, d_hi = derivative(lo), derivative(hi)
+            if d_lo < 0 < d_hi:
+                phi = brentq(derivative, lo, hi, xtol=1e-15, rtol=4 * np.finfo(float).eps, maxiter=200)
+        except (np.linalg.LinAlgError, ValueError):
+            pass
+        amp, value = solve(phi)
+        if np.any(amp <= 0):
+            # Nonnegativity active: fall back to a golden-section search on the NNLS value.
+            for _ in range(60):
+                m1, m2 = lo + 0.382 * (hi - lo), lo + 0.618 * (hi - lo)
+                if solve(m1)[1] < solve(m2)[1]:
+                    hi = m2
+                else:
+                    lo = m1
+            phi = (lo + hi) / 2
+            amp, _ = solve(phi)
+        gains = amp * np.exp(1j * phi)
         background = np.zeros(0, complex)
         if bg_cols.shape[1]:
-            k = bg_cols.shape[1]
-            signed = coef[n:n + k] - coef[n + k:n + 2 * k]
-            background = signed[0::2] + 1j * signed[1::2]
+            fitted = sum(np.cos(phi) * a * col[:, 0] + np.sin(phi) * a * col[:, 1] for a, col in zip(amp, cols))
+            ab, target = self._real_system(bg_cols, self.y - fitted, self.weight)
+            coef = np.linalg.lstsq(ab, target, rcond=1e-12)[0]
+            background = coef[0::2] + 1j * coef[1::2]
         return gains, background

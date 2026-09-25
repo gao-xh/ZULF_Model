@@ -93,6 +93,15 @@ class Renderer:
         self.start_edge = np.arange(start, min(stop, h)) if h else np.zeros(0, int)
         self.end_edge = np.arange(max(start, N - h), stop) if h else np.zeros(0, int)
 
+    def _time_is_cheaper(self, n_frequencies: int, n_transitions: int, f: np.ndarray) -> bool:
+        """Rough cost model: analytic ~ F x 2T; time path ~ N log N plus processing."""
+        if _fft_length(f, self.acq) is None:
+            return False
+        n = self.acq.points
+        analytic = n_frequencies * 2 * n_transitions + 2 * n_transitions * self.half * 4
+        time_path = 8 * n * max(1.0, np.log2(n))
+        return time_path < analytic
+
     # -- mode bookkeeping ----------------------------------------------------
     def _modes(self, transitions: TransitionList, rates: Rates, gain: complex, phase_delay_s: float):
         f = transitions.frequencies_hz
@@ -144,15 +153,27 @@ class Renderer:
             out[first:first + self.chunk] = _geometric(L, n) @ scaled
         return out / n
 
+    def _kernel(self, frequencies: np.ndarray, rel: np.ndarray) -> np.ndarray:
+        """Cached exp(-2 pi i f rel / fs) for edge-sample DTFTs."""
+        key = (frequencies.tobytes(), rel.tobytes())
+        cache = getattr(self, "_kernel_cache", None)
+        if cache is None:
+            cache = self._kernel_cache = {}
+        if key not in cache:
+            if len(cache) > 8:
+                cache.clear()
+            cache[key] = np.exp(-2j * np.pi * np.outer(frequencies, rel) / self.acq.sampling_rate_hz)
+        return cache[key]
+
     def _dtft_samples(self, sample_index: np.ndarray, values: np.ndarray, frequencies: np.ndarray,
                       apodize: bool = True) -> np.ndarray:
         if not len(sample_index):
-            return np.zeros(len(frequencies), complex)
+            return np.zeros(len(frequencies) if values.ndim == 1 else (len(frequencies),) + values.shape[1:], complex)
         rel = sample_index - self.acq.start_sample
         if apodize and self.acq.apodization_rate_per_s:
-            values = values * np.exp(-self.acq.apodization_rate_per_s * rel / self.acq.sampling_rate_hz)
-        kernel = np.exp(-2j * np.pi * np.outer(frequencies, rel) / self.acq.sampling_rate_hz)
-        return kernel @ values / self.acq.n
+            window = np.exp(-self.acq.apodization_rate_per_s * rel / self.acq.sampling_rate_hz)
+            values = values * (window if values.ndim == 1 else window[:, None])
+        return self._kernel(np.asarray(frequencies, float), rel) @ values / self.acq.n
 
     def _constant_dtft(self, frequencies: np.ndarray) -> np.ndarray:
         omega = 2 * np.pi * np.asarray(frequencies, float) / self.acq.sampling_rate_hz
@@ -172,29 +193,62 @@ class Renderer:
             raise ValueError("Finite-record Gaussian broadening has no closed form here; use the 'time' or "
                              "'auto' backend, or the continuous route.")
         use_time = self.backend == "time" or (self.backend == "auto" and (
-            unstable or np.any(sigma > 0) or _fft_length(f, self.acq) is not None))
+            unstable or np.any(sigma > 0) or self._time_is_cheaper(len(f), len(transitions), f)))
         if use_time:
             self.sampled_calls += 1
             with self.timer.section("render.time_domain"):
                 fid = self.synthesize(transitions, rates, gain, phase_delay_s, gaussian_sigma_hz=gaussian_sigma_hz)
                 return evaluate_spectrum(process_record(fid, self.acq), self.acq, f)
+        return self._analytic(transitions, rates, f, [gain], phase_delay_s)[:, 0]
+
+    def _analytic(self, transitions: TransitionList, rates: Rates, f: np.ndarray, gains, phase_delay_s: float):
+        """Analytic processed spectra for several gains at once: shape (F, len(gains))."""
         self.analytic_calls += 1
+        logz, c_unit = self._modes(transitions, rates, 1.0, phase_delay_s)
+        half = len(logz) // 2
+        coeffs = []
+        for g in gains:
+            c = c_unit.copy()
+            c[:half] *= g
+            c[half:] *= np.conj(g)
+            coeffs.append(c)
+        c = np.column_stack(coeffs)                       # (2T, G)
         if len(self.coef):
             gainz = 1 - np.exp(np.outer(self.offsets, logz)).T @ self.coef
         else:
             gainz = np.ones(len(logz), complex)
-        weights = c * gainz
-        spectrum = self._dtft_modes(logz, weights, f)
-        start_dev, end_dev = self._edge_deviation(logz, c)
-        spectrum += self._dtft_samples(self.start_edge, start_dev, f)
-        spectrum += self._dtft_samples(self.end_edge, end_dev, f)
+        weights = c * gainz[:, None]
+        spectrum = self._dtft_modes_multi(logz, weights, f)
+        devs = [self._edge_deviation(logz, c[:, k]) for k in range(c.shape[1])]
+        start_dev = np.column_stack([d[0] for d in devs]) if len(self.start_edge) else np.zeros((0, c.shape[1]))
+        end_dev = np.column_stack([d[1] for d in devs]) if len(self.end_edge) else np.zeros((0, c.shape[1]))
+        if len(self.start_edge):
+            spectrum += self._dtft_samples(self.start_edge, start_dev, f)
+        if len(self.end_edge):
+            spectrum += self._dtft_samples(self.end_edge, end_dev, f)
         if self.acq.remove_mean:
             zero = np.zeros(1)
-            mean = (self._dtft_modes(logz, weights, zero, apodize=False)
-                    + self._dtft_samples(self.start_edge, start_dev, zero, apodize=False)
-                    + self._dtft_samples(self.end_edge, end_dev, zero, apodize=False))[0]
-            spectrum -= mean * self._constant_dtft(f)
-        return spectrum
+            mean = self._dtft_modes_multi(logz, weights, zero, apodize=False)[0]
+            if len(self.start_edge):
+                mean = mean + self._dtft_samples(self.start_edge, start_dev, zero, apodize=False)[0]
+            if len(self.end_edge):
+                mean = mean + self._dtft_samples(self.end_edge, end_dev, zero, apodize=False)[0]
+            spectrum -= self._constant_dtft(f)[:, None] * mean[None, :]
+        phase = self.acq.reference_phase(f)
+        return spectrum * (phase[:, None] if np.ndim(phase) else phase)
+
+    def _dtft_modes_multi(self, logz: np.ndarray, weights: np.ndarray, frequencies: np.ndarray,
+                          apodize: bool = True) -> np.ndarray:
+        """Like `_dtft_modes` for a (2T, G) weight matrix; returns (F, G)."""
+        acq = self.acq
+        omega = 2 * np.pi * np.asarray(frequencies, float) / acq.sampling_rate_hz
+        scaled = weights * np.exp(logz * acq.start_sample)[:, None]
+        damp = acq.apodization_rate_per_s / acq.sampling_rate_hz if apodize else 0.0
+        out = np.empty((len(omega), weights.shape[1]), complex)
+        for first in range(0, len(omega), self.chunk):
+            L = logz[None, :] - damp - 1j * omega[first:first + self.chunk, None]
+            out[first:first + self.chunk] = _geometric(L, acq.n) @ scaled
+        return out / acq.n
 
     # -- time-domain reference ---------------------------------------------------
     def synthesize(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
@@ -215,17 +269,24 @@ class Renderer:
         """
         f = np.asarray(frequencies_hz, float)
         sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma") if len(transitions) else np.zeros(0)
-        if self.backend == "analytic" or not len(transitions):
-            return np.column_stack([self.render(transitions, rates, f, 1.0, phase_delay_s, gaussian_sigma_hz),
-                                    self.render(transitions, rates, f, 1j, phase_delay_s, gaussian_sigma_hz)])
+        if not len(transitions):
+            return np.zeros((len(f), 2), complex)
+        if self.backend == "analytic":
+            if np.any(sigma > 0):
+                raise ValueError("Finite-record Gaussian broadening needs the 'time' or 'auto' backend.")
+            return self._analytic(transitions, rates, f, [1.0, 1j], phase_delay_s)
         logz, _ = self._modes(transitions, rates, 1.0, phase_delay_s)
         unstable = len(self.coef) and float(np.max(-logz.real)) * self.half > self.stability_limit
-        if self.backend == "time" or unstable or np.any(sigma > 0) or _fft_length(f, self.acq) is not None:
+        if self.backend == "time" or unstable or np.any(sigma > 0) or (
+                self.backend == "auto" and self._time_is_cheaper(len(f), len(transitions), f)):
             z = self.synthesize_complex(transitions, rates, 1.0, phase_delay_s, gaussian_sigma_hz)
             pair = process_record(np.stack([z.real, -z.imag]), self.acq)
             return evaluate_spectrum(pair, self.acq, f).T
-        return np.column_stack([self.render(transitions, rates, f, 1.0, phase_delay_s, gaussian_sigma_hz),
-                                self.render(transitions, rates, f, 1j, phase_delay_s, gaussian_sigma_hz)])
+        if unstable:
+            z = self.synthesize_complex(transitions, rates, 1.0, phase_delay_s, gaussian_sigma_hz)
+            pair = process_record(np.stack([z.real, -z.imag]), self.acq)
+            return evaluate_spectrum(pair, self.acq, f).T
+        return self._analytic(transitions, rates, f, [1.0, 1j], phase_delay_s)
 
     def synthesize_complex(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
                            phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0,

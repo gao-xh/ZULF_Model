@@ -15,6 +15,8 @@ ACQS = [
     Acquisition(800.0, 2400, start_sample=400, sg_window=801, sg_order=2),
     Acquisition(1000.0, 4000, start_sample=30, sg_window=101, sg_order=2, remove_mean=True,
                 apodization_rate_per_s=7.0),
+    Acquisition(1000.0, 4000, start_sample=250, sg_window=51, sg_order=2, time_origin_s=0.004,
+                phase_reference="acquisition"),
 ]
 
 
@@ -115,6 +117,17 @@ class RendererTests(unittest.TestCase):
         np.testing.assert_allclose(sorted(peaks), [140.0, 280.0], atol=acq.native_spacing_hz)
 
 
+class SavgolTests(unittest.TestCase):
+    def test_fft_savgol_matches_scipy(self):
+        from scipy.signal import savgol_filter
+        from zulf_model.render.acquisition import savgol_baseline
+        rng = np.random.default_rng(0)
+        x = np.cumsum(rng.normal(size=5000)) + 1e4 * np.exp(-np.arange(5000) / 800)
+        for window, order in ((801, 2), (101, 3), (31, 2)):
+            ref = savgol_filter(x, window, order, mode="mirror")
+            self.assertLess(np.abs(savgol_baseline(x, window, order) - ref).max() / np.abs(ref).max(), 1e-11)
+
+
 class PureRouteTests(unittest.TestCase):
     def test_default_acquisition_is_pure(self):
         acq = Acquisition(1000.0, 4000)
@@ -134,6 +147,17 @@ class PureRouteTests(unittest.TestCase):
         # (1/n) sum_m x_m e^{-i w m} approximates (fs/n) integral; T = n / fs.
         pure = ContinuousRenderer(acq.n / acq.sampling_rate_hz).render(tl, 3.0, grid.frequencies_hz)
         self.assertLess(np.abs(finite - pure).max() / np.abs(finite).max(), 5e-3)
+
+
+class PhaseReferenceTests(unittest.TestCase):
+    def test_acquisition_reference_keeps_line_phase_across_crops(self):
+        tl = TransitionList(np.array([100.0]), np.array([np.exp(0.9j)]))
+        phases = []
+        for start in (0, 137, 400):
+            acq = Acquisition(1000.0, 8000, start_sample=start, phase_reference="acquisition")
+            value = Renderer(acq).render(tl, 0.0, np.array([100.0]))[0]
+            phases.append(np.angle(value))
+        np.testing.assert_allclose(phases, 0.9, atol=0.02)
 
 
 class BroadeningTests(unittest.TestCase):

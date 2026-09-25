@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from scipy.signal import savgol_coeffs, savgol_filter
+from scipy.signal import fftconvolve, savgol_coeffs, savgol_filter
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,7 @@ class Acquisition:
     remove_mean: bool = False
     time_origin_s: float = 0.0
     apodization_rate_per_s: float = 0.0
+    phase_reference: str = "crop_start"   # "crop_start" or "acquisition" (t = 0 of the recorded time axis)
 
     def __post_init__(self):
         if not (math.isfinite(self.sampling_rate_hz) and self.sampling_rate_hz > 0):
@@ -52,6 +53,8 @@ class Acquisition:
             raise ValueError("time_origin_s must be finite.")
         if not (math.isfinite(self.apodization_rate_per_s) and self.apodization_rate_per_s >= 0):
             raise ValueError("apodization_rate_per_s must be finite and nonnegative.")
+        if self.phase_reference not in ("crop_start", "acquisition"):
+            raise ValueError("phase_reference must be 'crop_start' or 'acquisition'.")
 
     @classmethod
     def pure(cls, sampling_rate_hz: float, points: int) -> "Acquisition":
@@ -61,7 +64,8 @@ class Acquisition:
     @property
     def is_pure(self) -> bool:
         return (self.start_sample == 0 and self.stop_sample == self.points and not self.sg_window
-                and not self.remove_mean and self.time_origin_s == 0.0 and self.apodization_rate_per_s == 0.0)
+                and not self.remove_mean and self.time_origin_s == 0.0 and self.apodization_rate_per_s == 0.0
+                and self.phase_reference == "crop_start")
 
     def without_processing(self) -> "Acquisition":
         return Acquisition.pure(self.sampling_rate_hz, self.points)
@@ -75,6 +79,18 @@ class Acquisition:
     def n(self) -> int:
         """Retained sample count."""
         return self.stop_sample - self.start_sample
+
+    @property
+    def reference_shift_s(self) -> float:
+        """Time between the Fourier phase reference and the crop start."""
+        if self.phase_reference == "acquisition":
+            return self.time_origin_s + self.start_sample / self.sampling_rate_hz
+        return 0.0
+
+    def reference_phase(self, frequencies_hz: np.ndarray) -> np.ndarray:
+        """Linear phase factor applied after the finite-record sum (1 for crop_start)."""
+        shift = self.reference_shift_s
+        return np.exp(-2j * np.pi * np.asarray(frequencies_hz, float) * shift) if shift else 1.0
 
     @property
     def native_spacing_hz(self) -> float:
@@ -114,6 +130,25 @@ class Acquisition:
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
+FFT_SG_THRESHOLD = 65
+
+
+def savgol_baseline(x: np.ndarray, window: int, order: int) -> np.ndarray:
+    """Equivalent to scipy savgol_filter(x, window, order, mode="mirror") along the last axis.
+
+    Long windows use mirror padding plus FFT convolution (identical up to float
+    rounding, verified in tests); short windows call scipy directly.
+    """
+    if window < FFT_SG_THRESHOLD:
+        return savgol_filter(x, window, order, mode="mirror", axis=-1)
+    half = window // 2
+    pad = [(0, 0)] * (x.ndim - 1) + [(half, half)]
+    padded = np.pad(x, pad, mode="reflect")
+    kernel = savgol_coeffs(window, order, use="conv")
+    shape = [1] * (x.ndim - 1) + [window]
+    return fftconvolve(padded, kernel.reshape(shape), mode="valid", axes=-1)
+
+
 def process_record(fid: np.ndarray, acquisition: Acquisition) -> np.ndarray:
     """SG baseline subtraction (full record, mirror edges), crop, optional mean removal,
     optional exponential apodization exp(-a (m - start) / fs) (default off; used by
@@ -126,7 +161,7 @@ def process_record(fid: np.ndarray, acquisition: Acquisition) -> np.ndarray:
     if x.shape[-1] != acquisition.points:
         raise ValueError(f"Expected {acquisition.points} samples, got {x.shape[-1]}.")
     if acquisition.sg_window:
-        x = x - savgol_filter(x, acquisition.sg_window, acquisition.sg_order, mode="mirror", axis=-1)
+        x = x - savgol_baseline(x, acquisition.sg_window, acquisition.sg_order)
     y = x[..., acquisition.start_sample:acquisition.stop_sample].copy()
     if acquisition.remove_mean:
         y -= y.mean(axis=-1, keepdims=True)
@@ -162,7 +197,8 @@ def _fft_length(frequencies: np.ndarray, acquisition: Acquisition, max_factor: i
 
 def evaluate_spectrum(processed: np.ndarray, acquisition: Acquisition, frequencies_hz: np.ndarray,
                       chunk: int = 4096) -> np.ndarray:
-    """X(f) = (1/n) sum_m y[m] exp(-2 pi i f m / fs), m counted from the crop start.
+    """X(f) = (1/n) sum_m y[m] exp(-2 pi i f m / fs), m counted from the crop start,
+    times the optional linear phase that moves the reference to acquisition time zero.
 
     Uses a zero-filled real FFT when all frequencies lie on such a grid, and an
     exact direct sum otherwise. Supports leading batch dimensions.
@@ -176,13 +212,13 @@ def evaluate_spectrum(processed: np.ndarray, acquisition: Acquisition, frequenci
     if m_fft is not None:
         spectrum = np.fft.rfft(y, n=m_fft, axis=-1) / n
         k = np.round(f * m_fft / acquisition.sampling_rate_hz).astype(int)
-        return spectrum[..., k]
+        return spectrum[..., k] * acquisition.reference_phase(f)
     m = np.arange(n)
     out = np.empty(y.shape[:-1] + (len(f),), dtype=complex)
     for first in range(0, len(f), chunk):
         kernel = np.exp(-2j * np.pi * np.outer(m, f[first:first + chunk]) / acquisition.sampling_rate_hz)
         out[..., first:first + chunk] = (y @ kernel) / n
-    return out
+    return out * acquisition.reference_phase(f)
 
 
 def spectrum_from_fid(fid: np.ndarray, acquisition: Acquisition, frequencies_hz: np.ndarray) -> np.ndarray:

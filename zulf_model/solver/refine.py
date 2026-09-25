@@ -36,7 +36,7 @@ class RefineSettings:
     max_seconds: float = 120.0
     seed: int = 0
     gain_model: str = "shared_phase"
-    background: bool = False
+    background_order: int = -1
     band_weighting: str = "equal"
     diff_step: float = 1e-6
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
@@ -55,6 +55,7 @@ class RefinementResult:
     interpretation: Interpretation
     parameters: Dict[str, float]
     gains: List[complex]
+    background: List[complex]
     relative_residual: float
     band_relative_residuals: List[float]
     boundary_hits: List[str]
@@ -85,6 +86,7 @@ class RefinementResult:
                 "budget_exhausted": self.budget_exhausted, "evaluations": self.evaluations,
                 "elapsed_s": self.elapsed_s, "parameters": self.parameters,
                 "gains": [[g.real, g.imag] for g in self.gains],
+                "background": [[b.real, b.imag] for b in self.background],
                 "interpretation": self.interpretation.to_dict(), "validation": self.validation, "note": self.note}
 
 
@@ -108,7 +110,7 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         if extra > 0:
             data = observed.with_acquisition(observed.acquisition.with_processing(
                 apodization_rate_per_s=observed.acquisition.apodization_rate_per_s + extra))
-        return MixtureForward(param, data, protocol, settings.gain_model, settings.background,
+        return MixtureForward(param, data, protocol, settings.gain_model, settings.background_order,
                               settings.band_weighting, timer)
 
     forward = make_forward(0.0)
@@ -199,7 +201,8 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
     interp = param.interpretation(values, contributions / top)
     interp.metadata.update(source="solver", flags=flags)
     relative = float(np.linalg.norm(final.model - forward.y) / max(np.linalg.norm(forward.y), 1e-30))
-    return RefinementResult(interp, values, final.gains.tolist(), relative, _band_residuals(forward, final), hits,
+    return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative,
+                            _band_residuals(forward, final), hits,
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,
                             final.model, final.component_spectra)
 
@@ -211,9 +214,10 @@ def frozen_prediction(result: RefinementResult, candidate_param: Parameterizatio
     A conditional diagnostic refits only the linear gains; it is reported
     separately and never replaces the frozen score.
     """
-    forward = MixtureForward(candidate_param, held_out, protocol, settings.gain_model, settings.background,
+    forward = MixtureForward(candidate_param, held_out, protocol, settings.gain_model, settings.background_order,
                              settings.band_weighting)
-    frozen = forward.predict(values=result.parameters, fixed_gains=np.array(result.gains))
+    frozen = forward.predict(values=result.parameters, fixed_gains=np.array(result.gains),
+                             fixed_background=np.array(result.background, complex))
     refit = forward.predict(values=result.parameters)
     norm = max(np.linalg.norm(forward.y), 1e-30)
     return {"label": held_out.label,
