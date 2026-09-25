@@ -80,3 +80,25 @@ class CodecTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GrammarLookaheadTests(unittest.TestCase):
+    def test_random_walks_never_dead_end(self):
+        for spec in (ProblemSpec(), ProblemSpec(spin_counts=(5, 8), max_group_size=3, max_components=2)):
+            codec = InterpretationCodec(spec)
+            rng = np.random.default_rng(0)
+            for _ in range(300):
+                state = GrammarState()
+                tokens = []
+                for _ in range(codec.grammar.max_length()):
+                    allowed = np.flatnonzero(codec.grammar.allowed(state))
+                    self.assertGreater(len(allowed), 0, msg=str(state))
+                    token = int(rng.choice(allowed))
+                    tokens.append(token)
+                    state = codec.grammar.advance(state, token)
+                    if state.phase == "done":
+                        break
+                self.assertEqual(state.phase, "done")
+                interp = codec.decode(tokens)
+                for c in interp.components:
+                    self.assertTrue(spec.allows(c.system.isotopes))

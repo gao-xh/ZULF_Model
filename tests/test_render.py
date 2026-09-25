@@ -222,3 +222,26 @@ class GridTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BackendSelectionTests(unittest.TestCase):
+    def test_fid_free_routes(self):
+        from zulf_model.generator import build_default_sampler
+        from zulf_model.render import ProcessingConfig, SampleRenderer
+        from zulf_model.spec import ProblemSpec
+        spec = ProblemSpec()
+        sample = next(build_default_sampler(spec).generate(1, seed=4))
+        rng = np.random.default_rng(0)
+        analytic = SampleRenderer(spec, ProcessingConfig(points=4096, renderer_backend="analytic"),
+                                  PerturbationConfig(gaussian_probability=0.0), noiseless=True)
+        timed = SampleRenderer(spec, ProcessingConfig(points=4096, renderer_backend="time"),
+                               PerturbationConfig(gaussian_probability=0.0), noiseless=True)
+        a = analytic.render(sample.interpretation, np.random.default_rng(1)).clean
+        b = timed.render(sample.interpretation, np.random.default_rng(1)).clean
+        self.assertLess(np.abs(a - b).max() / np.abs(a).max(), 1e-9)
+        self.assertNotIn("render.nufft", analytic.timer.report())
+        with self.assertRaises(ValueError):
+            SampleRenderer(spec, ProcessingConfig(renderer_backend="analytic"), PerturbationConfig(gaussian_probability=0.5))
+        continuous = SampleRenderer(spec, ProcessingConfig(points=4096, mode="continuous"))
+        out = continuous.render(sample.interpretation, rng)
+        self.assertTrue(np.isfinite(out.features).all())

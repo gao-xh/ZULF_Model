@@ -117,6 +117,22 @@ class Grammar:
     def _spins(self, groups) -> int:
         return sum(size for _, size in groups)
 
+    def _completable(self, groups: List[Tuple[str, int]]) -> bool:
+        """True when the group list can still be completed into a valid component."""
+        total = self._spins(groups)
+        nuclei = {n for n, _ in groups}
+        last_order = self.order[groups[-1][0]] if groups else -1
+        can_add_new_nucleus = any(self.order[n] > last_order for n in self.spec.nuclei if n not in nuclei)
+        for n in self.spec.spin_counts:
+            remaining = n - total
+            if remaining < 0:
+                continue
+            if remaining == 0 and len(nuclei) >= 2:
+                return True
+            if remaining > 0 and (len(nuclei) >= 2 or can_add_new_nucleus or not groups):
+                return True
+        return False
+
     def _group_allowed(self, state: GrammarState, key: Tuple[str, int]) -> bool:
         if self._spins(state.groups) + key[1] > self.spec.max_spins:
             return False
@@ -124,7 +140,7 @@ class Grammar:
             last = state.groups[-1]
             if (self.order[key[0]], -key[1]) < (self.order[last[0]], -last[1]):
                 return False
-        return True
+        return self._completable(state.groups + [key])
 
     def _can_close(self, state: GrammarState) -> bool:
         nuclei = {n for n, _ in state.groups}

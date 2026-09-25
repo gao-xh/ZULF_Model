@@ -44,10 +44,13 @@ class ProcessingConfig:
     sg_order_choices: Tuple[int, ...] = (2,)
     remove_mean_probability: float = 0.5
     time_origin_range_s: Tuple[float, float] = (0.0, 0.0)
+    renderer_backend: str = "auto"  # auto | analytic (never builds an FID) | time (NUFFT FID)
 
     def __post_init__(self):
         if self.mode not in MODES:
             raise ValueError(f"mode must be one of {MODES}.")
+        if self.renderer_backend not in Renderer.BACKENDS:
+            raise ValueError(f"renderer_backend must be one of {Renderer.BACKENDS}.")
 
     @classmethod
     def from_dict(cls, data: dict) -> "ProcessingConfig":
@@ -101,6 +104,10 @@ class SampleRenderer:
         self.perturbation = perturbation
         self.protocol = protocol
         self.noiseless = noiseless
+        if (processing.renderer_backend == "analytic" and processing.mode != "continuous"
+                and perturbation.gaussian_probability > 0):
+            raise ValueError("renderer_backend 'analytic' cannot render finite-record Gaussian broadening; set "
+                             "perturbation.gaussian_probability to 0, use backend 'auto'/'time', or mode 'continuous'.")
         self.grid = SpectrumGrid.from_spec(spec.grid, processing.base())
         self.transitions = TransitionCache(cache_entries)
         self._renderers: Dict[Acquisition, Renderer] = {}
@@ -110,7 +117,8 @@ class SampleRenderer:
         if acquisition not in self._renderers:
             if len(self._renderers) > 64:
                 self._renderers.clear()
-            self._renderers[acquisition] = Renderer(acquisition, timer=self.timer)
+            self._renderers[acquisition] = Renderer(acquisition, timer=self.timer,
+                                                    backend=self.processing.renderer_backend)
         return self._renderers[acquisition]
 
     def component_transitions(self, interpretation: Interpretation) -> List[TransitionList]:
@@ -130,12 +138,13 @@ class SampleRenderer:
             acquisition = self.processing.base()
             record = acquisition.points / acquisition.sampling_rate_hz
             clean = self._continuous(transitions, params, contributions, record)
-            spectrum = clean.copy()
-            if params.snr is not None:
-                peak = float(np.abs(clean).max()) or 1.0
-                noise_rng = np.random.default_rng(params.noise_seed)
-                std = peak / params.snr / np.sqrt(2)
-                spectrum = clean + noise_rng.normal(0, std, len(f)) + 1j * noise_rng.normal(0, std, len(f))
+            spectrum = clean + self._spectral_noise(params, clean, len(f))
+        elif self.processing.renderer_backend == "analytic":
+            acquisition = self.processing.acquisition(rng)
+            with self.timer.section("sample.observation"):
+                renderer = self.renderer(acquisition)
+                clean = render_signal(renderer, transitions, params, f, contributions)
+                spectrum = clean + self._spectral_noise(params, clean, len(f))
         else:
             acquisition = self.processing.acquisition(rng)
             with self.timer.section("sample.observation"):
@@ -146,6 +155,20 @@ class SampleRenderer:
         self.timer.add("sample.total", stamps["total"])
         return RenderedSample(features, scale, spectrum, clean, acquisition.to_dict(), params.to_dict(),
                               interpretation, {k: 1000 * v for k, v in stamps.items()})
+
+    @staticmethod
+    def _spectral_noise(params: RenderParams, clean: np.ndarray, size: int) -> np.ndarray:
+        """White complex noise added directly in the frequency domain (no FID).
+
+        Used by the FID-free routes; drift and interference lines are not modelled
+        there. The time-domain route models them through the acquisition operator.
+        """
+        if params.snr is None:
+            return np.zeros(size, complex)
+        peak = float(np.abs(clean).max()) or 1.0
+        rng = np.random.default_rng(params.noise_seed)
+        std = peak / params.snr / np.sqrt(2)
+        return rng.normal(0, std, size) + 1j * rng.normal(0, std, size)
 
     def _continuous(self, transitions, params: RenderParams, contributions, record_s: float) -> np.ndarray:
         renderer = ContinuousRenderer(record_s)

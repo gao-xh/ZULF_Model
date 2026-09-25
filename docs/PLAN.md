@@ -21,7 +21,7 @@ fixed, so later phases are experiments rather than restructuring.
 | A5 | Rendering: optional processing operator, analytic + NUFFT time-domain renderers, continuous Voigt route, perturbations, features, sample pipeline, timers | [x] | `tests/test_render.py` |
 | A6 | Generator: graphs, coupling rules, isotopologues, random J, sources, splits, storage | [x] | `tests/test_generator.py` |
 | A7 | Codec: canonical order, J bins, tokens, grammar, set targets | [x] | `tests/test_codec.py` |
-| A8 | Models: interface, CNN encoder, set baseline, CNN+Transformer, beam search | [ ] | `tests/test_models.py` |
+| A8 | Models: interface, CNN encoder, set baseline, CNN+Transformer, beam search | [x] | `tests/test_models.py` |
 | A9 | Training: datasets, losses, metrics, trainer, curriculum, checkpoints | [ ] | `tests/test_training.py` |
 | A10 | Solver: observed spectra, parameterization, forward, refine, batch, held-out | [ ] | `tests/test_solver.py` |
 | A11 | Evaluation: proposers, identifiability, basin, benchmark | [ ] | `tests/test_evaluation.py` |

@@ -65,7 +65,7 @@ class ContributionSpec:
 
 @dataclass(frozen=True)
 class ProblemSpec:
-    nuclei: Tuple[str, ...] = ("1H", "13C", "15N")
+    nuclei: Tuple[str, ...] = ("13C", "15N", "1H")
     spin_counts: Tuple[int, ...] = (8,)
     max_components: int = 4
     max_group_size: int = 6

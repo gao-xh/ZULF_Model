@@ -162,6 +162,9 @@ class Renderer:
         sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
         logz, c = self._modes(transitions, rates, gain, phase_delay_s)
         unstable = len(self.coef) and float(np.max(-logz.real)) * self.half > self.stability_limit
+        if self.backend == "analytic" and np.any(sigma > 0):
+            raise ValueError("Finite-record Gaussian broadening has no closed form here; use the 'time' or "
+                             "'auto' backend, or the continuous route.")
         use_time = self.backend == "time" or (self.backend == "auto" and (
             unstable or np.any(sigma > 0) or _fft_length(f, self.acq) is not None))
         if use_time:

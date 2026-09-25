@@ -402,3 +402,25 @@ def all_isotope_preserving_permutations(isotopes: Sequence[str]):
             for src, dst in zip(classes[k], images):
                 perm[src] = dst
         yield perm
+
+
+def symmetrize_groups(system: SpinSystem, tolerance_hz: float) -> SpinSystem:
+    """Snap nearly equivalent spins into exact magnetic-equivalence groups.
+
+    Spins of one nucleus whose couplings to all other spins agree within
+    `tolerance_hz` are grouped (coarsest partition at that tolerance) and the
+    couplings between groups are replaced by their means. Intragroup couplings
+    are set to zero (unobservable). Used to clean network predictions.
+    """
+    groups = detect_equivalence_groups(system.isotopes, system.observable_couplings(), atol=tolerance_hz)
+    index = np.empty(system.n_spins, dtype=int)
+    for g, members in enumerate(groups):
+        index[list(members)] = g
+    j = system.observable_couplings()
+    out = np.zeros_like(j)
+    for a in range(len(groups)):
+        for b in range(a + 1, len(groups)):
+            value = float(j[np.ix_(list(groups[a]), list(groups[b]))].mean())
+            out[np.ix_(list(groups[a]), list(groups[b]))] = value
+            out[np.ix_(list(groups[b]), list(groups[a]))] = value
+    return SpinSystem(system.isotopes, out, groups)
