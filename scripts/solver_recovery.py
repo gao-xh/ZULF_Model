@@ -34,6 +34,8 @@ def main():
     parser.add_argument("--tolerance-hz", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--strategies", default="local,search")
+    parser.add_argument("--budget-s", type=float, default=900.0,
+                        help="Wall-clock budget per refinement; budget exhaustion is recorded in the flags.")
     args = parser.parse_args()
     spec = ProblemSpec(spin_counts=tuple(int(v) for v in args.spin_counts.split(",")), max_components=1)
     sampler = build_default_sampler(spec, {"mixture": {"extra_molecule_probability": 0.0}})
@@ -44,8 +46,8 @@ def main():
     scales = [float(v) for v in args.scales.split(",")]
     policy = ParameterPolicy(coupling_margin_hz=5.0, rate_bounds_per_s=(0.1, 10.0))
     strategies = {
-        "local": RefineSettings(starts=1, policy=policy, max_seconds=120),
-        "search": RefineSettings(policy=policy, max_seconds=240,
+        "local": RefineSettings(starts=1, policy=policy, max_seconds=args.budget_s, max_evaluations=20000),
+        "search": RefineSettings(policy=policy, max_seconds=2 * args.budget_s, max_evaluations=20000,
                                  search=dict(popsize=10, maxiter=40, max_seconds=90, solutions=3)),
     }
     chosen = [s for s in args.strategies.split(",") if s in strategies]

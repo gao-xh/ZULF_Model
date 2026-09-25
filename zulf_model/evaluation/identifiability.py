@@ -75,7 +75,7 @@ def basin_of_attraction(truth: Interpretation, observed: ObservedSpectrum, scale
     rng = np.random.default_rng(seed)
     rows = []
     for scale in scales_hz:
-        successes, evaluations = 0, []
+        successes, evaluations, details = 0, [], []
         for _ in range(trials):
             start = Interpretation(tuple(Component(perturb_couplings(c.system, scale, rng), c.contribution, c.label)
                                          for c in truth.components))
@@ -88,7 +88,10 @@ def basin_of_attraction(truth: Interpretation, observed: ObservedSpectrum, scale
                         for t, r in zip(truth.components, result.interpretation.components))
             successes += error <= tolerance_hz
             evaluations.append(result.evaluations)
+            details.append({"max_error_hz": float(error), "flags": list(result.flags),
+                            "evaluations": result.evaluations, "elapsed_s": result.elapsed_s,
+                            "relative_residual": result.relative_residual})
         rows.append({"scale_hz": scale, "success_rate": successes / trials,
                      "median_evaluations": float(np.median(evaluations)), "trials": trials,
-                     "tolerance_hz": tolerance_hz})
+                     "tolerance_hz": tolerance_hz, "details": details})
     return rows
