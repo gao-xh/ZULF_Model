@@ -95,6 +95,24 @@ Pulsed protocols with complex operators must revisit this.
 Components without an observable heteronuclear coupling (for example only
 protons) give no zero-field signal and are never emitted.
 
+## D14. Matched linewidth continuation in the solver (2026-09-25)
+
+Narrow zero-field lines make the J objective highly nonconvex (a 1 Hz error
+moves a 2J line by 2 Hz, several linewidths). The solver refines through a
+schedule of extra exponential apodization (default 10, 3, 1, 0 per second)
+applied identically to data (re-processed from the stored FID) and model
+(through the same acquisition operator). Only the final, unbroadened level
+produces results. Broadening only the model was tested and fails (tests keep
+the matched version). Without a stored FID the schedule is skipped and
+flagged.
+
+## D15. Real-signal gain response (2026-09-25)
+
+A real FID's spectrum is not complex-linear in the component gain because of
+the negative-frequency mirror term. Gains are always represented by two real
+columns (response to 1 and to i); the shared-phase model uses
+cos(phi) col0 + sin(phi) col1.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

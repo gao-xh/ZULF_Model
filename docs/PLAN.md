@@ -23,7 +23,7 @@ fixed, so later phases are experiments rather than restructuring.
 | A7 | Codec: canonical order, J bins, tokens, grammar, set targets | [x] | `tests/test_codec.py` |
 | A8 | Models: interface, CNN encoder, set baseline, CNN+Transformer, beam search | [x] | `tests/test_models.py` |
 | A9 | Training: datasets, losses, metrics, trainer, curriculum, checkpoints | [x] | `tests/test_training.py` |
-| A10 | Solver: observed spectra, parameterization, forward, refine, batch, held-out | [ ] | `tests/test_solver.py` |
+| A10 | Solver: observed spectra, parameterization, forward, refine, batch, held-out, matched linewidth continuation | [x] | `tests/test_solver.py` |
 | A11 | Evaluation: proposers, identifiability, basin, benchmark | [ ] | `tests/test_evaluation.py` |
 | A12 | Fine-tuning: failure classification, focused sampling, loop | [ ] | `tests/test_finetune.py` |
 | A13 | CLI, configs, end-to-end smoke pipeline, throughput script | [ ] | `tests/test_cli.py`, `scripts/smoke_pipeline.py` |

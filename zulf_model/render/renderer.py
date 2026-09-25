@@ -130,28 +130,34 @@ class Renderer:
                 end_dev[idx] = -np.dot(self.coef[k], H[ww - 1])
         return start_dev, end_dev
 
-    def _dtft_modes(self, logz: np.ndarray, weights: np.ndarray, frequencies: np.ndarray) -> np.ndarray:
-        """(1/n) sum_{m=start}^{stop-1} sum_j weights_j z_j^m exp(-i w (m - start))."""
+    def _dtft_modes(self, logz: np.ndarray, weights: np.ndarray, frequencies: np.ndarray,
+                    apodize: bool = True) -> np.ndarray:
+        """(1/n) sum_{m=start}^{stop-1} sum_j weights_j z_j^m w_m exp(-i w (m - start)), w_m the apodization."""
         acq = self.acq
         n = acq.n
         omega = 2 * np.pi * np.asarray(frequencies, float) / acq.sampling_rate_hz
         scaled = weights * np.exp(logz * acq.start_sample)
+        damp = acq.apodization_rate_per_s / acq.sampling_rate_hz if apodize else 0.0
         out = np.empty(len(omega), complex)
         for first in range(0, len(omega), self.chunk):
-            L = logz[None, :] - 1j * omega[first:first + self.chunk, None]
+            L = logz[None, :] - damp - 1j * omega[first:first + self.chunk, None]
             out[first:first + self.chunk] = _geometric(L, n) @ scaled
         return out / n
 
-    def _dtft_samples(self, sample_index: np.ndarray, values: np.ndarray, frequencies: np.ndarray) -> np.ndarray:
+    def _dtft_samples(self, sample_index: np.ndarray, values: np.ndarray, frequencies: np.ndarray,
+                      apodize: bool = True) -> np.ndarray:
         if not len(sample_index):
             return np.zeros(len(frequencies), complex)
         rel = sample_index - self.acq.start_sample
+        if apodize and self.acq.apodization_rate_per_s:
+            values = values * np.exp(-self.acq.apodization_rate_per_s * rel / self.acq.sampling_rate_hz)
         kernel = np.exp(-2j * np.pi * np.outer(frequencies, rel) / self.acq.sampling_rate_hz)
         return kernel @ values / self.acq.n
 
     def _constant_dtft(self, frequencies: np.ndarray) -> np.ndarray:
         omega = 2 * np.pi * np.asarray(frequencies, float) / self.acq.sampling_rate_hz
-        return _geometric(-1j * omega, self.acq.n) / self.acq.n
+        damp = self.acq.apodization_rate_per_s / self.acq.sampling_rate_hz
+        return _geometric(-damp - 1j * omega, self.acq.n) / self.acq.n
 
     def render(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
                gain: complex = 1.0, phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
@@ -184,26 +190,47 @@ class Renderer:
         spectrum += self._dtft_samples(self.end_edge, end_dev, f)
         if self.acq.remove_mean:
             zero = np.zeros(1)
-            mean = (self._dtft_modes(logz, weights, zero) + self._dtft_samples(self.start_edge, start_dev, zero)
-                    + self._dtft_samples(self.end_edge, end_dev, zero))[0]
+            mean = (self._dtft_modes(logz, weights, zero, apodize=False)
+                    + self._dtft_samples(self.start_edge, start_dev, zero, apodize=False)
+                    + self._dtft_samples(self.end_edge, end_dev, zero, apodize=False))[0]
             spectrum -= mean * self._constant_dtft(f)
         return spectrum
+
+    # -- time-domain reference ---------------------------------------------------
+    def synthesize(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
+                   phase_delay_s: float = 0.0, include_dc: bool = False,
+                   gaussian_sigma_hz: Rates = 0.0, method: str = "nufft") -> np.ndarray:
+        """Real FID over the full record (real part of `synthesize_complex`)."""
+        out = self.synthesize_complex(transitions, rates, gain, phase_delay_s, gaussian_sigma_hz, method).real
+        if include_dc:
+            out = out + np.real(transitions.dc * gain)
+        return out
 
     def render_pair(self, transitions: TransitionList, rates: Rates, frequencies_hz: np.ndarray,
                     phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
         """Columns for real and imaginary parts of a complex gain: shape (F, 2).
 
         spectrum(g) = Re(g) * col0 + Im(g) * col1, used for variable projection.
+        The time path synthesizes one complex signal z and processes Re z and -Im z.
         """
-        col0 = self.render(transitions, rates, frequencies_hz, 1.0, phase_delay_s, gaussian_sigma_hz)
-        col1 = self.render(transitions, rates, frequencies_hz, 1j, phase_delay_s, gaussian_sigma_hz)
-        return np.column_stack([col0, col1])
+        f = np.asarray(frequencies_hz, float)
+        sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma") if len(transitions) else np.zeros(0)
+        if self.backend == "analytic" or not len(transitions):
+            return np.column_stack([self.render(transitions, rates, f, 1.0, phase_delay_s, gaussian_sigma_hz),
+                                    self.render(transitions, rates, f, 1j, phase_delay_s, gaussian_sigma_hz)])
+        logz, _ = self._modes(transitions, rates, 1.0, phase_delay_s)
+        unstable = len(self.coef) and float(np.max(-logz.real)) * self.half > self.stability_limit
+        if self.backend == "time" or unstable or np.any(sigma > 0) or _fft_length(f, self.acq) is not None:
+            z = self.synthesize_complex(transitions, rates, 1.0, phase_delay_s, gaussian_sigma_hz)
+            pair = process_record(np.stack([z.real, -z.imag]), self.acq)
+            return evaluate_spectrum(pair, self.acq, f).T
+        return np.column_stack([self.render(transitions, rates, f, 1.0, phase_delay_s, gaussian_sigma_hz),
+                                self.render(transitions, rates, f, 1j, phase_delay_s, gaussian_sigma_hz)])
 
-    # -- time-domain reference ---------------------------------------------------
-    def synthesize(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
-                   phase_delay_s: float = 0.0, include_dc: bool = False,
-                   gaussian_sigma_hz: Rates = 0.0, method: str = "nufft") -> np.ndarray:
-        """Real FID over the full record.
+    def synthesize_complex(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
+                           phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0,
+                           method: str = "nufft") -> np.ndarray:
+        """Complex analytic signal z(t_m) whose real part is the FID.
 
         x(t_m) = Re(sum_k A_k exp((2 pi i f_k - R_k) t_m - (2 pi sigma_k t_m)^2 / 2)),
         t_m = time_origin + m / fs. Transitions sharing (R, sigma) are summed with
@@ -211,7 +238,7 @@ class Renderer:
         (`method="direct"`, reference).
         """
         acq = self.acq
-        out = np.zeros(acq.points)
+        out = np.zeros(acq.points, complex)
         if not len(transitions):
             return out
         f = transitions.frequencies_hz
@@ -238,9 +265,7 @@ class Renderer:
             else:
                 raise ValueError("method must be 'nufft' or 'direct'.")
             envelope = np.exp(-rate * times - 0.5 * (2 * np.pi * sig * times) ** 2)
-            out += (envelope * oscillation).real
-        if include_dc:
-            out += np.real(transitions.dc * gain)
+            out += envelope * oscillation
         return out
 
 

@@ -13,6 +13,8 @@ ACQS = [
     Acquisition(1000.0, 4000, start_sample=50, stop_sample=3990, sg_window=301, sg_order=3, time_origin_s=0.013),
     Acquisition(1000.0, 4000, sg_window=51, sg_order=2, remove_mean=False),
     Acquisition(800.0, 2400, start_sample=400, sg_window=801, sg_order=2),
+    Acquisition(1000.0, 4000, start_sample=30, sg_window=101, sg_order=2, remove_mean=True,
+                apodization_rate_per_s=7.0),
 ]
 
 

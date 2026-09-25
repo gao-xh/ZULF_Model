@@ -31,6 +31,7 @@ class Acquisition:
     sg_order: int = 2
     remove_mean: bool = False
     time_origin_s: float = 0.0
+    apodization_rate_per_s: float = 0.0
 
     def __post_init__(self):
         if not (math.isfinite(self.sampling_rate_hz) and self.sampling_rate_hz > 0):
@@ -49,6 +50,8 @@ class Acquisition:
             raise ValueError("SG window must be odd, larger than the order and no longer than the record.")
         if not math.isfinite(self.time_origin_s):
             raise ValueError("time_origin_s must be finite.")
+        if not (math.isfinite(self.apodization_rate_per_s) and self.apodization_rate_per_s >= 0):
+            raise ValueError("apodization_rate_per_s must be finite and nonnegative.")
 
     @classmethod
     def pure(cls, sampling_rate_hz: float, points: int) -> "Acquisition":
@@ -58,7 +61,7 @@ class Acquisition:
     @property
     def is_pure(self) -> bool:
         return (self.start_sample == 0 and self.stop_sample == self.points and not self.sg_window
-                and not self.remove_mean and self.time_origin_s == 0.0)
+                and not self.remove_mean and self.time_origin_s == 0.0 and self.apodization_rate_per_s == 0.0)
 
     def without_processing(self) -> "Acquisition":
         return Acquisition.pure(self.sampling_rate_hz, self.points)
@@ -112,7 +115,9 @@ class Acquisition:
 
 
 def process_record(fid: np.ndarray, acquisition: Acquisition) -> np.ndarray:
-    """SG baseline subtraction (full record, mirror edges), crop, optional mean removal.
+    """SG baseline subtraction (full record, mirror edges), crop, optional mean removal,
+    optional exponential apodization exp(-a (m - start) / fs) (default off; used by
+    solver linewidth continuation, applied identically to data and model).
 
     Accepts a real array of shape (points,) or (..., points). Returns the
     retained processed samples.
@@ -125,6 +130,8 @@ def process_record(fid: np.ndarray, acquisition: Acquisition) -> np.ndarray:
     y = x[..., acquisition.start_sample:acquisition.stop_sample].copy()
     if acquisition.remove_mean:
         y -= y.mean(axis=-1, keepdims=True)
+    if acquisition.apodization_rate_per_s:
+        y *= np.exp(-acquisition.apodization_rate_per_s * np.arange(y.shape[-1]) / acquisition.sampling_rate_hz)
     return y
 
 
