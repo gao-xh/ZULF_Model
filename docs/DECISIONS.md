@@ -129,6 +129,32 @@ recipes. None is chosen automatically; recipes are compared on held-out
 acquisitions, and parameters that move between recipes are reported as
 processing-sensitive.
 
+## D18. Global pattern search supplies refinement starts (2026-09-25)
+
+On the isopropylamine data every local refinement from the earlier default J
+values converged to a wrong basin: the strongest simulated methine line sat
+near 137 Hz while the data has it at 133.4 Hz, and no continuation level
+bridged that gap. `solver.search` adds a phase-insensitive objective: the
+magnitude spectrum of the processed record after a cosine start ramp and end
+taper (which removes the broadband tail of an abruptly cropped record) is
+compared with, per component, the magnitude of the complex sum of exact
+transitions through the same taper and decay. Keeping the complex sum inside a
+component is essential: antiphase neighbours inside a multiplet cancel, and a
+sum of line magnitudes left a 30 to 50 percent residual even at the true
+parameters (1 percent with the complex sum). Gains are nonnegative, each band
+has a linear baseline, bands are weighted equally. Differential evolution
+searches couplings and rates within the policy bounds; distinct low-cost
+members (couplings at least 0.5 Hz apart) are polished and handed to the
+complex refinement as starts. The search objective is never used for ranking.
+
+## D19. Optional residual field during evolution (2026-09-25)
+
+A low-cost shield leaves a residual field, and its effect on line positions
+and intensities is a candidate explanation for model misfit. It is exposed as
+`Protocol.field_ut` (default zero), computed exactly within the existing
+sector decomposition and checked against full-space propagation. It is not
+fitted by default; any use must be reported with the result.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

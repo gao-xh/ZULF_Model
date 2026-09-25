@@ -55,6 +55,20 @@ spectrum. This matches `ZULF_Analysis_Tools` (x preparation and detection).
 Ideal instantaneous rotations can be inserted after the drop through
 `Protocol.pulses`; they are an extension point and not part of v1 data.
 
+A residual static field during evolution is optional: `Protocol.field_ut =
+(Bx, By, Bz)` in microtesla adds `-sum_n gamma_n B . I_n` (Hz) to the J
+Hamiltonian, where z is the preparation and detection axis. The default is
+exact zero field. The isotropy argument above no longer holds with a field:
+a longitudinal field shifts lines only at second order, a transverse field
+splits them at first order (for a 13C-1H pair by `(gamma_H + gamma_C) B / 2`).
+
+For molecules with only two nucleus types and any longitudinal preparation
+`sum_n w_n I_z,n` with z detection, the line shape of each component is
+independent of the weights `w_n` up to one overall scale, because the total
+`F_z` commutes with the zero-field Hamiltonian. Preparation weights or a
+single ideal pulse therefore cannot change relative intensities inside one
+1H-13C isotopologue; they only rescale it.
+
 ## Global sign
 
 Negating every J leaves the zero-field spectrum unchanged for real preparation

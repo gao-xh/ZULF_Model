@@ -21,6 +21,7 @@ from ..timing import Timer
 from .forward import MixtureForward, Prediction
 from .observed import ObservedSpectrum
 from .parameterization import Parameterization, ParameterPolicy
+from .search import SearchSettings, global_search
 
 
 class _BudgetReached(Exception):
@@ -43,6 +44,7 @@ class RefineSettings:
     ties: tuple = ()      # ((leader, follower, ...), ...) parameter names; missing names are skipped
     fixed: tuple = ()     # parameter names held at their candidate values
     policy: ParameterPolicy = field(default_factory=ParameterPolicy)
+    search: Optional[dict] = None   # SearchSettings fields; when set, a global pattern search supplies the starts
 
     def parameterize(self, candidate: Interpretation) -> Parameterization:
         param = Parameterization.from_interpretation(candidate, self.policy)
@@ -83,6 +85,7 @@ class RefinementResult:
     component_spectra: List[np.ndarray]
     validation: List[dict] = field(default_factory=list)
     candidate_index: int = -1
+    search: Optional[dict] = None
     note: str = ("Conditional numerical refinement; not an assignment. Inspect boundary hits, residuals, "
                  "component spectra and held-out prediction.")
 
@@ -102,7 +105,8 @@ class RefinementResult:
                 "elapsed_s": self.elapsed_s, "parameters": self.parameters,
                 "gains": [[g.real, g.imag] for g in self.gains],
                 "background": [[b.real, b.imag] for b in self.background],
-                "interpretation": self.interpretation.to_dict(), "validation": self.validation, "note": self.note}
+                "interpretation": self.interpretation.to_dict(), "validation": self.validation,
+                "search": self.search, "note": self.note}
 
 
 def _band_residuals(forward: MixtureForward, prediction: Prediction) -> List[float]:
@@ -115,9 +119,21 @@ def _band_residuals(forward: MixtureForward, prediction: Prediction) -> List[flo
 
 def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: RefineSettings = RefineSettings(),
            protocol: Protocol = SUDDEN_DROP, parameterization: Optional[Parameterization] = None,
-           timer: Optional[Timer] = None) -> RefinementResult:
+           timer: Optional[Timer] = None, initial_points: Optional[Sequence[np.ndarray]] = None) -> RefinementResult:
+    """Refine one candidate.
+
+    Starts: `initial_points` (free-parameter vectors) when given; otherwise the
+    candidate values plus `settings.starts - 1` random perturbations, or, when
+    `settings.search` is set, the distinct starts of a global pattern search.
+    """
     timer = timer or Timer()
     param = parameterization or settings.parameterize(candidate)
+    search_summary = None
+    if initial_points is None and settings.search is not None:
+        with timer.section("solver.search"):
+            found = global_search(param, observed, SearchSettings.from_dict(settings.search), protocol, timer)
+        initial_points = found.points
+        search_summary = found.summary(param)
 
     def make_forward(extra: float) -> MixtureForward:
         """Matched continuation: the same extra apodization is applied to data and model."""
@@ -163,10 +179,14 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         schedule = (0.0,)
         continuation_note = "continuation_unavailable_without_fid"
     level_forwards = {extra: (base_forward if extra == 0.0 else make_forward(extra)) for extra in schedule}
-    for start in range(settings.starts):
+    explicit = [np.asarray(p, float) for p in initial_points] if initial_points is not None else None
+    if explicit is not None and any(p.shape != x0.shape for p in explicit):
+        raise ValueError("initial_points must be vectors over the free parameters.")
+    n_starts = len(explicit) if explicit is not None else settings.starts
+    for start in range(n_starts):
         current_start = start
-        x = x0.copy()
-        if start and len(x):
+        x = x0.copy() if explicit is None else explicit[start].copy()
+        if explicit is None and start and len(x):
             couplings = np.array([param.parameters[n].kind == "coupling" for n in param.free_names])
             x = x + np.where(couplings, rng.normal(0, settings.start_spread_hz, len(x)), rng.normal(0, 0.3, len(x)))
         x = np.clip(x, lower + 1e-9 * (upper - lower), upper - 1e-9 * (upper - lower))
@@ -220,7 +240,7 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
     return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative, signal_relative,
                             _band_residuals(forward, final), hits,
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,
-                            final.model, final.component_spectra)
+                            final.model, final.component_spectra, search=search_summary)
 
 
 def frozen_prediction(result: RefinementResult, candidate_param: Parameterization, held_out: ObservedSpectrum,

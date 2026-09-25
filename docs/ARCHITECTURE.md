@@ -33,7 +33,7 @@ checked against held-out acquisitions.
 | `zulf_model.codec` | Canonical ordering, J binning, token vocabulary and grammar, fixed-size set targets with masks. | spinsystem |
 | `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
 | `zulf_model.training` | Torch datasets over generator or shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
-| `zulf_model.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
+| `zulf_model.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
 | `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search), local identifiability, solver basin measurement, benchmark runner. | solver, generator |
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
 | `zulf_model.io` | Loading averaged FIDs (npy, legacy NMRduino DAT decoding, INI parsing, group averaging). | - |
@@ -81,6 +81,8 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Candidate model | `models.base.CandidateModel` | New architectures implementing `loss` and `propose`. |
 | Candidate proposer | `evaluation.proposers.CandidateProposer` | Any strategy that turns an observed spectrum into interpretations. |
 | Solver objective | `solver.forward.MixtureForward` | Magnitude or windowed objectives, background terms. |
+| Global search | `solver.search.PatternObjective`, `global_search` | Other phase-insensitive objectives or search strategies that return distinct starting vectors for `refine(initial_points=...)`. |
+| Evolution field | `physics.protocol.Protocol.field_ut` | Residual static field during evolution; exact in the sector decomposition. |
 
 ## Data flow for one training sample
 

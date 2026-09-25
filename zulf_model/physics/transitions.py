@@ -139,6 +139,18 @@ def _full_dimension(system: SpinSystem) -> int:
     return dim
 
 
+def zeeman(site_ops, symbols: Sequence[str], field_ut) -> np.ndarray:
+    """Zeeman Hamiltonian in Hz, -sum_n gamma_n B . I_n, for sites of the given nuclei."""
+    registry = get_registry()
+    h = 0
+    for sym, ops in zip(symbols, site_ops):
+        g = registry.gamma(sym)
+        for b, op in zip(field_ut, ops):
+            if b != 0.0:
+                h = h - g * b * op
+    return h
+
+
 def _block_amplitudes(h: np.ndarray, rho: np.ndarray, det: np.ndarray, weight: float,
                       tolerance_hz: float, real: bool):
     if real:
@@ -190,6 +202,8 @@ def compute_transitions(system: SpinSystem, protocol: Protocol = SUDDEN_DROP, me
         h = np.zeros((dim, dim))
         for i, j in pair_index:
             h += gj[i, j] * pairs[(i, j)]
+        if protocol.has_field:
+            h = h + zeeman(site_ops, [sym for sym, _, _ in nodes], protocol.field_ut)
         rho = sum(p * ops[2] for p, ops in zip(prep, site_ops))
         det = sum(d * ops[2] for d, ops in zip(detw, site_ops))
         real = protocol.is_real
@@ -203,9 +217,9 @@ def compute_transitions(system: SpinSystem, protocol: Protocol = SUDDEN_DROP, me
             real = False
         if real:
             rho, det = rho.real, det.real
-            h_use = h
+            h_use = np.ascontiguousarray(np.real(h))
         else:
-            h_use = h.astype(complex)
+            h_use = np.asarray(h, complex)
         f, a, block_dc = _block_amplitudes(h_use, rho, det, multiplicity * norm, tolerance_hz, real)
         freqs.append(f)
         amps.append(a.astype(complex))
@@ -225,6 +239,8 @@ def reference_signal(system: SpinSystem, times_s: np.ndarray, protocol: Protocol
     j = system.couplings_hz
     for (i, k), op in pairs.items():
         h += j[i, k] * op
+    if protocol.has_field:
+        h = h + zeeman(site_ops, list(system.isotopes), protocol.field_ut)
     rho = sum(protocol.preparation_weight(s) * ops[2] for s, ops in zip(system.isotopes, site_ops))
     det = sum(protocol.detection_weight(s) * ops[2] for s, ops in zip(system.isotopes, site_ops))
     for pulse in protocol.pulses:

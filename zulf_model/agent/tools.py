@@ -257,11 +257,13 @@ def propose_candidates(args: dict) -> dict:
 @REGISTRY.tool("refine_candidates",
                "Refine candidate interpretations against an averaged FID (all branches kept). Held-out FIDs give "
                "frozen-prediction ranking. Settings follow RefineSettings (policy for bounds, ties via "
-               "'ties', nuisance terms, background order, continuation). Long-running for large records.",
+               "'ties', nuisance terms, background order, continuation, and 'search' for a phase-insensitive "
+               "global pattern search that supplies the starts). 'protocol' follows physics.Protocol "
+               "(for example field_ut for a residual static field). Long-running for large records.",
                {"type": "object", "properties": {
                    "candidates": {"type": "array", "items": INTERPRETATION}, "source": FID_SOURCE,
                    "held_out": {"type": "array", "items": FID_SOURCE}, "acquisition": ACQUISITION, "ranges": RANGES,
-                   "settings": {"type": "object"}},
+                   "settings": {"type": "object"}, "protocol": {"type": "object"}},
                 "required": ["candidates", "source", "ranges"]}, long_running=True)
 def refine_candidates_tool(args: dict) -> dict:
     from ..solver import ObservedSpectrum, RefineSettings, refine_candidates
@@ -274,9 +276,11 @@ def refine_candidates_tool(args: dict) -> dict:
     for k, src in enumerate(args.get("held_out") or []):
         h = _load_fid(src)
         held.append(ObservedSpectrum.from_fid(h.fid, acq, ranges, label=src.get("label", f"held_out_{k}")))
+    from ..physics.protocol import SUDDEN_DROP, Protocol
     settings = RefineSettings.from_dict(args.get("settings") or {})
+    protocol = Protocol.from_dict(args["protocol"]) if args.get("protocol") else SUDDEN_DROP
     timer = Timer()
-    results = refine_candidates([_interp(c) for c in args["candidates"]], obs, held, settings, timer=timer)
+    results = refine_candidates([_interp(c) for c in args["candidates"]], obs, held, settings, protocol, timer=timer)
     out = Path(args.get("_job_dir") or new_run_dir("refine"))
     summaries = [r.summary() for r in results]
     (out / "refinement.json").write_text(json.dumps(summaries, indent=2, default=float), encoding="utf-8")

@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from zulf_model.io import load_average
+from zulf_model.physics.protocol import Protocol
 from zulf_model.render import Acquisition
 from zulf_model.solver import ObservedSpectrum, ParameterPolicy, Parameterization, RefineSettings, refine
 from zulf_model.spinsystem import Component, Interpretation, SpinSystem
@@ -53,6 +54,12 @@ def main():
                         help="Anchor the methyl-13C component on the high band first, then refine jointly.")
     parser.add_argument("--starts", type=int, default=1)
     parser.add_argument("--continuation", default="10,3,1,0")
+    parser.add_argument("--search", action="store_true",
+                        help="Run the phase-insensitive global pattern search and refine from its distinct starts.")
+    parser.add_argument("--search-seconds", type=float, default=900.0)
+    parser.add_argument("--search-solutions", type=int, default=4)
+    parser.add_argument("--field-z-ut", type=float, default=0.0,
+                        help="Residual static field along the detection axis during evolution (microtesla).")
     args = parser.parse_args()
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
@@ -70,9 +77,12 @@ def main():
                              nuisance=nuisance)
     continuation = tuple(float(v) for v in args.continuation.split(","))
     timer = Timer()
+    search = (dict(max_seconds=args.search_seconds, solutions=args.search_solutions, popsize=15, maxiter=150)
+              if args.search else None)
     settings = RefineSettings(starts=args.starts, background_order=args.background_order, max_seconds=args.budget_s,
                               max_evaluations=100000, policy=policy, continuation_rates_per_s=continuation,
-                              start_spread_hz=2.0)
+                              start_spread_hz=2.0, search=search)
+    protocol = Protocol(field_ut=(0.0, 0.0, args.field_z_ut))
     stages = []
     if args.staged:
         high = obs.restricted([ranges[-1]])
@@ -80,7 +90,7 @@ def main():
         anchor_param = Parameterization.from_interpretation(anchor_candidate, policy)
         anchor_param.fix("c0.J0-1")
         anchor_param.tie("c0.J0-2", "c0.J1-2")
-        anchor = refine(anchor_candidate, high, settings, parameterization=anchor_param, timer=timer)
+        anchor = refine(anchor_candidate, high, settings, protocol, parameterization=anchor_param, timer=timer)
         stages.append({"stage": "methyl anchor on high band", **{k: anchor.summary()[k] for k in (
             "relative_residual", "signal_relative_residual", "flags", "parameters")}})
         v = anchor.parameters
@@ -89,7 +99,7 @@ def main():
                                               "methyl-13C")))
     param = Parameterization.from_interpretation(candidate, policy)
     param.tie("c0.J0-1", "c1.J0-2", "c1.J1-2").fix("c1.J0-1")
-    result = refine(candidate, obs, settings, parameterization=param, timer=timer)
+    result = refine(candidate, obs, settings, protocol, parameterization=param, timer=timer)
     summary = result.summary()
     summary.update(acquisition=acq.to_dict(), source=exp.source, timing=timer.report(), stages=stages)
     (out / "result.json").write_text(json.dumps(summary, indent=2, default=float), encoding="utf-8")
@@ -116,6 +126,9 @@ def main():
                                                "flags", "evaluations", "elapsed_s")}, default=float))
     for stage in stages:
         print(json.dumps(stage, default=float))
+    if result.search:
+        print(json.dumps({"search_costs": result.search["costs"], "search_s": round(result.search["elapsed_s"], 1),
+                          "search_starts": result.search["starts"]}, default=float))
     print(json.dumps({k: round(float(v), 4) for k, v in result.parameters.items()}))
 
 
