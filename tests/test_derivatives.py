@@ -132,6 +132,25 @@ class ForwardJacobianTests(unittest.TestCase):
             forward = MixtureForward(param, self.obs, gain_model=gain_model, background=background)
             self.check(forward, param.vector() + 0.003)
 
+    def test_exact_with_fixed_amplitude_ratios(self):
+        for gain_model, background in [("shared_phase", 1), ("complex", 0)]:
+            param = Parameterization.from_interpretation(self.start)
+            param.tie("c0.J1-2", "c1.J1-2")
+            param.tie("c0.log_rate0", "c1.log_rate0")
+            forward = MixtureForward(param, self.obs, gain_model=gain_model, background=background,
+                                     amplitude_ratios=(1.0, 0.6))
+            self.check(forward, param.vector() + 0.003)
+
+    def test_fixed_amplitude_ratios_in_refinement(self):
+        start = Interpretation(tuple(Component(perturbed(t, 0.3)) for t in self.truths))
+        res = refine(start, self.obs, RefineSettings(starts=1, amplitude_ratios=(1.0, 0.6)))
+        gains = np.abs(res.gains)
+        self.assertAlmostEqual(gains[1] / gains[0], 0.6, places=12)
+        for truth, comp in zip(self.truths, res.interpretation.components):
+            self.assertLess(best_permutation(truth, comp.system).max_abs_error_hz, 0.01)
+        with self.assertRaises(ValueError):
+            refine(start, self.obs, RefineSettings(starts=1, amplitude_ratios=(1.0,)))
+
     def test_processed_real_spectrum_and_kaufman_at_zero_residual(self):
         acq = Acquisition(1000.0, 4096, start_sample=20)
         fid = Renderer(acq).synthesize(compute_transitions(self.truths[0]), 1.5, gain=np.exp(0.7j),

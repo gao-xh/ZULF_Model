@@ -163,3 +163,13 @@ skills under `skills/`; this file keeps the history.
   (1) cores from the incoherent line envelope sum_k abs(g a_k) profile_k(f)
   (catches broad overlapping lines and cancellation holes); (2) physical
   constraints: amplitudes at natural abundance, bounded or tied decay rates.
+
+### Solver: fixed amplitude ratios; constrained self-consistent alanine
+- Added `RefineSettings.amplitude_ratios` / `MixtureForward(amplitude_ratios=)`:
+  components are merged into one column sum_c r_c col_c before the linear
+  solve (one overall gain); the Jacobian merges the derivative columns the
+  same way (tested against finite differences for shared-phase and complex
+  gains; refinement keeps the ratio exact).
+- User: add both constraints, run only the self-consistent alanine. Running:
+  ratios 1 : 1 : 0.34, one decay rate tied over C-alpha, C-beta, 15N; three
+  starts in parallel (candidate, earlier fit with the C-beta rate, random).

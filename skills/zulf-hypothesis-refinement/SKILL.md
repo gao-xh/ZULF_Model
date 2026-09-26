@@ -24,6 +24,13 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   share (all proton-proton couplings) and every symmetry-equivalent coupling
   (`RefineSettings.ties`). Map group indices per component explicitly: the
   heteronucleus changes the group order.
+- For a pure sample, fix the isotopologue amplitude ratios to natural
+  abundance (`RefineSettings.amplitude_ratios`, for example 1 : 1 : 0.34 for
+  two 13C sites and one 15N site) and tie the decay rates across
+  isotopologues (`ties` on `cN.log_rate0`). With free amplitudes and rates
+  one component can turn into broad background (e3d282da: C-alpha at
+  7.7 1/s and 7.5x amplitude cut a 139 Hz hole that cost little outside the
+  cores). Free ratios remain a check, not the default.
 - Start from literature-like values, say where they come from, and give
   uncertain small couplings wide bounds (coupling_margin_hz 6-12).
 - Include every isotopologue that can put lines in the fitted range; state
