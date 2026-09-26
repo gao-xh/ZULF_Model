@@ -29,3 +29,9 @@ interface and `docs/PLAN.md` before starting new work.
   Failures on a frozen test set are not fed back into training.
 - Keep `docs/PLAN.md` current: mark what is done, what was measured, and what
   remains, with the commit that produced each result.
+- Keep a running record while analysing data: append to `docs/ANALYSIS_LOG.md`
+  what was done, what was observed, the conclusion and the commit, as the work
+  happens (not only at the end). When a step teaches something reusable (a
+  pitfall, a check, a better setting), update the matching skill under
+  `skills/` in the same session.
+

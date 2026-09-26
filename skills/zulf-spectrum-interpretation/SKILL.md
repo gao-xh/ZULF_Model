@@ -32,6 +32,11 @@ system rather than from memory.
   water): no 1J(N,H) lines; 15N then shows only small couplings at low
   frequency. Slow exchange (acidic, non-aqueous) would show 15NH3+ near
   73-75 Hz and its 2J near 146-150 Hz.
+- Protonation state: amino acids in water near neutral pH are zwitterions
+  (-NH3+, -COO-); alanine pKa about 2.3 / 9.7, so the neutral -NH2 fraction at
+  pH 6 is about 2e-4. -NH2 dominates only above pH about 10 (15NH2 would give
+  one line near 3/2 abs(1J), 1J about -65 Hz). Choose the group in a model from
+  the solvent and pH, and ask for them.
 
 ## Natural abundance
 

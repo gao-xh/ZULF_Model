@@ -46,6 +46,22 @@ All processing goes through `zulf_core.render.acquisition` (`Acquisition`,
 - Show full, about 1 s and about 0.3 s windows; the 0.3 s window has the
   best SNR for broad features, the full record the best resolution.
 
+## Truncation and apodization
+
+- Shortening the record lowers the noise per spectral point and costs
+  resolution; with an exact model and a noise-scaled chi-square the late,
+  noise-only samples barely change the estimates, so the window is chiefly a
+  robustness and diagnostic knob.
+- Choose an exponential apodization rate from the data: scan the peak SNR of
+  the strongest lines versus rate at a long window. Rates taken from a fit can
+  be inflated by unresolved fine structure (e3d282da: fitted 3-5 1/s, SNR best
+  at 0-0.3 1/s); over-apodization merges close lines.
+- Scan the window length for the leading model: parameters that drift with the
+  window indicate a model problem at late times; fitted decay rates that fall
+  with longer windows indicate unresolved structure.
+- Use short windows (about 0.3 s) for detection, masks and model-free phasing;
+  long windows (1-4 s) for small couplings.
+
 ## Residual scale
 
 - `scripts/window_references.py FID --start 200 --stop 4200 --ranges ...`

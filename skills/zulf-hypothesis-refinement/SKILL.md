@@ -33,6 +33,11 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 - Default: complex data, `gain_model="shared_phase"`, delay fitted,
   background_order 1, 3 starts, analytic (Kaufman) Jacobian.
+- Prefer `band_weighting="signal"`: noise-scaled chi-square, points outside a
+  data-driven signal mask down-weighted (default 0.2), and the result reports
+  `signal_region_residual`. Check the mask: a sharp instrument or background
+  feature (e.g. 72-76 Hz on the NMRduino) is detected as signal; exclude it
+  with the fit ranges until reference-based exclusion exists.
 - Weak data: fit the truncated window from `zulf-fid-processing`; starts at
   narrow lines (initial rate 0.5-1/s) with continuation (1, 0).
 - Sign variants: only when signs are the question; they multiply the cost up
