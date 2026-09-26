@@ -14,9 +14,9 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..physics.transitions import TransitionList
-from .acquisition import Acquisition, evaluate_spectrum, process_record
-from .renderer import Renderer
+from zulf_core.physics.transitions import TransitionList
+from zulf_core.render.acquisition import Acquisition, evaluate_spectrum, process_record
+from zulf_core.render.renderer import Renderer
 
 
 @dataclass(frozen=True)

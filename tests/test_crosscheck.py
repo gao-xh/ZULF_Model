@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zulf_model.physics import compute_transitions
+from zulf_core.physics import compute_transitions
 
 REPO = Path(__file__).resolve().parents[1]
 CANDIDATES = [os.environ.get("ZULF_ANALYSIS_TOOLS", ""), str(REPO.parent / "ZULF_Analysis_Tools")]

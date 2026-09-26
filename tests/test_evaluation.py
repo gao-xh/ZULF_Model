@@ -6,14 +6,14 @@ import numpy as np
 
 from zulf_model.evaluation import (BenchmarkConfig, CandidateProposer, PriorSearchProposer, RandomPriorProposer,
                                    basin_of_attraction, local_identifiability, quick_score, run_benchmark)
-from zulf_model.evaluation.identifiability import perturb_couplings
+from zulf_core.evaluation.identifiability import perturb_couplings
 from zulf_model.finetune import ActiveLearningLoop, FocusedSource, LoopConfig, classify_failure
 from zulf_model.generator import Sample, SplitConfig, build_default_sampler, split_of
-from zulf_model.physics import TransitionCache, compute_transitions
+from zulf_core.physics import TransitionCache, compute_transitions
 from zulf_model.render import Acquisition, PerturbationConfig, Renderer
-from zulf_model.solver import ObservedSpectrum, RefineSettings
+from zulf_core.solver import ObservedSpectrum, RefineSettings
 from zulf_model.spec import ProblemSpec
-from zulf_model.spinsystem import Component, Interpretation, SpinSystem
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem
 
 ACQ = Acquisition(1000.0, 3000)
 RANGES = [(100.0, 150.0), (230.0, 275.0)]
@@ -144,7 +144,7 @@ class FineTuneTests(unittest.TestCase):
 class BlockSignMatchingTests(unittest.TestCase):
     @staticmethod
     def system(j_nh, linked):
-        from zulf_model.spinsystem import SpinSystem
+        from zulf_core.spinsystem import SpinSystem
         j = np.zeros((4, 4))
         values = {(0, 2): 140.0, (1, 3): j_nh}
         if linked:
@@ -154,8 +154,8 @@ class BlockSignMatchingTests(unittest.TestCase):
         return SpinSystem(("13C", "15N", "1H", "1H"), j)
 
     def test_relative_sign_free_only_between_disconnected_blocks(self):
-        from zulf_model.evaluation.matching import coupling_blocks, coupling_error
-        from zulf_model.spinsystem import SpinSystem
+        from zulf_core.evaluation.matching import coupling_blocks, coupling_error
+        from zulf_core.spinsystem import SpinSystem
         self.assertEqual(len(coupling_blocks(self.system(-70.0, False))), 2)
         self.assertEqual(len(coupling_blocks(self.system(-70.0, True))), 1)
         self.assertLess(coupling_error(self.system(-70.0, False), self.system(70.0, False))[0], 1e-9)

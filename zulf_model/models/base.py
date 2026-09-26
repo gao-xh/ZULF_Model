@@ -14,7 +14,7 @@ from torch import nn
 
 from ..codec import InterpretationCodec
 from ..spec import ProblemSpec
-from ..spinsystem import Interpretation
+from zulf_core.spinsystem import Interpretation
 from .config import ModelConfig
 
 

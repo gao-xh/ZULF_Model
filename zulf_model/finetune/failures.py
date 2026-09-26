@@ -14,9 +14,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence
 
-from ..evaluation.matching import match_interpretations
+from zulf_core.evaluation.matching import match_interpretations
 from ..generator.sampler import Sample
-from ..spinsystem import Interpretation
+from zulf_core.spinsystem import Interpretation
 
 CATEGORIES = ("success", "structure_miss", "j_outside_basin", "unidentifiable")
 

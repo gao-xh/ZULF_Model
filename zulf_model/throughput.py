@@ -7,10 +7,10 @@ import time
 import numpy as np
 
 from .generator import build_default_sampler
-from .physics import compute_transitions
+from zulf_core.physics import compute_transitions
 from .render import ProcessingConfig, SampleRenderer
 from .spec import ProblemSpec
-from .timing import Timer
+from zulf_core.timing import Timer
 
 
 def measure(samples: int = 50, points: int = 16384, spec: ProblemSpec = None) -> dict:

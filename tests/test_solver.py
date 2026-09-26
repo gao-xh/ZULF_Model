@@ -2,11 +2,11 @@ import unittest
 
 import numpy as np
 
-from zulf_model.physics import compute_transitions
+from zulf_core.physics import compute_transitions
 from zulf_model.render import Acquisition, Renderer
-from zulf_model.solver import (ObservedSpectrum, ParameterPolicy, Parameterization, RefineSettings, refine,
+from zulf_core.solver import (ObservedSpectrum, ParameterPolicy, Parameterization, RefineSettings, refine,
                                refine_candidates)
-from zulf_model.spinsystem import Component, Interpretation, SpinSystem, best_permutation
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem, best_permutation
 
 ACQ = Acquisition(1000.0, 6000, start_sample=40, sg_window=101, sg_order=2)
 RANGES = [(100.0, 150.0), (230.0, 275.0)]
@@ -123,7 +123,7 @@ class SignVariantTests(unittest.TestCase):
         return SpinSystem(("13C", "15N", "1H", "1H"), j)
 
     def test_variants_skip_global_equivalents(self):
-        from zulf_model.solver.variants import sign_variants
+        from zulf_core.solver.variants import sign_variants
         pair = Interpretation((Component(SpinSystem(("13C", "1H"), np.array([[0.0, 140.0], [140.0, 0.0]]))),))
         self.assertEqual(sign_variants(pair, 10.0), [])
         variants = sign_variants(Interpretation((Component(self.cn_system(70.0)),)), 10.0)

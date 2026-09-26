@@ -186,7 +186,7 @@ class PrerenderedDataset:
         return arrays, meta
 
     def _item(self, arrays: dict, meta, row: int) -> dict:
-        from ..spinsystem import Interpretation
+        from zulf_core.spinsystem import Interpretation
         n = int(arrays["token_length"][row])
         item = {"features": arrays["features"][row].astype(np.float32), "scale": float(arrays["scale"][row]),
                 "tokens": arrays["tokens"][row, :n].astype(np.int64).tolist(),

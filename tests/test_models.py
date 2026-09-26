@@ -106,11 +106,11 @@ class JDecodingTests(unittest.TestCase):
 class GroupDecodingTests(unittest.TestCase):
     def test_oracle_logits_decode_to_truth_with_groups(self):
         from zulf_model.codec import InterpretationCodec
-        from zulf_model.evaluation.matching import match_interpretations
+        from zulf_core.evaluation.matching import match_interpretations
         from zulf_model.generator import build_default_sampler
         from zulf_model.models import ModelConfig, build_model
         from zulf_model.spec import ProblemSpec
-        from zulf_model.spinsystem import Component, Interpretation
+        from zulf_core.spinsystem import Component, Interpretation
         spec = ProblemSpec(spin_counts=(4, 5, 6), max_components=2)
         codec = InterpretationCodec(spec)
         model = build_model(spec, ModelConfig(kind="cnn_set"))

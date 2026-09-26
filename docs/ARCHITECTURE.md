@@ -21,25 +21,45 @@ checked against held-out acquisitions.
                          online inference line (experimental spectrum)
 ```
 
+## Two packages (D29)
+
+- `zulf_core` (NumPy, SciPy): nuclei, spin systems, zero-field physics, the
+  acquisition operator and exact rendering, grids and phasing, the refinement
+  solver (parameterization, forward model, global search, sign variants),
+  matching and identifiability, FID I/O and diagnostics. Everything needed to
+  simulate and to fit experimental spectra.
+- `zulf_model` (adds PyTorch): problem spec, generator, codec, training-data
+  synthesis (perturbations, sample pipeline, features), models, training,
+  fine-tuning, proposers and benchmarks, the agent tool layer and CLI.
+
+`zulf_model` imports `zulf_core`; `zulf_core` never imports `zulf_model` or
+torch (`tests/test_spinsystem.py` checks this), so training data and
+experimental fits always share one forward model. Short module names in these
+docs (`physics.transitions`, `render.phasing`, `solver.search`) refer to
+`zulf_core`; `render.pipeline`, `render.perturb` and `render.features` are in
+`zulf_model.render`, which also re-exports `zulf_core.render`.
+
 ## Package map
 
 | Module | Responsibility | Depends on |
 | --- | --- | --- |
-| `zulf_model.nuclei` | Extensible nucleus registry: symbol, spin quantum number, gamma. | - |
-| `zulf_model.spinsystem` | `SpinSystem`, `Component`, `Interpretation`; validation, equivalence groups, permutations, matching, JSON. | nuclei |
-| `zulf_model.physics` | Spin operators, collective-spin sectors, zero-field Hamiltonian, transition lists (frequency, complex amplitude), observation protocol. | spinsystem |
-| `zulf_model.render` | Acquisition and the single preprocessing operator; exact analytic rendering of transition lists through that operator; perturbations; model input features. | physics |
+| `zulf_core.nuclei` | Extensible nucleus registry: symbol, spin quantum number, gamma. | - |
+| `zulf_core.spinsystem` | `SpinSystem`, `Component`, `Interpretation`; validation, equivalence groups, permutations, matching, JSON. | nuclei |
+| `zulf_core.physics` | Spin operators, collective-spin sectors, zero-field Hamiltonian, transition lists (frequency, complex amplitude), observation protocol. | spinsystem |
+| `zulf_core.render` | Acquisition and the single preprocessing operator; exact analytic and NUFFT rendering of transition lists through that operator; grids; phasing. | physics |
+| `zulf_model.render` | Training-data synthesis: perturbations, sample pipeline, model input features (re-exports `zulf_core.render`). | zulf_core |
 | `zulf_model.generator` | Molecule-like heavy-atom graphs, rule-based J assignment, isotopologue enumeration, random-J mode, sample specification, family-based splits, shard storage. | spinsystem, physics, render |
 | `zulf_model.codec` | Canonical ordering, J binning, token vocabulary and grammar, fixed-size set targets with masks. | spinsystem |
 | `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline over equivalence groups, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
 | `zulf_model.training` | Torch datasets over generator or shards, pre-rendered feature shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
-| `zulf_model.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
-| `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search), local identifiability, solver basin measurement, benchmark runner. | solver, generator |
+| `zulf_core.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
+| `zulf_core.evaluation` | Matching of interpretations (per-block sign freedom), local identifiability, solver basin measurement. | solver |
+| `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search) and the benchmark runner. | zulf_core, generator |
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
-| `zulf_model.io` | Loading averaged FIDs (npy, legacy NMRduino DAT decoding, INI parsing, group averaging). | - |
-| `zulf_model.diagnostics` | Per-dataset FID diagnostics (first point, saturation plateau, ringing end, baseline fits) and candidate processing recipes. | - |
+| `zulf_core.io` | Loading averaged FIDs (npy, legacy NMRduino DAT decoding, INI parsing, group averaging). | - |
+| `zulf_core.diagnostics` | Per-dataset FID diagnostics (first point, saturation plateau, ringing end, baseline fits) and candidate processing recipes. | - |
 | `zulf_model.agent` | Tool registry shared by the JSON CLI, the MCP server and exported Anthropic/OpenAI tool schemas; background jobs. | all |
-| `zulf_model.device`, `zulf_model.timing` | CUDA/MPS/CPU policy; built-in timers. | - |
+| `zulf_model.device`, `zulf_core.timing` | CUDA/MPS/CPU policy; built-in timers. | - |
 | `zulf_model.cli` | Command line entry points (thin layer over the agent registry). | agent |
 
 Only `models`, `training`, `finetune` and parts of `evaluation` import torch.

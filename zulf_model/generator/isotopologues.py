@@ -12,9 +12,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..nuclei import get_registry
+from zulf_core.nuclei import get_registry
 from ..spec import ProblemSpec
-from ..spinsystem import Component, SpinSystem
+from zulf_core.spinsystem import Component, SpinSystem
 from .couplings import CouplingRules
 from .graphs import MoleculeGraph
 

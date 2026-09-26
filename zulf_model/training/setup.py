@@ -22,11 +22,11 @@ from torch.utils.data import DataLoader
 from ..codec import InterpretationCodec
 from ..generator.sampler import GENERATOR_VERSION, MixtureConfig, build_default_sampler
 from ..models import ModelConfig, build_model
-from ..physics.protocol import Protocol
+from zulf_core.physics.protocol import Protocol
 from ..render.perturb import PerturbationConfig
 from ..render.pipeline import ProcessingConfig, SampleRenderer
 from ..spec import ProblemSpec
-from ..timing import Timer
+from zulf_core.timing import Timer
 from .data import Collator, FixedDataset, OnTheFlyDataset
 from .trainer import CurriculumStage, TrainConfig, Trainer
 

@@ -4,10 +4,10 @@ import unittest
 
 import numpy as np
 
-from zulf_model.evaluation.matching import match_interpretations
+from zulf_core.evaluation.matching import match_interpretations
 from zulf_model.generator import build_default_sampler
 from zulf_model.spec import ProblemSpec
-from zulf_model.spinsystem import Component, Interpretation, SpinSystem
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem
 from zulf_model.training import CoverageMetrics, TrainingSetup
 
 

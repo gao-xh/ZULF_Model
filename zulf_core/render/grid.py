@@ -7,7 +7,6 @@ from typing import List, Sequence, Tuple
 
 import numpy as np
 
-from ..spec import GridSpec
 from .acquisition import Acquisition
 
 
@@ -46,10 +45,12 @@ class SpectrumGrid:
         return cls(np.arange(k0, k1 + 1) * spacing_hz)
 
     @classmethod
-    def from_spec(cls, spec: GridSpec, acquisition: Acquisition) -> "SpectrumGrid":
+    def from_spec(cls, spec, acquisition: Acquisition) -> "SpectrumGrid":
         """Model grid: explicit spacing if configured, else the full record's bins times zero fill.
 
-        Using the full (uncropped) record length keeps the grid fixed when crops vary.
+        `spec` is any object with f_min_hz, f_max_hz, zero_fill and spacing_hz (for example
+        zulf_model's GridSpec). Using the full (uncropped) record length keeps the grid fixed when
+        crops vary.
         """
         spacing = spec.spacing_hz or acquisition.sampling_rate_hz / (acquisition.points * spec.zero_fill)
         return cls.uniform(spec.f_min_hz, min(spec.f_max_hz, acquisition.nyquist_hz), spacing)

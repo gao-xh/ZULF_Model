@@ -17,7 +17,7 @@ from typing import Dict, Iterator, List, Optional, Sequence
 import numpy as np
 
 from ..spec import ProblemSpec
-from ..spinsystem import Component, Interpretation
+from zulf_core.spinsystem import Component, Interpretation
 from .couplings import CouplingRules
 from .graphs import GraphConfig, MoleculeGraph, random_graph
 from .isotopologues import IsotopologueConfig, labeled_isotopologue, natural_isotopologues, visible_hydrogens

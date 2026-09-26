@@ -3,10 +3,10 @@ from fractions import Fraction
 
 import numpy as np
 
-from zulf_model.nuclei import get_registry
-from zulf_model.physics import Protocol, Pulse, compute_transitions, merge_transitions, reference_signal
-from zulf_model.physics.operators import angular_momentum, collective_multiplicities
-from zulf_model.spinsystem import SpinSystem
+from zulf_core.nuclei import get_registry
+from zulf_core.physics import Protocol, Pulse, compute_transitions, merge_transitions, reference_signal
+from zulf_core.physics.operators import angular_momentum, collective_multiplicities
+from zulf_core.spinsystem import SpinSystem
 
 
 def xh_n(n_h, j=140.0):
@@ -147,7 +147,7 @@ class MergeTests(unittest.TestCase):
 class MBlockingTests(unittest.TestCase):
     def test_m_blocks_match_unblocked_sectors(self):
         from zulf_model.generator import build_default_sampler
-        from zulf_model.physics.protocol import Protocol
+        from zulf_core.physics.protocol import Protocol
         from zulf_model.spec import ProblemSpec
         t = np.linspace(0, 0.2, 60)
         samples = build_default_sampler(ProblemSpec()).generate(6, seed=7)

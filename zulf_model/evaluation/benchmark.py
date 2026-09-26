@@ -16,15 +16,15 @@ from typing import Dict, List, Optional, Sequence
 import numpy as np
 
 from ..generator.sampler import Sample
-from ..physics.protocol import SUDDEN_DROP, Protocol
-from ..render.acquisition import Acquisition
+from zulf_core.physics.protocol import SUDDEN_DROP, Protocol
+from zulf_core.render.acquisition import Acquisition
 from ..render.perturb import PerturbationConfig, mixture_fid, sample_render_params
-from ..render.renderer import Renderer
-from ..physics.transitions import TransitionCache
-from ..solver.observed import ObservedSpectrum
-from ..solver.refine import RefineSettings, refine_candidates
-from ..timing import Timer
-from .matching import match_interpretations
+from zulf_core.render.renderer import Renderer
+from zulf_core.physics.transitions import TransitionCache
+from zulf_core.solver.observed import ObservedSpectrum
+from zulf_core.solver.refine import RefineSettings, refine_candidates
+from zulf_core.timing import Timer
+from zulf_core.evaluation.matching import match_interpretations
 from .proposers import CandidateProposer
 
 

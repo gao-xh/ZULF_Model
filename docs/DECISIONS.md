@@ -284,6 +284,17 @@ full-resolution fit (`RefineSettings.guard_continuation`, default True) and
 the better full-resolution score of the two paths wins. Continuation remains
 useful for starts several hertz off in sparse spectra (D14).
 
+## D29. Core and model packages (2026-09-26)
+
+The refinement and comparison side is used on experimental data without GPUs
+and changes at a different pace from the learning side, but both must use one
+forward model. The repository therefore holds two packages: `zulf_core`
+(NumPy/SciPy: physics, rendering, solver, matching, I/O, diagnostics) and
+`zulf_model` (PyTorch: spec, generator, codec, synthesis, models, training,
+fine-tuning, proposers, agent tools). The dependency is one-way and tested.
+Code is never copied between them. Moving `zulf_core` to its own repository
+later only changes packaging, not imports.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

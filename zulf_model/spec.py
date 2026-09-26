@@ -15,7 +15,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from .nuclei import get_registry
+from zulf_core.nuclei import get_registry
 
 
 @dataclass(frozen=True)

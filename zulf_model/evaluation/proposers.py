@@ -12,16 +12,16 @@ from typing import List, Optional
 import numpy as np
 
 from ..generator.sampler import MixtureSampler
-from ..physics.protocol import SUDDEN_DROP, Protocol
-from ..physics.transitions import TransitionCache
-from ..render.acquisition import evaluate_spectrum, process_record
+from zulf_core.physics.protocol import SUDDEN_DROP, Protocol
+from zulf_core.physics.transitions import TransitionCache
+from zulf_core.render.acquisition import evaluate_spectrum, process_record
 from ..render.features import spectrum_features
-from ..render.grid import SpectrumGrid
-from ..render.phasing import estimate_phase, phase_correct
-from ..render.renderer import ContinuousRenderer, Renderer
-from ..solver.observed import ObservedSpectrum
+from zulf_core.render.grid import SpectrumGrid
+from zulf_core.render.phasing import estimate_phase, phase_correct
+from zulf_core.render.renderer import ContinuousRenderer, Renderer
+from zulf_core.solver.observed import ObservedSpectrum
 from ..spec import ProblemSpec
-from ..spinsystem import Interpretation
+from zulf_core.spinsystem import Interpretation
 
 
 class CandidateProposer(ABC):

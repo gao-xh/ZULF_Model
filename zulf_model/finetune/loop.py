@@ -14,7 +14,7 @@ from typing import Callable, List, Optional, Sequence
 import numpy as np
 
 from ..generator.sampler import GENERATOR_VERSION, MixtureConfig, MixtureSampler, Sample
-from ..solver.refine import RefineSettings, refine_candidates
+from zulf_core.solver.refine import RefineSettings, refine_candidates
 from .failures import FailureRecord, classify_failure
 from .focused import FocusedSource
 

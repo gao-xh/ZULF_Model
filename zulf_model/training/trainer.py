@@ -20,7 +20,7 @@ import torch
 from ..device import DevicePolicy, autocast, grad_scaler, seed_everything, select_device
 from ..models import save_model
 from ..models.base import CandidateModel
-from ..timing import Timer
+from zulf_core.timing import Timer
 from .data import to_device
 from .metrics import CoverageMetrics
 

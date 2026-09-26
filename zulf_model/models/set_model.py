@@ -20,7 +20,7 @@ from scipy.optimize import linear_sum_assignment
 from torch import nn
 
 from ..codec import InterpretationCodec
-from ..spinsystem import Component, Interpretation, SpinSystem
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem
 from .base import CandidateModel
 from .config import ModelConfig
 from .encoder import SpectrumEncoder

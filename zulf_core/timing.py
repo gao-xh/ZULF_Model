@@ -2,7 +2,7 @@
 
 Usage:
 
-    from zulf_model.timing import TIMER
+    from zulf_core.timing import TIMER
     with TIMER.section("render"):
         ...
     TIMER.report()        # {"render": {"count": 10, "total_s": ..., "mean_ms": ...}}

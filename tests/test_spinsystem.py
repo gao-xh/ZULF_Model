@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from zulf_model.spec import JBinSpec, ProblemSpec
-from zulf_model.spinsystem import (Component, Interpretation, SpinSystem, best_permutation,
+from zulf_core.spinsystem import (Component, Interpretation, SpinSystem, best_permutation,
                                    canonical_permutation, canonicalize, detect_equivalence_groups)
 
 
@@ -65,7 +65,7 @@ class SpinSystemTests(unittest.TestCase):
         self.assertFalse(best_permutation(a, b).matched)
 
     def test_matching_brute_force_agreement(self):
-        from zulf_model.spinsystem import all_isotope_preserving_permutations
+        from zulf_core.spinsystem import all_isotope_preserving_permutations
         rng = np.random.default_rng(5)
         iso = ("1H", "1H", "1H", "13C", "1H")
         a = rng.normal(size=(5, 5)); a = np.triu(a, 1); a = a + a.T
@@ -151,6 +151,22 @@ class SpecTests(unittest.TestCase):
             JBinSpec(((2.0, 0.3),)).edges()
         with self.assertRaises(ValueError):
             ProblemSpec(nuclei=("1H", "1H"))
+
+
+class PackageBoundaryTests(unittest.TestCase):
+    def test_core_imports_without_torch_or_model_package(self):
+        import subprocess
+        import sys
+        from pathlib import Path
+        code = ("import sys\n"
+                "import zulf_core.physics, zulf_core.render, zulf_core.solver, zulf_core.evaluation\n"
+                "import zulf_core.io, zulf_core.diagnostics\n"
+                "bad = sorted(m for m in sys.modules if m == 'torch' or m.startswith('torch.') or m.startswith('zulf_model'))\n"
+                "print(','.join(bad))\n")
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300,
+                             cwd=str(Path(__file__).resolve().parents[1]))
+        self.assertEqual(out.returncode, 0, msg=out.stderr)
+        self.assertEqual(out.stdout.strip(), "")
 
 
 if __name__ == "__main__":

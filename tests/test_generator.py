@@ -8,7 +8,7 @@ from zulf_model.generator import (CouplingRules, GraphConfig, IsotopologueConfig
                                   random_system, split_of, write_shards)
 from zulf_model.generator.graphs import VALENCE
 from zulf_model.generator.random_j import RandomSystemConfig
-from zulf_model.physics import compute_transitions
+from zulf_core.physics import compute_transitions
 from zulf_model.spec import ProblemSpec
 
 

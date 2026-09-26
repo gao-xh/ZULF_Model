@@ -25,17 +25,17 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..physics.protocol import SUDDEN_DROP, Protocol
-from ..physics.transitions import TransitionCache, TransitionList
+from zulf_core.physics.protocol import SUDDEN_DROP, Protocol
+from zulf_core.physics.transitions import TransitionCache, TransitionList
 from ..spec import ProblemSpec
-from ..spinsystem import Interpretation
-from ..timing import Timer
-from .acquisition import Acquisition
+from zulf_core.spinsystem import Interpretation
+from zulf_core.timing import Timer
+from zulf_core.render.acquisition import Acquisition
 from .features import spectrum_features
-from .grid import SpectrumGrid
+from zulf_core.render.grid import SpectrumGrid
 from .perturb import PerturbationConfig, RenderParams, render_observation, render_signal, sample_render_params
-from .phasing import correction_phasor, reference_delay_s
-from .renderer import ContinuousRenderer, Renderer
+from zulf_core.render.phasing import correction_phasor, reference_delay_s
+from zulf_core.render.renderer import ContinuousRenderer, Renderer
 
 MODES = ("pure", "fixed", "randomized", "continuous")
 

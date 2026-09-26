@@ -4,12 +4,12 @@ from pathlib import Path
 
 import numpy as np
 
-from zulf_model.physics import compute_transitions
-from zulf_model.physics.protocol import SUDDEN_DROP, Protocol
-from zulf_model.physics.transitions import reference_signal
-from zulf_model.solver import (ParameterPolicy, Parameterization, PatternObjective, RefineSettings, SearchSettings,
+from zulf_core.physics import compute_transitions
+from zulf_core.physics.protocol import SUDDEN_DROP, Protocol
+from zulf_core.physics.transitions import reference_signal
+from zulf_core.solver import (ParameterPolicy, Parameterization, PatternObjective, RefineSettings, SearchSettings,
                                global_search, refine)
-from zulf_model.spinsystem import Component, Interpretation, SpinSystem, best_permutation
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem, best_permutation
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_solver import methine_isotopologue, observe  # noqa: E402
@@ -44,7 +44,7 @@ class ResidualFieldTests(unittest.TestCase):
     def test_field_shifts_and_splits_as_expected(self):
         # 13C-1H pair: a longitudinal field only shifts the F=1,m=0 <-> F=0 line at second order;
         # a transverse field splits it by the F=1 Zeeman frequency (gamma_H + gamma_C) / 2 * B.
-        from zulf_model.nuclei import get_registry
+        from zulf_core.nuclei import get_registry
         system = SpinSystem(("13C", "1H"), np.array([[0.0, 140.0], [140.0, 0.0]]))
         longitudinal = compute_transitions(system, Protocol(field_ut=(0.0, 0.0, 0.01)))
         self.assertEqual(len(longitudinal), 1)
@@ -107,7 +107,7 @@ class GlobalSearchTests(unittest.TestCase):
                           SearchSettings(method="annealing"))
 
     def test_search_requires_fid(self):
-        from zulf_model.solver import ObservedSpectrum
+        from zulf_core.solver import ObservedSpectrum
         bare = ObservedSpectrum(self.obs.frequencies_hz, self.obs.values, self.obs.acquisition, self.obs.band_index)
         with self.assertRaises(ValueError):
             PatternObjective(Parameterization.from_interpretation(self.far, POLICY), bare)

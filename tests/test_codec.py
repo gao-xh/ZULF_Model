@@ -6,7 +6,7 @@ import numpy as np
 from zulf_model.codec import BOS, EOS, GrammarState, InterpretationCodec, JBinner
 from zulf_model.generator import build_default_sampler
 from zulf_model.spec import JBinSpec, ProblemSpec
-from zulf_model.spinsystem import Component, Interpretation, SpinSystem, best_permutation
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem, best_permutation
 
 
 def matched_error(a: SpinSystem, b: SpinSystem) -> float:

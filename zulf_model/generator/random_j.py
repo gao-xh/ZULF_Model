@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 from ..spec import ProblemSpec
-from ..spinsystem import Component, SpinSystem
+from zulf_core.spinsystem import Component, SpinSystem
 from .isotopologues import has_observable_heteronuclear_coupling
 
 

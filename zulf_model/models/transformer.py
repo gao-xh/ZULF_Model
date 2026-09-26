@@ -18,7 +18,7 @@ import torch
 from torch import nn
 
 from ..codec import BOS, PAD, GrammarState
-from ..spinsystem import Interpretation
+from zulf_core.spinsystem import Interpretation
 from .base import CandidateModel
 from .config import ModelConfig
 from .encoder import SpectrumEncoder

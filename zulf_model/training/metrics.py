@@ -6,8 +6,8 @@ from typing import Dict, List, Sequence
 
 import numpy as np
 
-from ..evaluation.matching import coupling_errors_by_category, match_interpretations
-from ..spinsystem import Interpretation
+from zulf_core.evaluation.matching import coupling_errors_by_category, match_interpretations
+from zulf_core.spinsystem import Interpretation
 
 
 class CoverageMetrics:

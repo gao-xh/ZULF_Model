@@ -11,13 +11,13 @@ from typing import Iterable, List, Optional, Sequence, Set
 
 import numpy as np
 
-from ..evaluation.identifiability import perturb_couplings
+from zulf_core.evaluation.identifiability import perturb_couplings
 from ..generator.couplings import CouplingRules
 from ..generator.graphs import MoleculeGraph
 from ..generator.isotopologues import IsotopologueConfig, natural_isotopologues
 from ..generator.sampler import Sample, SampleSource, SplitConfig, split_of
 from ..spec import ProblemSpec
-from ..spinsystem import Component, Interpretation
+from zulf_core.spinsystem import Component, Interpretation
 from .failures import FailureRecord
 
 FROZEN_SPLITS = ("test_unseen", "test_seen")

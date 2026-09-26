@@ -14,12 +14,12 @@ from pathlib import Path
 
 import numpy as np
 
-from zulf_model.io import load_average
-from zulf_model.physics.protocol import Protocol
+from zulf_core.io import load_average
+from zulf_core.physics.protocol import Protocol
 from zulf_model.render import Acquisition
-from zulf_model.solver import ObservedSpectrum, ParameterPolicy, Parameterization, RefineSettings, refine
-from zulf_model.spinsystem import Component, Interpretation, SpinSystem
-from zulf_model.timing import Timer
+from zulf_core.solver import ObservedSpectrum, ParameterPolicy, Parameterization, RefineSettings, refine
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem
+from zulf_core.timing import Timer
 
 
 def methine(jch=135.0, jhh=6.5, jcm=-3.0):

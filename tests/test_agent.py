@@ -53,9 +53,9 @@ class AgentToolTests(unittest.TestCase):
             self.assertTrue(Path(rendered["arrays"]).exists())
 
     def test_fid_tools_and_background_job(self):
-        from zulf_model.physics import compute_transitions
+        from zulf_core.physics import compute_transitions
         from zulf_model.render import Acquisition, Renderer
-        from zulf_model.spinsystem import SpinSystem
+        from zulf_core.spinsystem import SpinSystem
         j = np.zeros((4, 4)); j[0, 1:] = j[1:, 0] = 140.0
         acq = Acquisition(1000.0, 2048)
         fid = Renderer(acq).synthesize(compute_transitions(SpinSystem(("13C", "1H", "1H", "1H"), j)), 2.0)

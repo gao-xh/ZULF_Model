@@ -17,7 +17,7 @@ from torch.utils.data import Dataset, IterableDataset, get_worker_info
 from ..codec import PAD, InterpretationCodec
 from ..generator.sampler import MixtureSampler, Sample
 from ..render.pipeline import SampleRenderer
-from ..spinsystem import Interpretation
+from zulf_core.spinsystem import Interpretation
 
 
 def make_item(rendered, codec: InterpretationCodec, sample: Optional[Sample] = None) -> dict:

@@ -20,7 +20,7 @@ def main():
     os.environ["ZULF_MODEL_WORKSPACE"] = str(root)
     from zulf_model.agent import registry
     from zulf_model.generator import iter_samples
-    from zulf_model.physics import compute_transitions
+    from zulf_core.physics import compute_transitions
     from zulf_model.render import Acquisition, Renderer
 
     reg = registry()

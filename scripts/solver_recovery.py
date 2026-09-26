@@ -17,10 +17,10 @@ from pathlib import Path
 import numpy as np
 
 from zulf_model.evaluation.benchmark import observe_sample
-from zulf_model.evaluation.identifiability import basin_of_attraction
+from zulf_core.evaluation.identifiability import basin_of_attraction
 from zulf_model.generator import build_default_sampler
 from zulf_model.render import Acquisition, PerturbationConfig
-from zulf_model.solver import ParameterPolicy, RefineSettings
+from zulf_core.solver import ParameterPolicy, RefineSettings
 from zulf_model.spec import ProblemSpec
 
 

@@ -2,8 +2,8 @@ import unittest
 
 import numpy as np
 
-from zulf_model.diagnostics import diagnose_fid, fit_exponentials, plateau_end
-from zulf_model.io import decode_dat
+from zulf_core.diagnostics import diagnose_fid, fit_exponentials, plateau_end
+from zulf_core.io import decode_dat
 
 
 def synthetic_fid(fs=4000.0, points=40000, seed=0):

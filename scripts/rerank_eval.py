@@ -18,10 +18,10 @@ import numpy as np
 
 from zulf_model.evaluation import ModelProposer
 from zulf_model.evaluation.benchmark import observe_sample
-from zulf_model.evaluation.matching import match_interpretations
+from zulf_core.evaluation.matching import match_interpretations
 from zulf_model.models import load_model
 from zulf_model.render import SpectrumGrid
-from zulf_model.solver import ParameterPolicy, RefineSettings, refine
+from zulf_core.solver import ParameterPolicy, RefineSettings, refine
 from zulf_model.training import TrainingSetup
 
 

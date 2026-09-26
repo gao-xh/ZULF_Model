@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "zulf-model"
 version = "0.1.0"
-description = "Simulation-trained candidate generation and general J refinement for ZULF NMR spectra"
+description = "ZULF NMR: zulf_core (physics, rendering, refinement; NumPy/SciPy) and zulf_model (simulation-trained candidate generation; PyTorch)"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
@@ -19,4 +19,4 @@ dev = ["torch>=2.1", "h5py>=3.8", "matplotlib>=3.7"]
 zulf-model = "zulf_model.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["zulf_model*"]
+include = ["zulf_core*", "zulf_model*"]

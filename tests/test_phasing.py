@@ -3,13 +3,13 @@ import unittest
 
 import numpy as np
 
-from zulf_model.physics import compute_transitions
+from zulf_core.physics import compute_transitions
 from zulf_model.render import Acquisition, Renderer
 from zulf_model.render.perturb import PerturbationConfig, sample_render_params
-from zulf_model.render.phasing import phase1_to_delay_s, phase_correct, reference_delay_s
+from zulf_core.render.phasing import phase1_to_delay_s, phase_correct, reference_delay_s
 from zulf_model.render.pipeline import ProcessingConfig, SampleRenderer
 from zulf_model.spec import GridSpec, ProblemSpec
-from zulf_model.spinsystem import Component, Interpretation, SpinSystem
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem
 
 
 def ch3():
@@ -82,7 +82,7 @@ class PhasingTests(unittest.TestCase):
         # equals the training-side corrected render.
         acq = Acquisition(1000.0, 8192, start_sample=60, sg_window=101, sg_order=2)
         tl = compute_transitions(ch3())
-        from zulf_model.render.acquisition import evaluate_spectrum, process_record
+        from zulf_core.render.acquisition import evaluate_spectrum, process_record
         f = np.linspace(50.0, 300.0, 2001)
         fid = Renderer(acq).synthesize(tl, 1.0, gain=np.exp(0.8j), phase_delay_s=0.0009)
         fixed = phase_correct(evaluate_spectrum(process_record(fid, acq), acq, f), f, 0.8, 0.0009, acq)
@@ -99,8 +99,8 @@ class PhaseEstimationTests(unittest.TestCase):
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         from test_solver import methine_isotopologue, methyl_isotopologue
-        from zulf_model.render.acquisition import evaluate_spectrum, process_record
-        from zulf_model.render.phasing import estimate_phase
+        from zulf_core.render.acquisition import evaluate_spectrum, process_record
+        from zulf_core.render.phasing import estimate_phase
         acq = Acquisition(1000.0, 16384, start_sample=100, sg_window=301, sg_order=2)
         renderer = Renderer(acq)
         t = np.arange(acq.points) / acq.sampling_rate_hz

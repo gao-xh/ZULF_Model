@@ -13,17 +13,20 @@ labelled experimental database; experiments remain the final check.
 
 | Path | Contents |
 | --- | --- |
+| `zulf_core/` | NumPy/SciPy core: spin systems, physics, rendering, phasing, solver, matching, FID I/O, diagnostics |
 | `zulf_model/spec.py` | `ProblemSpec`: every problem dimension (spin counts, nuclei, components, J bins, grid) |
-| `zulf_model/physics` | Zero-field Hamiltonians, collective-spin sectors, transition lists, protocol |
-| `zulf_model/render` | Optional processing operator, exact analytic and NUFFT renderers, Voigt lines, perturbations |
+| `zulf_core/physics` | Zero-field Hamiltonians, collective-spin and total-M sectors, transition lists, protocol |
+| `zulf_core/render` | Optional processing operator, exact analytic and NUFFT renderers, Voigt lines, grids, phasing |
+| `zulf_model/render` | Training-data synthesis: perturbations, sample pipeline, features |
 | `zulf_model/generator` | Molecule-like graphs, J rules, isotopologues, random-J, splits, shards |
 | `zulf_model/codec.py` | Token grammar and set targets |
 | `zulf_model/models` | CNN set baseline and CNN+Transformer with constrained beam search |
 | `zulf_model/training` | Datasets, trainer (CUDA / Apple MPS / CPU), metrics, curriculum |
-| `zulf_model/solver` | General refinement: ties, nuisance terms, backgrounds, matched continuation, held-out ranking |
-| `zulf_model/evaluation` | Proposers, identifiability, solver basin, benchmarks |
+| `zulf_core/solver` | General refinement: ties, nuisance terms, backgrounds, guarded continuation, global search, sign variants, held-out ranking |
+| `zulf_core/evaluation` | Matching of interpretations, identifiability, solver basin |
+| `zulf_model/evaluation` | Proposers and benchmarks |
 | `zulf_model/finetune` | Failure mining and active-learning rounds |
-| `zulf_model/diagnostics.py` | Per-dataset FID diagnostics and candidate processing recipes |
+| `zulf_core/diagnostics.py` | Per-dataset FID diagnostics and candidate processing recipes |
 | `zulf_model/agent` | Tool registry for AI agents: JSON CLI, MCP server, Anthropic/OpenAI tool export, background jobs |
 | `configs/` | Problem, generator, couplings, processing, perturbation, protocol, model and run configurations |
 | `skills/zulf-model` | Agent skill guide (Claude skill format and OpenAI agent card) |

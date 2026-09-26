@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from .spec import ProblemSpec
-from .spinsystem import Component, Interpretation, SpinSystem, canonical_group_order, canonical_sign
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem, canonical_group_order, canonical_sign
 
 PAD, BOS, EOS, COMP, SEP = "<pad>", "<bos>", "<eos>", "<comp>", "<sep>"
 SPECIALS = (PAD, BOS, EOS, COMP, SEP)

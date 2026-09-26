@@ -2,10 +2,10 @@ import unittest
 
 import numpy as np
 
-from zulf_model.physics import TransitionList, compute_transitions
+from zulf_core.physics import TransitionList, compute_transitions
 from zulf_model.render import (Acquisition, PerturbationConfig, Renderer, SpectrumGrid, evaluate_spectrum,
                                process_record, render_observation, sample_render_params, spectrum_features)
-from zulf_model.spinsystem import SpinSystem
+from zulf_core.spinsystem import SpinSystem
 
 ACQS = [
     Acquisition(1000.0, 4000),
@@ -79,7 +79,7 @@ class RendererTests(unittest.TestCase):
             self.assertLess(np.abs(a - b).max() / np.abs(a).max(), 1e-9, msg=str(acq))
 
     def test_nufft_matches_direct_sum(self):
-        from zulf_model.render.nufft import nufft_type1
+        from zulf_core.render.nufft import nufft_type1
         rng = np.random.default_rng(3)
         for n, k in ((257, 7), (4000, 300)):
             w = rng.uniform(-np.pi, 2 * np.pi, k)
@@ -120,7 +120,7 @@ class RendererTests(unittest.TestCase):
 class SavgolTests(unittest.TestCase):
     def test_fft_savgol_matches_scipy(self):
         from scipy.signal import savgol_filter
-        from zulf_model.render.acquisition import savgol_baseline
+        from zulf_core.render.acquisition import savgol_baseline
         rng = np.random.default_rng(0)
         x = np.cumsum(rng.normal(size=5000)) + 1e4 * np.exp(-np.arange(5000) / 800)
         for window, order in ((801, 2), (101, 3), (31, 2)):

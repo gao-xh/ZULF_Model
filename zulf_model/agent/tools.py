@@ -15,7 +15,7 @@ from typing import List, Optional
 import numpy as np
 
 from ..spec import ProblemSpec
-from ..spinsystem import Interpretation, SpinSystem
+from zulf_core.spinsystem import Interpretation, SpinSystem
 from . import jobs
 from .registry import REGISTRY, new_run_dir, workspace
 
@@ -55,16 +55,16 @@ def _interp(data: dict) -> Interpretation:
 
 
 def _load_fid(src: dict):
-    from ..io import load_average
+    from zulf_core.io import load_average
     if src.get("average_npy"):
         return load_average(src["average_npy"], src["ini"])
-    from ..io import ExperimentFID
+    from zulf_core.io import ExperimentFID
     fid = np.load(src["fid_npy"], allow_pickle=False).astype(float)
     return ExperimentFID(fid, float(src["sampling_rate_hz"]), 0, {"fid_npy": src["fid_npy"]})
 
 
 def _acquisition(exp, overrides: Optional[dict]):
-    from ..render.acquisition import Acquisition
+    from zulf_core.render.acquisition import Acquisition
     data = {"sampling_rate_hz": exp.sampling_rate_hz, "points": exp.points}
     data.update({k: v for k, v in (overrides or {}).items() if k not in ("sampling_rate_hz", "points")})
     return Acquisition.from_dict(data)
@@ -116,7 +116,7 @@ def describe_project(args: dict) -> dict:
                {"type": "object", "properties": {"system": SYSTEM, "max_lines": {"type": "integer", "default": 200}},
                 "required": ["system"]})
 def simulate_transitions(args: dict) -> dict:
-    from ..physics import compute_transitions
+    from zulf_core.physics import compute_transitions
     system = SpinSystem.from_dict(args["system"])
     tl = compute_transitions(system)
     order = np.argsort(-np.abs(tl.amplitudes))[: args["max_lines"]]
@@ -140,7 +140,7 @@ def simulate_transitions(args: dict) -> dict:
                    "f_max_hz": {"type": "number", "default": 400.0}},
                 "required": ["interpretation"]})
 def render_spectrum(args: dict) -> dict:
-    from ..physics import compute_transitions
+    from zulf_core.physics import compute_transitions
     from ..render import Acquisition, ContinuousRenderer, Renderer, SpectrumGrid
     interp = _interp(args["interpretation"])
     base = Acquisition.pure(args["sampling_rate_hz"], args["points"])
@@ -164,7 +164,7 @@ def render_spectrum(args: dict) -> dict:
                "baseline exponential fits and candidate processing recipes (not selected automatically).",
                {"type": "object", "properties": {"source": FID_SOURCE}, "required": ["source"]})
 def diagnose_fid(args: dict) -> dict:
-    from ..diagnostics import diagnose_fid as run
+    from zulf_core.diagnostics import diagnose_fid as run
     exp = _load_fid(args["source"])
     report = run(exp.fid, exp.sampling_rate_hz).to_dict()
     out = new_run_dir("diagnose")
@@ -184,7 +184,7 @@ def diagnose_fid(args: dict) -> dict:
                                                   "zero_fill": {"type": "integer", "default": 1}},
                 "required": ["source", "ranges"]})
 def process_fid(args: dict) -> dict:
-    from ..solver import ObservedSpectrum
+    from zulf_core.solver import ObservedSpectrum
     exp = _load_fid(args["source"])
     acq = _acquisition(exp, args.get("acquisition"))
     obs = ObservedSpectrum.from_fid(exp.fid, acq, [tuple(r) for r in args["ranges"]], args["zero_fill"])
@@ -250,7 +250,7 @@ def propose_candidates(args: dict) -> dict:
     from ..evaluation import ModelProposer
     from ..models import load_model
     from ..render import SpectrumGrid
-    from ..solver import ObservedSpectrum
+    from zulf_core.solver import ObservedSpectrum
     model = load_model(args["model_path"], args["device"])
     exp = _load_fid(args["source"])
     acq = _acquisition(exp, args.get("acquisition"))
@@ -277,8 +277,8 @@ def propose_candidates(args: dict) -> dict:
                    "settings": {"type": "object"}, "protocol": {"type": "object"}},
                 "required": ["candidates", "source", "ranges"]}, long_running=True)
 def refine_candidates_tool(args: dict) -> dict:
-    from ..solver import ObservedSpectrum, RefineSettings, refine_candidates
-    from ..timing import Timer
+    from zulf_core.solver import ObservedSpectrum, RefineSettings, refine_candidates
+    from zulf_core.timing import Timer
     exp = _load_fid(args["source"])
     acq = _acquisition(exp, args.get("acquisition"))
     ranges = [tuple(r) for r in args["ranges"]]
@@ -287,7 +287,7 @@ def refine_candidates_tool(args: dict) -> dict:
     for k, src in enumerate(args.get("held_out") or []):
         h = _load_fid(src)
         held.append(ObservedSpectrum.from_fid(h.fid, acq, ranges, label=src.get("label", f"held_out_{k}")))
-    from ..physics.protocol import SUDDEN_DROP, Protocol
+    from zulf_core.physics.protocol import SUDDEN_DROP, Protocol
     settings = RefineSettings.from_dict(args.get("settings") or {})
     protocol = Protocol.from_dict(args["protocol"]) if args.get("protocol") else SUDDEN_DROP
     timer = Timer()
@@ -307,7 +307,7 @@ def refine_candidates_tool(args: dict) -> dict:
                 "required": ["interpretation", "source", "ranges"]})
 def identifiability_tool(args: dict) -> dict:
     from ..evaluation import local_identifiability
-    from ..solver import ObservedSpectrum
+    from zulf_core.solver import ObservedSpectrum
     exp = _load_fid(args["source"])
     acq = _acquisition(exp, args.get("acquisition"))
     obs = ObservedSpectrum.from_fid(exp.fid, acq, [tuple(r) for r in args["ranges"]])
