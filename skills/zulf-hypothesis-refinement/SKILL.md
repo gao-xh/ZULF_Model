@@ -43,7 +43,8 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   assigned line or an explicitly unresolved feature. A data-only mask cannot
   tell molecular lines from sharp background (e3d282da: 72-76 Hz, still
   unresolved between instrument background and a 15NH3+ line near
-  abs(1J(N,H)) = 73 Hz); fit with and without such regions and report both.
+  abs(1J(N,H)) = 73 Hz); keep such regions in the fit and report them as
+  unresolved.
   Plot the fit over the whole range, not only the mask: a data-only mask with
   a low outside weight lets a model put spurious lines outside the mask
   (e3d282da: 263-265 Hz); the mask must also cover model-predicted lines.

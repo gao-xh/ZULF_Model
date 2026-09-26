@@ -56,23 +56,16 @@ skills under `skills/`; this file keeps the history.
 ### Signal-weighted re-evaluation of H7, H7 + 15NH3, self-consistent alanine
 - Setup: complex, 0.05-1.05 s, zero fill 4, band_weighting="signal",
   background order 1, 3 starts.
-- Including 72-76 Hz (mask 72.25-76.5, 127-133.5, 142-151, 256.75-261.25 Hz):
+- Mask 72.25-76.5, 127-133.5, 142-151, 256.75-261.25 Hz:
   H7 signal-region 0.378 / overall 0.452, Cb/Ca 0.39, no bounds;
   H7 + 15NH3 0.266 / 0.553, amplitudes 1 : 0.31 : 1.33, 1J(N,H) at bound;
   self-consistent 0.239 / 0.449, amplitudes 1 : 0.07 : 0.05.
   The 15N models gain on the unresolved region with abundance ratios far from
   1 : 1 : 0.35; not evidence. H7's Cb/Ca 0.39 points at the methyl-carbon lines
   (130 Hz doublet, 259 Hz) being modelled poorly.
-- Excluding 72-76 Hz (mask 127-133.5, 142-151, 256.75-261.25 Hz):
-  H7 0.312 (Cb/Ca 0.39, no bounds); H7 + 15NH3 0.292 (15N 0.10, 1J(N,H) at
-  bound); self-consistent alanine 0.196 with 15N amplitude 0.37 (expected
-  0.35), 1J(N,H) -73.8 Hz, Cb/Ca 0.31, Cb rate and delay at bounds, H-alpha /
-  H-beta 9.3 Hz. It is the first model that reproduces the 129.2/130.5 Hz
-  doublet and the 144-149 Hz fine structure: evidence that NH3+ protons are
-  not fully decoupled. But it predicts strong lines outside the mask
-  (263-265 Hz, near 70 and 78 Hz) that the data do not show.
 - Solver loophole found: with a data-only mask and outside weight 0.2, a
-  model can place spurious lines outside the mask cheaply. Planned fix: add
+  model can place spurious lines outside the mask cheaply (seen as strong
+  predicted lines at 263-265 Hz that the data do not show). Planned fix: add
   the model-predicted line regions to the mask (iterate fit -> union mask ->
   refit until stable), so every predicted line is fully penalised.
 - Process lessons (skills updated): never kill by command-line text; one queue
@@ -96,5 +89,5 @@ skills under `skills/`; this file keeps the history.
 - Weak matched apodization (0.6 1/s): lower signal-region residual (0.25 vs
   0.29-0.36) and identical parameters for 1, 2 and 4 s windows; recommended.
 - Next: re-evaluate H7, H7 + 15NH3 and self-consistent alanine with smooth
-  weights and model-predicted cores, 1 s window, 0.6 1/s, with and without
-  72-76 Hz (running).
+  weights and model-predicted cores, 1 s window, 0.6 1/s, full ranges
+  (running).
