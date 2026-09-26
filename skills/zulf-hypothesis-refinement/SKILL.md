@@ -33,9 +33,13 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 - Default: complex data, `gain_model="shared_phase"`, delay fitted,
   background_order 1, 3 starts, analytic (Kaufman) Jacobian.
-- Prefer `band_weighting="signal"`: noise-scaled chi-square, points outside a
-  data-driven signal mask down-weighted (default 0.2), and the result reports
-  `signal_region_residual`. Check the mask: every region must be either an
+- Prefer `band_weighting="signal"`: noise-scaled chi-square; the weight is 1
+  at peak cores and falls off smoothly (Gaussian, `signal_taper_hz` 2 Hz) to
+  `signal_outside_weight` (0.2) far from any core - no hard edges. Cores come
+  from the data first; with `signal_model_passes=1` (default) the fit is
+  repeated with the model's own predicted lines added as cores, so a line the
+  model places where the data show none is fully penalised (flag
+  `signal_mask_model_pass`). The result reports `signal_region_residual`. Check the mask: every region must be either an
   assigned line or an explicitly unresolved feature. A data-only mask cannot
   tell molecular lines from sharp background (e3d282da: 72-76 Hz, still
   unresolved between instrument background and a 15NH3+ line near

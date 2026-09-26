@@ -77,3 +77,11 @@ skills under `skills/`; this file keeps the history.
   refit until stable), so every predicted line is fully penalised.
 - Process lessons (skills updated): never kill by command-line text; one queue
   launcher script; set module-level ranges after imports and print them.
+
+### Solver: smooth signal weights and model-predicted cores
+- User suggestions: focus the solver on signal; taper the weight around
+  high-weight peaks instead of a hard mask edge.
+- Implemented: weights 1 at peak cores with a Gaussian fall-off (2 Hz) to 0.2;
+  a second pass adds model-predicted lines to the cores (closes the loophole
+  seen at 263-265 Hz). Tests: smooth monotone fall-off; a 13CH3 candidate on a
+  13C-H spectrum triggers the model pass for its unmatched 2J line.

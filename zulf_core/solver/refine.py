@@ -40,8 +40,9 @@ class RefineSettings:
     background_order: int = -1
     band_weighting: str = "equal"   # equal | none | signal (noise-weighted, data-driven signal regions emphasised)
     signal_threshold: float = 4.0     # signal weighting: narrow-feature threshold in noise sigma
-    signal_dilate_hz: float = 2.0     # signal weighting: mask dilation around detected points
-    signal_outside_weight: float = 0.2   # signal weighting: relative weight of points outside the mask
+    signal_taper_hz: float = 2.0      # signal weighting: Gaussian fall-off of the weight around peak cores
+    signal_outside_weight: float = 0.2   # signal weighting: relative weight far from any peak core
+    signal_model_passes: int = 1      # signal weighting: refits with model-predicted lines added to the cores
     diff_step: float = 1e-6
     jacobian: str = "kaufman"      # kaufman | analytic (exact variable projection) | finite_difference (D31)
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
@@ -122,7 +123,7 @@ class RefinementResult:
 
 
 def _signal_kwargs(settings: "RefineSettings") -> dict:
-    return {"signal_threshold": settings.signal_threshold, "signal_dilate_hz": settings.signal_dilate_hz,
+    return {"signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
             "signal_outside_weight": settings.signal_outside_weight}
 
 
@@ -136,7 +137,8 @@ def _band_residuals(forward: MixtureForward, prediction: Prediction) -> List[flo
 
 def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: RefineSettings = RefineSettings(),
            protocol: Protocol = SUDDEN_DROP, parameterization: Optional[Parameterization] = None,
-           timer: Optional[Timer] = None, initial_points: Optional[Sequence[np.ndarray]] = None) -> RefinementResult:
+           timer: Optional[Timer] = None, initial_points: Optional[Sequence[np.ndarray]] = None,
+           _signal_extra_hz: Sequence[float] = ()) -> RefinementResult:
     """Refine one candidate.
 
     Starts: `initial_points` (free-parameter vectors) when given; otherwise the
@@ -163,7 +165,8 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
             data = observed.with_acquisition(observed.acquisition.with_processing(
                 apodization_rate_per_s=observed.acquisition.apodization_rate_per_s + extra))
         return MixtureForward(param, data, protocol, settings.gain_model, settings.background_order,
-                              settings.band_weighting, timer, **_signal_kwargs(settings))
+                              settings.band_weighting, timer, signal_extra_hz=_signal_extra_hz,
+                              **_signal_kwargs(settings))
 
     forward = make_forward(0.0)
     base_forward = forward
@@ -305,6 +308,23 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         m = forward.signal_mask
         signal_region = float(np.linalg.norm(forward.mismatch(final.model, m)) /
                               max(np.linalg.norm(forward.mismatch(np.zeros_like(forward.y), m)), 1e-30))
+    if (settings.band_weighting == "signal" and settings.signal_model_passes > 0 and forward.signal_cores is not None
+            and len(x_best)):
+        # Model-predicted lines join the peak cores, so a line placed where the data show none is fully penalised.
+        from .forward import narrow_excess
+        st = forward.signal_settings
+        predicted = narrow_excess(forward.f, final.model, forward.band, st["baseline_hz"]) > st["threshold"] * forward.noise_sigma
+        new_cores = predicted & ~forward.signal_cores
+        if new_cores.any():
+            import dataclasses
+            extra = tuple(_signal_extra_hz) + tuple(float(v) for v in forward.f[new_cores])
+            inner = refine(candidate, observed, dataclasses.replace(settings, signal_model_passes=settings.signal_model_passes - 1),
+                           protocol, param, timer, initial_points=[np.asarray(x_best, float)], _signal_extra_hz=extra)
+            inner.evaluations += evaluations
+            inner.elapsed_s = time.perf_counter() - start_time
+            inner.attempts = attempts + inner.attempts
+            inner.flags.append(f"signal_mask_model_pass(+{int(new_cores.sum())} points)")
+            return inner
     return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative, signal_relative,
                             _band_residuals(forward, final), hits,
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,

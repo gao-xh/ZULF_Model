@@ -32,33 +32,52 @@ from .observed import ObservedSpectrum
 from .parameterization import Parameterization
 
 
-def signal_regions(frequencies_hz: np.ndarray, values: np.ndarray, band: np.ndarray, threshold: float = 4.0,
-                   dilate_hz: float = 2.0, baseline_hz: float = 8.0):
-    """Data-only signal mask and noise level for signal-focused weighting.
-
-    Narrow features are separated from broad background by subtracting a
-    running median of abs(values) (window `baseline_hz`, per band); the noise
-    sigma is a robust (MAD) scale of that excess; points whose excess exceeds
-    `threshold` sigma, dilated by `dilate_hz`, form the mask. The mask depends
-    on the data only, never on the model being fitted.
-    """
+def narrow_excess(frequencies_hz: np.ndarray, values: np.ndarray, band: np.ndarray, baseline_hz: float = 8.0) -> np.ndarray:
+    """abs(values) minus its running median (window `baseline_hz`, per band): narrow features only."""
     from scipy.ndimage import median_filter
     f = np.asarray(frequencies_hz, float)
     a = np.abs(np.asarray(values))
     excess = np.zeros_like(a)
     for b in np.unique(band):
         m = np.flatnonzero(band == b)
-        spacing = float(np.median(np.diff(f[m]))) if len(m) > 1 else 1.0
+        if len(m) < 3:
+            continue
+        spacing = float(np.median(np.diff(f[m])))
         width = max(3, int(round(baseline_hz / max(spacing, 1e-12))) | 1)
-        excess[m] = a[m] - median_filter(a[m], size=min(width, len(m) - (1 - len(m) % 2)) if len(m) > 2 else 1,
-                                         mode="nearest")
-    centred = excess - np.median(excess)
-    sigma = max(1.4826 * float(np.median(np.abs(centred))), 1e-30)
-    core = excess > threshold * sigma
-    mask = np.zeros(len(f), bool)
-    for i in np.flatnonzero(core):
-        mask |= (band == band[i]) & (np.abs(f - f[i]) <= dilate_hz)
-    return mask, sigma
+        width = min(width, len(m) if len(m) % 2 else len(m) - 1)
+        excess[m] = a[m] - median_filter(a[m], size=width, mode="nearest")
+    return excess
+
+
+def signal_regions(frequencies_hz: np.ndarray, values: np.ndarray, band: np.ndarray, threshold: float = 4.0,
+                   baseline_hz: float = 8.0):
+    """Data-only peak cores and noise level for signal-focused weighting.
+
+    Narrow features are separated from broad background by subtracting a
+    running median of abs(values); the noise sigma is a robust (MAD) scale of
+    that excess; points whose excess exceeds `threshold` sigma are cores. The
+    cores depend on the data only.
+    """
+    excess = narrow_excess(frequencies_hz, values, band, baseline_hz)
+    sigma = max(1.4826 * float(np.median(np.abs(excess - np.median(excess)))), 1e-30)
+    return excess > threshold * sigma, sigma
+
+
+def signal_weights(frequencies_hz: np.ndarray, band: np.ndarray, cores: np.ndarray, outside: float = 0.2,
+                   taper_hz: float = 2.0) -> np.ndarray:
+    """Relative weights in [outside, 1]: 1 at peak cores, Gaussian fall-off (width `taper_hz`) with the distance
+    to the nearest core in the same band, `outside` far away. No hard edges."""
+    f = np.asarray(frequencies_hz, float)
+    d = np.full(len(f), np.inf)
+    for b in np.unique(band):
+        m = band == b
+        cf = f[m & cores]
+        if len(cf):
+            idx = np.searchsorted(cf, f[m])
+            left = np.abs(f[m] - cf[np.clip(idx - 1, 0, len(cf) - 1)])
+            right = np.abs(cf[np.clip(idx, 0, len(cf) - 1)] - f[m])
+            d[m] = np.minimum(left, right)
+    return outside + (1.0 - outside) * np.exp(-0.5 * (d / max(taper_hz, 1e-12)) ** 2)
 
 
 def _mix(pair: np.ndarray, weights: np.ndarray) -> np.ndarray:
@@ -80,8 +99,8 @@ class MixtureForward:
     def __init__(self, parameterization: Parameterization, observed: ObservedSpectrum,
                  protocol: Protocol = SUDDEN_DROP, gain_model: str = "shared_phase", background: int = -1,
                  band_weighting: str = "equal", timer: Optional[Timer] = None, phase_grid: int = 72,
-                 signal_threshold: float = 4.0, signal_dilate_hz: float = 2.0, signal_outside_weight: float = 0.2,
-                 signal_baseline_hz: float = 8.0):
+                 signal_threshold: float = 4.0, signal_taper_hz: float = 2.0, signal_outside_weight: float = 0.2,
+                 signal_baseline_hz: float = 8.0, signal_extra_hz: Sequence[float] = ()):
         if gain_model not in ("complex", "shared_phase"):
             raise ValueError("gain_model must be 'complex' or 'shared_phase'.")
         if band_weighting not in ("equal", "none", "signal"):
@@ -109,16 +128,25 @@ class MixtureForward:
         self.correction = observed.model_correction(self.f) if hasattr(observed, "model_correction") else None
         scale = np.ones(len(self.y))
         self.signal_mask = None
+        self.signal_cores = None
         if band_weighting == "equal":
             for b in np.unique(self.band):
                 m = self.band == b
                 scale[m] = max(float(np.sqrt(np.mean(np.abs(self.y[m]) ** 2))), 1e-30) * math.sqrt(m.sum())
         elif band_weighting == "signal":
-            mask, sigma = signal_regions(self.f, self.y, self.band, signal_threshold, signal_dilate_hz, signal_baseline_hz)
-            self.signal_mask, self.noise_sigma = mask, sigma
-            scale = np.full(len(self.y), sigma)
-            if mask.any():
-                scale[~mask] = sigma / max(signal_outside_weight, 1e-6)
+            cores, sigma = signal_regions(self.f, self.y, self.band, signal_threshold, signal_baseline_hz)
+            spacing = float(np.median(np.diff(self.f))) if len(self.f) > 1 else 1.0
+            for fx in signal_extra_hz:           # model-predicted line positions (second pass)
+                cores |= np.abs(self.f - fx) <= 0.5 * spacing + 1e-9
+            self.signal_cores, self.noise_sigma = cores, sigma
+            self.signal_settings = dict(threshold=signal_threshold, baseline_hz=signal_baseline_hz,
+                                        taper_hz=signal_taper_hz, outside=signal_outside_weight)
+            if cores.any():
+                factor = signal_weights(self.f, self.band, cores, signal_outside_weight, signal_taper_hz)
+                self.signal_mask = factor >= 0.6
+                scale = sigma / factor
+            else:
+                scale = np.full(len(self.y), sigma)
         self.weight = 1.0 / scale
         self.norm = float(np.linalg.norm(self.y * self.weight)) or 1.0
 

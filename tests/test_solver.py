@@ -160,11 +160,18 @@ class SignalWeightingTests(unittest.TestCase):
         y = rng.normal(0, 1, len(f)) + 1j * rng.normal(0, 1, len(f))
         y = y + 40.0 / (1 + 1j * (f - 130.0) / 0.3)                  # a narrow line
         y = y + 6.0 * np.exp(-0.5 * ((f - 115.0) / 6.0) ** 2)         # a broad background bump
-        mask, sigma = signal_regions(f, y, np.zeros(len(f), int))
-        self.assertTrue(mask[np.argmin(np.abs(f - 130.0))])
-        self.assertFalse(mask[np.argmin(np.abs(f - 115.0))])
-        self.assertLess(mask.mean(), 0.2)
+        from zulf_core.solver.forward import signal_weights
+        band = np.zeros(len(f), int)
+        cores, sigma = signal_regions(f, y, band)
+        self.assertTrue(cores[np.argmin(np.abs(f - 130.0))])
+        self.assertFalse(cores[np.argmin(np.abs(f - 115.0))])
+        self.assertLess(cores.mean(), 0.1)
         self.assertGreater(sigma, 0.5)
+        w = signal_weights(f, band, cores, outside=0.2, taper_hz=2.0)
+        self.assertAlmostEqual(w[np.argmin(np.abs(f - 130.0))], 1.0)
+        self.assertAlmostEqual(w[np.argmin(np.abs(f - 115.0))], 0.2, places=3)
+        near = w[(f > 130.0) & (f < 140.0)]
+        self.assertTrue(np.all(np.diff(near[np.argmax(near < 1):]) <= 1e-12))   # smooth, monotone fall-off
 
     def test_signal_weighting_recovers_couplings_with_background(self):
         truth = methyl_isotopologue()
@@ -180,6 +187,20 @@ class SignalWeightingTests(unittest.TestCase):
         self.assertIsNotNone(res.signal_region_residual)
         with self.assertRaises(ValueError):
             refine(start, obs, RefineSettings(band_weighting="loud"))
+
+    def test_model_predicted_lines_join_the_cores(self):
+        # Data: a single 13C-H line near 128 Hz. Candidate: 13CH3, which also predicts a 2J line near 252 Hz where
+        # the data have none; the second pass must add that region to the high-weight cores.
+        acq = Acquisition(1000.0, 6000, start_sample=30)
+        ch = SpinSystem.from_group_couplings(["13C", "1H"], [1, 1], np.array([[0, 128.0], [128.0, 0]]))
+        fid = Renderer(acq).synthesize(compute_transitions(ch), 1.5, gain=np.exp(0.4j))
+        obs = ObservedSpectrum.from_fid(fid + np.random.default_rng(1).normal(0, 2e-3, acq.points), acq, RANGES)
+        ch3 = SpinSystem.from_group_couplings(["13C", "1H"], [1, 3], np.array([[0, 126.0], [126.0, 0]]))
+        base = RefineSettings(starts=1, band_weighting="signal", background_order=1)
+        one = refine(Interpretation((Component(ch3),)), obs, base)
+        self.assertTrue(any(f.startswith("signal_mask_model_pass") for f in one.flags))
+        none = refine(Interpretation((Component(ch3),)), obs, RefineSettings(**{**base.__dict__, "signal_model_passes": 0}))
+        self.assertFalse(any(f.startswith("signal_mask_model_pass") for f in none.flags))
 
 
 class ProcessedSpectrumTests(unittest.TestCase):
