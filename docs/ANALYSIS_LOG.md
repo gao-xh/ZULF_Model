@@ -173,3 +173,18 @@ skills under `skills/`; this file keeps the history.
 - User: add both constraints, run only the self-consistent alanine. Running:
   ratios 1 : 1 : 0.34, one decay rate tied over C-alpha, C-beta, 15N; three
   starts in parallel (candidate, earlier fit with the C-beta rate, random).
+- Result (2a16dfe; ranges 62-320 Hz, 72-76 Hz included; three starts, about
+  10 minutes in parallel): best data-region 0.290 (candidate start), 0.295
+  (earlier fit), 0.376 (random); no bounds; shared rate 2.2 1/s. For
+  comparison on the same data cores: H7 0.335, H7 + 15NH3 0.321, free
+  self-consistent 0.249 (collapsed, unphysical).
+  Robust between the two good starts: 1J(Ca,Ha) 145.0 / 145.9, 1J(Cb,Hb)
+  129.4 / 130.3, 1J(N,H) -73.7 / -73.8 Hz (the 15N line at natural abundance
+  lands on the 74 Hz feature). Not determined: 3J(Ha,Hb) 8.5 / 6.0,
+  3J(Ha,HN) 10.4 / 9.0, 2J(Ca,Hb) -5.1 / -2.4, 2J(Cb,Ha) -6.7 / -7.4 Hz.
+  The 139 Hz hole is gone; remaining misfits: 130.8 Hz and 148.5 Hz peaks too
+  low, a broad shoulder at 131-134 Hz and a line at 251.5 Hz the data do not
+  show; 259 Hz height now matches (H7 overshot it).
+- Tension: 1J(N,H) lines need slow NH3+ exchange, while alanine in neutral
+  water exchanges fast; the 74 Hz match is therefore suggestive, not proof
+  (pH of the sample unknown; decisive tests as listed above).
