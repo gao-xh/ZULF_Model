@@ -89,7 +89,8 @@ def basin_of_attraction(truth: Interpretation, observed: ObservedSpectrum, scale
             successes += error <= tolerance_hz
             evaluations.append(result.evaluations)
             details.append({"max_error_hz": float(error), "flags": list(result.flags),
-                            "evaluations": result.evaluations, "elapsed_s": result.elapsed_s,
+                            "evaluations": result.evaluations, "jacobian_evaluations": result.jacobian_evaluations,
+                            "elapsed_s": result.elapsed_s,
                             "relative_residual": result.relative_residual})
         rows.append({"scale_hz": scale, "success_rate": successes / trials,
                      "median_evaluations": float(np.median(evaluations)), "trials": trials,

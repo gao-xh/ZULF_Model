@@ -32,6 +32,11 @@ from .observed import ObservedSpectrum
 from .parameterization import Parameterization
 
 
+def _mix(pair: np.ndarray, weights: np.ndarray) -> np.ndarray:
+    """pair[..., 0] w0 + pair[..., 1] w1 (complex times real; avoids the slow mixed-type matmul path)."""
+    return pair[..., 0] * weights[0] + pair[..., 1] * weights[1]
+
+
 @dataclass
 class Prediction:
     model: np.ndarray                 # complex prediction on observed points
@@ -223,6 +228,9 @@ class MixtureForward:
             model = model + bg_cols @ self._background_real(background, bg_cols.shape[1])
         diff = (model - self.y) * self.weight / self.norm
         residual = diff.real.copy() if self.real_only else np.r_[diff.real, diff.imag]
+        if fixed_gains is None:
+            self._last = {"values": dict(values), "cols": cols, "bg_cols": bg_cols, "gains": np.asarray(gains, complex),
+                          "background": np.asarray(background, complex), "residual": residual}
         return Prediction(np.asarray(model, complex), component_spectra, gains, np.asarray(background, complex),
                           residual, float(residual @ residual))
 
@@ -284,14 +292,19 @@ class MixtureForward:
             value = yy - 2 * amp @ rhs + amp @ gram @ amp
             return amp, value
 
-        def derivative(phi):
-            """dV/dphi for the unconstrained amplitudes (no cancellation of O(1) terms at the optimum)."""
+        def derivative(phi, idx=None):
+            """dV/dphi for unconstrained amplitudes of the components `idx` (all by default); the others are 0.
+
+            Analytic, so there is no cancellation of O(1) terms at the optimum.
+            """
+            sel = np.arange(k) if idx is None else np.asarray(idx)
             c, s_ = np.cos(phi), np.sin(phi)
-            gram = c * c * g00 + c * s_ * (g01 + g01.T) + s_ * s_ * g11
-            d_gram = 2 * c * s_ * (g11 - g00) + (c * c - s_ * s_) * (g01 + g01.T)
-            rhs = c * r0 + s_ * r1
-            d_rhs = -s_ * r0 + c * r1
-            amp = np.linalg.solve(gram + 1e-14 * np.trace(gram) * np.eye(k), rhs)
+            sub = np.ix_(sel, sel)
+            gram = c * c * g00[sub] + c * s_ * (g01 + g01.T)[sub] + s_ * s_ * g11[sub]
+            d_gram = 2 * c * s_ * (g11 - g00)[sub] + (c * c - s_ * s_) * (g01 + g01.T)[sub]
+            rhs = c * r0[sel] + s_ * r1[sel]
+            d_rhs = -s_ * r0[sel] + c * r1[sel]
+            amp = np.linalg.solve(gram + 1e-14 * np.trace(gram) * np.eye(len(sel)), rhs)
             return -2 * amp @ d_rhs + amp @ d_gram @ amp
 
         best = None
@@ -319,6 +332,24 @@ class MixtureForward:
                     lo = m1
             phi = (lo + hi) / 2
             amp, _ = solve(phi)
+            # Golden section resolves phi only to about sqrt(eps); polish on the active set with the analytic
+            # derivative so that the reduced objective is smooth to working precision.
+            active = np.flatnonzero(amp > 0)
+            if len(active):
+                try:
+                    # Golden section on a flat minimum leaves an error of order sqrt(eps) rad; bracket wider.
+                    for width in (1e-6, 1e-4, 1e-2):
+                        a_lo, a_hi = phi - width, phi + width
+                        if derivative(a_lo, active) < 0 < derivative(a_hi, active):
+                            break
+                    if derivative(a_lo, active) < 0 < derivative(a_hi, active):
+                        polished = brentq(lambda v: derivative(v, active), a_lo, a_hi, xtol=1e-15,
+                                          rtol=4 * np.finfo(float).eps, maxiter=200)
+                        amp_p, _ = solve(polished)
+                        if np.array_equal(amp_p > 0, amp > 0):
+                            phi, amp = polished, amp_p
+                except (np.linalg.LinAlgError, ValueError):
+                    pass
         gains = amp * np.exp(1j * phi)
         background = np.zeros(0, complex)
         if bg_cols.shape[1]:
@@ -329,3 +360,171 @@ class MixtureForward:
                 coef = np.r_[coef, 0.0]
             background = coef[0::2] + 1j * coef[1::2]
         return gains, background
+
+    # -- Jacobian --------------------------------------------------------------------
+    def _realify(self, z: np.ndarray) -> np.ndarray:
+        """Weighted complex rows (F, ...) to the real residual space."""
+        w = z * self.weight.reshape((-1,) + (1,) * (z.ndim - 1))
+        return w.real if self.real_only else np.concatenate([w.real, w.imag], axis=0)
+
+    def _component_derivatives(self, values: Dict[str, float], c: int, names: Sequence[str]) -> Dict[str, np.ndarray]:
+        """Analytic pair-column derivatives (F, 2) of component c for couplings, log rates and the phase delay."""
+        from ..physics.derivatives import transition_derivatives
+        system = self.p.systems(values)[c]
+        coupling_names = [n for n in names if self.p.parameters[n].kind == "coupling"]
+        pairs = [self.p.parameters[n].detail for n in coupling_names]
+        with self.timer.section("solver.transition_derivatives"):
+            d = transition_derivatives(system, pairs, self.protocol)
+        edges = self.p.policy.family_edges_hz
+        families = np.searchsorted(np.asarray(edges, float), d.frequencies_hz, side="right") if edges else \
+            np.zeros(len(d), int)
+        rates = self.p.rates(values, c)[families]
+        sigma = np.full(len(d), float(self.p.sigma(values, c)))
+        delay = self.p.phase_delay(values)
+        a = d.amplitudes
+        rows_b, rows_c, keys = [], [], []
+        for n, k in zip(coupling_names, range(len(pairs))):
+            rows_b.append(d.d_amplitudes[k] + 2j * np.pi * delay * d.t_weights[k])
+            rows_c.append(2j * np.pi * d.t_weights[k])
+            keys.append(n)
+        for n in names:
+            prm = self.p.parameters[n]
+            if prm.kind == "log_rate":
+                mask = families == prm.detail[0]
+                rows_b.append(np.zeros(len(d), complex))
+                rows_c.append(-rates * a * mask)
+                keys.append(n)
+            elif prm.kind == "phase_delay":
+                rows_b.append(2j * np.pi * d.frequencies_hz * a)
+                rows_c.append(np.zeros(len(d), complex))
+                keys.append(n)
+        if not keys:
+            return {}
+        with self.timer.section("solver.render_derivatives"):
+            cols = self.renderer.render_pair_directions(d.frequencies_hz, rates, sigma, np.array(rows_b),
+                                                        np.array(rows_c), self.f, delay)
+        if self.correction is not None:
+            cols = cols * self.correction[:, None, None]
+        return {k: cols[:, :, i] for i, k in enumerate(keys)}
+
+    def _numeric_column_derivatives(self, values: Dict[str, float], names: Sequence[str]):
+        """Central differences of the component pair columns and nuisance columns (no closed form)."""
+        h = 1e-6 * max(1.0, abs(values[names[0]]))
+        out = []
+        for sign in (1.0, -1.0):
+            v = dict(values)
+            for n in names:
+                v[n] = values[n] + sign * h
+            kinds = {self.p.parameters[n].kind for n in names}
+            cols = self.component_columns(v) if kinds - {"nuisance"} else None
+            nuis = self.nuisance_columns(v) if "nuisance" in kinds else None
+            out.append((cols, nuis))
+        pairs = None if out[0][0] is None else [(a - b) / (2 * h) for a, b in zip(out[0][0], out[1][0])]
+        nuis = None if out[0][1] is None else (out[0][1] - out[1][1]) / (2 * h)
+        return pairs, nuis
+
+    def jacobian(self, x: np.ndarray, full: bool = True) -> np.ndarray:
+        """Jacobian of `predict(x).residual` by variable projection.
+
+        The derivative of the model at fixed linear coefficients is analytic for
+        couplings (eigen-derivatives, physics.derivatives), decay rates and the
+        phase delay; Gaussian widths and nuisance parameters use central
+        differences of their columns only. With A the directions the linear
+        solve absorbs (component amplitudes, the shared phase, background and
+        nuisance amplitudes) and r the residual,
+
+            J = P_perp dA c - (A^+)^T dA^T r        (Golub and Pereyra),
+
+        where the first term alone is Kaufman's approximation (`full=False`);
+        both agree at zero residual.
+        """
+        x = np.asarray(x, float)
+        state = getattr(self, "_last", None)
+        values = self.p.values(x)
+        if state is None or state["values"] != values:
+            self.predict(x)
+            state = self._last
+        free = self.p.free_names
+        driven = {n: [n] + [f for f, leader in self.p.ties.items() if leader == n] for n in free}
+        cols, gains, bg_cols = state["cols"], state["gains"], state["bg_cols"]
+        n_comp, n_free, n_f = len(cols), len(free), len(self.f)
+        n_nuis = self.nuisance_columns(values).shape[1] if self.p.policy.nuisance else 0
+        n_bg = bg_cols.shape[1] - n_nuis
+        coef_bg = self._background_real(state["background"], bg_cols.shape[1]) if bg_cols.shape[1] else np.zeros(0)
+        # d(pair columns of component c) / d x_i and d(nuisance columns) / d x_i.
+        dpair = np.zeros((n_comp, n_free, n_f, 2), complex)
+        dnuis = np.zeros((n_free, n_f, n_nuis), complex)
+        analytic_kinds = ("coupling", "log_rate", "phase_delay")
+        for c in range(n_comp):
+            names = [n for n in self.p.order if self.p.parameters[n].kind in analytic_kinds and
+                     self.p.parameters[n].component in (c, -1) and any(n in driven[f] for f in free)]
+            if not names:
+                continue
+            for n, col in self._component_derivatives(values, c, names).items():
+                for i, f in enumerate(free):
+                    if n in driven[f]:
+                        dpair[c, i] += col
+        for i, f in enumerate(free):
+            if self.p.parameters[f].kind not in analytic_kinds:
+                pairs, nuis = self._numeric_column_derivatives(values, driven[f])
+                if pairs is not None:
+                    for c in range(n_comp):
+                        dpair[c, i] = pairs[c]
+                if nuis is not None:
+                    dnuis[i] = nuis
+        g_real = np.array([[g.real, g.imag] for g in gains]) if n_comp else np.zeros((0, 2))
+        dmodel = sum(_mix(dpair[c], g_real[c]) for c in range(n_comp)).T if n_comp else np.zeros((n_f, n_free), complex)
+        if n_nuis:
+            dmodel = dmodel + np.einsum("ifn,n->fi", dnuis, coef_bg[n_bg:])
+        jac = self._realify(dmodel) / self.norm
+        # Absorbed directions and their derivatives.
+        absorbed = [bg_cols] if bg_cols.shape[1] else []
+        phase_block = None
+        d_absorbed = [np.concatenate([np.zeros((n_free, n_f, n_bg), complex), dnuis], axis=2)] if bg_cols.shape[1] \
+            else []
+        if n_comp:
+            if self.gain_model == "complex":
+                absorbed.append(np.column_stack(cols))
+                d_absorbed.append(np.concatenate([dpair[c] for c in range(n_comp)], axis=2))
+            else:
+                amp = np.abs(gains)
+                phi = float(np.angle(gains[np.argmax(amp)])) if amp.max() > 0 else 0.0
+                active = [k for k in range(n_comp) if amp[k] > 0]
+                if active:
+                    rot = np.array([math.cos(phi), math.sin(phi)])
+                    tan = np.array([-math.sin(phi), math.cos(phi)])
+                    phase_block = (bg_cols.shape[1], active, amp, rot, tan)
+                    absorbed.append(np.column_stack([cols[k] @ rot for k in active]))
+                    d_absorbed.append(np.stack([_mix(dpair[k], rot) for k in active], axis=2))
+                    absorbed.append(sum(amp[k] * (cols[k] @ tan) for k in active)[:, None])
+                    d_absorbed.append(sum(amp[k] * _mix(dpair[k], tan) for k in active)[:, :, None])
+        if absorbed:
+            a = self._realify(np.column_stack(absorbed)) / self.norm
+            if not full:
+                u, sv, _ = np.linalg.svd(a, full_matrices=False)
+                u = u[:, sv > max(sv.max(initial=0.0), 1e-300) * 1e-10]
+                return jac - u @ (u.T @ jac)
+            # Exact elimination (implicit function theorem): the eliminated variables l satisfy
+            # A^T r = 0, so dl/dx = -H^+ (A^T J_x + dA^T r) with H = A^T A + S, where S holds the
+            # residual-weighted second derivatives of the model in l. Only the shared phase is
+            # nonlinear: d2 model / d phi2 = -(component model), d2 model / d amp_c d phi = tangent_c.
+            r = state["residual"]
+            k = a.shape[1]
+            s_mat = np.zeros((k, k))
+            if phase_block is not None:
+                first, active, amp, rot, tan = phase_block
+                p_idx = k - 1
+                comp_model = sum(amp[c] * (cols[c] @ rot) for c in active)
+                s_mat[p_idx, p_idx] = -r @ (self._realify(comp_model) / self.norm)
+                for j, c in enumerate(active):
+                    v = r @ (self._realify(cols[c] @ tan) / self.norm)
+                    s_mat[first + j, p_idx] = s_mat[p_idx, first + j] = v
+            da = np.concatenate(d_absorbed, axis=2)                                        # (P, F, K)
+            da_real = np.stack([self._realify(da[i]) / self.norm for i in range(n_free)])    # (P, m, K)
+            scale = np.linalg.norm(a, axis=0)
+            use = scale > max(scale.max(initial=0.0), 1e-300) * 1e-12
+            a_s = a[:, use] / scale[use]
+            h = a_s.T @ a_s + s_mat[np.ix_(use, use)] / np.outer(scale[use], scale[use])
+            rhs = a_s.T @ jac + np.einsum("pmk,m->kp", da_real[:, :, use], r) / scale[use][:, None]
+            jac = jac - a_s @ (np.linalg.pinv(h, rcond=1e-12, hermitian=True) @ rhs)
+        return jac

@@ -308,6 +308,43 @@ class Renderer:
             return evaluate_spectrum(pair, self.acq, f).T
         return self._analytic(transitions, rates, f, [1.0, 1j], phase_delay_s)
 
+    def render_pair_directions(self, frequencies_hz: np.ndarray, rates: np.ndarray, sigma_hz: np.ndarray,
+                               b: np.ndarray, c: np.ndarray, grid_hz: np.ndarray,
+                               phase_delay_s: float = 0.0) -> np.ndarray:
+        """Processed pair columns of derivative signals: shape (F, 2, P).
+
+        Direction p is the complex signal
+            z_p(t) = sum_k (b[p, k] + t c[p, k]) exp(2 pi i f_k (tau + t) - R_k t - (2 pi sigma_k t)^2 / 2)
+        on the acquisition times t, and its columns are the processed spectra of
+        Re z_p and -Im z_p, the same convention as `render_pair`. Rates and
+        sigmas are per transition.
+        """
+        acq = self.acq
+        f = np.asarray(frequencies_hz, float)
+        b = np.atleast_2d(np.asarray(b, complex))
+        c = np.atleast_2d(np.asarray(c, complex))
+        n_dir = b.shape[0]
+        grid_hz = np.asarray(grid_hz, float)
+        if not len(f) or not n_dir:
+            return np.zeros((len(grid_hz), 2, n_dir), complex)
+        times = acq.times()
+        phase = np.exp(2j * np.pi * f * (phase_delay_s + acq.time_origin_s))
+        omega = 2 * np.pi * f / acq.sampling_rate_hz
+        keys = np.stack([np.asarray(rates, float), np.asarray(sigma_hz, float)], axis=1)
+        unique, inverse = np.unique(keys, axis=0, return_inverse=True)
+        inverse = np.asarray(inverse).ravel()
+        z = np.zeros((acq.points, n_dir), complex)
+        for g, (rate, sig) in enumerate(unique):
+            members = inverse == g
+            weights = np.concatenate([(b[:, members] * phase[members]).T, (c[:, members] * phase[members]).T], axis=1)
+            with self.timer.section("render.nufft"):
+                osc = nufft_type1(omega[members], weights, acq.points)
+            envelope = np.exp(-rate * times - 0.5 * (2 * np.pi * sig * times) ** 2)
+            z += envelope[:, None] * (osc[:, :n_dir] + times[:, None] * osc[:, n_dir:])
+        signals = np.concatenate([z.real.T, -z.imag.T], axis=0)          # (2P, points)
+        spectra = evaluate_spectrum(process_record(signals, acq), acq, grid_hz)   # (2P, F)
+        return np.stack([spectra[:n_dir].T, spectra[n_dir:].T], axis=1)
+
     def synthesize_complex(self, transitions: TransitionList, rates: Rates, gain: complex = 1.0,
                            phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0,
                            method: str = "nufft") -> np.ndarray:
@@ -406,3 +443,32 @@ class ContinuousRenderer:
                     phase_delay_s: float = 0.0, gaussian_sigma_hz: Rates = 0.0) -> np.ndarray:
         return np.column_stack([self.render(transitions, rates, frequencies_hz, 1.0, phase_delay_s, gaussian_sigma_hz),
                                 self.render(transitions, rates, frequencies_hz, 1j, phase_delay_s, gaussian_sigma_hz)])
+
+    def render_pair_directions(self, frequencies_hz: np.ndarray, rates: np.ndarray, sigma_hz: np.ndarray,
+                               b: np.ndarray, c: np.ndarray, grid_hz: np.ndarray,
+                               phase_delay_s: float = 0.0) -> np.ndarray:
+        """Continuous-route counterpart of `Renderer.render_pair_directions` (Lorentzian lines only).
+
+        integral_0^inf (b + t c) exp(lambda t - 2 pi i f t) dt = b / k + c / k^2, k = R + 2 pi i (f - f_k);
+        the mirror term uses the conjugate coefficients and k' = R + 2 pi i (f + f_k).
+        """
+        fk = np.asarray(frequencies_hz, float)
+        grid_hz = np.asarray(grid_hz, float)
+        b = np.atleast_2d(np.asarray(b, complex))
+        c = np.atleast_2d(np.asarray(c, complex))
+        if np.any(np.asarray(sigma_hz) > 0):
+            raise NotImplementedError("Continuous derivative directions support Lorentzian lines only.")
+        r = np.asarray(rates, float)
+        phase = np.exp(2j * np.pi * fk * phase_delay_s)
+        bp, cp = b * phase, c * phase
+        out = np.zeros((len(grid_hz), 2, b.shape[0]), complex)
+        step = max(1, 1_000_000 // max(1, len(fk)))
+        for first in range(0, len(grid_hz), step):
+            ff = grid_hz[first:first + step, None]
+            k = r + 2j * np.pi * (ff - fk)
+            km = r + 2j * np.pi * (ff + fk)
+            for col, g in enumerate((1.0, 1j)):
+                plus = (g * bp / 2) @ (1 / k).T + (g * cp / 2) @ (1 / k ** 2).T
+                minus = (np.conj(g * bp) / 2) @ (1 / km).T + (np.conj(g * cp) / 2) @ (1 / km ** 2).T
+                out[first:first + step, col, :] = (plus + minus).T
+        return out / self.normalization_s

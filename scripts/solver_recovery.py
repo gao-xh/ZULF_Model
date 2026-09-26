@@ -34,6 +34,8 @@ def main():
     parser.add_argument("--tolerance-hz", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--strategies", default="local,search,anneal")
+    parser.add_argument("--jacobians", default="analytic",
+                        help="Comma-separated Jacobian modes to compare: analytic, kaufman, finite_difference.")
     parser.add_argument("--budget-s", type=float, default=900.0,
                         help="Wall-clock budget per refinement; budget exhaustion is recorded in the flags.")
     args = parser.parse_args()
@@ -53,7 +55,11 @@ def main():
                                  search=dict(method="dual_annealing", annealing_maxiter=200, max_seconds=90,
                                              solutions=3)),
     }
-    chosen = [s for s in args.strategies.split(",") if s in strategies]
+    import dataclasses
+    jacobians = [j for j in args.jacobians.split(",") if j]
+    strategies = {(f"{name}/{jac}" if len(jacobians) > 1 else name): dataclasses.replace(settings, jacobian=jac)
+                  for name, settings in strategies.items() for jac in jacobians}
+    chosen = [s for s in strategies if s.split("/")[0] in args.strategies.split(",")]
     rng = np.random.default_rng(args.seed)
     rows = []
     for index, sample in enumerate(sampler.generate(args.systems, seed=args.seed, split="val")):

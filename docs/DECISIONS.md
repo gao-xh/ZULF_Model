@@ -314,6 +314,39 @@ projection uses an SVD basis because the imaginary background columns vanish;
 complex systems keep QR (a change there moved a weakly identified nuisance
 rate, so it was reverted).
 
+## D31. Analytic variable-projection Jacobian (2026-09-26)
+
+Finite-difference Jacobians cost one full model evaluation (eigendecomposition
+of every sector block plus rendering) per free parameter per iteration, and
+they inherit any roughness of the reduced objective. `refine` now passes an
+analytic Jacobian to the trust-region solver (`RefineSettings.jacobian`,
+default "analytic"; "kaufman" and "finite_difference" remain available):
+
+* Couplings: `physics.derivatives.transition_derivatives` differentiates the
+  signal Tr(U rho U^+ D) with the Daleckii-Krein form, so degenerate levels
+  need no special handling (rotations inside a degenerate cluster do not
+  change the signal). Each transition gets (dA, T): the derivative signal is
+  Re((dA + 2 pi i t T) exp(2 pi i f t)).
+* Rates and the phase delay: closed forms on the same transitions.
+* Rendering: `Renderer.render_pair_directions` synthesizes all derivative
+  signals with one batched NUFFT per rate group and pushes them through the
+  same acquisition operator (SG, crop, mean, apodization, phase reference);
+  `ContinuousRenderer` has the Lorentzian closed form.
+* Gaussian widths and nuisance parameters: central differences of their
+  columns only (no eigendecomposition). The continuous route with Gaussian
+  widths falls back to forward differences and flags it.
+* Elimination of the linear variables (amplitudes, shared phase, background
+  and nuisance amplitudes) is exact: dl/dx = -H^+ (A^T J + dA^T r) with
+  H = A^T A + S, where S carries the residual-weighted second derivatives in
+  the shared phase. Without S and the dA^T r term this is Kaufman's
+  approximation, exact only at zero residual.
+
+The Jacobian matches central differences to 1e-6 off the optimum. Checking
+this exposed that the shared phase with a clamped (zero) amplitude was found
+by golden section only to about 1e-8 rad, which made the objective rough at
+that level; it is now polished with the analytic phase derivative on the
+active set.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

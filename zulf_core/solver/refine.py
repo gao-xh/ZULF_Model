@@ -40,6 +40,7 @@ class RefineSettings:
     background_order: int = -1
     band_weighting: str = "equal"
     diff_step: float = 1e-6
+    jacobian: str = "analytic"     # analytic (exact variable projection) | kaufman | finite_difference (D31)
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
     guard_continuation: bool = True   # also fit directly at full resolution from each start (D28)
     ties: tuple = ()      # ((leader, follower, ...), ...) parameter names; missing names are skipped
@@ -90,6 +91,7 @@ class RefinementResult:
     validation: List[dict] = field(default_factory=list)
     candidate_index: int = -1
     search: Optional[dict] = None
+    jacobian_evaluations: int = 0
     note: str = ("Conditional numerical refinement; not an assignment. Inspect boundary hits, residuals, "
                  "component spectra and held-out prediction.")
 
@@ -106,6 +108,7 @@ class RefinementResult:
                 "validation_relative_residual": self.validation_residual, "flags": self.flags,
                 "boundary_hits": self.boundary_hits, "converged": self.converged,
                 "budget_exhausted": self.budget_exhausted, "evaluations": self.evaluations,
+                "jacobian_evaluations": self.jacobian_evaluations,
                 "elapsed_s": self.elapsed_s, "parameters": self.parameters,
                 "gains": [[g.real, g.imag] for g in self.gains],
                 "background": [[b.real, b.imag] for b in self.background],
@@ -162,6 +165,9 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
     attempts = []
 
     final_best = {"score": math.inf}
+    if settings.jacobian not in ("analytic", "kaufman", "finite_difference"):
+        raise ValueError("jacobian must be 'analytic', 'kaufman' or 'finite_difference'.")
+    jacobian_calls = {"analytic": 0, "fallback": 0}
 
     def evaluate(x):
         nonlocal evaluations
@@ -176,6 +182,28 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
             final_best.update(score=pred.score, x=np.array(x, float), start=current_start)
         return pred.residual
 
+    def jacobian(x):
+        if time.perf_counter() - start_time > settings.max_seconds:
+            raise _BudgetReached("max_seconds")
+        with timer.section("solver.jacobian"):
+            try:
+                jac = forward.jacobian(x, full=settings.jacobian == "analytic")
+                jacobian_calls["analytic"] += 1
+                return jac
+            except NotImplementedError:
+                # No closed form for this renderer (continuous route with Gaussian widths): forward differences.
+                jacobian_calls["fallback"] += 1
+                base = evaluate(x)
+                cols = []
+                for i in range(len(x)):
+                    step = settings.diff_step * max(1.0, abs(x[i]))
+                    step = step if x[i] + step <= upper[i] else -step
+                    e = np.zeros(len(x))
+                    e[i] = step
+                    cols.append((evaluate(x + e) - base) / step)
+                return np.column_stack(cols)
+
+    jac_option = "2-point" if settings.jacobian == "finite_difference" else jacobian
     budget = False
     current_start = 0
     history = []
@@ -216,8 +244,9 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
                 final_level = level == len(path) - 1
                 before = evaluations
                 try:
-                    sol = least_squares(evaluate, x, bounds=(lower, upper), x_scale="jac", max_nfev=settings.max_nfev,
-                                        diff_step=settings.diff_step, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                    sol = least_squares(evaluate, x, jac=jac_option, bounds=(lower, upper), x_scale="jac",
+                                        max_nfev=settings.max_nfev, diff_step=settings.diff_step, ftol=1e-10,
+                                        xtol=1e-10, gtol=1e-10)
                 except _BudgetReached as exc:
                     attempts.append({"start": start, "path": path_index, "extra_rate_per_s": extra,
                                      "status": "budget_exhausted", "reason": str(exc),
@@ -253,6 +282,8 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         flags.append(continuation_note)
     if search_note:
         flags.append(search_note)
+    if jacobian_calls["fallback"]:
+        flags.append("jacobian_finite_difference_fallback")
     contributions = np.abs(final.gains)
     top = contributions.max() if len(contributions) and contributions.max() > 0 else 1.0
     interp = param.interpretation(values, contributions / top)
@@ -262,7 +293,8 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
     return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative, signal_relative,
                             _band_residuals(forward, final), hits,
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,
-                            final.model, final.component_spectra, search=search_summary)
+                            final.model, final.component_spectra, search=search_summary,
+                            jacobian_evaluations=jacobian_calls["analytic"] + jacobian_calls["fallback"])
 
 
 def frozen_prediction(result: RefinementResult, candidate_param: Parameterization, held_out: ObservedSpectrum,
