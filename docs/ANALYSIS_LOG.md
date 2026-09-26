@@ -342,3 +342,14 @@ skills under `skills/`; this file keeps the history.
 - User: do not mix the hypothesis system with the refiner and the models.
   Moved to the top-level package `zulf_hypothesis` (adapters for neural
   hints inside it, lazy); boundary tests added; real-data rankings unchanged.
+
+### Stage 3 search on the confirmed samples (D38; runs/blind/search_real.py)
+- b683220d (lactic acid), 5.4 min on 4 workers, no hand input: proposals ->
+  CH3-CH refined (free: rate_asymmetry + misfit) -> move "coupled proton on
+  X" triggered and accepted (Delta BIC -610 free, -1025 fixed) -> best
+  CH3-CH + HX [free], amplitudes 0.87 : 1; knowledge: lactic acid 0.32 Hz RMS,
+  L-alanine 1.32 Hz. Isopropyl and CH3-CH3 variants rank below with bounds,
+  abundance and background findings. The automatic path reproduces the
+  hand analysis (H7 -> H8, isopropyl rejected, lactic acid).
+- Yardstick on this window: 26 decimated core points (N = 52), small; the
+  BIC differences are large compared with the penalty terms anyway.
