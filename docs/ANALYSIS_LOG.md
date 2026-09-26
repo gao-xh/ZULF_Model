@@ -232,3 +232,20 @@ skills under `skills/`; this file keeps the history.
   Best fit matches 142-147 Hz closely; still low at 130.8 and 148.5 Hz and
   shows the 251.5 Hz line; the candidate-start fit has 130.8 Hz right but
   misses 129.2 Hz and is low at 259 Hz.
+
+## 2026-09-26 Blind test b683220d (NMRduino averaged FID, 65516 points, 4000 Hz assumed)
+- Diagnostics: first-point anomaly, saturation plateau to 2.75 ms, ringing to
+  44.75 ms; standard processing (crop 0.05 s, SG 201 / 2, mean removed).
+- Lines (0.05-1.05 s, 0.6 1/s, SNR vs 300-500 Hz noise): 128.4 (7.5),
+  130.0 (9.9), 131.8 (5.2), 144.3 (5.2), 145.3 (5.0), 146.4 (9.5),
+  147.75 (16.7), 150.0 (8.3), 151.9 (5.2), 257-258.3 (3.4), 262.9 (2.3) Hz.
+  Instrument lines as before (60 Hz harmonics, 294, 922.9 Hz).
+- Same band layout as e3d282da (L-alanine) but shifted: the 130 Hz group
+  about 0.8 Hz lower (128.4 / 130.0 vs 129.25 / 130.75), the 146 Hz group
+  about 1.5-2 Hz higher (146.4 / 147.75 / 150.0 vs 144.4 / 146.0 / 148.6),
+  259 Hz group about 0.8 Hz lower; lines about 2x stronger. No feature at
+  72-76 Hz (e3d282da had 4.3-4.5 there) and nothing above noise at 60-100 Hz
+  besides instrument lines.
+- First reading: a CH-CH3 fragment (H7 type) with 1J(CH) about 147 Hz and
+  1J(CH3) about 129 Hz, i.e. slightly different substituent or pH from the
+  alanine sample. Not yet fitted.
