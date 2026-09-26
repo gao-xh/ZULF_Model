@@ -214,3 +214,6 @@ skills under `skills/`; this file keeps the history.
   62-88, 125-152 and 250-270 Hz, about 350 points, so there the weighting is
   close to uniform and the focus on peaks is reduced. Options: a higher
   model threshold, or a shorter profile cut.
+- User: release the fixed amplitude ratios. Running: self-consistent alanine
+  with free amplitudes, one shared decay rate, envelope cores; starts:
+  candidate, best constrained envelope fit, random.
