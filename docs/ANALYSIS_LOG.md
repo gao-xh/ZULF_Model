@@ -392,3 +392,7 @@ skills under `skills/`; this file keeps the history.
 - Real 7ad4aafb: the motif scan alone ranks the pyridine ring first (generic
   aromatic couplings, 1J 167 / 167 / 161 from band positions), 3.9e4 BIC ahead
   of the benzene ring.
+- Cost note from the real-data run: the coupled-proton move proposed one
+  extension per aromatic C-H of pyridine (5 x 2 variants of 7-spin
+  isotopologues, tens of minutes). Ring atoms are now skipped as anchors
+  (no free valence); CH-CH3 still gets its one extension.

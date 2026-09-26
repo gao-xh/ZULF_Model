@@ -78,9 +78,11 @@ class AddCoupledProton(ExtensionMove):
     def _anchors(self, fragment: Fragment) -> List[str]:
         if self.anchor is not None:
             return [self.anchor]
-        # Default: sites carrying exactly one proton group of size 1 (a methine), where a substituent sits.
+        # Default: sites carrying exactly one proton group of size 1 (a methine), where a substituent sits;
+        # ring atoms are skipped (an aromatic C-H has no free valence for another substituent).
+        ring = _ring_sites(fragment)
         return [s.label for s in fragment.sites
-                if sum(p.size for p in fragment.protons if p.site == s.label) == 1]
+                if s.label not in ring and sum(p.size for p in fragment.protons if p.site == s.label) == 1]
 
     def propose(self, fragment: Fragment, findings: Sequence[Finding] = ()) -> List[Fragment]:
         out = []
@@ -104,6 +106,26 @@ class AddCoupledProton(ExtensionMove):
             out.append(replace(fragment, name=f"{fragment.name} + {label} on {host_label}", sites=tuple(sites),
                                protons=tuple(protons), couplings=couplings, symmetry=symmetry, bonds=tuple(bonds)))
         return out
+
+
+def _ring_sites(fragment: Fragment) -> set:
+    """Sites on a cycle of the bond graph (an edge is in a cycle if its ends stay connected without it)."""
+    bonds = [tuple(b) for b in fragment.bonds]
+    out = set()
+    for a, b in bonds:
+        adj = {}
+        for x, y in bonds:
+            if {x, y} == {a, b}:
+                continue
+            adj.setdefault(x, set()).add(y)
+            adj.setdefault(y, set()).add(x)
+        seen, frontier = {a}, [a]
+        while frontier:
+            frontier = [y for x in frontier for y in adj.get(x, ()) if y not in seen]
+            seen.update(frontier)
+        if b in seen:
+            out.update((a, b))
+    return out
 
 
 register_move(AddCoupledProton())
