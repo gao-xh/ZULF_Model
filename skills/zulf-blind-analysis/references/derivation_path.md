@@ -46,9 +46,13 @@ inference names the observation it rests on and the test that could refute it.
    0.372, 15N amplitude 0.42 (expected 0.35), 1J(N,H) -73.3 Hz.
 10. Consistency test: self-consistent alanine (NH protons in every
     isotopologue). Outcome: no better (0.402), abundances wrong (Ca 0.45,
-    N 0.91 of Cb). Background check: the 69-75 Hz feature the 15N component
-    used is equally present in the no-signal dataset. Outcome: 15N evidence
-    withdrawn.
+    N 0.91 of Cb). Background check: the 69-75 Hz region has a similar mean
+    level in the no-signal dataset. Outcome at the time: 15N evidence
+    withdrawn. Revised later (user): a mean-level match does not prove the
+    feature is background; no 13C isotopologue has lines there, the position
+    matches abs(1J(N,H)) of NH3+, and intermediate exchange would broaden the
+    15N lines and also break the fully coupled slow-exchange model. Status:
+    unresolved; see case notes for the deciding measurements.
 11. Phased cross-check. First with the H7-derived phase (user: phase without
     a hypothesis) -> model-free phase by peak coherence: 0.98 rad, -1.45 ms;
     delay weakly determined (narrow band). The phased spectrum showed a

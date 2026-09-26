@@ -51,9 +51,11 @@ starting; follow the same observation -> inference -> test -> outcome format.
 
 - The workflow kept alanine in the final pair (with lactic acid); the
   remaining ambiguity was a data limit, not a workflow error.
-- Decisive steps were the truncated window, the natural-abundance amplitude
-  test (rejected isopropyl) and the no-signal background check (withdrew a
-  spurious 15N improvement; L-alanine in neutral water has fast NH3+
-  exchange, so no 15N-H coupling is expected).
+- Decisive steps were the truncated window and the natural-abundance
+  amplitude test (rejected isopropyl).
+- The 72-76 Hz feature stays unresolved (instrument background or a 15NH3+
+  line under intermediate exchange). Lesson: a background check must compare
+  the shape at the same position, not a band-averaged level; keep features
+  "unresolved" until a blank or a chemistry change (pH, D2O) decides.
 - The CPU-scale models contributed nothing on this sample; chemistry-guided
   hypotheses plus the solver did the work.

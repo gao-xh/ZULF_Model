@@ -34,8 +34,15 @@ skills under `skills/`; this file keeps the history.
 - d5543fc signal-focused weighting (band_weighting="signal"): noise-scaled
   chi-square, data-driven signal mask, signal_region_residual in results.
   On e3d282da the mask found 127-133.5, 142-151, 256.75-261.25 Hz and also
-  72.25-76.5 Hz (instrument background, sharp edge): a data-only mask cannot
-  reject background features; a reference-dataset exclusion is needed.
+  72.25-76.5 Hz. Correction (user): that feature is not established as
+  background. No 13C isotopologue of H7 has lines in 55-100 Hz; a 15NH3+
+  isotopologue would put its J line near 73 Hz (the earlier H7 + 15NH3 fit
+  gave 1J(N,H) -73.3 Hz and a 15N amplitude 0.42 vs 0.35 expected). The
+  no-signal comparison matched only the mean level, not the shape, and
+  intermediate NH3+ exchange would broaden rather than remove 15N lines.
+  Status: unresolved. Decisive tests: water blank on the same setup; acidic
+  sample (slower exchange sharpens 73 / 146 Hz); D2O (ND3+ moves the 15N line
+  to about 11 / 22 Hz); shape-wise comparison with other datasets.
 
 ### Window and apodization (in progress)
 - Peak SNR at a 4 s window is highest without apodization or with about

@@ -40,10 +40,12 @@ so the answer was retained. Checks against the answer:
   carbon each: consistent (amplitudes 1 : 0.77, expected 1 : 1).
 - 3J(H-alpha, H-beta) fitted 6.6 Hz (complex) and 7.7 Hz (phased): the
   literature value from memory (about 7.2-7.3 Hz) lies between them.
-- No coupled NH: correct for alanine in water near its isoelectric pH (about
-  6; fast NH3+ exchange, much faster than 1J(N,H) of about 73 Hz);
-  the slow-exchange 15N improvement was correctly withdrawn after the
-  no-signal background check.
+- NH coupling: fast NH3+ exchange near pH 6 was assumed. The 15N
+  improvement (1J(N,H) -73.3 Hz, amplitude 0.42 vs 0.35 expected) was
+  withdrawn on a mean-level comparison with the no-signal dataset, which is
+  not decisive: no 13C isotopologue has lines at 55-100 Hz, and intermediate
+  exchange would broaden rather than remove the 15N lines. Unresolved;
+  decide with a water blank, an acidic sample or D2O.
 - The carboxyl 13C and 15N isotopologues only have low-frequency lines,
   outside the analysed range; they would be the route to separating alanine
   from lactic acid (15N exists only in alanine), together with a low-pH
