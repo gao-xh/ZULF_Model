@@ -362,3 +362,25 @@ skills under `skills/`; this file keeps the history.
   hand analysis). Isopropyl ranks below with bounds / background findings.
 - Fix: the fixed variant is skipped when no ratio block has two components
   (isolated single-component parts gave duplicate rows).
+
+### Recognition tests beyond CH-CH3 (runs/bench, synthetic via the builder)
+- Stage 2 on synthetic structures: isolated methyl correct (#1 13CH3
+  J 140.9); 13CH3-15NH3 (slow exchange) correct (#1); acetone-like
+  CH3-C(O)-CH3 seen as CH3 only (equivalence and the carbonyl bridge are
+  invisible); CH2-CH2 (symmetric) wrong (multiplet split into several
+  groups); ethyl and propane-like give no proposal (9-11 bands, a coupled CH2
+  splits into many bands). Cause: isolated X-Hn patterns in stage 2, trees
+  only (no rings, no heavy-atom bridges), only methyl-leaf equivalence.
+- Pyridine (couplings from memory for the reference fragment):
+  synthetic truth: proposals miss the ring (#1 single 13CH J=158); with the
+  reference fragment added, it ranks first (fixed variant, amplitudes
+  1 : 1 : 0.5 as expected, no findings; all proposals > 4.7e5 BIC worse) -
+  scoring works, proposal generation does not.
+  Real 7ad4aafb: 6 bands (150.5-185.2 Hz); proposals are 3-CH chains; the
+  reference pyridine wins by > 4.7e4 BIC over every proposal. Best clean:
+  pyridine [fixed]; the free variant has a lower BIC but amplitudes
+  0.86 : 0.79 : 1 against 1 : 1 : 0.5 (C4 too strong) - the from-memory
+  couplings or the model are not right in detail.
+- Next: motif library scan (coupled spectra of registered motifs, 1J from
+  band positions, quick fits) so rings and coupled CH2 enter the proposals;
+  a fixed synthetic benchmark of these structures.
