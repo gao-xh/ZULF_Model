@@ -274,3 +274,20 @@ skills under `skills/`; this file keeps the history.
   each free and with natural ratios plus one shared rate.
   Only two protonated-carbon bands are present, so compounds with a third
   protonated carbon (ethyl, aldehyde) are excluded before fitting.
+- Hypothesis results (data-region residual, same data cores):
+  H7 free 0.280 (1 : 1.04); H8 free 0.190 (1 : 0.87, rates 1.8 / 2.5 1/s,
+  no bounds); H8 fixed 1 : 1 + shared rate 0.283; ISO free 0.352 with
+  amplitudes 1 : 1.16 (natural 1 : 2), ISO fixed 0.366 -> isopropyl
+  rejected (worse fit, abundance contradicts).
+  H8 free reproduces the 128.4 / 130.0 doublet, the 144-152 Hz group and the
+  split 256.7 / 258.3 Hz structure; the methyl-carbon lines no longer need
+  extra broadening (H7 needed 4.7 1/s). Misfit on the data cores falls to
+  0.46 of H7's with 4 added couplings.
+  H8 free: 1J 147.07 / 129.18, 2J(Ca,Hb) -4.69, 2J(Cb,Ha) -4.40,
+  3J(Ha,Hb) 7.06 Hz; extra spin: 2J(Ca,XH) 0.55, 3J(Cb,XH) 1.51,
+  3J(Ha,XH) -1.21, 4J(Hb,XH) -1.76 Hz. H8 fixed found a different set
+  (-6.94, 4.28, 8.25, 1.37 Hz): the extra spin's couplings are not
+  determined, and the free-fit values (negative 3J(Ha,XH), a 1.8 Hz 4J) are
+  not typical of a CH-OH proton.
+  Conclusion so far: one more weakly coupled spin-1/2 on the CH-CH3 fragment
+  is required by the data; its identity is not yet established.
