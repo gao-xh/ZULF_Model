@@ -52,3 +52,17 @@ skills under `skills/`; this file keeps the history.
 - Running: H7 refined at windows 0.3/0.5/1/2/4 s, hard truncation and
   0.6 1/s exponential weighting; signal-weighted comparison of H7, H7 + 15NH3
   and self-consistent alanine.
+
+### Signal-weighted re-evaluation of H7, H7 + 15NH3, self-consistent alanine
+- Setup: complex, 0.05-1.05 s, zero fill 4, band_weighting="signal",
+  background order 1, 3 starts.
+- Including 72-76 Hz (mask 72.25-76.5, 127-133.5, 142-151, 256.75-261.25 Hz):
+  H7 signal-region 0.378 / overall 0.452, Cb/Ca 0.39, no bounds;
+  H7 + 15NH3 0.266 / 0.553, amplitudes 1 : 0.31 : 1.33, 1J(N,H) at bound;
+  self-consistent 0.239 / 0.449, amplitudes 1 : 0.07 : 0.05.
+  The 15N models gain on the unresolved region with abundance ratios far from
+  1 : 1 : 0.35; not evidence. H7's Cb/Ca 0.39 points at the methyl-carbon lines
+  (130 Hz doublet, 259 Hz) being modelled poorly.
+- Excluding 72-76 Hz: running. Window scan queued after it.
+- Process lessons (skills updated): never kill by command-line text; one queue
+  launcher script; set module-level ranges after imports and print them.

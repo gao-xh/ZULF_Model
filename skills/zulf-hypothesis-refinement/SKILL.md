@@ -62,5 +62,12 @@ is not evidence.
 
 - Parallel fits: `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1`, at most one
   process per core; order queues so hypotheses run before long model lists.
-- Stop runs by PID (process and children); `pkill -f` can match the shell.
+- Stop runs by PID (process and children), saved when the run starts. Never
+  select processes by command-line text (`pkill -f`, `ps | grep | kill`): the
+  calling shell's own command line contains the same text and gets killed.
+- Queue follow-up runs from a small launcher script file, one queue at a
+  time; two waiters on the same trigger start duplicate runs.
+- Module-level settings (for example fit ranges) that several imported helper
+  scripts assign must be set after the last import, and the run must print
+  its effective settings (ranges, signal mask) so mistakes show at once.
 - 8-spin isotopologues with 3 starts take about 10 minutes each on one core.
