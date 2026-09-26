@@ -152,3 +152,14 @@ skills under `skills/`; this file keeps the history.
   the remaining failure mode is a component turning into broad background.
   Next: fix amplitude ratios to natural abundance and bound decay rates (or
   tie rates across isotopologues) so no component can become background.
+- Why the 139 Hz dip of the self-consistent fit survives: the C-alpha
+  component (rate 7.7 1/s, 7.5x the H7 amplitude) is about 50 overlapping
+  broad lines; each is only about 0.2 sigma high, so none joins the cores,
+  but together they carry about 9 sigma of smooth "signal" over 125-155 Hz,
+  taking over the background (background term 0.0024 vs 0.006 in H7). Its
+  lines at 139.04 / 139.61 Hz interfere destructively with the rest and cut
+  a hole: misfit 8.9 sigma at 139.25 Hz, but weight 0.25 there, so it costs
+  only 2.2 sigma. The per-line criterion misses broad components. Options:
+  (1) cores from the incoherent line envelope sum_k abs(g a_k) profile_k(f)
+  (catches broad overlapping lines and cancellation holes); (2) physical
+  constraints: amplitudes at natural abundance, bounded or tied decay rates.
