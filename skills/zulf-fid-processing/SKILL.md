@@ -61,6 +61,13 @@ All processing goes through `zulf_core.render.acquisition` (`Acquisition`,
   with longer windows indicate unresolved structure.
 - Use short windows (about 0.3 s) for detection, masks and model-free phasing;
   long windows (1-4 s) for small couplings.
+- Default for refinement: a window of 1 s or more with weak matched
+  apodization chosen from the SNR curve (e3d282da: 0.6 1/s gave identical
+  parameters at 1, 2 and 4 s and a lower residual than hard truncation).
+- An isotopologue amplitude ratio that drifts with the window (e3d282da:
+  Cb/Ca 1.1 at 0.3 s, 0.45 at >= 1 s) is a model-deficiency signal: the
+  short window is right about abundance, the long window exposes missing
+  couplings.
 
 ## Residual scale
 

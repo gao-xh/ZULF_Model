@@ -85,3 +85,16 @@ skills under `skills/`; this file keeps the history.
   a second pass adds model-predicted lines to the cores (closes the loophole
   seen at 263-265 Hz). Tests: smooth monotone fall-off; a 13CH3 candidate on a
   13C-H spectrum triggers the model pass for its unmatched 2J line.
+
+### Window scan of H7 (signal weighting with the earlier hard mask)
+- 1J robust: 145.3 +- 0.1 (C-alpha) and 130.0 +- 0.3 Hz (C-beta); for windows
+  >= 1 s: 3J(H-alpha, H-beta) 7.0 Hz, 2J(C-alpha, H-beta) -4.4 Hz;
+  2J(C-beta, H-alpha) unstable (-4.2 to -6.8 Hz).
+- Cb/Ca 1.10 at 0.3 s (the expected 1 : 1) falling to about 0.45 at >= 1 s:
+  H7 lacks couplings that shape the methyl-carbon lines at high resolution;
+  the fit compensates by lowering the C-beta amplitude.
+- Weak matched apodization (0.6 1/s): lower signal-region residual (0.25 vs
+  0.29-0.36) and identical parameters for 1, 2 and 4 s windows; recommended.
+- Next: re-evaluate H7, H7 + 15NH3 and self-consistent alanine with smooth
+  weights and model-predicted cores, 1 s window, 0.6 1/s, with and without
+  72-76 Hz (running).
