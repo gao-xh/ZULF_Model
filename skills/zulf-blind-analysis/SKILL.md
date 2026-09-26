@@ -32,6 +32,9 @@ starting; follow the same observation -> inference -> test -> outcome format.
   before interpreting it.
 - Prefer physically consistent candidates over marginally lower residuals.
 - Report what the data cannot decide, and which measurement would.
+- Ask for the sample state when it can be known (solvent, pH, pure or
+  mixture, labelled or natural abundance); it fixes exchange models and
+  isotopologue abundance ratios.
 
 ## Report format
 
@@ -44,7 +47,7 @@ starting; follow the same observation -> inference -> test -> outcome format.
    is sound), and any check that rejected an alternative.
 6. Conclusion as a short candidate list and the decisive next measurement.
 
-## Lessons from the confirmed case (L-alanine, sample e3d282da)
+## Lessons from the confirmed case (pure L-alanine in water, sample e3d282da)
 
 - The workflow kept alanine in the final pair (with lactic acid); the
   remaining ambiguity was a data limit, not a workflow error.

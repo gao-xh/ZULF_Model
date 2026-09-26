@@ -60,7 +60,7 @@ inference names the observation it rests on and the test that could refute it.
 12. Conclusion: one CH-CH3 unit (1J about 145 / 129-130 Hz, 3J(HH) 6.6-7.7 Hz),
     no other protonated carbon, no evidence for coupled NH. Lactic acid or
     alanine with fast NH exchange; not separable with these data.
-13. Answer revealed: L-alanine. The conclusion held; the decisive steps were
+13. Answer revealed: pure L-alanine in water. The conclusion held; the decisive steps were
     6 (window), 8 (abundance test) and 10 (background check). The wrong turns
     were step 3's first methyl reading of the 130 Hz group and step 9's 15N
     improvement; both were corrected by explicit tests, not by residuals.

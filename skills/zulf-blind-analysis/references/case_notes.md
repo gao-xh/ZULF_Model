@@ -33,14 +33,15 @@ that session. Numbers are relative residuals on the stated scale.
 - Models: no usable structure at this SNR (best refined model candidate 0.563
   on the window).
 
-Confirmation (given by the user after the analysis): the sample was
-L-alanine. Our final pair was lactic acid or alanine with fast NH exchange,
+Confirmation (given by the user after the analysis): the sample was pure
+L-alanine dissolved in water (single compound, no mixture). Our final pair was lactic acid or alanine with fast NH exchange,
 so the answer was retained. Checks against the answer:
 - 13C-alpha (CH, bonded to N) 1J 145.4 Hz and 13C-beta (CH3) 1J 129.8 Hz, one
   carbon each: consistent (amplitudes 1 : 0.77, expected 1 : 1).
 - 3J(H-alpha, H-beta) fitted 6.6 Hz (complex) and 7.7 Hz (phased): the
   literature value from memory (about 7.2-7.3 Hz) lies between them.
-- No coupled NH: correct for alanine in neutral water (fast NH3+ exchange);
+- No coupled NH: correct for alanine in water near its isoelectric pH (about
+  6; fast NH3+ exchange, much faster than 1J(N,H) of about 73 Hz);
   the slow-exchange 15N improvement was correctly withdrawn after the
   no-signal background check.
 - The carboxyl 13C and 15N isotopologues only have low-frequency lines,
@@ -48,3 +49,8 @@ so the answer was retained. Checks against the answer:
   from lactic acid (15N exists only in alanine), together with a low-pH
   measurement that slows NH3+ exchange.
 - Chirality (L vs D) is not observable in a J-spectrum.
+- Pure sample: isotopologue abundances are fixed at 13C-alpha : 13C-beta :
+  13C' : 15N = 1 : 1 : 1 : about 0.34. The free fit gave 1 : 0.77; fitting
+  with the ratio fixed is the first test for abundance-constrained amplitudes.
+- Ask for the sample state early (solvent, pH, pure or mixture): it decides
+  the exchange model and the abundance constraints.
