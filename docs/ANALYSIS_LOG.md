@@ -253,3 +253,18 @@ skills under `skills/`; this file keeps the history.
   0.05-1.05 s, 0.6 1/s, 62-320 Hz, signal weighting with envelope cores;
   variants: amplitudes 1 : 1 with a shared rate, and free amplitudes/rates.
   Starts 1J 147 / 129, 2J -4.4 / -4.5, 3J(HH) 7.0 Hz.
+- H7 result on b683220d (about 10 minutes, no bounds in either variant):
+  free: data-region 0.280, amplitudes 1 : 1.045, rates 1.9 (CH) / 4.7 1/s
+  (CH3 carbon); 1J 147.12 / 129.19, 2J(Ca,Hb) -4.38, 2J(Cb,Ha) -4.07,
+  3J(HH) 6.52 Hz. Fixed 1 : 1, shared rate 2.9 1/s: 0.344, same 1J, 2J
+  -4.37 / -3.95, 3J(HH) 6.38 Hz.
+  Unlike alanine (Cb/Ca 0.39-0.43) the free amplitudes come out at the
+  natural 1 : 1 by themselves. The 146-151 Hz group is matched closely; the
+  methyl-carbon lines (128.4 / 130.0 doublet, 257-263 Hz) are again the weak
+  part: the free fit broadens them (4.7 1/s) and the fixed fit overshoots at
+  258 Hz. Same pattern as alanine: H7 lacks a small splitting on the
+  methyl-carbon lines.
+  Compared with alanine (H7, same settings): 1J(CH) 147.1 vs 145.4, 1J(CH3)
+  129.2 vs 130.3, 2J(Cb,Ha) -4.1 vs -6.6, 3J(HH) 6.5 vs 7.0 Hz. No 72-76 Hz
+  feature: a 15NH3+ in slow exchange (for example alanine at low pH) would
+  show one; points to a fragment without slowly exchanging N-H.
