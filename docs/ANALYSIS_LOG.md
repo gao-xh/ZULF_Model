@@ -249,3 +249,7 @@ skills under `skills/`; this file keeps the history.
 - First reading: a CH-CH3 fragment (H7 type) with 1J(CH) about 147 Hz and
   1J(CH3) about 129 Hz, i.e. slightly different substituent or pH from the
   alanine sample. Not yet fitted.
+- Running: H7 (CH-CH3, both single-13C isotopologues) on b683220d, complex,
+  0.05-1.05 s, 0.6 1/s, 62-320 Hz, signal weighting with envelope cores;
+  variants: amplitudes 1 : 1 with a shared rate, and free amplitudes/rates.
+  Starts 1J 147 / 129, 2J -4.4 / -4.5, 3J(HH) 7.0 Hz.
