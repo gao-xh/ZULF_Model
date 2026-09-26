@@ -1,9 +1,11 @@
 import unittest
+import math
 
 import numpy as np
 
 from zulf_core.physics import compute_transitions
 from zulf_model.render import Acquisition, Renderer
+from zulf_core.solver.forward import MixtureForward
 from zulf_core.solver import (ObservedSpectrum, ParameterPolicy, Parameterization, RefineSettings, refine,
                                refine_candidates)
 from zulf_core.spinsystem import Component, Interpretation, SpinSystem, best_permutation
@@ -201,6 +203,28 @@ class SignalWeightingTests(unittest.TestCase):
         self.assertTrue(any(f.startswith("signal_mask_model_pass") for f in one.flags))
         none = refine(Interpretation((Component(ch3),)), obs, RefineSettings(**{**base.__dict__, "signal_model_passes": 0}))
         self.assertFalse(any(f.startswith("signal_mask_model_pass") for f in none.flags))
+        self.assertIsNotNone(one.data_region_residual)
+
+    def test_model_line_heights_come_from_the_transitions(self):
+        # Heights read from the transition list match the rendered peak of an isolated line, and a line far below
+        # the data's peak-picking threshold (weak, or of either sign) is still located.
+        acq = Acquisition(1000.0, 6000, start_sample=30)
+        ch = SpinSystem.from_group_couplings(["13C", "1H"], [1, 1], np.array([[0, 128.0], [128.0, 0]]))
+        fid = Renderer(acq).synthesize(compute_transitions(ch), 1.5, gain=np.exp(0.4j))
+        obs = ObservedSpectrum.from_fid(fid + np.random.default_rng(1).normal(0, 2e-3, acq.points), acq, RANGES)
+        param = RefineSettings().parameterize(Interpretation((Component(ch),)))
+        forward = MixtureForward(param, obs, band_weighting="signal", background=1)
+        values = param.values()
+        values = {**values, **{k: math.log(1.5) for k in values if ".log_rate" in k}}
+        pred = forward.predict(values=values)
+        heights = forward.model_line_heights(values, pred.gains)
+        peak = int(np.argmax(heights))
+        self.assertLess(abs(forward.f[peak] - 128.0), 0.5 * float(np.median(np.diff(forward.f))) + 1e-9)
+        self.assertAlmostEqual(heights[peak] / np.abs(pred.component_spectra[0]).max(), 1.0, delta=0.05)
+        weak = forward.model_line_points(values, pred.gains * 1e-3, 1e-3 * heights[peak] / forward.noise_sigma / 2)
+        self.assertTrue(weak[peak])
+        flipped = forward.model_line_heights(values, -pred.gains)
+        np.testing.assert_allclose(flipped, heights)
 
 
 class ProcessedSpectrumTests(unittest.TestCase):

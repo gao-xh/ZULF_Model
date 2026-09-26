@@ -42,7 +42,8 @@ class RefineSettings:
     signal_threshold: float = 4.0     # signal weighting: narrow-feature threshold in noise sigma
     signal_taper_hz: float = 2.0      # signal weighting: Gaussian fall-off of the weight around peak cores
     signal_outside_weight: float = 0.2   # signal weighting: relative weight far from any peak core
-    signal_model_passes: int = 1      # signal weighting: refits with model-predicted lines added to the cores
+    signal_model_passes: int = 3      # signal weighting: refits with the model's own lines added to the cores
+    signal_model_threshold: float = 2.0   # signal weighting: model-line peak height (noise sigma) that joins the cores
     diff_step: float = 1e-6
     jacobian: str = "kaufman"      # kaufman | analytic (exact variable projection) | finite_difference (D31)
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
@@ -96,7 +97,9 @@ class RefinementResult:
     candidate_index: int = -1
     search: Optional[dict] = None
     jacobian_evaluations: int = 0
-    signal_region_residual: Optional[float] = None   # relative residual on the data-driven signal mask (signal weighting)
+    signal_region_residual: Optional[float] = None   # relative residual on the signal mask (data and model cores)
+    data_region_residual: Optional[float] = None     # relative residual on the data cores only (same for every model)
+    signal_model_lines_hz: List[float] = field(default_factory=list)   # model-line points added to the cores
     note: str = ("Conditional numerical refinement; not an assignment. Inspect boundary hits, residuals, "
                  "component spectra and held-out prediction.")
 
@@ -115,6 +118,8 @@ class RefinementResult:
                 "budget_exhausted": self.budget_exhausted, "evaluations": self.evaluations,
                 "jacobian_evaluations": self.jacobian_evaluations,
                 "signal_region_residual": self.signal_region_residual,
+                "data_region_residual": self.data_region_residual,
+                "signal_model_lines_hz": self.signal_model_lines_hz,
                 "elapsed_s": self.elapsed_s, "parameters": self.parameters,
                 "gains": [[g.real, g.imag] for g in self.gains],
                 "background": [[b.real, b.imag] for b in self.background],
@@ -308,12 +313,16 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         m = forward.signal_mask
         signal_region = float(np.linalg.norm(forward.mismatch(final.model, m)) /
                               max(np.linalg.norm(forward.mismatch(np.zeros_like(forward.y), m)), 1e-30))
+    data_region = None
+    if getattr(forward, "data_signal_mask", None) is not None and forward.data_signal_mask.any():
+        m = forward.data_signal_mask
+        data_region = float(np.linalg.norm(forward.mismatch(final.model, m)) /
+                            max(np.linalg.norm(forward.mismatch(np.zeros_like(forward.y), m)), 1e-30))
     if (settings.band_weighting == "signal" and settings.signal_model_passes > 0 and forward.signal_cores is not None
             and len(x_best)):
-        # Model-predicted lines join the peak cores, so a line placed where the data show none is fully penalised.
-        from .forward import narrow_excess
-        st = forward.signal_settings
-        predicted = narrow_excess(forward.f, final.model, forward.band, st["baseline_hz"]) > st["threshold"] * forward.noise_sigma
+        # The model's own lines (positions and heights straight from the transition lists) join the peak cores,
+        # so a line placed where the data show none, or a dip, is fully penalised. Repeated until stable.
+        predicted = forward.model_line_points(values, final.gains, settings.signal_model_threshold)
         new_cores = predicted & ~forward.signal_cores
         if new_cores.any():
             import dataclasses
@@ -330,7 +339,8 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,
                             final.model, final.component_spectra, search=search_summary,
                             jacobian_evaluations=jacobian_calls["analytic"] + jacobian_calls["fallback"],
-                            signal_region_residual=signal_region)
+                            signal_region_residual=signal_region, data_region_residual=data_region,
+                            signal_model_lines_hz=[float(v) for v in _signal_extra_hz])
 
 
 def frozen_prediction(result: RefinementResult, candidate_param: Parameterization, held_out: ObservedSpectrum,

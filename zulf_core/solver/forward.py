@@ -129,12 +129,15 @@ class MixtureForward:
         scale = np.ones(len(self.y))
         self.signal_mask = None
         self.signal_cores = None
+        self.data_signal_mask = None     # data cores only: the same region for every model
         if band_weighting == "equal":
             for b in np.unique(self.band):
                 m = self.band == b
                 scale[m] = max(float(np.sqrt(np.mean(np.abs(self.y[m]) ** 2))), 1e-30) * math.sqrt(m.sum())
         elif band_weighting == "signal":
             cores, sigma = signal_regions(self.f, self.y, self.band, signal_threshold, signal_baseline_hz)
+            self.data_signal_mask = (signal_weights(self.f, self.band, cores, signal_outside_weight, signal_taper_hz)
+                                     >= 0.6) if cores.any() else None
             spacing = float(np.median(np.diff(self.f))) if len(self.f) > 1 else 1.0
             for fx in signal_extra_hz:           # model-predicted line positions (second pass)
                 cores |= np.abs(self.f - fx) <= 0.5 * spacing + 1e-9
@@ -166,6 +169,50 @@ class MixtureForward:
                 pair = pair * self.correction[:, None]
             cols.append(pair)
         return cols
+
+    def model_line_points(self, values: Dict[str, float], gains: np.ndarray, threshold: float) -> np.ndarray:
+        """Grid points whose model-line height (`model_line_heights`) exceeds `threshold` noise sigma."""
+        if self.signal_cores is None:
+            return np.zeros(len(self.f), bool)
+        return self.model_line_heights(values, gains) > threshold * self.noise_sigma
+
+    def model_line_heights(self, values: Dict[str, float], gains: np.ndarray) -> np.ndarray:
+        """Model-line peak heights on the fitted grid, read directly from the transition lists (no peak picking).
+
+        Line k of component c has peak height abs(g_c a_k) h(R), where h is the
+        rendered peak magnitude of a unit line with the same rate and width in
+        this acquisition. Lines within half a grid spacing of a fitted point
+        add up. The sign or phase of a line does not matter, so dips count.
+        """
+        from ..render.renderer import _per_transition
+        from ..physics.transitions import TransitionList
+        height = np.zeros(len(self.f))
+        if not len(self.f):
+            return height
+        spacing = float(np.median(np.diff(self.f))) if len(self.f) > 1 else 1.0
+        delay = self.p.phase_delay(values)
+        for c, system in enumerate(self.p.systems(values)):
+            tl = self.cache.get(system, self.protocol)
+            edges = self.p.policy.family_edges_hz
+            if edges:
+                tl = tl.split_families(edges)
+            if not len(tl) or c >= len(gains):
+                continue
+            rates = _per_transition(self.p.rates(values, c), tl, "decay rate")
+            sigma = self.p.sigma(values, c)
+            unit = {}
+            for r in np.unique(rates):
+                f0 = float(np.median(tl.frequencies_hz[rates == r]))
+                pair = self.renderer.render_pair(TransitionList(np.array([f0]), np.array([1.0 + 0j])), float(r),
+                                                 np.array([f0]), delay, sigma)
+                unit[float(r)] = float(abs(pair[0, 0]))
+            h = np.abs(gains[c] * tl.amplitudes) * np.array([unit[float(r)] for r in rates])
+            idx = np.clip(np.searchsorted(self.f, tl.frequencies_hz), 1, len(self.f) - 1)
+            nearest = np.where(np.abs(self.f[idx - 1] - tl.frequencies_hz) <= np.abs(self.f[idx] - tl.frequencies_hz),
+                               idx - 1, idx)
+            inside = np.abs(self.f[nearest] - tl.frequencies_hz) <= 0.5 * spacing + 1e-9
+            np.add.at(height, nearest[inside], h[inside])
+        return height
 
     def nuisance_columns(self, values: Dict[str, float]) -> np.ndarray:
         """One complex column per real nuisance amplitude, through the observed operator."""

@@ -36,13 +36,17 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 - Prefer `band_weighting="signal"`: noise-scaled chi-square; the weight is 1
   at peak cores and falls off smoothly (Gaussian, `signal_taper_hz` 2 Hz) to
   `signal_outside_weight` (0.2) far from any core - no hard edges. Cores come
-  from the data first; with `signal_model_passes=1` (default) the fit is
-  repeated with the model's own predicted lines added as cores, so a line the
-  model places where the data show none is fully penalised (flag
-  `signal_mask_model_pass`). Current limits: only predicted narrow excess
-  above `signal_threshold` sigma joins, predicted dips below the baseline do
-  not, and there is one pass; so check weak spurious lines and dips by eye.
-  The result reports `signal_region_residual`. Check the mask: every region must be either an
+  from the data first (narrow excess above `signal_threshold` sigma). The
+  model's own lines are taken straight from its transition lists (position
+  f_k, height abs(g_c a_k) times the unit-line peak), not peak-picked from
+  the rendered spectrum: every line above `signal_model_threshold` (2) sigma,
+  of either sign, joins the cores and the fit is repeated until the cores
+  are stable (`signal_model_passes=3`; flag `signal_mask_model_pass`), so a
+  line the model places where the data show none is fully penalised. Lines
+  of opposite phase that cancel in the rendered spectrum still count.
+  The result reports `signal_region_residual` (data and model cores),
+  `data_region_residual` (data cores only: compare models on this one, it
+  is the same region for every model) and `signal_model_lines_hz`. Check the mask: every region must be either an
   assigned line or an explicitly unresolved feature. A data-only mask cannot
   tell molecular lines from sharp background (e3d282da: 72-76 Hz, still
   unresolved between instrument background and a 15NH3+ line near
@@ -50,7 +54,7 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   unresolved.
   Plot the fit over the whole range, not only the mask: a data-only mask with
   a low outside weight lets a model put spurious lines outside the mask
-  (e3d282da: 263-265 Hz); the mask must also cover model-predicted lines.
+  (e3d282da: 263-265 Hz); the cores must cover the model's own lines.
 - Weak data: fit the truncated window from `zulf-fid-processing`; starts at
   narrow lines (initial rate 0.5-1/s) with continuation (1, 0).
 - Sign variants: only when signs are the question; they multiply the cost up

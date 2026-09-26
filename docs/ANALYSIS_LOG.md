@@ -120,3 +120,18 @@ skills under `skills/`; this file keeps the history.
   noise but lower (model has no noise), absolute deviation from the
   background instead of positive excess, iterate until the cores are stable,
   plot the weights actually used.
+
+### Solver: model lines straight from the transition lists
+- User: the model already gives the line positions; use them instead of
+  rendering the spectrum and peak-picking again.
+- Implemented: `MixtureForward.model_line_heights` gives each line's height
+  abs(g_c a_k) times the rendered peak of a unit line with the same rate
+  (lines within half a grid step add up); lines above 2 sigma of either sign
+  join the cores; passes repeat up to 3 times until no new cores. Results add
+  `data_region_residual` (data cores only, same region for every model) and
+  `signal_model_lines_hz`.
+- On the saved e3d282da fits this finds lines the peak picking missed:
+  H7 143.0 (7.4 sigma) and 266.0 Hz (8.5); H7 + 15NH3 also 148.0 (16.7, its
+  2J(N,H) line) and 263.75 Hz (11.4); self-consistent alanine 69.75-76.25,
+  132-132.5, 147-147.75, 255-267 Hz. Several are lines that partly cancel in
+  the rendered spectrum.
