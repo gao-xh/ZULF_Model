@@ -31,9 +31,9 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..physics import compute_transitions
-from ..physics.protocol import SUDDEN_DROP, Protocol
-from ..spinsystem import Component, Interpretation, SpinSystem
+from zulf_core.physics import compute_transitions
+from zulf_core.physics.protocol import SUDDEN_DROP, Protocol
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem
 from .fragment import Fragment, Pair, orbits_under, pair
 from .labeling import Labeling
 
@@ -109,7 +109,7 @@ class HypothesisModel:
     def settings(self, base=None, fixed_ratios: bool = False, shared_rate: bool = False,
                  fix_unspecified: bool = True):
         """RefineSettings with this model's ties, fixed couplings and (optionally) abundance ratios."""
-        from ..solver import RefineSettings
+        from zulf_core.solver import RefineSettings
         base = base or RefineSettings()
         families = len(base.policy.family_edges_hz) + 1
         ties = tuple(base.ties) + self.ties(shared_rate, families)

@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Mapping, Optional
 
-from ..nuclei import get_registry
+from zulf_core.nuclei import get_registry
 
 
 @dataclass(frozen=True)

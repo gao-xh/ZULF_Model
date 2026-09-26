@@ -14,8 +14,8 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..solver.forward import narrow_excess, signal_regions
-from ..solver.observed import ObservedSpectrum
+from zulf_core.solver.forward import narrow_excess, signal_regions
+from zulf_core.solver.observed import ObservedSpectrum
 
 
 @dataclass

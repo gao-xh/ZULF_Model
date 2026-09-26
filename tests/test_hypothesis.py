@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from zulf_core.physics import compute_transitions
-from zulf_core.hypothesis import (AddCoupledProton, Finding, Fragment, KnowledgeBase, Labeling, ProtonGroup,
+from zulf_hypothesis import (AddCoupledProton, Finding, Fragment, KnowledgeBase, Labeling, ProtonGroup,
                                   ReferenceEntry, Site, build_model, pair, propose_all, run_checks, template)
 
 A13 = 0.0107      # 13C natural abundance in the registry
@@ -215,7 +215,7 @@ if __name__ == "__main__":
 class Stage2Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from zulf_core.hypothesis import propose_hypotheses
+        from zulf_hypothesis import propose_hypotheses
         truth = {"J(Ca,Ha)": 146.3, "J(Cb,Hb)": 129.6, "J(Ca,Hb)": -4.2, "J(Cb,Ha)": -5.1, "J(Ha,Hb)": 7.1}
         model = build_model(template("CH-CH3").with_couplings(truth))
         cls.obs = observe([c.system for c in model.interpretation.components], [1.0, 1.0], rate=1.0, noise=2.0,
@@ -233,7 +233,7 @@ class Stage2Tests(unittest.TestCase):
         self.assertTrue(any("2 x 13CH3" in p.topology for p in ps.proposals))      # isopropyl alternative kept
 
     def test_hints_steer_but_do_not_decide(self):
-        from zulf_core.hypothesis import ProposerHints
+        from zulf_hypothesis import ProposerHints
         from zulf_core.spinsystem import Component, Interpretation
 
         good = build_model(template("CH-CH3", one_bond={"Ca": 146.0, "Cb": 130.0})).interpretation
@@ -256,8 +256,8 @@ class Stage2Tests(unittest.TestCase):
         self.assertEqual(len(ps.hinted_interpretations), 3)
 
     def test_trees_and_combined_models(self):
-        from zulf_core.hypothesis.enumerate import _trees
-        from zulf_core.hypothesis import combine_models
+        from zulf_hypothesis.enumerate import _trees
+        from zulf_hypothesis import combine_models
         self.assertEqual([len(_trees(n)) for n in (1, 2, 3, 4)], [1, 1, 3, 16])
         a = build_model(template("CH-CH3"))
         b = build_model(template("CH(CH3)2"))

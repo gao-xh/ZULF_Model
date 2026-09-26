@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence
 
-from ..spinsystem import Interpretation
+from zulf_core.spinsystem import Interpretation
 from .builder import HypothesisModel, build_model, combine_models, min_ratio_for_snr
 from .enumerate import FragmentProposal, enumerate_fragments
 from .groups import GroupCandidate, group_candidates

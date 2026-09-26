@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 
-from ..spinsystem import Interpretation
+from zulf_core.spinsystem import Interpretation
 from .groups import GroupCandidate, PATTERNS
 from .inventory import Inventory
 

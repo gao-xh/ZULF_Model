@@ -460,6 +460,21 @@ magnetically equivalent label sets (both methyl carbons of isopropyl) keep
 separate spins with tied symmetric couplings. Site-specific enrichment that
 breaks a fragment symmetry is rejected.
 
+## D37. zulf_hypothesis as a separate package (2026-09-26)
+
+User: keep the hypothesis system apart from the refiner and the models. The
+code of D34-D36 moved from `zulf_core.hypothesis` to the top-level package
+`zulf_hypothesis`. It uses zulf_core only through public APIs (`refine`,
+`RefineSettings`, `MixtureForward` for predictions, spectra, physics) and
+never changes them; the neural-model adapter moved from
+`zulf_model.evaluation` to `zulf_hypothesis.adapters.model_hints`, which
+imports zulf_model lazily. `tests/test_spinsystem.py` checks the boundaries:
+zulf_core imports neither zulf_model nor zulf_hypothesis; zulf_hypothesis
+imports neither torch nor zulf_model; zulf_model does not import
+zulf_hypothesis. The solver's `amplitude_map` (D36) stays in zulf_core as a
+general linear amplitude constraint with its own tests. Earlier entries
+that name `zulf_core.hypothesis` refer to this package.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

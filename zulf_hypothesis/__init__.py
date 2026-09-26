@@ -1,4 +1,8 @@
-"""Programmatic chemical hypotheses for ZULF spectra.
+"""zulf_hypothesis: programmatic chemical hypotheses for ZULF spectra.
+
+A separate package: it uses zulf_core (physics, the public solver API
+`refine` / `RefineSettings`, spectra) and never changes it; neural models
+(zulf_model) enter only through `adapters.model_hints` as hint providers.
 
 Layers (each a registry or interface meant for extension):
 

@@ -337,3 +337,8 @@ skills under `skills/`; this file keeps the history.
   exact label-set probability of a `Labeling`; minor sets follow a parent
   (amplitude map, tied rate); SNR gate 2 / peak SNR. On b683220d the
   13C-13C set is omitted (0.0108 < 0.0503); rankings unchanged.
+
+### zulf_hypothesis split out (D37)
+- User: do not mix the hypothesis system with the refiner and the models.
+  Moved to the top-level package `zulf_hypothesis` (adapters for neural
+  hints inside it, lazy); boundary tests added; real-data rankings unchanged.

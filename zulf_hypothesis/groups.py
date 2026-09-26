@@ -17,8 +17,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..physics import compute_transitions
-from ..spinsystem import SpinSystem
+from zulf_core.physics import compute_transitions
+from zulf_core.spinsystem import SpinSystem
 from .inventory import Inventory
 
 

@@ -21,7 +21,7 @@ checked against held-out acquisitions.
                          online inference line (experimental spectrum)
 ```
 
-## Two packages (D29)
+## Three packages (D29, D37)
 
 - `zulf_core` (NumPy, SciPy): nuclei, spin systems, zero-field physics, the
   acquisition operator and exact rendering, grids and phasing, the refinement
@@ -31,6 +31,11 @@ checked against held-out acquisitions.
 - `zulf_model` (adds PyTorch): problem spec, generator, codec, training-data
   synthesis (perturbations, sample pipeline, features), models, training,
   fine-tuning, proposers and benchmarks, the agent tool layer and CLI.
+- `zulf_hypothesis` (NumPy, SciPy): chemical-hypothesis generation, checks
+  and the search loop. It calls the solver only through its public API and
+  keeps neural models at arm's length: they are optional hint providers
+  (`zulf_hypothesis.adapters.model_hints`, imported lazily). Neither
+  `zulf_core` nor `zulf_model` imports it.
 
 `zulf_model` imports `zulf_core`; `zulf_core` never imports `zulf_model` or
 torch (`tests/test_spinsystem.py` checks this), so training data and
@@ -53,7 +58,6 @@ docs (`physics.transitions`, `render.phasing`, `solver.search`) refer to
 | `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline over equivalence groups, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
 | `zulf_model.training` | Torch datasets over generator or shards, pre-rendered feature shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
 | `zulf_core.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model with an exact analytic Jacobian, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
-| `zulf_core.hypothesis` | Programmatic chemical hypotheses (D34, D35): band inventory, X-Hn group candidates, fragment enumeration, hint providers (neural models as hints), label-based fragments with symmetry, templates, fragment -> natural-abundance isotopologue set with automatic ties, abundance ratios and omission reasons, physical checks on refined results, one-step extension moves, reference couplings of confirmed compounds. | spinsystem, physics, solver |
 | `zulf_core.evaluation` | Matching of interpretations (per-block sign freedom), local identifiability, solver basin measurement. | solver |
 | `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search) and the benchmark runner. | zulf_core, generator |
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
@@ -62,6 +66,7 @@ docs (`physics.transitions`, `render.phasing`, `solver.search`) refer to
 | `zulf_model.agent` | Tool registry shared by the JSON CLI, the MCP server and exported Anthropic/OpenAI tool schemas; background jobs. | all |
 | `zulf_model.device`, `zulf_core.timing` | CUDA/MPS/CPU policy; built-in timers. | - |
 | `zulf_model.cli` | Command line entry points (thin layer over the agent registry). | agent |
+| `zulf_hypothesis` | Separate package (D34-D37): programmatic chemical hypotheses. Band inventory, X-Hn group candidates, fragment enumeration, labelling schemes, fragment -> isotopologue set with automatic ties, abundance weights and omission reasons, checks, extension moves, reference couplings, hint providers, and the budgeted search loop. Uses zulf_core only through public APIs (`refine`, `RefineSettings`, spectra, physics); neural models enter only through `zulf_hypothesis.adapters.model_hints`. | zulf_core (zulf_model optional, adapters only) |
 
 Only `models`, `training`, `finetune` and parts of `evaluation` import torch.
 Physics, rendering, generation and refinement run on NumPy/SciPy alone.
@@ -108,16 +113,16 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Evolution field | `physics.protocol.Protocol.field_ut` | Residual static field during evolution; exact in the sector decomposition. |
 | Input phasing | `spec.GridSpec.phasing`, `render.phasing` | "none" (random phase, real+imag) or "corrected" (manual-style 0/1-order phasing, real part). |
 | Training data source | `training.prerender.PrerenderedDataset` | Live rendering (default) or pre-rendered shards; any iterable of items in the `make_item` format. |
-| Fragment templates | `hypothesis.fragments.register_template` | New structural motifs (CH2-CH3, aromatic rings, N-methyl ...) as label-based fragments with symmetry. |
-| Labelled isotopes | `hypothesis.fragment.DEFAULT_LABEL_ISOTOPES`, `Site.isotopes` | Further spin-1/2 labels (19F, 31P, 29Si) or per-site choices. |
-| Hypothesis checks | `hypothesis.checks.register_check` | New physical red flags on refined results (read summaries, return findings). |
-| Extension moves | `hypothesis.moves.ExtensionMove`, `register_move` | New one-step model extensions triggered by findings (add 15N site, change equivalence, add remote proton). |
-| Reference couplings | `hypothesis.knowledge.KnowledgeBase` | More confirmed samples (`add`, `save`), other files (`load`), or a database/literature source (subclass, override `entries_for`); `source_kind` keeps literature apart from measured values. |
-| Labelling schemes | `hypothesis.labeling.Labeling` | Natural abundance (default), uniform or site-specific enrichment; other isotope sources (e.g. 2H exchange) as new schemes. |
+| Fragment templates | `zulf_hypothesis.fragments.register_template` | New structural motifs (CH2-CH3, aromatic rings, N-methyl ...) as label-based fragments with symmetry. |
+| Labelled isotopes | `zulf_hypothesis.fragment.DEFAULT_LABEL_ISOTOPES`, `Site.isotopes` | Further spin-1/2 labels (19F, 31P, 29Si) or per-site choices. |
+| Hypothesis checks | `zulf_hypothesis.checks.register_check` | New physical red flags on refined results (read summaries, return findings). |
+| Extension moves | `zulf_hypothesis.moves.ExtensionMove`, `register_move` | New one-step model extensions triggered by findings (add 15N site, change equivalence, add remote proton). |
+| Reference couplings | `zulf_hypothesis.knowledge.KnowledgeBase` | More confirmed samples (`add`, `save`), other files (`load`), or a database/literature source (subclass, override `entries_for`); `source_kind` keeps literature apart from measured values. |
+| Labelling schemes | `zulf_hypothesis.labeling.Labeling` | Natural abundance (default), uniform or site-specific enrichment; other isotope sources (e.g. 2H exchange) as new schemes. |
 | Amplitude constraints | `solver.RefineSettings.amplitude_map` | Any linear map from free amplitudes to component gains (fixed abundance ratios, minor isotopologues following a parent, per-part blocks). |
-| Hint providers | `hypothesis.hints.HintProvider`, `ProposerHints`, `register_hint_provider`; `zulf_model.evaluation.model_hints` | Neural checkpoints, other tools or a person as search hints (group, interpretation or note hints); they steer the search and the insight report, never the ranking. |
-| Group patterns | `hypothesis.groups.register_pattern` | New X-Hn groups or nuclei (patterns computed by `compute_transitions`), with a search prior. |
-| Coupling priors | `hypothesis.enumerate.CouplingPrior`, `register_prior` | Starting couplings by bond distance for enumerated fragments (generic sp3 now; topology- or database-based later). |
+| Hint providers | `zulf_hypothesis.hints.HintProvider`, `ProposerHints`, `register_hint_provider`; `zulf_hypothesis.adapters.model_hints` | Neural checkpoints, other tools or a person as search hints (group, interpretation or note hints); they steer the search and the insight report, never the ranking. |
+| Group patterns | `zulf_hypothesis.groups.register_pattern` | New X-Hn groups or nuclei (patterns computed by `compute_transitions`), with a search prior. |
+| Coupling priors | `zulf_hypothesis.enumerate.CouplingPrior`, `register_prior` | Starting couplings by bond distance for enumerated fragments (generic sp3 now; topology- or database-based later). |
 
 ## Data flow for one training sample
 

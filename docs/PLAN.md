@@ -121,7 +121,7 @@ fixed, so later phases are experiments rather than restructuring.
       ratios (D33; 2a16dfe). Measured on e3d282da / b683220d, see
       docs/ANALYSIS_LOG.md.
 
-## Phase 3b: programmatic hypotheses (D34)
+## Phase 3b: programmatic hypotheses (D34-D37, package `zulf_hypothesis`)
 
 - [x] Stage 1: fragments with symmetry, isotopologue builder with automatic
       ties/ratios/omissions, checks registry, extension-move interface with
