@@ -33,7 +33,7 @@ class RefineSettings:
     starts: int = 4
     start_spread_hz: float = 1.0
     max_nfev: int = 200
-    max_evaluations: int = 3000
+    max_evaluations: int = 6000     # shared by the direct and continuation paths (D28)
     max_seconds: float = 120.0
     seed: int = 0
     gain_model: str = "shared_phase"
