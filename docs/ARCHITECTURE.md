@@ -122,6 +122,8 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Amplitude constraints | `solver.RefineSettings.amplitude_map` | Any linear map from free amplitudes to component gains (fixed abundance ratios, minor isotopologues following a parent, per-part blocks). |
 | Hint providers | `zulf_hypothesis.hints.HintProvider`, `ProposerHints`, `register_hint_provider`; `zulf_hypothesis.adapters.model_hints` | Neural checkpoints, other tools or a person as search hints (group, interpretation or note hints); they steer the search and the insight report, never the ranking. |
 | Group patterns | `zulf_hypothesis.groups.register_pattern` | New X-Hn groups or nuclei (patterns computed by `compute_transitions`), with a search prior. |
+| Motif library | `zulf_hypothesis.motifs.register_motif`, `Motif`, `OneBondSite` | New structural motifs (whole fragments with symmetry and 1J sites); each confirmed structure type should become one. |
+| Recognition benchmark | `zulf_hypothesis.benchmark.register_case`, `run_benchmark` | New truth cases with their own couplings; run after every change to stage 2. |
 | Scoring | `zulf_hypothesis.scoring.yardstick`, `criterion` | Other common yardsticks or criteria (AIC, cross-validated held-out residual). |
 | Search policy | `zulf_hypothesis.search.SearchSettings`, `search_hypotheses` | Budgets, variants, rounds, acceptance threshold, parallel workers; hinted interpretations as extra candidates. |
 | Coupling priors | `zulf_hypothesis.enumerate.CouplingPrior`, `register_prior` | Starting couplings by bond distance for enumerated fragments (generic sp3 now; topology- or database-based later). |

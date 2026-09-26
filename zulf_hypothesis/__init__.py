@@ -22,6 +22,8 @@ Layers (each a registry or interface meant for extension):
   (`HintProvider`, `ProposerHints`, `register_hint_provider`);
 * `enumerate` - band covers, topologies and equivalence -> fragments, with
   coupling priors (`register_prior`);
+* `motifs`    - motif library (`register_motif`) and the motif scan: coupled
+  spectra of whole motifs (rings, CH2 chains) with 1J from band positions;
 * `pipeline`  - `propose_hypotheses`: spectrum -> built, ranked hypotheses;
 * `scoring`   - one yardstick for all hypotheses (data cores, noise, BIC);
 * `search`    - `search_hypotheses`: refine (free / fixed variants, parallel),
@@ -38,13 +40,15 @@ from .hints import (HINT_PROVIDERS, Hint, HintProvider, ProposerHints, apply_hin
 from .inventory import Band, Inventory, Line, band_inventory
 from .knowledge import KnowledgeBase, ReferenceEntry
 from .labeling import Labeling
+from .motifs import MOTIFS, Motif, MotifProposal, OneBondSite, register_motif, scan_motifs
 from .pipeline import ProposalSet, propose_hypotheses
 from .scoring import Yardstick, yardstick
 from .search import Evaluated, SearchResult, SearchSettings, search_hypotheses
 from .moves import MOVES, AddCoupledProton, ExtensionMove, propose_all, register_move
 
 __all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_snr", "model_from_interpretation",
-           "Yardstick", "yardstick", "Evaluated", "SearchResult", "SearchSettings", "search_hypotheses", "PRIORS", "CouplingPrior", "FragmentProposal",
+           "Yardstick", "yardstick", "MOTIFS", "Motif", "MotifProposal", "OneBondSite", "register_motif",
+           "scan_motifs", "Evaluated", "SearchResult", "SearchSettings", "search_hypotheses", "PRIORS", "CouplingPrior", "FragmentProposal",
            "GenericSp3Prior", "enumerate_fragments", "register_prior", "PATTERNS", "GroupCandidate", "GroupPattern",
            "group_candidates", "register_pattern", "HINT_PROVIDERS", "Hint", "HintProvider", "ProposerHints",
            "apply_hints", "group_hints_from_interpretation", "insight_report", "register_hint_provider", "Band",

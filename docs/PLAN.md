@@ -141,12 +141,11 @@ fixed, so later phases are experiments rather than restructuring.
       fixed variants, common yardstick and BIC, checks, triggered extension
       moves with acceptance by BIC, knowledge matching, ranked table and
       log).
-- [ ] Motif library scan in stage 2: coupled spectra of registered motifs
-      (ethyl, propyl, CH2-CH2, pyridine and benzene rings, carbonyl-bridged
-      methyls), 1J from band positions, quick fits; fixes the failures in
-      the recognition tests (ANALYSIS_LOG, runs/bench).
-- [ ] Fixed synthetic recognition benchmark (the structures above plus new
-      cases), reported with every stage-2 change.
+- [x] Motif library scan (D39) and recognition benchmark
+      (`python -m zulf_hypothesis.benchmark`): motif rank 1 in 10 / 12 cases,
+      including slow-exchange amines.
+- [ ] More motifs as structures are confirmed (CH2-CH, rings with
+      substituents, carbonyl-bridged groups); a stage-3 benchmark column.
 - [ ] More moves: add 15N site, change equivalence (CH3 <-> CH(CH3)2), add a
       remote proton group, split a group; more templates as cases arrive.
 - [ ] Validation: replay the four blind datasets end to end; synthetic

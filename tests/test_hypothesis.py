@@ -310,3 +310,25 @@ class SearchTests(unittest.TestCase):
         chi2 = stick.chi2(obs.values[sel], clean.values[clean.selected])
         self.assertLess(0.2 * stick.n, chi2)
         self.assertLess(chi2, 5.0 * stick.n)
+
+
+class MotifTests(unittest.TestCase):
+    def test_every_motif_builds_with_its_symmetry(self):
+        from zulf_hypothesis import MOTIFS
+        for name, motif in MOTIFS.items():
+            model = build_model(motif.fragment({s.site: sum(s.j_range_hz) / 2 for s in motif.one_bond}))
+            self.assertTrue(model.component_labels, msg=name)
+        amine = build_model(MOTIFS["CH3-NH3+"].fragment({"C1": 145.0, "N1": 75.0}))
+        self.assertEqual(amine.component_labels, ["13C@C1", "15N@N1"])
+        n_system = amine.interpretation.components[1].system
+        self.assertLess(n_system.couplings_hz[0, 1:].min(), -70.0)          # 1J(15N,H) negative
+        benzene = build_model(MOTIFS["benzene ring"].fragment({"A2": 158.0}))
+        self.assertEqual(len(benzene.component_labels), 1)                 # six equivalent carbons
+        self.assertEqual(sum(len(g) for g in benzene.interpretation.components[0].system.groups), 7)
+
+    def test_benchmark_cases_found_by_the_motif_scan(self):
+        from zulf_hypothesis.benchmark import run_benchmark
+        rows = {r["case"]: r for r in run_benchmark(["ethyl", "CH2-CH2", "isopropyl", "CH3-15NH3"], verbose=False)}
+        for case, row in rows.items():
+            self.assertEqual(row["motif_rank"], 1, msg=f"{case}: {row}")
+        self.assertIsNone(rows["ethyl"]["group_rank"])                      # the group path alone misses it

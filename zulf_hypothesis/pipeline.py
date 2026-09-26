@@ -32,6 +32,17 @@ class ProposalSet:
     hinted_interpretations: List[Interpretation] = field(default_factory=list)
     failed: List[dict] = field(default_factory=list)
     build_options: dict = field(default_factory=dict)     # how the models were built (reused for extensions)
+    motif_proposals: list = field(default_factory=list)   # motif scan (motifs.py), best first
+
+    @property
+    def motif_models(self) -> List[HypothesisModel]:
+        return [p.model for p in self.motif_proposals]
+
+    def motif_table(self) -> List[dict]:
+        best = self.motif_proposals[0].score if self.motif_proposals else 0.0
+        return [{"rank": i + 1, "motif": p.motif, "one_bond": {k: round(v, 1) for k, v in p.one_bond.items()},
+                 "delta": round(p.score - best, 1), "components": p.model.component_labels}
+                for i, p in enumerate(self.motif_proposals)]
 
     def table(self) -> List[dict]:
         return [{"rank": i + 1, "proposal": p.describe(), "score": round(p.score, 3), "sources": p.sources,
@@ -44,11 +55,12 @@ def propose_hypotheses(observed, instrument_hz: Sequence[float] = (), providers:
                        hint_weight: float = 0.1, top_per_band: int = 3, max_groups: int = 4,
                        prior: str = "generic_sp3", max_proposals: int = 20, threshold: float = 4.0,
                        include_exchangeable: bool = False, labeling: Optional[Labeling] = None,
-                       min_ratio: Optional[float] = None) -> ProposalSet:
+                       min_ratio: Optional[float] = None, motifs=True) -> ProposalSet:
     """`labeling`: natural abundance with up to two labels per isotopologue (default) or an enriched scheme
     (`Labeling.enriched`). Minor isotopologues are built at their abundance weight and kept only when their
     lines could reach 2 sigma (`min_ratio` defaults to 2 / peak SNR of the strongest band); omitted ones are
-    listed with the reason."""
+    listed with the reason. `motifs`: True scans every registered motif (motifs.py), a list scans those,
+    False skips the scan."""
     labeling = labeling or Labeling.natural(max_labels=2)
     inventory = band_inventory(observed, instrument_hz, threshold=threshold)
     candidates = group_candidates(inventory)
@@ -77,4 +89,11 @@ def propose_hypotheses(observed, instrument_hz: Sequence[float] = (), providers:
     interps = [h.payload["interpretation"] for h in hints if h.kind == "interpretation"]
     options = {"include_exchangeable": include_exchangeable, "ranges": inventory.ranges, "labeling": labeling,
                "min_ratio": min_ratio}
-    return ProposalSet(inventory, candidates, hints, insight, kept, built, interps, failed, options)
+    motif_props = []
+    if motifs and inventory.bands:
+        from .motifs import scan_motifs
+        from .scoring import yardstick
+        names = None if motifs is True else list(motifs)
+        motif_props = scan_motifs(observed, inventory, yardstick(observed), names, labeling=labeling,
+                                  min_ratio=min_ratio)
+    return ProposalSet(inventory, candidates, hints, insight, kept, built, interps, failed, options, motif_props)

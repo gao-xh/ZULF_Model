@@ -384,3 +384,11 @@ skills under `skills/`; this file keeps the history.
 - Next: motif library scan (coupled spectra of registered motifs, 1J from
   band positions, quick fits) so rings and coupled CH2 enter the proposals;
   a fixed synthetic benchmark of these structures.
+
+### Motif scan and recognition benchmark (D39)
+- Registered motifs incl. slow-exchange amines (user: add amines). Benchmark
+  (SNR 60, natural abundance): motif rank 1 in 10 / 12 (CH3-15NH2 second,
+  CH3-C(O)-CH3 third); group path rank 1 in 2 / 12.
+- Real 7ad4aafb: the motif scan alone ranks the pyridine ring first (generic
+  aromatic couplings, 1J 167 / 167 / 161 from band positions), 3.9e4 BIC ahead
+  of the benzene ring.

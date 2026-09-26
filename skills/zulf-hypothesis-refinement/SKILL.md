@@ -31,6 +31,11 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   levels, and ask the user for them. Doubly labelled isotopologues are
   weighted by abundance, tied to a parent (no free amplitude or rate) and
   omitted when their lines cannot reach 2 sigma; read `model.omitted`.
+- `propose_hypotheses` also runs the motif scan (whole motifs such as
+  ethyl, CH2-CH2, benzene and pyridine rings, with generic couplings and 1J
+  from band positions); read `motif_table()` next to `table()`. When a new
+  structure type is confirmed, register it as a motif and as a benchmark
+  case, and run `python -m zulf_hypothesis.benchmark`.
 - Then `search_hypotheses(observed, proposals, SearchSettings(...))`: it
   refines the top proposals in free and fixed-abundance variants (parallel
   workers), scores all on one yardstick (data cores, BIC), runs the checks,

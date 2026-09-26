@@ -496,6 +496,32 @@ fragment (sub-fragments allowed) and translating the couplings. On a
 synthetic CH(XH)-CH3 spectrum the loop proposes CH3-CH, extends it by the
 coupled proton (Delta BIC about -22000) and ranks the extension first.
 
+## D39. Motif library scan and recognition benchmark (2026-09-26)
+
+Stage-2 group candidates assume isolated X-Hn patterns; coupled CH2 groups
+and aromatic rings break that (recognition tests: ethyl, propane-like,
+CH2-CH2, benzene and pyridine were missed). `zulf_hypothesis.motifs` adds
+whole-motif proposals: registered motifs (methyl, CH-CH3, ethyl, isopropyl,
+CH2(CH3)2, CH2-CH2, CH3-C-CH3, benzene ring, pyridine ring; amines with slow
+N-H exchange: CH3-NH3+, CH3-NH2, CH3CH2-NH3+, (CH3)2CH-NH3+, (CH3)2CH-NH2;
+fast-exchange amines are covered by the carbon motifs because the N-H protons
+decouple) are built with
+generic couplings (sp3, aromatic, or amines with slow N-H exchange; not
+compound-specific), their 1J values
+taken from band positions through the X-Hn line ratios; every combination is
+evaluated with a closed-form linear solve (free complex amplitude per
+isotopologue, background) on the common yardstick and the best per motif
+kept. The pipeline lists motif proposals separately (`motif_proposals`);
+the search refines the top motifs next to the group proposals.
+`zulf_hypothesis.benchmark` simulates registered truth cases with their own
+couplings (natural abundance, SNR 60) and reports the rank of the first
+proposal with the same topology: the motif scan ranks the truth first in 10
+of 12 cases (methyl, CH-CH3, isopropyl, ethyl, CH2(CH3)2, CH2-CH2, benzene,
+pyridine, CH3-15NH3+, (CH3)2CH-NH3+); CH3-15NH2 is second behind an
+isolated methyl (weak 15N line against the BIC penalty) and CH3-C(O)-CH3
+third (practically identical to an isolated methyl). The group path alone
+ranks the truth first in 2 of 12.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

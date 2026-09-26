@@ -43,7 +43,8 @@ def default_base() -> RefineSettings:
 class SearchSettings:
     base: RefineSettings = field(default_factory=default_base)
     variants: Tuple[str, ...] = ("free", "fixed")
-    top_models: int = 4               # stage-2 proposals refined in round 0
+    top_models: int = 4               # stage-2 group proposals refined in round 0
+    top_motifs: int = 3               # motif-scan proposals refined in round 0
     include_hinted: int = 0           # hinted interpretations refined in round 0 (free variant only)
     rounds: int = 1                   # extension rounds
     extend_top: int = 2               # hypotheses extended per round
@@ -189,8 +190,11 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     runner = _Runner(observed, settings, stick)
     log: List[dict] = [{"step": "yardstick", "points": int(stick.mask.sum()), "n": stick.n, "sigma": stick.sigma}]
 
+    motif_models = list(getattr(proposals, "motif_models", []))[:settings.top_motifs]
     jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models) for v in settings.variants
             if v == "free" or _fixed_differs(m)]
+    jobs += [(m, v, f"motif {i + 1}", None) for i, m in enumerate(motif_models) for v in settings.variants
+             if v == "free" or _fixed_differs(m)]
     jobs += [(model_from_interpretation(interp, f"hint {i + 1}"), "free", "hint", None)
              for i, interp in enumerate(hinted)]
     evaluated = runner.run(jobs, log)
