@@ -268,3 +268,9 @@ skills under `skills/`; this file keeps the history.
   129.2 vs 130.3, 2J(Cb,Ha) -4.1 vs -6.6, 3J(HH) 6.5 vs 7.0 Hz. No 72-76 Hz
   feature: a 15NH3+ in slow exchange (for example alanine at low pH) would
   show one; points to a fragment without slowly exchanging N-H.
+- User: test the hypotheses. Running against H7 (same data, settings,
+  weighting): H8 = H7 plus one slowly exchanging proton on X (CH(XH)-CH3,
+  e.g. lactic-acid OH), ISO = isopropyl CH(CH3)2 (natural ratio 1 : 2);
+  each free and with natural ratios plus one shared rate.
+  Only two protonated-carbon bands are present, so compounds with a third
+  protonated carbon (ethyl, aldehyde) are excluded before fitting.
