@@ -34,18 +34,26 @@ class CouplingPrior(ABC):
     def homonuclear(self, bonds: int) -> Optional[float]:
         """Proton-proton coupling across `bonds` bonds (3 = vicinal)."""
 
+    def heavy(self, nucleus_a: str, nucleus_b: str, bonds: int) -> Optional[float]:
+        """Coupling between two labelled heavy nuclei (used only for multiply labelled isotopologues)."""
+        return None
+
 
 class GenericSp3Prior(CouplingPrior):
     """Generic sp3 starting values; None leaves a coupling unspecified (0 Hz, fixed)."""
     name = "generic_sp3"
     HETERO = {("13C", 2): -4.5, ("13C", 3): 4.5, ("15N", 2): -1.0, ("15N", 3): 1.0}
     HOMO = {3: 7.0}
+    HEAVY = {("13C", "13C", 1): 35.0, ("13C", "15N", 1): -7.0}
 
     def heteronuclear(self, nucleus: str, bonds: int) -> Optional[float]:
         return self.HETERO.get((nucleus, bonds))
 
     def homonuclear(self, bonds: int) -> Optional[float]:
         return self.HOMO.get(bonds)
+
+    def heavy(self, nucleus_a: str, nucleus_b: str, bonds: int) -> Optional[float]:
+        return self.HEAVY.get(tuple(sorted((nucleus_a, nucleus_b))) + (bonds,))
 
 
 PRIORS: Dict[str, CouplingPrior] = {}
@@ -187,6 +195,9 @@ def build_fragment(groups: Sequence[GroupCandidate], edges: Sequence[Tuple[int, 
                     value = prior.homonuclear(d + 2)
                     if value is not None:
                         couplings[pair(protons[i].label, protons[k].label)] = value
+                    value = prior.heavy(group(i).nucleus, group(k).nucleus, d)
+                    if value is not None:
+                        couplings[pair(sites[i].label, sites[k].label)] = value
     symmetry = ()
     if double is not None:
         c = nodes[-1]

@@ -5,8 +5,10 @@ from pathlib import Path
 import numpy as np
 
 from zulf_core.physics import compute_transitions
-from zulf_core.hypothesis import (AddCoupledProton, Finding, Fragment, KnowledgeBase, ProtonGroup, ReferenceEntry,
-                                  Site, build_model, pair, propose_all, run_checks, template)
+from zulf_core.hypothesis import (AddCoupledProton, Finding, Fragment, KnowledgeBase, Labeling, ProtonGroup,
+                                  ReferenceEntry, Site, build_model, pair, propose_all, run_checks, template)
+
+A13 = 0.0107      # 13C natural abundance in the registry
 from zulf_core.solver import RefineSettings, refine
 from zulf_core.spinsystem import SpinSystem
 
@@ -61,7 +63,8 @@ class BuilderTests(unittest.TestCase):
         f = f.with_couplings({("X", "Ha"): -1.0, ("X", "Hb"): 0.5})
         m = build_model(f)
         self.assertEqual(m.component_labels, ["13C@Ca", "13C@Cb", "15N@X"])
-        self.assertAlmostEqual(m.ratios[2], 0.00364 / 0.0107, places=6)
+        a_n = 0.00364     # exact label-set probabilities: the other sites unlabelled
+        self.assertAlmostEqual(m.ratios[2], a_n * (1 - A13) / (A13 * (1 - a_n)), places=10)
         self.assertEqual([o[0] for o in m.omitted], ["13C@Cr"])
         # The 15N lines lie at a few Hz: outside the fitted ranges, so the component is omitted with a reason.
         ranged = build_model(f, ranges=RANGES)
@@ -94,6 +97,64 @@ class BuilderTests(unittest.TestCase):
         f = template("CH(CH3)2")
         g = Fragment.from_dict(f.to_dict())
         self.assertEqual(build_model(g).summary()["couplings"], build_model(f).summary()["couplings"])
+
+
+class MinorIsotopologueTests(unittest.TestCase):
+    def test_double_labels_follow_their_parent(self):
+        f = template("CH-CH3", one_bond={"Ca": 146.0, "Cb": 130.0})
+        m = build_model(f, max_labels=2)
+        self.assertEqual(m.component_labels, ["13C@Ca", "13C@Cb", "13C@Ca+13C@Cb"])
+        self.assertAlmostEqual(m.ratios[2], A13 / (1 - A13), places=10)   # both labelled vs one labelled
+        self.assertEqual(m.parents, [None, None, 0])
+        # Independent hand construction of the 13C-13C isotopologue.
+        hand = grouped(["13C", "13C", "1H", "1H"], [1, 1, 1, 3],
+                       [[0, 35.0, 146.0, -4.5], [35.0, 0, -4.5, 130.0], [146.0, -4.5, 0, 7.0], [-4.5, 130.0, 7.0, 0]])
+        self.assertTrue(same_lines(m.interpretation.components[2].system, hand))
+        # Free amplitudes: the minor set rides on its parent; no free amplitude or rate of its own.
+        self.assertEqual(m.amplitude_map(False), ((1.0, 0.0), (0.0, 1.0), (A13 / (1 - A13), 0.0)))
+        self.assertIn(("c0.log_rate0", "c2.log_rate0"), m.ties())
+        # Gate: below min_ratio it is omitted with the reason.
+        gated = build_model(f, max_labels=2, min_ratio=0.05)
+        self.assertEqual(gated.component_labels, ["13C@Ca", "13C@Cb"])
+        self.assertIn("below min_ratio", gated.omitted[0][1])
+
+    def test_magnetically_inequivalent_pair_and_enrichment(self):
+        m = build_model(template("CH(CH3)2"), max_labels=2)
+        self.assertIn("13C@Cb1,Cb2 [not magnetically equivalent]", m.component_labels)
+        pair_system = m.interpretation.components[m.component_labels.index(
+            "13C@Cb1,Cb2 [not magnetically equivalent]")].system
+        self.assertEqual([len(g) for g in pair_system.groups], [1, 1, 1, 3, 3])
+        # Uniform enrichment at 99 %: the fully labelled molecule is the primary; partly labelled ones are minor.
+        e = build_model(template("CH(CH3)2"), labeling=Labeling.enriched({"13C": 0.99}))
+        full = [l for l in e.component_labels if l.count("13C") == 2 and "Ca" in l and "Cb1,Cb2" in l]
+        self.assertEqual(len(full), 1)
+        i = e.component_labels.index(full[0])
+        self.assertIsNone(e.parents[i])
+        self.assertEqual([p is None for p in e.parents].count(True), 1)
+        self.assertTrue(all(e.ratios[j] < 0.05 * e.ratios[i] for j in range(len(e.ratios)) if j != i))
+        # Site-specific enrichment ([Ca]-13C 99 %, natural elsewhere).
+        s = build_model(template("CH-CH3"), labeling=Labeling.enriched(sites={"Ca": {"13C": 0.99}}), max_labels=2)
+        self.assertEqual([p is None for p in s.parents], [True, False, False])
+        # Site-specific labels must respect symmetry.
+        with self.assertRaises(ValueError):
+            build_model(template("CH(CH3)2"), labeling=Labeling.enriched(sites={"Cb1": {"13C": 0.99}}))
+
+    def test_refinement_with_enriched_minor_isotopologue(self):
+        truth = {"J(Ca,Ha)": 146.3, "J(Cb,Hb)": 129.6, "J(Ca,Hb)": -4.2, "J(Cb,Ha)": -5.1, "J(Ha,Hb)": 7.1,
+                 "J(Ca,Cb)": 34.2}
+        labeling = Labeling.enriched({"13C": 0.3})
+        true_model = build_model(template("CH-CH3").with_couplings(truth), labeling=labeling)
+        systems = [c.system for c in true_model.interpretation.components]
+        obs = observe(systems, list(true_model.ratios), ranges=[(20.0, 60.0)] + RANGES)
+        start = build_model(template("CH-CH3", one_bond={"Ca": 146.0, "Cb": 130.0}).with_couplings(
+            {("Ca", "Cb"): 35.0}), labeling=labeling)
+        res = refine(start.interpretation, obs, start.settings(RefineSettings(starts=1), shared_rate=True))
+        got = start.named_couplings(res.parameters)
+        for k, v in truth.items():
+            self.assertLess(abs(got[k] - v), 0.02, msg=k)
+        self.assertEqual(start.parents, [None, None, None])          # at 30 % every label set is a primary
+        g = np.abs(res.gains)
+        self.assertLess(abs(g[2] / g[0] - start.ratios[2] / start.ratios[0]), 0.05)
 
 
 class RefinementTests(unittest.TestCase):
@@ -205,5 +266,6 @@ class Stage2Tests(unittest.TestCase):
         self.assertIn(("c2.J1-2", "c3.J1-2", "c3.J1-3"), c.ties())
         self.assertIn(("c2.log_rate0", "c3.log_rate0"), c.ties(shared_rate=True))
         self.assertNotIn(("c0.log_rate0", "c1.log_rate0", "c2.log_rate0", "c3.log_rate0"), c.ties(shared_rate=True))
-        with self.assertRaises(ValueError):
-            c.settings(fixed_ratios=True)
+        # Fixed ratios hold within each part only: one free amplitude per part.
+        self.assertEqual(c.settings(fixed_ratios=True).amplitude_map,
+                         ((1.0, 0.0), (1.0, 0.0), (0.0, 1.0), (0.0, 2.0)))

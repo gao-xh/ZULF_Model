@@ -440,6 +440,26 @@ show none, and a per-source summary. On the two samples: the transformer
 checkpoints give no one-bond couplings; the set model gives 7 group hints
 per sample, 1 agreeing with the data (147.6 and 131.9 Hz) and 6 elsewhere.
 
+## D36. Minor isotopologues and labelling schemes (2026-09-26)
+
+Multiply labelled isotopologues (13C-13C, 13C-15N) are about 1 % of their
+parents at natural abundance. They are weighted by their abundance, not by a
+tuning factor: a `Labeling` (natural by default; `Labeling.enriched` for
+uniform or site-specific enrichment) gives exact label-set probabilities
+(labelled sites a, unlabelled sites 1 - a). Components below
+`primary_fraction` (0.05) of the strongest set are minor: they follow the
+primary component sharing most labelled sites through the solver's
+`amplitude_map` (components x free amplitudes; generalises the fixed ratios
+of D33 and also fixes ratios per part of a combined model) and a tied decay
+rate, so they add no free parameters and cannot absorb background. Sets
+whose relative amplitude is below `min_ratio` are omitted with the reason;
+the proposal pipeline sets it to 2 / peak SNR (lines must be able to reach
+2 sigma), which drops the 13C-13C set on the current data (0.0108 < 0.050)
+and keeps it at higher SNR or in enriched samples. Chemically but not
+magnetically equivalent label sets (both methyl carbons of isopropyl) keep
+separate spins with tied symmetric couplings. Site-specific enrichment that
+breaks a fragment symmetry is rejected.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

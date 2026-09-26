@@ -141,6 +141,13 @@ class ForwardJacobianTests(unittest.TestCase):
                                      amplitude_ratios=(1.0, 0.6))
             self.check(forward, param.vector() + 0.003)
 
+    def test_exact_with_an_amplitude_map(self):
+        param = Parameterization.from_interpretation(self.start)
+        forward = MixtureForward(param, self.obs, background=1, amplitude_map=((1.0, 0.0), (0.3, 1.0)))
+        self.check(forward, param.vector() + 0.003)
+        with self.assertRaises(ValueError):
+            MixtureForward(param, self.obs, amplitude_map=((1.0, 0.0), (0.3, 0.0)))
+
     def test_fixed_amplitude_ratios_in_refinement(self):
         start = Interpretation(tuple(Component(perturbed(t, 0.3)) for t in self.truths))
         res = refine(start, self.obs, RefineSettings(starts=1, amplitude_ratios=(1.0, 0.6)))

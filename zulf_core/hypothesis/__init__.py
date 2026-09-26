@@ -4,8 +4,10 @@ Layers (each a registry or interface meant for extension):
 
 * `fragment`  - label-based fragment descriptions with symmetry;
 * `fragments` - templates used so far (`register_template` adds more);
-* `builder`   - fragment -> natural-abundance isotopologue set with automatic
-  ties, abundance ratios and omission reasons (`HypothesisModel`);
+* `labeling`  - natural abundance (default) or enriched labelling schemes;
+* `builder`   - fragment -> isotopologue set with automatic ties, abundance
+  ratios, minor isotopologues tied to parents, omission reasons
+  (`HypothesisModel`);
 * `checks`    - physical checks on refined results (`register_check`);
 * `moves`     - one-step model extensions (`register_move`);
 * `knowledge` - measured / literature reference couplings (`KnowledgeBase`).
@@ -21,7 +23,7 @@ Layers (each a registry or interface meant for extension):
 Planned (see docs/PLAN.md): a budgeted search loop that refines, checks and
 extends the proposals.
 """
-from .builder import HypothesisModel, build_model, combine_models
+from .builder import HypothesisModel, build_model, combine_models, min_ratio_for_snr
 from .checks import CHECKS, CheckContext, Finding, register_check, run_checks
 from .fragment import DEFAULT_LABEL_ISOTOPES, Fragment, ProtonGroup, Site, pair
 from .fragments import TEMPLATES, register_template, template
@@ -31,14 +33,15 @@ from .hints import (HINT_PROVIDERS, Hint, HintProvider, ProposerHints, apply_hin
                     insight_report, register_hint_provider)
 from .inventory import Band, Inventory, Line, band_inventory
 from .knowledge import KnowledgeBase, ReferenceEntry
+from .labeling import Labeling
 from .pipeline import ProposalSet, propose_hypotheses
 from .moves import MOVES, AddCoupledProton, ExtensionMove, propose_all, register_move
 
-__all__ = ["HypothesisModel", "build_model", "combine_models", "PRIORS", "CouplingPrior", "FragmentProposal",
+__all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_snr", "PRIORS", "CouplingPrior", "FragmentProposal",
            "GenericSp3Prior", "enumerate_fragments", "register_prior", "PATTERNS", "GroupCandidate", "GroupPattern",
            "group_candidates", "register_pattern", "HINT_PROVIDERS", "Hint", "HintProvider", "ProposerHints",
            "apply_hints", "group_hints_from_interpretation", "insight_report", "register_hint_provider", "Band",
-           "Inventory", "Line", "band_inventory", "ProposalSet", "propose_hypotheses", "CHECKS", "CheckContext", "Finding", "register_check", "run_checks",
+           "Inventory", "Line", "band_inventory", "ProposalSet", "propose_hypotheses", "Labeling", "CHECKS", "CheckContext", "Finding", "register_check", "run_checks",
            "DEFAULT_LABEL_ISOTOPES", "Fragment", "ProtonGroup", "Site", "pair", "TEMPLATES", "register_template",
            "template", "KnowledgeBase", "ReferenceEntry", "MOVES", "AddCoupledProton", "ExtensionMove",
            "propose_all", "register_move"]

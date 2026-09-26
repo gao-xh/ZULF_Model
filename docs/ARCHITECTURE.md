@@ -113,6 +113,8 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Hypothesis checks | `hypothesis.checks.register_check` | New physical red flags on refined results (read summaries, return findings). |
 | Extension moves | `hypothesis.moves.ExtensionMove`, `register_move` | New one-step model extensions triggered by findings (add 15N site, change equivalence, add remote proton). |
 | Reference couplings | `hypothesis.knowledge.KnowledgeBase` | More confirmed samples (`add`, `save`), other files (`load`), or a database/literature source (subclass, override `entries_for`); `source_kind` keeps literature apart from measured values. |
+| Labelling schemes | `hypothesis.labeling.Labeling` | Natural abundance (default), uniform or site-specific enrichment; other isotope sources (e.g. 2H exchange) as new schemes. |
+| Amplitude constraints | `solver.RefineSettings.amplitude_map` | Any linear map from free amplitudes to component gains (fixed abundance ratios, minor isotopologues following a parent, per-part blocks). |
 | Hint providers | `hypothesis.hints.HintProvider`, `ProposerHints`, `register_hint_provider`; `zulf_model.evaluation.model_hints` | Neural checkpoints, other tools or a person as search hints (group, interpretation or note hints); they steer the search and the insight report, never the ranking. |
 | Group patterns | `hypothesis.groups.register_pattern` | New X-Hn groups or nuclei (patterns computed by `compute_transitions`), with a search prior. |
 | Coupling priors | `hypothesis.enumerate.CouplingPrior`, `register_prior` | Starting couplings by bond distance for enumerated fragments (generic sp3 now; topology- or database-based later). |

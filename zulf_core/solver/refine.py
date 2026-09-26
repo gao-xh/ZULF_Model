@@ -51,6 +51,7 @@ class RefineSettings:
     ties: tuple = ()      # ((leader, follower, ...), ...) parameter names; missing names are skipped
     fixed: tuple = ()     # parameter names held at their candidate values
     amplitude_ratios: Optional[tuple] = None   # fixed relative component amplitudes (e.g. isotopologue abundances)
+    amplitude_map: Optional[tuple] = None      # (components x free amplitudes) linear map; generalises the ratios
     policy: ParameterPolicy = field(default_factory=ParameterPolicy)
     search: Optional[dict] = None   # SearchSettings fields; when set, a global pattern search supplies the starts
     sign_variants: bool = False     # also refine candidates with large couplings sign-flipped (D25)
@@ -130,7 +131,8 @@ class RefinementResult:
 
 def _signal_kwargs(settings: "RefineSettings") -> dict:
     return {"signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
-            "signal_outside_weight": settings.signal_outside_weight, "amplitude_ratios": settings.amplitude_ratios}
+            "signal_outside_weight": settings.signal_outside_weight, "amplitude_ratios": settings.amplitude_ratios,
+            "amplitude_map": settings.amplitude_map}
 
 
 def _band_residuals(forward: MixtureForward, prediction: Prediction) -> List[float]:

@@ -330,3 +330,10 @@ skills under `skills/`; this file keeps the history.
   model gives 7 group hints per sample, 1 agreeing (147.6 / 131.9 Hz), 6 at
   frequencies with no data lines. Hint weight lowered to 0.1 after one weak
   agreeing hint nearly lifted CH-CH above CH3-CH on alanine.
+
+### Minor isotopologues and labelling schemes (D36)
+- User: doubly labelled molecules are much rarer, weight them down; do not
+  hard-code, natural abundance by default with an enrichment mode. Weight =
+  exact label-set probability of a `Labeling`; minor sets follow a parent
+  (amplitude map, tied rate); SNR gate 2 / peak SNR. On b683220d the
+  13C-13C set is omitted (0.0108 < 0.0503); rankings unchanged.

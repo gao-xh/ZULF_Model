@@ -101,22 +101,35 @@ class MixtureForward:
                  band_weighting: str = "equal", timer: Optional[Timer] = None, phase_grid: int = 72,
                  signal_threshold: float = 4.0, signal_taper_hz: float = 2.0, signal_outside_weight: float = 0.2,
                  signal_baseline_hz: float = 8.0, signal_extra_hz: Sequence[float] = (),
-                 amplitude_ratios: Optional[Sequence[float]] = None):
+                 amplitude_ratios: Optional[Sequence[float]] = None,
+                 amplitude_map: Optional[Sequence[Sequence[float]]] = None):
         if gain_model not in ("complex", "shared_phase"):
             raise ValueError("gain_model must be 'complex' or 'shared_phase'.")
         if band_weighting not in ("equal", "none", "signal"):
             raise ValueError("band_weighting must be 'equal', 'none' or 'signal'.")
         self.p = parameterization
         self.obs = observed
-        # Fixed amplitude ratios (for example natural isotopologue abundances): the components are merged into one
-        # column sum_c r_c col_c before the linear solve, so only one overall gain is free.
-        self.ratios = None
+        # Linear amplitude map M (components x free amplitudes): component gains are M @ g. The columns are merged
+        # as sum_c M[c, j] col_c before the linear solve, so each column of M costs one free (complex) amplitude.
+        # `amplitude_ratios` r is the one-column case M = r[:, None] (fixed isotopologue abundances); a map with one
+        # column per parent lets minor isotopologues follow their parent at a fixed abundance factor.
+        self.amp_map = None
+        n_layout = len(parameterization.layouts)
+        if amplitude_ratios is not None and amplitude_map is not None:
+            raise ValueError("Give amplitude_ratios or amplitude_map, not both.")
         if amplitude_ratios is not None:
             ratios = np.asarray(amplitude_ratios, float)
-            if ratios.shape != (len(parameterization.layouts),) or not np.all(np.isfinite(ratios)) or np.any(ratios < 0) \
+            if ratios.shape != (n_layout,) or not np.all(np.isfinite(ratios)) or np.any(ratios < 0) \
                     or not ratios.any():
                 raise ValueError("amplitude_ratios needs one nonnegative value per component, not all zero.")
-            self.ratios = ratios
+            self.amp_map = ratios[:, None]
+        elif amplitude_map is not None:
+            m = np.asarray(amplitude_map, float)
+            if m.ndim != 2 or m.shape[0] != n_layout or not np.all(np.isfinite(m)) or np.any(m < 0) \
+                    or np.any(~m.any(axis=0)):
+                raise ValueError("amplitude_map needs shape (components, free amplitudes), nonnegative, "
+                                 "no empty column.")
+            self.amp_map = m
         self.protocol = protocol
         self.gain_model = gain_model
         self.background_order = int(background) if not isinstance(background, bool) else (0 if background else -1)
@@ -339,8 +352,9 @@ class MixtureForward:
         values = values if values is not None else self.p.values(x)
         raw_cols = self.component_columns(values)
         cols = raw_cols
-        if self.ratios is not None and fixed_gains is None:
-            cols = [sum(r * col for r, col in zip(self.ratios, raw_cols))]
+        if self.amp_map is not None and fixed_gains is None:
+            cols = [sum(w * col for w, col in zip(self.amp_map[:, j], raw_cols) if w)
+                    for j in range(self.amp_map.shape[1])]
         n_comp = len(cols)
         bg_cols = self._background_columns() if self.background else np.zeros((len(self.f), 0), complex)
         nuisance = self.nuisance_columns(values)
@@ -363,8 +377,8 @@ class MixtureForward:
             gains, background = self._shared_phase(cols, bg_cols)
         model = sum(col @ np.array([g.real, g.imag]) for col, g in zip(cols, gains)) if n_comp else 0
         solved_gains = np.asarray(gains, complex)
-        if len(cols) != len(raw_cols):
-            gains = solved_gains[0] * self.ratios            # one overall gain times the fixed ratios
+        if self.amp_map is not None and fixed_gains is None:
+            gains = self.amp_map @ solved_gains               # component gains from the free amplitudes
         component_spectra = [col @ np.array([g.real, g.imag]) for col, g in zip(raw_cols, gains)]
         if len(background):
             model = model + bg_cols @ self._background_real(background, bg_cols.shape[1])
@@ -590,7 +604,7 @@ class MixtureForward:
         driven = {n: [n] + [f for f, leader in self.p.ties.items() if leader == n] for n in free}
         cols, gains, bg_cols = state["cols"], state["gains"], state["bg_cols"]
         n_comp, n_free, n_f = len(cols), len(free), len(self.f)
-        n_raw = len(self.ratios) if self.ratios is not None else n_comp
+        n_raw = self.amp_map.shape[0] if self.amp_map is not None else n_comp
         n_nuis = self.nuisance_columns(values).shape[1] if self.p.policy.nuisance else 0
         n_bg = bg_cols.shape[1] - n_nuis
         coef_bg = self._background_real(state["background"], bg_cols.shape[1]) if bg_cols.shape[1] else np.zeros(0)
@@ -615,8 +629,8 @@ class MixtureForward:
                         dpair[c, i] = pairs[c]
                 if nuis is not None:
                     dnuis[i] = nuis
-        if self.ratios is not None:
-            dpair = np.tensordot(self.ratios, dpair, axes=1)[None]      # merged column, like predict
+        if self.amp_map is not None:
+            dpair = np.tensordot(self.amp_map.T, dpair, axes=1)          # merged columns, like predict
         g_real = np.array([[g.real, g.imag] for g in gains]) if n_comp else np.zeros((0, 2))
         dmodel = sum(_mix(dpair[c], g_real[c]) for c in range(n_comp)).T if n_comp else np.zeros((n_f, n_free), complex)
         if n_nuis:

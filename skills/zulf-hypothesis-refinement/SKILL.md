@@ -26,6 +26,11 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   listed). Neural checkpoints join as hint providers
   (`zulf_model.evaluation.model_hints`); read `ProposalSet.insight` for where
   they agree or disagree with the data, and never rank by hint confidence.
+- Labelling: natural abundance is the default (`Labeling.natural`); for an
+  enriched sample pass `Labeling.enriched({"13C": 0.99})` or site-specific
+  levels, and ask the user for them. Doubly labelled isotopologues are
+  weighted by abundance, tied to a parent (no free amplitude or rate) and
+  omitted when their lines cannot reach 2 sigma; read `model.omitted`.
 - Build isotopologue sets with `zulf_core.hypothesis` instead of by hand:
   describe the fragment by labels (`Fragment`, or a template from
   `fragments.TEMPLATES`), then `build_model(fragment, ranges=...)` gives the

@@ -131,6 +131,9 @@ fixed, so later phases are experiments rather than restructuring.
       `propose_hypotheses`; neural models as hint providers with an insight
       report. Both confirmed samples rank the correct CH3-CH first; the
       set-model checkpoint agrees with the data in one band per sample.
+- [x] Minor isotopologues (D36): `Labeling` (natural default, enriched
+      uniform or site-specific), exact label-set weights, minor sets tied to a
+      parent via `amplitude_map`, SNR gate with omission reasons.
 - [ ] Better hints: train or fine-tune a group-level head on the
       hypothesis vocabulary (group type, 1J) so model output maps directly
       onto group hints; calibrate hint confidence on the synthetic benchmark.
