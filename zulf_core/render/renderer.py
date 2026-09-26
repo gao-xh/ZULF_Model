@@ -94,12 +94,17 @@ class Renderer:
         self.end_edge = np.arange(max(start, N - h), stop) if h else np.zeros(0, int)
 
     def _time_is_cheaper(self, n_frequencies: int, n_transitions: int, f: np.ndarray) -> bool:
-        """Rough cost model: analytic ~ F x 2T; time path ~ N log N plus processing."""
+        """Cost model calibrated on CPU timings (2026-09-26).
+
+        Analytic: about 160 ns per (frequency x mode) term plus edge corrections;
+        time path (NUFFT synthesis, processing, FFT): about 25 ns per N log2 N.
+        Example: 3248 points, 79 transitions, N = 8192: analytic 82 ms, time 2.6 ms.
+        """
         if _fft_length(f, self.acq) is None:
             return False
         n = self.acq.points
-        analytic = n_frequencies * 2 * n_transitions + 2 * n_transitions * self.half * 4
-        time_path = 8 * n * max(1.0, np.log2(n))
+        analytic = 160.0 * (n_frequencies * 2 * n_transitions + 2 * n_transitions * self.half * 4)
+        time_path = 25.0 * n * max(1.0, np.log2(n)) + 2000.0 * n_transitions
         return time_path < analytic
 
     # -- mode bookkeeping ----------------------------------------------------
