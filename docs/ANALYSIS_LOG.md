@@ -135,3 +135,20 @@ skills under `skills/`; this file keeps the history.
   2J(N,H) line) and 263.75 Hz (11.4); self-consistent alanine 69.75-76.25,
   132-132.5, 147-147.75, 255-267 Hz. Several are lines that partly cancel in
   the rendered spectrum.
+- Re-evaluation with transition-list cores (9e46dbd; complex, 0.05-1.05 s,
+  0.6 1/s, 62-320 Hz, 72-76 Hz included; two model passes each):
+  H7: data-region 0.335, Cb/Ca 0.39, no bounds; 1J 145.41 / 130.28,
+  2J -4.35 / -6.56, 3J(HH) 6.95 Hz; model lines 143, 250, 266 Hz joined.
+  H7 + 15NH3: 0.321, 1 : 0.57 : 0.29, 1J(N,H) at bound (-84.7 Hz); its 15N
+  lines at 78-91 and 162-177 Hz joined the cores where the data show nothing;
+  the 74 Hz feature is not explained.
+  Self-consistent alanine: 0.249, 1 : 0.07 : 0.04 relative to C-alpha, but in
+  absolute terms C-alpha grew to 7.5x the H7 value with rate 7.7 1/s: a broad
+  component that acts as background (it makes the 139 Hz dip; its broad lines
+  stay below 2 sigma each, so no core there). C-beta : 15N = 1 : 0.68 with
+  narrow lines (1.1 and 1.4 1/s) and 1J(N,H) -74.07 Hz, putting a 15N line on
+  the 74 Hz feature (expected 15N : 13C 0.35).
+- Conclusion: model-line cores work as intended (spurious lines penalised);
+  the remaining failure mode is a component turning into broad background.
+  Next: fix amplitude ratios to natural abundance and bound decay rates (or
+  tie rates across isotopologues) so no component can become background.
