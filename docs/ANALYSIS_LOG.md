@@ -291,3 +291,12 @@ skills under `skills/`; this file keeps the history.
   not typical of a CH-OH proton.
   Conclusion so far: one more weakly coupled spin-1/2 on the CH-CH3 fragment
   is required by the data; its identity is not yet established.
+- Final guess (user asked): lactic acid / lactate, CH3-CH(OH)-COOH.
+  Reasons: exactly one CH and one CH3 protonated carbon (two bands,
+  amplitudes 1 : 1, isopropyl rejected); 3J(HH) 7.06 Hz as for a CH-CH3
+  unit; 1J(CH) 147.1 Hz, 1.7 Hz above alanine on the same instrument, as
+  expected for O rather than N on the CH; no 15N line at 72-76 Hz; one more
+  weakly coupled spin-1/2 needed (H8), compatible with the OH proton, though
+  its fitted couplings are not determined. Runner-up: alanine at another pH
+  (disfavoured by the larger 1J(CH) and the absent 74 Hz line); other
+  CH(X)-CH3 acids (for example 2-halopropionic) less likely.
