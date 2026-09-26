@@ -126,6 +126,18 @@ fixed, so later phases are experiments rather than restructuring.
 > hash-seed-dependent split and is inflated by train/validation leakage;
 > clean re-runs after the fix are recorded below.
 
+- [x] Clean re-run after D27 (same verification problem, 48k freshly
+      pre-rendered spectra, CNN+Transformer, 3000 CPU steps, 3826 s). Validation
+      on unseen topology families, steps 1000 / 2000 / 3000: structure@10
+      0.031 / 0.039 / 0.039; J@10 (1 Hz) 0.008 at every step; component-count
+      accuracy 0.70. Re-evaluation of the saved checkpoint in a fresh process
+      reproduces the logged numbers exactly (val loss 2.872). Median J errors
+      after structure match are several hertz (13C-1H strong 18.7 Hz). The
+      earlier structure@10 of 0.45 therefore reflected memorized families.
+      At this scale the network does not yet generalize to unseen spin-graph
+      topologies; the decisive experiment is a GPU run with far more families
+      and steps, with the fresh-process re-evaluation as a standing check.
+
 ## Model optimization roadmap (from the second survey, docs/REFERENCES.md)
 
 Ordered by expected gain per effort; each item is measured on the same
