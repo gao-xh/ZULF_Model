@@ -41,6 +41,7 @@ class RefineSettings:
     band_weighting: str = "equal"
     diff_step: float = 1e-6
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
+    guard_continuation: bool = True   # also fit directly at full resolution from each start (D28)
     ties: tuple = ()      # ((leader, follower, ...), ...) parameter names; missing names are skipped
     fixed: tuple = ()     # parameter names held at their candidate values
     policy: ParameterPolicy = field(default_factory=ParameterPolicy)
@@ -197,24 +198,36 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
             evaluate(x)
             attempts.append({"start": start, "status": "no_free_parameters", "evaluations": 1})
             break
-        for level, extra in enumerate(schedule):
-            forward = level_forwards[extra]
-            final_level = level == len(schedule) - 1
-            before = evaluations
-            try:
-                sol = least_squares(evaluate, x, bounds=(lower, upper), x_scale="jac", max_nfev=settings.max_nfev,
-                                    diff_step=settings.diff_step, ftol=1e-10, xtol=1e-10, gtol=1e-10)
-            except _BudgetReached as exc:
-                attempts.append({"start": start, "extra_rate_per_s": extra, "status": "budget_exhausted",
-                                 "reason": str(exc), "evaluations": evaluations - before})
-                budget = True
+        # Guarded continuation (D28): a direct fit at full resolution runs first from the same start, then the
+        # broadening schedule; the best full-resolution score of either path wins. Broadening can move the
+        # optimum of a crowded spectrum away from a start that is already inside the right basin.
+        paths = [schedule]
+        if settings.guard_continuation and len(schedule) > 1:
+            paths = [(0.0,), schedule]
+        x_start = x.copy()
+        for path_index, path in enumerate(paths):
+            x = x_start.copy()
+            for level, extra in enumerate(path):
+                forward = level_forwards[extra]
+                final_level = level == len(path) - 1
+                before = evaluations
+                try:
+                    sol = least_squares(evaluate, x, bounds=(lower, upper), x_scale="jac", max_nfev=settings.max_nfev,
+                                        diff_step=settings.diff_step, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                except _BudgetReached as exc:
+                    attempts.append({"start": start, "path": path_index, "extra_rate_per_s": extra,
+                                     "status": "budget_exhausted", "reason": str(exc),
+                                     "evaluations": evaluations - before})
+                    budget = True
+                    break
+                x = np.clip(sol.x, lower, upper)
+                attempts.append({"start": start, "path": path_index, "extra_rate_per_s": extra,
+                                 "status": "converged" if sol.success else "stopped", "message": str(sol.message),
+                                 "evaluations": evaluations - before, "score": float(sol.cost * 2)})
+                if final_level:
+                    history.append((start, sol.success, np.array(sol.x), float(sol.cost * 2)))
+            if budget:
                 break
-            x = np.clip(sol.x, lower, upper)
-            attempts.append({"start": start, "extra_rate_per_s": extra,
-                             "status": "converged" if sol.success else "stopped", "message": str(sol.message),
-                             "evaluations": evaluations - before, "score": float(sol.cost * 2)})
-            if final_level:
-                history.append((start, sol.success, np.array(sol.x), float(sol.cost * 2)))
         if budget:
             break
     forward = base_forward

@@ -272,6 +272,18 @@ and splits. All verification numbers recorded before this fix are
 superseded; relative comparisons made inside one process (set versus
 sequence model, beam versus solver rerank) keep their direction.
 
+## D28. Guarded linewidth continuation (2026-09-26)
+
+On a crowded 6-spin system (79 transitions, 0.16 Hz lines) refinement started
+at the true couplings ended 5.9 Hz away with relative residual 0.49 when the
+default continuation (extra broadening 10, 3, 1, 0 per second) was used, but
+stayed at the truth (0.005 Hz, residual 0.138 = noise floor, 7 times faster)
+without it: broadening merges neighbouring lines and moves the coarse
+optimum out of the correct basin. Each start now also runs a direct
+full-resolution fit (`RefineSettings.guard_continuation`, default True) and
+the better full-resolution score of the two paths wins. Continuation remains
+useful for starts several hertz off in sparse spectra (D14).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.
