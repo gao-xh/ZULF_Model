@@ -38,7 +38,10 @@ class RefineSettings:
     seed: int = 0
     gain_model: str = "shared_phase"
     background_order: int = -1
-    band_weighting: str = "equal"
+    band_weighting: str = "equal"   # equal | none | signal (noise-weighted, data-driven signal regions emphasised)
+    signal_threshold: float = 4.0     # signal weighting: narrow-feature threshold in noise sigma
+    signal_dilate_hz: float = 2.0     # signal weighting: mask dilation around detected points
+    signal_outside_weight: float = 0.2   # signal weighting: relative weight of points outside the mask
     diff_step: float = 1e-6
     jacobian: str = "kaufman"      # kaufman | analytic (exact variable projection) | finite_difference (D31)
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
@@ -92,6 +95,7 @@ class RefinementResult:
     candidate_index: int = -1
     search: Optional[dict] = None
     jacobian_evaluations: int = 0
+    signal_region_residual: Optional[float] = None   # relative residual on the data-driven signal mask (signal weighting)
     note: str = ("Conditional numerical refinement; not an assignment. Inspect boundary hits, residuals, "
                  "component spectra and held-out prediction.")
 
@@ -109,11 +113,17 @@ class RefinementResult:
                 "boundary_hits": self.boundary_hits, "converged": self.converged,
                 "budget_exhausted": self.budget_exhausted, "evaluations": self.evaluations,
                 "jacobian_evaluations": self.jacobian_evaluations,
+                "signal_region_residual": self.signal_region_residual,
                 "elapsed_s": self.elapsed_s, "parameters": self.parameters,
                 "gains": [[g.real, g.imag] for g in self.gains],
                 "background": [[b.real, b.imag] for b in self.background],
                 "interpretation": self.interpretation.to_dict(), "validation": self.validation,
                 "search": self.search, "note": self.note}
+
+
+def _signal_kwargs(settings: "RefineSettings") -> dict:
+    return {"signal_threshold": settings.signal_threshold, "signal_dilate_hz": settings.signal_dilate_hz,
+            "signal_outside_weight": settings.signal_outside_weight}
 
 
 def _band_residuals(forward: MixtureForward, prediction: Prediction) -> List[float]:
@@ -153,7 +163,7 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
             data = observed.with_acquisition(observed.acquisition.with_processing(
                 apodization_rate_per_s=observed.acquisition.apodization_rate_per_s + extra))
         return MixtureForward(param, data, protocol, settings.gain_model, settings.background_order,
-                              settings.band_weighting, timer)
+                              settings.band_weighting, timer, **_signal_kwargs(settings))
 
     forward = make_forward(0.0)
     base_forward = forward
@@ -290,11 +300,17 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
     interp.metadata.update(source="solver", flags=flags)
     relative = float(np.linalg.norm(forward.mismatch(final.model)) / max(np.linalg.norm(forward.y), 1e-30))
     signal_relative = float(np.linalg.norm(forward.mismatch(final.model)) / max(forward.background_only_residual(values), 1e-30))
+    signal_region = None
+    if getattr(forward, "signal_mask", None) is not None and forward.signal_mask.any():
+        m = forward.signal_mask
+        signal_region = float(np.linalg.norm(forward.mismatch(final.model, m)) /
+                              max(np.linalg.norm(forward.mismatch(np.zeros_like(forward.y), m)), 1e-30))
     return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative, signal_relative,
                             _band_residuals(forward, final), hits,
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,
                             final.model, final.component_spectra, search=search_summary,
-                            jacobian_evaluations=jacobian_calls["analytic"] + jacobian_calls["fallback"])
+                            jacobian_evaluations=jacobian_calls["analytic"] + jacobian_calls["fallback"],
+                            signal_region_residual=signal_region)
 
 
 def frozen_prediction(result: RefinementResult, candidate_param: Parameterization, held_out: ObservedSpectrum,
@@ -305,7 +321,7 @@ def frozen_prediction(result: RefinementResult, candidate_param: Parameterizatio
     separately and never replaces the frozen score.
     """
     forward = MixtureForward(candidate_param, held_out, protocol, settings.gain_model, settings.background_order,
-                             settings.band_weighting)
+                             settings.band_weighting, **_signal_kwargs(settings))
     frozen = forward.predict(values=result.parameters, fixed_gains=np.array(result.gains),
                              fixed_background=np.array(result.background, complex))
     refit = forward.predict(values=result.parameters)

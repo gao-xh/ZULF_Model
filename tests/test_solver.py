@@ -152,6 +152,36 @@ class SignVariantTests(unittest.TestCase):
         self.assertIn("sign_variant", with_variants[0].interpretation.metadata)
 
 
+class SignalWeightingTests(unittest.TestCase):
+    def test_mask_follows_lines_not_broad_background(self):
+        from zulf_core.solver.forward import signal_regions
+        f = np.arange(100.0, 160.0, 0.05)
+        rng = np.random.default_rng(0)
+        y = rng.normal(0, 1, len(f)) + 1j * rng.normal(0, 1, len(f))
+        y = y + 40.0 / (1 + 1j * (f - 130.0) / 0.3)                  # a narrow line
+        y = y + 6.0 * np.exp(-0.5 * ((f - 115.0) / 6.0) ** 2)         # a broad background bump
+        mask, sigma = signal_regions(f, y, np.zeros(len(f), int))
+        self.assertTrue(mask[np.argmin(np.abs(f - 130.0))])
+        self.assertFalse(mask[np.argmin(np.abs(f - 115.0))])
+        self.assertLess(mask.mean(), 0.2)
+        self.assertGreater(sigma, 0.5)
+
+    def test_signal_weighting_recovers_couplings_with_background(self):
+        truth = methyl_isotopologue()
+        acq = Acquisition(1000.0, 6000, start_sample=30)
+        t = acq.times()
+        signal = Renderer(acq).synthesize(compute_transitions(truth), 1.5, gain=np.exp(0.4j))
+        rng = np.random.default_rng(1)
+        wobble = 0.3 * np.max(np.abs(signal)) * np.exp(-40.0 * t) * np.cos(2 * np.pi * 105.0 * t)
+        obs = ObservedSpectrum.from_fid(signal + wobble + rng.normal(0, 1e-3, acq.points), acq, RANGES)
+        start = Interpretation((Component(perturbed(truth, 0.3)),))
+        res = refine(start, obs, RefineSettings(starts=1, band_weighting="signal", background_order=1))
+        self.assertLess(best_permutation(truth, res.interpretation.components[0].system).max_abs_error_hz, 0.01)
+        self.assertIsNotNone(res.signal_region_residual)
+        with self.assertRaises(ValueError):
+            refine(start, obs, RefineSettings(band_weighting="loud"))
+
+
 class ProcessedSpectrumTests(unittest.TestCase):
     """Refinement directly on spectra processed elsewhere (no FID)."""
 
