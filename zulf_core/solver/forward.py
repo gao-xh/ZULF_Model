@@ -181,25 +181,31 @@ class MixtureForward:
         return cols
 
     def model_line_points(self, values: Dict[str, float], gains: np.ndarray, threshold: float) -> np.ndarray:
-        """Grid points whose model-line height (`model_line_heights`) exceeds `threshold` noise sigma."""
+        """Grid points where the model's line envelope (`model_envelope`) exceeds `threshold` noise sigma."""
         if self.signal_cores is None:
             return np.zeros(len(self.f), bool)
-        return self.model_line_heights(values, gains) > threshold * self.noise_sigma
+        return self.model_envelope(values, gains) > threshold * self.noise_sigma
 
-    def model_line_heights(self, values: Dict[str, float], gains: np.ndarray) -> np.ndarray:
-        """Model-line peak heights on the fitted grid, read directly from the transition lists (no peak picking).
+    def model_envelope(self, values: Dict[str, float], gains: np.ndarray, half_width_hz: float = 20.0) -> np.ndarray:
+        """Incoherent line envelope of the model on the fitted grid, read from the transition lists (no peak picking).
 
-        Line k of component c has peak height abs(g_c a_k) h(R), where h is the
-        rendered peak magnitude of a unit line with the same rate and width in
-        this acquisition. Lines within half a grid spacing of a fitted point
-        add up. The sign or phase of a line does not matter, so dips count.
+            E(f) = sum_k abs(g_c a_k) P_R(f - f_k)
+
+        where P_R is the rendered magnitude profile of a unit line with the same
+        decay rate and width in this acquisition (finite record, apodization),
+        cut at `half_width_hz`. Line phases are ignored, so E marks every place
+        the model puts signal: isolated lines of either sign, many broad
+        overlapping lines, and holes where lines cancel in the coherent sum. At
+        an isolated line E equals the rendered peak magnitude.
         """
         from ..render.renderer import _per_transition
         from ..physics.transitions import TransitionList
-        height = np.zeros(len(self.f))
+        envelope = np.zeros(len(self.f))
         if not len(self.f):
-            return height
+            return envelope
         spacing = float(np.median(np.diff(self.f))) if len(self.f) > 1 else 1.0
+        step = spacing / 4
+        offsets = np.arange(-half_width_hz, half_width_hz + step / 2, step)
         delay = self.p.phase_delay(values)
         for c, system in enumerate(self.p.systems(values)):
             tl = self.cache.get(system, self.protocol)
@@ -210,19 +216,22 @@ class MixtureForward:
                 continue
             rates = _per_transition(self.p.rates(values, c), tl, "decay rate")
             sigma = self.p.sigma(values, c)
-            unit = {}
+            weight = np.abs(gains[c] * tl.amplitudes)
             for r in np.unique(rates):
-                f0 = float(np.median(tl.frequencies_hz[rates == r]))
+                members = np.flatnonzero((rates == r) & (weight > 0))
+                if not len(members):
+                    continue
+                f0 = float(np.median(tl.frequencies_hz[members]))
                 pair = self.renderer.render_pair(TransitionList(np.array([f0]), np.array([1.0 + 0j])), float(r),
-                                                 np.array([f0]), delay, sigma)
-                unit[float(r)] = float(abs(pair[0, 0]))
-            h = np.abs(gains[c] * tl.amplitudes) * np.array([unit[float(r)] for r in rates])
-            idx = np.clip(np.searchsorted(self.f, tl.frequencies_hz), 1, len(self.f) - 1)
-            nearest = np.where(np.abs(self.f[idx - 1] - tl.frequencies_hz) <= np.abs(self.f[idx] - tl.frequencies_hz),
-                               idx - 1, idx)
-            inside = np.abs(self.f[nearest] - tl.frequencies_hz) <= 0.5 * spacing + 1e-9
-            np.add.at(height, nearest[inside], h[inside])
-        return height
+                                                 f0 + offsets, delay, sigma)
+                profile = np.abs(pair[:, 0])
+                lo = np.searchsorted(self.f, tl.frequencies_hz[members] - half_width_hz)
+                hi = np.searchsorted(self.f, tl.frequencies_hz[members] + half_width_hz, side="right")
+                for k, i0, i1 in zip(members, lo, hi):
+                    if i1 > i0:
+                        envelope[i0:i1] += weight[k] * np.interp(self.f[i0:i1] - tl.frequencies_hz[k], offsets,
+                                                                 profile, left=0.0, right=0.0)
+        return envelope
 
     def nuisance_columns(self, values: Dict[str, float]) -> np.ndarray:
         """One complex column per real nuisance amplitude, through the observed operator."""

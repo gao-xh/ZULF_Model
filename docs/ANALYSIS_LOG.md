@@ -188,3 +188,16 @@ skills under `skills/`; this file keeps the history.
 - Tension: 1J(N,H) lines need slow NH3+ exchange, while alanine in neutral
   water exchanges fast; the 74 Hz match is therefore suggestive, not proof
   (pH of the sample unknown; decisive tests as listed above).
+
+### Solver: incoherent line envelope for the model cores
+- User: start the change (option 1 above). `MixtureForward.model_envelope`
+  replaces the per-line heights: E(f) = sum_k abs(g_c a_k) P_R(f - f_k) with
+  the rendered unit-line magnitude profile, cut at 20 Hz. Tests: equals the
+  rendered magnitude around an isolated line; equals the sum of component
+  magnitudes for two cancelling lines while the coherent sum drops to about
+  0.33 of it.
+- On the earlier free self-consistent fit the envelope is 4.4-4.8 sigma over
+  136-140 Hz, so the 139 Hz hole would now be fully weighted; 32 % of the
+  fitted points fall in its model cores (broad C-alpha component).
+- Running: constrained self-consistent alanine (1 : 1 : 0.34, shared rate)
+  with envelope cores, three starts in parallel.

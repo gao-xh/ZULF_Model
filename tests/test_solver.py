@@ -205,7 +205,7 @@ class SignalWeightingTests(unittest.TestCase):
         self.assertFalse(any(f.startswith("signal_mask_model_pass") for f in none.flags))
         self.assertIsNotNone(one.data_region_residual)
 
-    def test_model_line_heights_come_from_the_transitions(self):
+    def test_model_envelope_comes_from_the_transitions(self):
         # Heights read from the transition list match the rendered peak of an isolated line, and a line far below
         # the data's peak-picking threshold (weak, or of either sign) is still located.
         acq = Acquisition(1000.0, 6000, start_sample=30)
@@ -217,14 +217,34 @@ class SignalWeightingTests(unittest.TestCase):
         values = param.values()
         values = {**values, **{k: math.log(1.5) for k in values if ".log_rate" in k}}
         pred = forward.predict(values=values)
-        heights = forward.model_line_heights(values, pred.gains)
+        heights = forward.model_envelope(values, pred.gains)
         peak = int(np.argmax(heights))
         self.assertLess(abs(forward.f[peak] - 128.0), 0.5 * float(np.median(np.diff(forward.f))) + 1e-9)
         self.assertAlmostEqual(heights[peak] / np.abs(pred.component_spectra[0]).max(), 1.0, delta=0.05)
         weak = forward.model_line_points(values, pred.gains * 1e-3, 1e-3 * heights[peak] / forward.noise_sigma / 2)
         self.assertTrue(weak[peak])
-        flipped = forward.model_line_heights(values, -pred.gains)
+        flipped = forward.model_envelope(values, -pred.gains)
         np.testing.assert_allclose(flipped, heights)
+        near = np.abs(forward.f - 128.0) < 5.0
+        spectrum = np.abs(pred.component_spectra[0])
+        self.assertLess(np.max(np.abs(heights[near] - spectrum[near])), 0.05 * spectrum.max())
+
+    def test_model_envelope_covers_cancelling_lines(self):
+        # Two close lines of opposite sign nearly cancel in the rendered sum; the envelope still marks the region.
+        acq = Acquisition(1000.0, 6000, start_sample=30)
+        obs = ObservedSpectrum.from_fid(np.random.default_rng(2).normal(0, 1e-3, acq.points), acq, RANGES)
+        systems = [SpinSystem.from_group_couplings(["13C", "1H"], [1, 1], np.array([[0, j], [j, 0]]))
+                   for j in (128.0, 128.4)]
+        param = RefineSettings().parameterize(Interpretation(tuple(Component(s_) for s_ in systems)))
+        forward = MixtureForward(param, obs, band_weighting="signal", background=1)
+        values = {**param.values(), **{k: math.log(4.0) for k in param.values() if ".log_rate" in k}}
+        pred = forward.predict(values=values, fixed_gains=np.array([1.0, -1.0]))
+        envelope = forward.model_envelope(values, np.array([1.0, -1.0]))
+        near = np.abs(forward.f - 128.2) < 5.0
+        magnitudes = np.abs(pred.component_spectra[0]) + np.abs(pred.component_spectra[1])
+        self.assertLess(np.max(np.abs(envelope[near] - magnitudes[near])), 0.05 * magnitudes.max())
+        mid = int(np.argmin(np.abs(forward.f - 128.2)))
+        self.assertLess(abs(pred.model[mid]), 0.4 * envelope[mid])
 
 
 class ProcessedSpectrumTests(unittest.TestCase):

@@ -44,13 +44,16 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   at peak cores and falls off smoothly (Gaussian, `signal_taper_hz` 2 Hz) to
   `signal_outside_weight` (0.2) far from any core - no hard edges. Cores come
   from the data first (narrow excess above `signal_threshold` sigma). The
-  model's own lines are taken straight from its transition lists (position
-  f_k, height abs(g_c a_k) times the unit-line peak), not peak-picked from
-  the rendered spectrum: every line above `signal_model_threshold` (2) sigma,
-  of either sign, joins the cores and the fit is repeated until the cores
-  are stable (`signal_model_passes=3`; flag `signal_mask_model_pass`), so a
-  line the model places where the data show none is fully penalised. Lines
-  of opposite phase that cancel in the rendered spectrum still count.
+  model's cores come from its transition lists, not from peak picking the
+  rendered spectrum: the incoherent line envelope
+  E(f) = sum_k abs(g_c a_k) P_R(f - f_k) (P_R the rendered unit-line
+  magnitude profile for the line's rate; `MixtureForward.model_envelope`)
+  joins the cores where it exceeds `signal_model_threshold` (2) sigma. It
+  covers isolated lines of either sign, many broad overlapping lines, and
+  holes where lines cancel. The fit is repeated until the cores are stable
+  (`signal_model_passes=3`; flag `signal_mask_model_pass`). Per-line peak
+  heights alone missed a broad component (e3d282da: 50 lines of about
+  0.2 sigma each summing to 9 sigma and cutting a hole at 139 Hz).
   The result reports `signal_region_residual` (data and model cores),
   `data_region_residual` (data cores only: compare models on this one, it
   is the same region for every model) and `signal_model_lines_hz`. Check the mask: every region must be either an
