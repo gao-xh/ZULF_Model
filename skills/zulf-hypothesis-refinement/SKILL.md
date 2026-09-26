@@ -39,7 +39,10 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   from the data first; with `signal_model_passes=1` (default) the fit is
   repeated with the model's own predicted lines added as cores, so a line the
   model places where the data show none is fully penalised (flag
-  `signal_mask_model_pass`). The result reports `signal_region_residual`. Check the mask: every region must be either an
+  `signal_mask_model_pass`). Current limits: only predicted narrow excess
+  above `signal_threshold` sigma joins, predicted dips below the baseline do
+  not, and there is one pass; so check weak spurious lines and dips by eye.
+  The result reports `signal_region_residual`. Check the mask: every region must be either an
   assigned line or an explicitly unresolved feature. A data-only mask cannot
   tell molecular lines from sharp background (e3d282da: 72-76 Hz, still
   unresolved between instrument background and a 15NH3+ line near
