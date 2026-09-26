@@ -127,10 +127,13 @@ fixed, so later phases are experiments rather than restructuring.
       ties/ratios/omissions, checks registry, extension-move interface with
       `AddCoupledProton`, reference couplings (L-alanine, lactic acid,
       measured). Replay on b683220d reproduces the hand-built fits.
-- [ ] Stage 2: band inventory from a spectrum (lines, SNR, instrument lines
-      excluded); group candidates per band (XH / XH2 / XH3 x 1J, partner-line
-      scores via `compute_transitions`); fragment enumeration from the group
-      inventory and abundance counts (reuse `zulf_model.generator` graphs).
+- [x] Stage 2 (D35): band inventory, group candidates, fragment enumeration,
+      `propose_hypotheses`; neural models as hint providers with an insight
+      report. Both confirmed samples rank the correct CH3-CH first; the
+      set-model checkpoint agrees with the data in one band per sample.
+- [ ] Better hints: train or fine-tune a group-level head on the
+      hypothesis vocabulary (group type, 1J) so model output maps directly
+      onto group hints; calibrate hint confidence on the synthetic benchmark.
 - [ ] Stage 3: budgeted search loop (refine free and fixed variants in
       parallel, run checks, apply triggered moves, rank by an information
       criterion with zero-fill-corrected point counts); knowledge matching of

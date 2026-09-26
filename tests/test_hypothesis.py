@@ -149,3 +149,61 @@ class KnowledgeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Stage2Tests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from zulf_core.hypothesis import propose_hypotheses
+        truth = {"J(Ca,Ha)": 146.3, "J(Cb,Hb)": 129.6, "J(Ca,Hb)": -4.2, "J(Cb,Ha)": -5.1, "J(Ha,Hb)": 7.1}
+        model = build_model(template("CH-CH3").with_couplings(truth))
+        cls.obs = observe([c.system for c in model.interpretation.components], [1.0, 1.0], rate=1.0, noise=2.0,
+                          ranges=RANGES)
+        cls.propose = staticmethod(propose_hypotheses)
+
+    def test_inventory_and_top_proposal(self):
+        ps = self.propose(self.obs)
+        peaks = [b.peak.frequency_hz for b in ps.inventory.bands]
+        self.assertTrue(any(abs(p - 146.3) < 3 for p in peaks) and any(abs(p - 129.6) < 3 for p in peaks))
+        top = ps.proposals[0]
+        self.assertEqual(sorted(g.pattern for g in top.groups), ["13CH", "13CH3"])
+        self.assertTrue(top.topology.startswith("bonded"))
+        self.assertEqual(ps.models[0].ratios, (1.0, 1.0))
+        self.assertTrue(any("2 x 13CH3" in p.topology for p in ps.proposals))      # isopropyl alternative kept
+
+    def test_hints_steer_but_do_not_decide(self):
+        from zulf_core.hypothesis import ProposerHints
+        from zulf_core.spinsystem import Component, Interpretation
+
+        good = build_model(template("CH-CH3", one_bond={"Ca": 146.0, "Cb": 130.0})).interpretation
+        bad = Interpretation((Component(grouped(["13C", "1H"], [1, 1], [[0, 60.0], [60.0, 0]])),))
+        wrong_type = Interpretation((Component(grouped(["13C", "1H"], [1, 2], [[0, 97.5], [97.5, 0]])),))
+
+        class Fake:
+            name = "fake"
+
+            def propose(self, observed, k):
+                return [good, bad, wrong_type][:k]
+
+        ps = self.propose(self.obs, providers=[ProposerHints(Fake(), k=3)])
+        self.assertIn("fake", ps.proposals[0].sources)
+        self.assertEqual(sorted(g.pattern for g in ps.proposals[0].groups), ["13CH", "13CH3"])
+        verdicts = [r["verdict"] for r in ps.insight]
+        self.assertIn("hint predicts lines where the data show none", verdicts)
+        hinted_only = [c for c in ps.candidates if "hint-only" in " ".join(c.notes)]
+        self.assertTrue(all(c.score == 0.0 for c in hinted_only))
+        self.assertEqual(len(ps.hinted_interpretations), 3)
+
+    def test_trees_and_combined_models(self):
+        from zulf_core.hypothesis.enumerate import _trees
+        from zulf_core.hypothesis import combine_models
+        self.assertEqual([len(_trees(n)) for n in (1, 2, 3, 4)], [1, 1, 3, 16])
+        a = build_model(template("CH-CH3"))
+        b = build_model(template("CH(CH3)2"))
+        c = combine_models([a, b])
+        self.assertEqual(c.blocks(), [[0, 1], [2, 3]])
+        self.assertIn(("c2.J1-2", "c3.J1-2", "c3.J1-3"), c.ties())
+        self.assertIn(("c2.log_rate0", "c3.log_rate0"), c.ties(shared_rate=True))
+        self.assertNotIn(("c0.log_rate0", "c1.log_rate0", "c2.log_rate0", "c3.log_rate0"), c.ties(shared_rate=True))
+        with self.assertRaises(ValueError):
+            c.settings(fixed_ratios=True)

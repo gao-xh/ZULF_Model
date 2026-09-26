@@ -415,6 +415,31 @@ checks flag the H7 rate asymmetry and the isopropyl abundance contradiction.
 Stage 2 (band inventory, group candidates, fragment enumeration) and stage 3
 (budgeted search over moves, knowledge matching) are planned in PLAN.md.
 
+## D35. Hypothesis proposals from the spectrum; neural models as hint providers (2026-09-26)
+
+Stage 2 of D34 (`propose_hypotheses`): band inventory (lines above 4 sigma of
+narrow excess, instrument lines set aside, a noise floor of 1e-3 of the peak
+for near noise-free input); group candidates per band from isolated X-Hn
+patterns (XH at J, XH2 at 3J/2, XH3 at J and 2J), scored by partner lines
+that must reach half their height predicted from the anchor; a line explains
+another band within a multiplet width (10 Hz) only if its predicted height
+reaches 0.4 of that band's peak; pattern priors (15N 0.6); minimal covers of
+the strong bands (weak bands, SNR < 8, may stay open at a 0.1 score penalty);
+all trees, isolated parts and doubled methyl leaves as topologies; couplings
+beyond 1J from a registered prior. Both confirmed samples rank the correct
+bonded CH3-CH first (lactic acid with no open band; alanine with the 74 Hz
+band open), with isopropyl as the next alternative.
+
+Neural models enter as `HintProvider`s (`ProposerHints` adapts any proposer;
+`zulf_model.evaluation.model_hints` loads a checkpoint). Hints add a bounded
+bonus (0.1) to agreeing candidates, add hint-only candidates at score 0, and
+pass interpretations on as extra candidates; they never enter the final
+ranking, which stage 3 takes from refinement and checks. The insight report
+lists per band whether hints agree, hints that predict lines where the data
+show none, and a per-source summary. On the two samples: the transformer
+checkpoints give no one-bond couplings; the set model gives 7 group hints
+per sample, 1 agreeing with the data (147.6 and 131.9 Hz) and 6 elsewhere.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

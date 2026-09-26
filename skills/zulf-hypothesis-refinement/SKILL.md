@@ -20,6 +20,12 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 ## Building hypotheses
 
+- Start with `propose_hypotheses(observed, instrument_hz, providers=...)`:
+  it lists bands, X-Hn group candidates per band, and ranked fragment
+  proposals built into isotopologue models (weak bands may stay open and are
+  listed). Neural checkpoints join as hint providers
+  (`zulf_model.evaluation.model_hints`); read `ProposalSet.insight` for where
+  they agree or disagree with the data, and never rank by hint confidence.
 - Build isotopologue sets with `zulf_core.hypothesis` instead of by hand:
   describe the fragment by labels (`Fragment`, or a template from
   `fragments.TEMPLATES`), then `build_model(fragment, ranges=...)` gives the

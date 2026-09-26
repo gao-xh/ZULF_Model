@@ -314,3 +314,19 @@ skills under `skills/`; this file keeps the history.
   2e-13); checks flag H7 rate asymmetry (C-beta 2.5x) and the isopropyl
   abundance (1.16 vs 2). The H8 free / fixed pair is not "comparable" under
   the 10 % residual rule (0.190 vs 0.283), so no undetermined flag.
+
+### Programmatic hypotheses, stage 2 and neural hints (D35)
+- User: continue; add an interface for neural-model guesses as an insight
+  provider between the stages. `propose_hypotheses` on the confirmed samples
+  (runs/blind/model_hint_insight.py): lactic acid #1 bonded 13CH3-13CH
+  (J 128.5 / 147.8, all bands explained), #2 isopropyl variant; alanine #1
+  bonded 13CH3-13CH (J 129.2 / 146.0) with the 74 Hz band open, 15N
+  alternatives further down. Iterations needed on the way: partner lines
+  scored against their predicted height (a 15NH3 2J line had "explained" the
+  whole 146 Hz band), a 15N pattern prior, a multiplet width for explained
+  bands (resolved methyl 2J multiplets at high SNR), a noise floor for
+  near noise-free input.
+- Neural hints: transformer checkpoints give no one-bond couplings; the set
+  model gives 7 group hints per sample, 1 agreeing (147.6 / 131.9 Hz), 6 at
+  frequencies with no data lines. Hint weight lowered to 0.1 after one weak
+  agreeing hint nearly lifted CH-CH above CH3-CH on alanine.

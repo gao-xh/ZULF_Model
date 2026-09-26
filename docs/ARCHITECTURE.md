@@ -53,7 +53,7 @@ docs (`physics.transitions`, `render.phasing`, `solver.search`) refer to
 | `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline over equivalence groups, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
 | `zulf_model.training` | Torch datasets over generator or shards, pre-rendered feature shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
 | `zulf_core.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model with an exact analytic Jacobian, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
-| `zulf_core.hypothesis` | Programmatic chemical hypotheses (D34): label-based fragments with symmetry, templates, fragment -> natural-abundance isotopologue set with automatic ties, abundance ratios and omission reasons, physical checks on refined results, one-step extension moves, reference couplings of confirmed compounds. | spinsystem, physics, solver |
+| `zulf_core.hypothesis` | Programmatic chemical hypotheses (D34, D35): band inventory, X-Hn group candidates, fragment enumeration, hint providers (neural models as hints), label-based fragments with symmetry, templates, fragment -> natural-abundance isotopologue set with automatic ties, abundance ratios and omission reasons, physical checks on refined results, one-step extension moves, reference couplings of confirmed compounds. | spinsystem, physics, solver |
 | `zulf_core.evaluation` | Matching of interpretations (per-block sign freedom), local identifiability, solver basin measurement. | solver |
 | `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search) and the benchmark runner. | zulf_core, generator |
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
@@ -113,6 +113,9 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Hypothesis checks | `hypothesis.checks.register_check` | New physical red flags on refined results (read summaries, return findings). |
 | Extension moves | `hypothesis.moves.ExtensionMove`, `register_move` | New one-step model extensions triggered by findings (add 15N site, change equivalence, add remote proton). |
 | Reference couplings | `hypothesis.knowledge.KnowledgeBase` | More confirmed samples (`add`, `save`), other files (`load`), or a database/literature source (subclass, override `entries_for`); `source_kind` keeps literature apart from measured values. |
+| Hint providers | `hypothesis.hints.HintProvider`, `ProposerHints`, `register_hint_provider`; `zulf_model.evaluation.model_hints` | Neural checkpoints, other tools or a person as search hints (group, interpretation or note hints); they steer the search and the insight report, never the ranking. |
+| Group patterns | `hypothesis.groups.register_pattern` | New X-Hn groups or nuclei (patterns computed by `compute_transitions`), with a search prior. |
+| Coupling priors | `hypothesis.enumerate.CouplingPrior`, `register_prior` | Starting couplings by bond distance for enumerated fragments (generic sp3 now; topology- or database-based later). |
 
 ## Data flow for one training sample
 

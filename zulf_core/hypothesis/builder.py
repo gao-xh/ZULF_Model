@@ -37,12 +37,19 @@ class HypothesisModel:
     coupling_names: Dict[str, List[str]]      # key name 'J(a,b)' -> solver parameter names
     unspecified: Tuple[str, ...]              # key names with no value in the fragment (built as 0 Hz)
     omitted: List[Tuple[str, str]] = field(default_factory=list)   # (component label, reason)
+    ratio_blocks: Optional[List[List[int]]] = None   # components whose ratios are fixed together (None: all)
+    parts: List["HypothesisModel"] = field(default_factory=list)   # separate molecules of a combined model
+
+    def blocks(self) -> List[List[int]]:
+        return self.ratio_blocks or [list(range(len(self.component_labels)))]
 
     def ties(self, shared_rate: bool = False, rate_families: int = 1) -> Tuple[Tuple[str, ...], ...]:
         out = [tuple(names) for names in self.coupling_names.values() if len(names) > 1]
-        if shared_rate and len(self.component_labels) > 1:
-            for f in range(rate_families):
-                out.append(tuple(f"c{c}.log_rate{f}" for c in range(len(self.component_labels))))
+        if shared_rate:
+            for block in self.blocks():
+                if len(block) > 1:
+                    for f in range(rate_families):
+                        out.append(tuple(f"c{c}.log_rate{f}" for c in block))
         return tuple(out)
 
     def fixed(self) -> Tuple[str, ...]:
@@ -53,6 +60,9 @@ class HypothesisModel:
         """RefineSettings with this model's ties, fixed couplings and (optionally) abundance ratios."""
         from ..solver import RefineSettings
         base = base or RefineSettings()
+        if fixed_ratios and len(self.blocks()) > 1:
+            raise ValueError("Amplitude ratios between separate molecules are not fixed by abundance; "
+                             "fix ratios per part or refine with free amplitudes.")
         families = len(base.policy.family_edges_hz) + 1
         ties = tuple(base.ties) + self.ties(shared_rate, families)
         fixed = tuple(base.fixed) + (self.fixed() if fix_unspecified else ())
@@ -66,6 +76,7 @@ class HypothesisModel:
 
     def summary(self) -> dict:
         return {"name": self.name, "components": self.component_labels, "ratios": list(self.ratios),
+                "ratio_blocks": self.blocks(),
                 "couplings": {k: v for k, v in self.coupling_names.items()}, "unspecified": list(self.unspecified),
                 "omitted": [list(o) for o in self.omitted], "fragment": self.fragment.to_dict()}
 
@@ -145,3 +156,30 @@ def build_model(fragment: Fragment, include_exchangeable: bool = True, ranges: O
     names = {k: v for k, v in names.items() if v}
     return HypothesisModel(name or fragment.name, fragment, interp, labels, ratios, names,
                            tuple(sorted(k for k in unspecified if k in names)), omitted)
+
+
+def combine_models(models: Sequence[HypothesisModel], name: Optional[str] = None) -> HypothesisModel:
+    """Separate molecules (or fragments without mutual couplings) as one candidate.
+
+    Components are concatenated and renumbered; coupling keys get a part
+    prefix ('P1:J(C1,H1)'); ratios stay fixed only within each part
+    (`ratio_blocks`) and decay rates are tied only within a part.
+    """
+    import re
+    if len(models) == 1:
+        return models[0]
+    comps, labels, ratios, names, unspecified, omitted, blocks = [], [], [], {}, [], [], []
+    for p, m in enumerate(models):
+        shift = len(comps)
+        rename = lambda n: re.sub(r"^c(\d+)\.", lambda x: f"c{int(x.group(1)) + shift}.", n)
+        comps.extend(m.interpretation.components)
+        labels.extend(f"P{p + 1}:{l}" for l in m.component_labels)
+        ratios.extend(m.ratios)
+        for key, ns in m.coupling_names.items():
+            names[f"P{p + 1}:{key}"] = [rename(n) for n in ns]
+        unspecified.extend(f"P{p + 1}:{k}" for k in m.unspecified)
+        omitted.extend((f"P{p + 1}:{l}", r) for l, r in m.omitted)
+        blocks.append(list(range(shift, shift + len(m.component_labels))))
+    interp = Interpretation(tuple(comps))
+    return HypothesisModel(name or " | ".join(m.name for m in models), models[0].fragment, interp, labels,
+                           tuple(ratios), names, tuple(unspecified), omitted, blocks, list(models))
