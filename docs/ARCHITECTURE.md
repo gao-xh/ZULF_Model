@@ -53,6 +53,7 @@ docs (`physics.transitions`, `render.phasing`, `solver.search`) refer to
 | `zulf_model.models` | `CandidateModel` interface, CNN spectrum encoder with absolute-frequency features, CNN set-prediction baseline over equivalence groups, CNN+Transformer encoder-decoder with constrained beam search. | codec (torch) |
 | `zulf_model.training` | Torch datasets over generator or shards, pre-rendered feature shards, permutation-aware losses, metrics, `Trainer` with checkpoints, curriculum and logging. | models, generator |
 | `zulf_core.solver` | Observed-spectrum container, general parameterization (free, fixed, tied J; per-component or per-family rates), variable-projection forward model with an exact analytic Jacobian, phase-insensitive global pattern search for starts, bounded multistart refinement, batch refinement, frozen held-out prediction. | physics, render |
+| `zulf_core.hypothesis` | Programmatic chemical hypotheses (D34): label-based fragments with symmetry, templates, fragment -> natural-abundance isotopologue set with automatic ties, abundance ratios and omission reasons, physical checks on refined results, one-step extension moves, reference couplings of confirmed compounds. | spinsystem, physics, solver |
 | `zulf_core.evaluation` | Matching of interpretations (per-block sign freedom), local identifiability, solver basin measurement. | solver |
 | `zulf_model.evaluation` | Candidate proposers (model, random multistart, graph search) and the benchmark runner. | zulf_core, generator |
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
@@ -107,6 +108,11 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Evolution field | `physics.protocol.Protocol.field_ut` | Residual static field during evolution; exact in the sector decomposition. |
 | Input phasing | `spec.GridSpec.phasing`, `render.phasing` | "none" (random phase, real+imag) or "corrected" (manual-style 0/1-order phasing, real part). |
 | Training data source | `training.prerender.PrerenderedDataset` | Live rendering (default) or pre-rendered shards; any iterable of items in the `make_item` format. |
+| Fragment templates | `hypothesis.fragments.register_template` | New structural motifs (CH2-CH3, aromatic rings, N-methyl ...) as label-based fragments with symmetry. |
+| Labelled isotopes | `hypothesis.fragment.DEFAULT_LABEL_ISOTOPES`, `Site.isotopes` | Further spin-1/2 labels (19F, 31P, 29Si) or per-site choices. |
+| Hypothesis checks | `hypothesis.checks.register_check` | New physical red flags on refined results (read summaries, return findings). |
+| Extension moves | `hypothesis.moves.ExtensionMove`, `register_move` | New one-step model extensions triggered by findings (add 15N site, change equivalence, add remote proton). |
+| Reference couplings | `hypothesis.knowledge.KnowledgeBase` | More confirmed samples (`add`, `save`), other files (`load`), or a database/literature source (subclass, override `entries_for`); `source_kind` keeps literature apart from measured values. |
 
 ## Data flow for one training sample
 

@@ -20,6 +20,17 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 ## Building hypotheses
 
+- Build isotopologue sets with `zulf_core.hypothesis` instead of by hand:
+  describe the fragment by labels (`Fragment`, or a template from
+  `fragments.TEMPLATES`), then `build_model(fragment, ranges=...)` gives the
+  interpretation, ties, natural-abundance ratios and the omitted
+  isotopologues with reasons; `model.settings(base, fixed_ratios=...,
+  shared_rate=...)` gives the RefineSettings; `model.named_couplings(params)`
+  reports couplings by label ('J(Ca,Ha)'); `run_checks(model, summary,
+  peers)` applies the red flags; `propose_all(fragment, findings)` gives the
+  triggered one-step extensions. New motifs, checks, moves and reference
+  compounds are registry entries (see docs/ARCHITECTURE.md).
+
 - One component per isotopologue; tie every coupling that the isotopologues
   share (all proton-proton couplings) and every symmetry-equivalent coupling
   (`RefineSettings.ties`). Map group indices per component explicitly: the

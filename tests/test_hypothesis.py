@@ -1,0 +1,151 @@
+import sys
+import unittest
+from pathlib import Path
+
+import numpy as np
+
+from zulf_core.physics import compute_transitions
+from zulf_core.hypothesis import (AddCoupledProton, Finding, Fragment, KnowledgeBase, ProtonGroup, ReferenceEntry,
+                                  Site, build_model, pair, propose_all, run_checks, template)
+from zulf_core.solver import RefineSettings, refine
+from zulf_core.spinsystem import SpinSystem
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_solver import observe  # noqa: E402
+
+RANGES = [(100.0, 160.0), (230.0, 300.0)]
+
+
+def grouped(isotopes, sizes, couplings):
+    return SpinSystem.from_group_couplings(isotopes, sizes, np.asarray(couplings, float))
+
+
+def same_lines(a, b, tol=1e-6):
+    ta, tb = compute_transitions(a), compute_transitions(b)
+    order_a, order_b = np.argsort(ta.frequencies_hz), np.argsort(tb.frequencies_hz)
+    return (len(ta) == len(tb) and np.allclose(ta.frequencies_hz[order_a], tb.frequencies_hz[order_b], atol=tol)
+            and np.allclose(ta.amplitudes[order_a], tb.amplitudes[order_b], atol=tol))
+
+
+class BuilderTests(unittest.TestCase):
+    def test_ch_ch3_matches_hand_built_isotopologues(self):
+        f = template("CH-CH3", one_bond={"Ca": 147.0, "Cb": 129.0})
+        m = build_model(f)
+        self.assertEqual(m.component_labels, ["13C@Ca", "13C@Cb"])
+        self.assertEqual(m.ratios, (1.0, 1.0))
+        # Independent hand construction (the matrices used in the blind analyses).
+        alpha = grouped(["13C", "1H", "1H"], [1, 1, 3], [[0, 147.0, -4.5], [147.0, 0, 7.0], [-4.5, 7.0, 0]])
+        beta = grouped(["13C", "1H", "1H"], [1, 3, 1], [[0, 129.0, -4.5], [129.0, 0, 7.0], [-4.5, 7.0, 0]])
+        self.assertTrue(same_lines(m.interpretation.components[0].system, alpha))
+        self.assertTrue(same_lines(m.interpretation.components[1].system, beta))
+        self.assertEqual(m.ties(), (("c0.J1-2", "c1.J1-2"),))
+        self.assertEqual(m.ties(shared_rate=True)[-1], ("c0.log_rate0", "c1.log_rate0"))
+        self.assertEqual(set(m.coupling_names), {"J(Ca,Ha)", "J(Ca,Hb)", "J(Cb,Ha)", "J(Cb,Hb)", "J(Ha,Hb)"})
+
+    def test_isopropyl_merges_equivalent_methyls_only_where_symmetric(self):
+        m = build_model(template("CH(CH3)2"))
+        self.assertEqual(m.ratios, (1.0, 2.0))
+        ch, methyl = (c.system for c in m.interpretation.components)
+        self.assertEqual([len(g) for g in ch.groups], [1, 1, 6])
+        self.assertEqual([len(g) for g in methyl.groups], [1, 1, 3, 3])
+        # Magnetic equivalence: the merged 6-proton group equals two separate methyl groups with equal couplings.
+        split = grouped(["13C", "1H", "1H", "1H"], [1, 1, 3, 3],
+                        [[0, 146.0, -4.5, -4.5], [146.0, 0, 7.0, 7.0], [-4.5, 7.0, 0, 0.0], [-4.5, 7.0, 0.0, 0]])
+        self.assertTrue(same_lines(ch, split))
+        self.assertIn(("c0.J1-2", "c1.J1-2", "c1.J1-3"), m.ties())
+        self.assertEqual(m.unspecified, ("J(Hb1,Hb2)",))
+        self.assertEqual(m.fixed(), ("c1.J2-3",))
+
+    def test_fifteen_n_ratio_and_omission_reasons(self):
+        f = template("CH-CH3", substituent="N", heavy_neighbour="C")
+        f = f.with_couplings({("X", "Ha"): -1.0, ("X", "Hb"): 0.5})
+        m = build_model(f)
+        self.assertEqual(m.component_labels, ["13C@Ca", "13C@Cb", "15N@X"])
+        self.assertAlmostEqual(m.ratios[2], 0.00364 / 0.0107, places=6)
+        self.assertEqual([o[0] for o in m.omitted], ["13C@Cr"])
+        # The 15N lines lie at a few Hz: outside the fitted ranges, so the component is omitted with a reason.
+        ranged = build_model(f, ranges=RANGES)
+        self.assertIn(("15N@X", "no line in the fitted ranges"), ranged.omitted)
+        self.assertEqual(ranged.component_labels, ["13C@Ca", "13C@Cb"])
+
+    def test_invalid_symmetry_is_rejected(self):
+        sites = (Site("C1", "C"), Site("C2", "C"))
+        protons = (ProtonGroup("H1", 3, "C1"), ProtonGroup("H2", 3, "C2"))
+        swap = {"C1": "C2", "C2": "C1", "H1": "H2", "H2": "H1"}
+        with self.assertRaises(ValueError):
+            Fragment("bad", sites, protons, {pair("C1", "H1"): 125.0, pair("C2", "H2"): 126.0}, (swap,))
+        with self.assertRaises(ValueError):
+            Fragment("bad", sites, (ProtonGroup("H1", 3, "C1"), ProtonGroup("H2", 2, "C2")), {}, (swap,))
+
+    def test_add_coupled_proton_and_fast_exchange(self):
+        f0 = template("CH-CH3")
+        self.assertEqual(propose_all(f0), [])            # not triggered without a finding
+        self.assertEqual(len(propose_all(f0, [Finding("rate_asymmetry", "info", "")])), 1)
+        f = AddCoupledProton(initial_hz=1.5).propose(f0)[0]
+        m = build_model(f)
+        self.assertEqual([[len(g) for g in c.system.groups] for c in m.interpretation.components],
+                         [[1, 1, 3, 1], [1, 1, 3, 1]])
+        self.assertEqual(len(m.ties()), 3)                # every proton-proton coupling is shared
+        fast = build_model(f, include_exchangeable=False)
+        self.assertEqual([[len(g) for g in c.system.groups] for c in fast.interpretation.components],
+                         [[1, 1, 3], [1, 1, 3]])
+
+    def test_fragment_round_trip(self):
+        f = template("CH(CH3)2")
+        g = Fragment.from_dict(f.to_dict())
+        self.assertEqual(build_model(g).summary()["couplings"], build_model(f).summary()["couplings"])
+
+
+class RefinementTests(unittest.TestCase):
+    def test_built_model_recovers_named_couplings(self):
+        truth = {"J(Ca,Ha)": 146.3, "J(Cb,Hb)": 129.6, "J(Ca,Hb)": -4.2, "J(Cb,Ha)": -5.1, "J(Ha,Hb)": 7.1}
+        true_model = build_model(template("CH-CH3").with_couplings(truth))
+        systems = [c.system for c in true_model.interpretation.components]
+        obs = observe(systems, [1.0, 1.0], ranges=RANGES)
+        start = build_model(template("CH-CH3", one_bond={"Ca": 146.0, "Cb": 130.0}))
+        settings = start.settings(RefineSettings(starts=1), fixed_ratios=True, shared_rate=True)
+        res = refine(start.interpretation, obs, settings)
+        got = start.named_couplings(res.parameters)
+        for k, v in truth.items():
+            self.assertLess(abs(got[k] - v), 0.01, msg=k)
+        self.assertAlmostEqual(abs(res.gains[1]) / abs(res.gains[0]), 1.0, places=10)
+        findings = run_checks(start, res.summary())
+        self.assertEqual([f.code for f in findings], [])
+
+
+class CheckTests(unittest.TestCase):
+    def summary(self, gains, rates, params=None, hits=(), residual=0.2):
+        p = {f"c{c}.log_rate0": float(np.log(r)) for c, r in enumerate(rates)}
+        p.update(params or {"c0.J0-1": 146.0, "c0.J0-2": -4.5, "c0.J1-2": 7.0, "c1.J0-1": 130.0,
+                            "c1.J0-2": -4.5, "c1.J1-2": 7.0})
+        return {"gains": [[g, 0.0] for g in gains], "parameters": p, "boundary_hits": list(hits),
+                "data_region_residual": residual}
+
+    def test_rules(self):
+        m = build_model(template("CH-CH3"))
+        codes = lambda fs: sorted(f.code for f in fs)
+        self.assertEqual(codes(run_checks(m, self.summary([1.0, 0.95], [2.0, 2.2]))), [])
+        self.assertEqual(codes(run_checks(m, self.summary([1.0, 0.4], [2.0, 2.2]))), ["abundance"])
+        self.assertEqual(codes(run_checks(m, self.summary([1.0, 1.0], [1.9, 4.7]))), ["rate_asymmetry"])
+        self.assertIn("background_component", codes(run_checks(m, self.summary([7.5, 1.0], [7.7, 1.1]))))
+        self.assertEqual(codes(run_checks(m, self.summary([1.0, 1.0], [2.0, 2.0], hits=["c0.J0-1"]))), ["bounds"])
+        peer = self.summary([1.0, 1.0], [2.0, 2.0], {"c0.J0-1": 146.0, "c0.J0-2": -2.4, "c0.J1-2": 7.0,
+                                                    "c1.J0-1": 130.0, "c1.J0-2": -4.5, "c1.J1-2": 7.0}, residual=0.21)
+        found = run_checks(m, self.summary([1.0, 1.0], [2.0, 2.0]), peers=[peer])
+        self.assertEqual(codes(found), ["undetermined"])
+        self.assertEqual(sorted(found[0].data["spread"]), ["J(Ca,Hb)"])
+
+
+class KnowledgeTests(unittest.TestCase):
+    def test_packaged_entries_and_nearest(self):
+        kb = KnowledgeBase.packaged()
+        self.assertEqual({e.compound for e in kb.entries_for("CH-CH3")}, {"L-alanine", "lactic acid"})
+        query = {"J(Ca,Ha)": 147.0, "J(Cb,Hb)": 129.3, "J(Ha,Hb)": 6.6}
+        self.assertEqual(kb.nearest("CH-CH3", query)[0][1].compound, "lactic acid")
+        kb.add(ReferenceEntry("x", "CH-CH3", {"J(Ca,Ha)": 147.0}, "literature, test", source_kind="literature"))
+        self.assertEqual(len(kb.nearest("CH-CH3", query)), 2)          # literature excluded by default
+        self.assertEqual(len(kb.nearest("CH-CH3", query, kinds=None)), 3)
+
+
+if __name__ == "__main__":
+    unittest.main()

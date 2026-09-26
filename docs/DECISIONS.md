@@ -397,6 +397,24 @@ per-component rates one component turned into broad background (e3d282da);
 fixed ratios plus a tied rate prevent it. Free ratios stay the first test:
 on b683220d they came out at the natural 1 : 1 by themselves.
 
+## D34. Programmatic hypotheses (2026-09-26)
+
+The blind analyses built isotopologue sets and their ties by hand; group
+indices differ between isotopologues, which made the ties error-prone.
+`zulf_core.hypothesis` describes fragments by labels (sites, proton groups,
+couplings, symmetry) and builds the set automatically: one component per
+symmetry-distinct labelled site and isotope, proton groups merged where the
+labelled site's stabiliser makes them equivalent, couplings tied by symmetry
+orbit and across isotopologues, natural-abundance ratios, and components
+without couplings or without lines in the fitted ranges omitted with a
+reason. Named couplings ('J(Ca,Ha)') replace solver names in reports.
+Checks, extension moves, templates and reference couplings are registries so
+that further cases add entries rather than code paths. Replay on b683220d:
+builder-built H7 and H8 reproduce the hand-built predictions to 2e-13; the
+checks flag the H7 rate asymmetry and the isopropyl abundance contradiction.
+Stage 2 (band inventory, group candidates, fragment enumeration) and stage 3
+(budgeted search over moves, knowledge matching) are planned in PLAN.md.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

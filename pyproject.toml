@@ -20,3 +20,6 @@ zulf-model = "zulf_model.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["zulf_core*", "zulf_model*"]
+
+[tool.setuptools.package-data]
+zulf_core = ["hypothesis/data/*.json"]

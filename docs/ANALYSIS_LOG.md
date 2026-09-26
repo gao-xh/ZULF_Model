@@ -304,3 +304,13 @@ skills under `skills/`; this file keeps the history.
   skill and case notes (same-instrument overlay with confirmed samples,
   isotopologue-rate asymmetry as a missing-coupling marker, extra spin
   reported as required but unidentified).
+
+### Programmatic hypotheses, stage 1 (D34)
+- User: can the chemical-hypothesis experience be programmed; leave
+  interfaces for future cases. Added `zulf_core.hypothesis` (fragments with
+  symmetry, builder, checks, moves, knowledge base with L-alanine and lactic
+  acid). Replay on b683220d (runs/blind/b683220d/replay_builder.py): builder
+  H7 / H8 reproduce the hand-built predictions (max relative difference
+  2e-13); checks flag H7 rate asymmetry (C-beta 2.5x) and the isopropyl
+  abundance (1.16 vs 2). The H8 free / fixed pair is not "comparable" under
+  the 10 % residual rule (0.190 vs 0.283), so no undetermined flag.

@@ -121,6 +121,26 @@ fixed, so later phases are experiments rather than restructuring.
       ratios (D33; 2a16dfe). Measured on e3d282da / b683220d, see
       docs/ANALYSIS_LOG.md.
 
+## Phase 3b: programmatic hypotheses (D34)
+
+- [x] Stage 1: fragments with symmetry, isotopologue builder with automatic
+      ties/ratios/omissions, checks registry, extension-move interface with
+      `AddCoupledProton`, reference couplings (L-alanine, lactic acid,
+      measured). Replay on b683220d reproduces the hand-built fits.
+- [ ] Stage 2: band inventory from a spectrum (lines, SNR, instrument lines
+      excluded); group candidates per band (XH / XH2 / XH3 x 1J, partner-line
+      scores via `compute_transitions`); fragment enumeration from the group
+      inventory and abundance counts (reuse `zulf_model.generator` graphs).
+- [ ] Stage 3: budgeted search loop (refine free and fixed variants in
+      parallel, run checks, apply triggered moves, rank by an information
+      criterion with zero-fill-corrected point counts); knowledge matching of
+      the leading fragments; report with named couplings.
+- [ ] More moves: add 15N site, change equivalence (CH3 <-> CH(CH3)2), add a
+      remote proton group, split a group; more templates as cases arrive.
+- [ ] Validation: replay the four blind datasets end to end; synthetic
+      benchmark from the generator (fraction of correct fragments within a
+      budget), compared with the neural proposers.
+
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
 - [ ] Train CNN+Transformer; compare (a) graph search, (b) CNN set, (c)
