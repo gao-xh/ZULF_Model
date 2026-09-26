@@ -108,3 +108,15 @@ skills under `skills/`; this file keeps the history.
   established; 72-76 Hz unresolved. Next solver step: amplitude ratios fixed
   by natural abundance (pure sample 1 : 1 : 0.35), so models cannot collapse
   onto one isotopologue.
+- Check of the model pass (user question: are model-predicted peaks
+  up-weighted?): yes, but only predicted narrow excess above 4 sigma joins
+  the cores (H7 +5, H7 + 15NH3 +18, self-consistent +23 points, mostly edges
+  of existing cores: 132, 146.75, 258.5-260 Hz; self-consistent also 71.75,
+  132.25-132.5, 260.25-260.5 Hz). Not covered: weaker spurious lines (the
+  264 Hz line of H7 + 15NH3 keeps weight about 0.26), predicted dips below
+  the baseline (138.5 Hz in the self-consistent fit), and lines that appear
+  only after the second pass (one pass, not iterated). The figure's yellow
+  shading showed data cores only. Planned: model threshold relative to the
+  noise but lower (model has no noise), absolute deviation from the
+  background instead of positive excess, iterate until the cores are stable,
+  plot the weights actually used.
