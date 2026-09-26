@@ -30,6 +30,7 @@ labelled experimental database; experiments remain the final check.
 | `zulf_model/agent` | Tool registry for AI agents: JSON CLI, MCP server, Anthropic/OpenAI tool export, background jobs |
 | `configs/` | Problem, generator, couplings, processing, perturbation, protocol, model and run configurations |
 | `skills/zulf-model` | Agent skill guide (Claude skill format and OpenAI agent card) |
+| `skills/zulf-blind-analysis` and category skills | Experimental workflow skills: FID processing, spectrum interpretation, phasing, hypothesis refinement; case notes and derivation paths |
 | `docs/` | Architecture, conventions, decisions, plan ledger, references |
 
 ## Install

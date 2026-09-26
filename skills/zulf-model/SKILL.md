@@ -8,6 +8,18 @@ description: Propose and refine spin interpretations (isotopologues, magnetic-eq
 The toolkit is a backend of typed tools. Call them; do not re-implement physics
 or processing in chat, and never invent numbers that a tool did not return.
 
+## Related skills
+
+- `zulf-blind-analysis`: end-to-end workflow for an unknown experimental FID
+  (orders the four skills below; case notes and derivation paths).
+- `zulf-fid-processing`: diagnostics, SG and window choice, instrument lines,
+  background screening, residual scale.
+- `zulf-spectrum-interpretation`: line patterns, heteronucleus strengths,
+  natural-abundance isotopologues.
+- `zulf-phasing`: conventions, model-free phasing, first-order ripple.
+- `zulf-hypothesis-refinement`: model candidates, multi-isotopologue
+  hypotheses, fitting settings, physical checks, comparison.
+
 ## Access
 
 - JSON CLI: `zulf-model tool NAME --json '{...}'`, background jobs with

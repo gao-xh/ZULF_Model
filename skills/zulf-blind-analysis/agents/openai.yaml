@@ -1,0 +1,6 @@
+interface:
+  display_name: "ZULF Blind Analysis"
+  short_description: "Identify an unknown sample from an averaged ZULF FID with checked, ranked candidates"
+  default_prompt: "Use $zulf-blind-analysis to process my averaged ZULF FID, read its J-spectrum, refine hypotheses and report ranked candidates."
+policy:
+  allow_implicit_invocation: true
