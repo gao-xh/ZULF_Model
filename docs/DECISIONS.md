@@ -320,7 +320,7 @@ Finite-difference Jacobians cost one full model evaluation (eigendecomposition
 of every sector block plus rendering) per free parameter per iteration, and
 they inherit any roughness of the reduced objective. `refine` now passes an
 analytic Jacobian to the trust-region solver (`RefineSettings.jacobian`,
-default "analytic"; "kaufman" and "finite_difference" remain available):
+"kaufman" by default, "analytic" for the exact form, "finite_difference"):
 
 * Couplings: `physics.derivatives.transition_derivatives` differentiates the
   signal Tr(U rho U^+ D) with the Daleckii-Krein form, so degenerate levels
@@ -346,6 +346,29 @@ this exposed that the shared phase with a clamped (zero) amplitude was found
 by golden section only to about 1e-8 rad, which made the objective rough at
 that level; it is now polished with the analytic phase derivative on the
 active set.
+
+Benchmark (`scripts/solver_recovery.py`, 8 generator systems of 4 to 6 spins,
+8192 points, SNR 100 to 300, two starts per offset, one thread per run,
+success = reaching the optimum found from the truth within 0.1 Hz):
+
+| Jacobian | offset | reached | total time | median time | model evaluations |
+|---|---|---|---|---|---|
+| exact analytic | 0.5 Hz | 16/16 | 28 s | 1.4 s | 841 |
+| Kaufman | 0.5 Hz | 16/16 | 26 s | 1.5 s | 794 |
+| finite difference | 0.5 Hz | 16/16 | 59 s | 2.7 s | 7561 |
+| exact analytic | 2 Hz | 11/16 | 162 s | 7.8 s | 4907 |
+| Kaufman | 2 Hz | 11/16 | 126 s | 6.9 s | 3967 |
+| finite difference | 2 Hz | 11/16 | 309 s | 15.2 s | 40075 |
+
+All three reach the same points; the analytic forms are 2 to 2.5 times
+faster. Kaufman's form is marginally faster than the exact one here and is
+the default. The 2 Hz misses (3 systems) are basin failures shared by every
+mode and need global search starts, not a better local step. Two systems
+end 0.40 and 0.16 Hz from the truth from every start, including the truth
+itself: at this SNR the data optimum is that far from the truth, so the
+recovery benchmark now scores against the optimum refined from the truth
+(`basin_of_attraction(reference="refined_truth")`, the script default)
+and reports both distances.
 
 ## Open questions
 

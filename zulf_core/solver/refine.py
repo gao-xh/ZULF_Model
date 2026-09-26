@@ -40,7 +40,7 @@ class RefineSettings:
     background_order: int = -1
     band_weighting: str = "equal"
     diff_step: float = 1e-6
-    jacobian: str = "analytic"     # analytic (exact variable projection) | kaufman | finite_difference (D31)
+    jacobian: str = "kaufman"      # kaufman | analytic (exact variable projection) | finite_difference (D31)
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
     guard_continuation: bool = True   # also fit directly at full resolution from each start (D28)
     ties: tuple = ()      # ((leader, follower, ...), ...) parameter names; missing names are skipped

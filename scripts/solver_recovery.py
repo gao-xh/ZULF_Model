@@ -36,6 +36,8 @@ def main():
     parser.add_argument("--strategies", default="local,search,anneal")
     parser.add_argument("--jacobians", default="analytic",
                         help="Comma-separated Jacobian modes to compare: analytic, kaufman, finite_difference.")
+    parser.add_argument("--reference", default="refined_truth", choices=["truth", "refined_truth"],
+                        help="Score against the true couplings or against the optimum reached from the truth.")
     parser.add_argument("--budget-s", type=float, default=900.0,
                         help="Wall-clock budget per refinement; budget exhaustion is recorded in the flags.")
     args = parser.parse_args()
@@ -71,7 +73,8 @@ def main():
         for name in chosen:
             start = time.perf_counter()
             result = basin_of_attraction(sample.interpretation, observed, scales, trials=args.trials,
-                                         tolerance_hz=args.tolerance_hz, settings=strategies[name], seed=index)
+                                         tolerance_hz=args.tolerance_hz, settings=strategies[name], seed=index,
+                                         reference=args.reference)
             for row in result:
                 rows.append({"system": index, "isotopes": list(system.isotopes),
                              "groups": [len(g) for g in system.groups], "strategy": name,

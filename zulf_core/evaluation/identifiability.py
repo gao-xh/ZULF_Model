@@ -71,9 +71,24 @@ def perturb_couplings(system: SpinSystem, scale_hz: float, rng: np.random.Genera
 
 def basin_of_attraction(truth: Interpretation, observed: ObservedSpectrum, scales_hz: Sequence[float],
                         trials: int = 5, tolerance_hz: float = 0.05, settings: RefineSettings = RefineSettings(starts=1),
-                        protocol: Protocol = SUDDEN_DROP, seed: int = 0) -> List[dict]:
+                        protocol: Protocol = SUDDEN_DROP, seed: int = 0, reference: str = "truth") -> List[dict]:
+    """Recovery rate of refinement from perturbed starts.
+
+    `reference="truth"` scores the distance to the true couplings.
+    `reference="refined_truth"` scores the distance to the optimum reached by
+    refining from the truth itself: with noise, that optimum can sit more than
+    the tolerance away from the truth (a limit of the data, not of the
+    solver), and only reaching it measures the basin. Both distances are
+    reported.
+    """
+    if reference not in ("truth", "refined_truth"):
+        raise ValueError("reference must be 'truth' or 'refined_truth'.")
     rng = np.random.default_rng(seed)
     rows = []
+    target, floor = truth, 0.0
+    if reference == "refined_truth":
+        target = refine(truth, observed, settings, protocol).interpretation
+        floor = max(coupling_error(t.system, r.system)[0] for t, r in zip(truth.components, target.components))
     for scale in scales_hz:
         successes, evaluations, details = 0, [], []
         for _ in range(trials):
@@ -86,13 +101,16 @@ def basin_of_attraction(truth: Interpretation, observed: ObservedSpectrum, scale
             result = refine(start, observed, local, protocol)
             error = max(coupling_error(t.system, r.system)[0]
                         for t, r in zip(truth.components, result.interpretation.components))
-            successes += error <= tolerance_hz
+            miss = max(coupling_error(t.system, r.system)[0]
+                       for t, r in zip(target.components, result.interpretation.components))
+            successes += miss <= tolerance_hz
             evaluations.append(result.evaluations)
-            details.append({"max_error_hz": float(error), "flags": list(result.flags),
+            details.append({"max_error_hz": float(error), "reference_error_hz": float(miss), "flags": list(result.flags),
                             "evaluations": result.evaluations, "jacobian_evaluations": result.jacobian_evaluations,
                             "elapsed_s": result.elapsed_s,
                             "relative_residual": result.relative_residual})
         rows.append({"scale_hz": scale, "success_rate": successes / trials,
                      "median_evaluations": float(np.median(evaluations)), "trials": trials,
-                     "tolerance_hz": tolerance_hz, "details": details})
+                     "tolerance_hz": tolerance_hz, "reference": reference, "reference_truth_error_hz": floor,
+                     "details": details})
     return rows
