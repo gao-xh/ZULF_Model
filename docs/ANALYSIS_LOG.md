@@ -217,3 +217,18 @@ skills under `skills/`; this file keeps the history.
 - User: release the fixed amplitude ratios. Running: self-consistent alanine
   with free amplitudes, one shared decay rate, envelope cores; starts:
   candidate, best constrained envelope fit, random.
+- Result (free amplitudes, shared rate, envelope cores): data-region 0.271
+  (start: constrained fit), 0.292 (candidate), 0.330 (random, phase-delay
+  bound). Amplitudes C-alpha : C-beta : 15N = 1 : 1.54 : 0.80,
+  1 : 0.56 : 0.54, 1 : 1.34 : 1.01; shared rate 2.3-3.4 1/s.
+  C-alpha : C-beta is not determined (0.56-1.54, around 1). 15N relative to
+  the mean 13C site is 0.63-0.86 in every start, about twice the natural
+  0.34: the 74 Hz feature is stronger than a 15NH3+ line at natural
+  abundance, consistent with an extra (for example instrumental) part or
+  with a 15N model that is not right.
+  Robust: 1J(Ca,Ha) 144.5-145.4, 1J(Cb,Hb) 129.1-130.3, 1J(N,H) -73.4 to
+  -74.0 Hz. 3J(Ha,Hb) 7.0 / 8.5 / 9.0 Hz (candidate start 7.04, close to the
+  literature value about 7.2); other small couplings not determined.
+  Best fit matches 142-147 Hz closely; still low at 130.8 and 148.5 Hz and
+  shows the 251.5 Hz line; the candidate-start fit has 130.8 Hz right but
+  misses 129.2 Hz and is low at 259 Hz.
