@@ -36,6 +36,20 @@ starting; follow the same observation -> inference -> test -> outcome format.
   mixture, labelled or natural abundance); it fixes exchange models and
   isotopologue abundance ratios.
 
+## Working practice
+
+- Start with an overlay on confirmed samples and a no-signal dataset,
+  processed identically; then fit the simplest fragment, then extend it one
+  step at a time on the same data, window and weighting.
+- Run independent starts or variants as separate processes (one per core);
+  a three-start 8-spin fit takes about 10 minutes that way.
+- Check a claimed mechanism (a weight, a mask, a penalty) on the actual fit
+  before reporting it; one claim here ("spurious lines are fully
+  penalised") was wrong until the model cores came from the transition
+  lists.
+- Log each step in docs/ANALYSIS_LOG.md as it happens, and update the skill
+  when it teaches something reusable.
+
 ## Report format
 
 1. Processing and assumptions (sampling rate, crop, SG, window).

@@ -69,6 +69,32 @@ inference names the observation it rests on and the test that could refute it.
     were step 3's first methyl reading of the 130 Hz group and step 9's 15N
     improvement; both were corrected by explicit tests, not by residuals.
 
+## Sample b683220d (strong signal; final: CH(OH)-CH3 acid; confirmed lactic acid)
+
+1. Observation: same format and diagnostics as e3d282da (plateau 2.75 ms,
+   ringing 45 ms). Inference: same instrument and processing.
+2. Observation (overlay on e3d282da and 7dc9a043, identical processing):
+   the alanine band layout, shifted: 130 Hz group 0.8 Hz lower, 146 Hz group
+   1.5-2 Hz higher, lines about 2x stronger, nothing at 72-76 Hz.
+   Inference: a CH-CH3 fragment with a different substituent or pH.
+3. Test: H7 (CH-CH3, both single-13C isotopologues), free and with 1 : 1 plus
+   a shared rate. Outcome: 0.280, amplitudes 1 : 1.04 by themselves, 1J
+   147.12 / 129.19 Hz; methyl-carbon lines broadened (4.7 vs 1.9 1/s) and the
+   128.4 / 130.0 doublet missed -> a coupling is missing on that
+   isotopologue.
+4. Tests: H8 (H7 plus one weakly coupled proton on X) and isopropyl.
+   Outcome: H8 0.190 (misfit 0.46 of H7), doublet and 257-263 Hz structure
+   reproduced, rates equal again; extra-spin couplings differ between the
+   free and fixed fits (not determined). Isopropyl 0.352 with 1 : 1.16 where
+   1 : 2 is required -> rejected.
+5. Inference: one CH, one CH3, 3J(HH) 7.06 Hz; 1J(CH) 1.7 Hz above alanine
+   (O rather than N on the CH); no 15N line; an extra spin compatible with
+   OH. Final guess lactic acid / lactate, runner-up alanine at another pH.
+   Outcome: confirmed lactic acid.
+6. What worked: overlay on a confirmed sample first; free amplitudes as the
+   abundance test; rate asymmetry as the missing-coupling marker; one-step
+   model extensions tested on identical data and weighting.
+
 ## Sample 7ad4aafb (strong signal; pyridine-consistent)
 
 1. Observation: one band 148-192 Hz, about ten line groups, no band at 2x.

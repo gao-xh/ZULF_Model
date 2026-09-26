@@ -370,6 +370,33 @@ recovery benchmark now scores against the optimum refined from the truth
 (`basin_of_attraction(reference="refined_truth")`, the script default)
 and reports both distances.
 
+## D32. Signal-focused weighting with model cores (2026-09-26)
+
+`band_weighting="signal"` (d5543fc, 196e14f, 9e46dbd, 6595bad) scales the
+residual by the noise sigma (MAD of the narrow excess) and weights points by
+their distance to peak cores: 1 at a core, Gaussian fall-off (2 Hz) to 0.2.
+Data cores are narrow features above 4 sigma. A data-only mask let a model
+put lines where the data show none at low cost (e3d282da: 263-265 Hz), so
+the model's own signal joins the cores and the fit is repeated until the
+cores are stable. The model signal is read from the transition lists, not
+peak-picked from the rendered spectrum: first per-line heights (missed
+broad overlapping lines and a cancellation hole at 139 Hz), now the
+incoherent envelope sum_k abs(g_c a_k) P_R(f - f_k) above 2 sigma, which
+covers isolated lines of either sign, broad components and cancellation
+holes. Cost: the envelope's tails cover most of each band, so the focus on
+peaks is weaker there. Models are compared on `data_region_residual` (data
+cores only), the same region for every model.
+
+## D33. Fixed amplitude ratios (2026-09-26)
+
+`RefineSettings.amplitude_ratios` (2a16dfe) merges components into one
+column sum_c r_c col_c before the linear solve; the Jacobian merges the
+derivative columns the same way (tested against finite differences). Used
+for isotopologue abundances of a pure sample. With free amplitudes and free
+per-component rates one component turned into broad background (e3d282da);
+fixed ratios plus a tied rate prevent it. Free ratios stay the first test:
+on b683220d they came out at the natural 1 : 1 by themselves.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

@@ -18,9 +18,22 @@ Red flags
 - A fit that improves the residual by fitting the edges of a band or the
   low-frequency background instead of the molecular lines.
 - A component whose weight collapses to zero: the hypothesis did not need it.
+- A component that turns into background: much larger amplitude than its
+  partners together with a high decay rate (e3d282da: C-alpha 7.5x at
+  7.7 1/s). Its broad lines can cut holes (139 Hz) that cost little outside
+  the cores. Fix with natural ratios and a tied rate.
+- Decay rates that differ strongly between isotopologues of one molecule
+  (b683220d H7: 4.7 vs 1.9 1/s): the faster one hides unresolved couplings.
+- Couplings that differ between equally good starts are not determined;
+  report them as such (e3d282da small couplings, b683220d extra spin).
 
 Comparisons
 - Same window, range, zero filling, mode (complex or real-only).
+- With signal weighting compare `data_region_residual` (data cores only);
+  `signal_region_residual` includes each model's own cores and differs
+  between models.
+- Plot the weights actually used (data cores and model cores) under the
+  fits; check a weighting claim on the fit itself before stating it.
 - F-type test for nested models: F = (RSS1 - RSS2)/dk / (RSS2/(N - k2)),
   with N reduced for zero filling (correlated points).
 - Prefer the model that explains every clear line with consistent physics

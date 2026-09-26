@@ -116,6 +116,10 @@ fixed, so later phases are experiments rather than restructuring.
       next refinement should fix the delay at this value or fit it
       (`policy.fit_phase_delay`).
 - [ ] Recovery tests on random generated systems from perturbed starts.
+- [x] Signal-focused weighting with model cores from the transition-list
+      envelope (D32; d5543fc, 196e14f, 9e46dbd, 6595bad) and fixed amplitude
+      ratios (D33; 2a16dfe). Measured on e3d282da / b683220d, see
+      docs/ANALYSIS_LOG.md.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
@@ -185,6 +189,11 @@ verification data before adoption.
 ## Phase 6: blind test (plan weeks 10-11)
 
 - [ ] Freeze model, generator and protocol; run on molecules from Q9.
+- [x] Informal blind tests on NMRduino averages (docs/ANALYSIS_LOG.md):
+      7dc9a043 no signal; 7ad4aafb pyridine-consistent (not revealed);
+      e3d282da final pair lactic acid / alanine, confirmed L-alanine;
+      b683220d final guess lactic acid, confirmed. Models contributed no
+      usable structure at these SNRs; hypotheses plus the solver did.
 
 ## Phase 7 (optional): J to structure
 
