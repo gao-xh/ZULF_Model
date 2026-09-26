@@ -67,6 +67,10 @@ class MixtureForward:
             self.renderer = ContinuousRenderer()
         else:
             self.renderer = Renderer(observed.acquisition, timer=self.timer)
+        # Processed-spectrum observations: the model is phase-corrected exactly as the data were, and a
+        # real (absorption) observation is compared on the real part only.
+        self.real_only = bool(getattr(observed, "real_only", False))
+        self.correction = observed.model_correction(self.f) if hasattr(observed, "model_correction") else None
         scale = np.ones(len(self.y))
         if band_weighting == "equal":
             for b in np.unique(self.band):
@@ -86,8 +90,10 @@ class MixtureForward:
             if edges:
                 tl = tl.split_families(edges)
             with self.timer.section("solver.render"):
-                cols.append(self.renderer.render_pair(tl, self.p.rates(values, c), self.f,
-                                                      delay, self.p.sigma(values, c)))
+                pair = self.renderer.render_pair(tl, self.p.rates(values, c), self.f, delay, self.p.sigma(values, c))
+            if self.correction is not None:
+                pair = pair * self.correction[:, None]
+            cols.append(pair)
         return cols
 
     def nuisance_columns(self, values: Dict[str, float]) -> np.ndarray:
@@ -125,7 +131,10 @@ class MixtureForward:
                         times = np.arange(len(template)) / fs
                         template = np.interp(times - shift, times, template, left=template[0], right=template[-1])
                     cols.append(evaluate_spectrum(process_record(template, acq), acq, self.f))
-        return np.column_stack(cols) if cols else np.zeros((len(self.f), 0), complex)
+        out = np.column_stack(cols) if cols else np.zeros((len(self.f), 0), complex)
+        if self.correction is not None and out.shape[1]:
+            out = out * self.correction[:, None]
+        return out
 
     def _background_columns(self) -> np.ndarray:
         """Complex polynomial (Legendre-scaled coordinate) per band: columns 1 and i per power."""
@@ -155,11 +164,34 @@ class MixtureForward:
         real = np.ravel(np.column_stack([background.real, background.imag]))
         return real[:n_columns]
 
-    @staticmethod
-    def _real_system(design: np.ndarray, target: np.ndarray, weight: np.ndarray):
-        a = np.vstack([(design * weight[:, None]).real, (design * weight[:, None]).imag])
-        b = np.r_[(target * weight).real, (target * weight).imag]
-        return a, b
+    def mismatch(self, model: np.ndarray, mask: Optional[np.ndarray] = None) -> np.ndarray:
+        """Model minus data as compared by the objective (real part only for real observations)."""
+        d = np.asarray(model) - self.y
+        if mask is not None:
+            d = d[mask]
+        return d.real if self.real_only else d
+
+    def _real_system(self, design: np.ndarray, target: np.ndarray, weight: np.ndarray):
+        wd = design * weight[:, None]
+        wt = target * weight
+        if self.real_only:
+            return wd.real, wt.real
+        return np.vstack([wd.real, wd.imag]), np.r_[wt.real, wt.imag]
+
+    def _orthonormal_basis(self, a: np.ndarray) -> np.ndarray:
+        """Orthonormal basis of the column space.
+
+        Real-only systems contain exactly null columns (the imaginary background terms), which QR would
+        turn into arbitrary directions; there the basis comes from an SVD that drops them. Complex
+        systems keep QR.
+        """
+        if not a.shape[1]:
+            return np.zeros((a.shape[0], 0))
+        if not self.real_only:
+            return np.linalg.qr(a)[0]
+        u, sv, _ = np.linalg.svd(a, full_matrices=False)
+        keep = sv > max(sv.max(), 1e-300) * 1e-12
+        return u[:, keep]
 
     def predict(self, x: Optional[np.ndarray] = None, values: Optional[Dict[str, float]] = None,
                 fixed_gains: Optional[np.ndarray] = None, fixed_background: Optional[np.ndarray] = None) -> Prediction:
@@ -190,7 +222,7 @@ class MixtureForward:
         if len(background):
             model = model + bg_cols @ self._background_real(background, bg_cols.shape[1])
         diff = (model - self.y) * self.weight / self.norm
-        residual = np.r_[diff.real, diff.imag]
+        residual = diff.real.copy() if self.real_only else np.r_[diff.real, diff.imag]
         return Prediction(np.asarray(model, complex), component_spectra, gains, np.asarray(background, complex),
                           residual, float(residual @ residual))
 
@@ -225,7 +257,7 @@ class MixtureForward:
         a1, _ = self._real_system(c1, self.y, self.weight)
         if bg_cols.shape[1]:
             ab, _ = self._real_system(bg_cols, self.y, self.weight)
-            q, _ = np.linalg.qr(ab)
+            q = self._orthonormal_basis(ab)
             project = lambda m: m - q @ (q.T @ m)
             a0, a1, y_res = project(a0), project(a1), project(y[:, None])[:, 0]
         else:

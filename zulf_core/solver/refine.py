@@ -117,7 +117,7 @@ def _band_residuals(forward: MixtureForward, prediction: Prediction) -> List[flo
     out = []
     for b in np.unique(forward.band):
         m = forward.band == b
-        out.append(float(np.linalg.norm(prediction.model[m] - forward.y[m]) / max(np.linalg.norm(forward.y[m]), 1e-30)))
+        out.append(float(np.linalg.norm(forward.mismatch(prediction.model, m)) / max(np.linalg.norm(forward.y[m]), 1e-30)))
     return out
 
 
@@ -133,11 +133,15 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
     timer = timer or Timer()
     param = parameterization or settings.parameterize(candidate)
     search_summary = None
+    search_note = None
     if initial_points is None and settings.search is not None:
-        with timer.section("solver.search"):
-            found = global_search(param, observed, SearchSettings.from_dict(settings.search), protocol, timer)
-        initial_points = found.points
-        search_summary = found.summary(param)
+        if observed.reprocessable:
+            with timer.section("solver.search"):
+                found = global_search(param, observed, SearchSettings.from_dict(settings.search), protocol, timer)
+            initial_points = found.points
+            search_summary = found.summary(param)
+        else:
+            search_note = "search_unavailable_without_fid"
 
     def make_forward(extra: float) -> MixtureForward:
         """Matched continuation: the same extra apodization is applied to data and model."""
@@ -247,12 +251,14 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         flags.append("search_budget_exhausted")
     if continuation_note:
         flags.append(continuation_note)
+    if search_note:
+        flags.append(search_note)
     contributions = np.abs(final.gains)
     top = contributions.max() if len(contributions) and contributions.max() > 0 else 1.0
     interp = param.interpretation(values, contributions / top)
     interp.metadata.update(source="solver", flags=flags)
-    relative = float(np.linalg.norm(final.model - forward.y) / max(np.linalg.norm(forward.y), 1e-30))
-    signal_relative = float(np.linalg.norm(final.model - forward.y) / max(forward.background_only_residual(values), 1e-30))
+    relative = float(np.linalg.norm(forward.mismatch(final.model)) / max(np.linalg.norm(forward.y), 1e-30))
+    signal_relative = float(np.linalg.norm(forward.mismatch(final.model)) / max(forward.background_only_residual(values), 1e-30))
     return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative, signal_relative,
                             _band_residuals(forward, final), hits,
                             flags, converged, budget, evaluations, time.perf_counter() - start_time, attempts,
@@ -273,8 +279,8 @@ def frozen_prediction(result: RefinementResult, candidate_param: Parameterizatio
     refit = forward.predict(values=result.parameters)
     norm = max(np.linalg.norm(forward.y), 1e-30)
     return {"label": held_out.label,
-            "relative_residual": float(np.linalg.norm(frozen.model - forward.y) / norm),
-            "gain_refit_relative_residual": float(np.linalg.norm(refit.model - forward.y) / norm),
+            "relative_residual": float(np.linalg.norm(forward.mismatch(frozen.model)) / norm),
+            "gain_refit_relative_residual": float(np.linalg.norm(forward.mismatch(refit.model)) / norm),
             "note": "Frozen score uses training gains and parameters; gain refit is a conditional diagnostic."}
 
 

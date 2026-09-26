@@ -52,6 +52,34 @@ class AgentToolTests(unittest.TestCase):
                                                           "mode": mode, "points": 2048})
             self.assertTrue(Path(rendered["arrays"]).exists())
 
+    def test_refine_on_processed_spectrum(self):
+        from zulf_core.physics import compute_transitions
+        from zulf_core.render.acquisition import evaluate_spectrum, process_record
+        from zulf_core.render.phasing import phase_correct
+        from zulf_core.spinsystem import SpinSystem
+        from zulf_model.render import Acquisition, Renderer
+        j = np.zeros((4, 4)); j[0, 1:] = j[1:, 0] = 140.0
+        acq = Acquisition(1000.0, 4096, start_sample=20)
+        fid = Renderer(acq).synthesize(compute_transitions(SpinSystem(("13C", "1H", "1H", "1H"), j)), 1.0,
+                                       gain=np.exp(0.7j), phase_delay_s=0.0004)
+        f = np.arange(100.0, 320.0, 0.1)
+        phased = phase_correct(evaluate_spectrum(process_record(fid, acq), acq, f), f, 0.7, 0.0004, acq)
+        path = Path(self.tmp.name) / "phased.csv"
+        np.savetxt(path, np.column_stack([f, phased.real]), delimiter=",", header="frequency_hz,real")
+        start = [[0, 138.5, 138.5, 138.5], [138.5, 0, 0, 0], [138.5, 0, 0, 0], [138.5, 0, 0, 0]]
+        spectrum = {"path": str(path), "record": acq.to_dict(), "phasing": {"phase0_rad": 0.7, "delay_s": 0.0004}}
+        args = {"candidates": [{"components": [{"system": {"isotopes": ["13C", "1H", "1H", "1H"],
+                                                            "couplings_hz": start}}]}],
+                "spectrum": spectrum, "ranges": [[120.0, 160.0], [260.0, 300.0]],
+                "settings": {"starts": 1}}
+        out = self.reg.call("refine_candidates", args)
+        self.assertTrue(out["observation"]["real_only"])
+        self.assertEqual(out["observation"]["lineshape"], "finite_record")
+        couplings = np.asarray(out["results"][0]["interpretation"]["components"][0]["system"]["couplings_hz"])
+        self.assertLess(abs(couplings[0, 1] - 140.0), 1e-2)
+        with self.assertRaises(ValueError):
+            self.reg.call("refine_candidates", {"candidates": args["candidates"], "ranges": args["ranges"]})
+
     def test_fid_tools_and_background_job(self):
         from zulf_core.physics import compute_transitions
         from zulf_model.render import Acquisition, Renderer

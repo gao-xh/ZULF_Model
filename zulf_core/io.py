@@ -89,3 +89,36 @@ def average_folder(folder, scan_ids: Optional[Sequence[int]] = None, groups: Opt
         means.append(total / count)
     return [ExperimentFID(m, info["sampling_rate_hz"], len(g), {"folder": str(folder), "decoder": DECODER})
             for m, g in zip(means, groups)]
+
+
+def load_spectrum_table(path):
+    """Load a processed spectrum as (frequencies_hz, values).
+
+    Accepted: .npy with shape (N, 2) [f, real] or (N, 3) [f, real, imag], or a
+    complex (N, 2) array [f, value]; .npz with keys "frequency_hz" and
+    "values" (complex or real); text/CSV with two or three numeric columns
+    (lines starting with '#' and a non-numeric header are skipped). Returns
+    complex values when an imaginary column is present, real otherwise.
+    """
+    path = Path(path)
+    if path.suffix == ".npz":
+        with np.load(path) as data:
+            return np.asarray(data["frequency_hz"], float), np.asarray(data["values"])
+    if path.suffix == ".npy":
+        table = np.load(path)
+    else:
+        text = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+        delimiter = "," if "," in text[0] else None
+        try:
+            float(text[0].replace(",", " ").split()[0])
+        except ValueError:
+            text = text[1:]
+        table = np.loadtxt(text, delimiter=delimiter)
+    table = np.asarray(table)
+    if table.ndim != 2 or table.shape[1] not in (2, 3):
+        raise ValueError("Expected two or three columns: frequency, real[, imaginary].")
+    frequencies = np.asarray(table[:, 0].real, float)
+    if table.shape[1] == 3:
+        return frequencies, table[:, 1].real + 1j * table[:, 2].real
+    values = table[:, 1]
+    return frequencies, (values if np.iscomplexobj(values) else np.asarray(values, float))

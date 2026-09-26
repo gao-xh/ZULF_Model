@@ -36,6 +36,9 @@ or processing in chat, and never invent numbers that a tool did not return.
    spectra: relative J signs are observable only through small splittings and
    a local fit cannot cross zero for large couplings; report the winning
    variant and the residual margin to the runner-up.
+   If only a processed spectrum exists, pass `spectrum` (file path, plus
+   `record` and applied `phasing` when known) instead of `source`; global
+   search is then unavailable, so starts must be close.
 6. Compare recipes: a parameter that moves between recipes beyond its tolerance is
    processing-sensitive and must be reported as such.
 7. Optional: `identifiability` for the chosen candidate.
@@ -44,7 +47,7 @@ or processing in chat, and never invent numbers that a tool did not return.
 
 - Every result is a conditional numerical candidate. Quote flags
   (`search_boundary`, `optimizer_not_converged`, `search_budget_exhausted`,
-  `continuation_unavailable_without_fid`, `provisional_ranking`), band residuals
+  `continuation_unavailable_without_fid`, `search_unavailable_without_fid`, `provisional_ranking`), band residuals
   and frozen held-out residuals next to any J value.
 - A decay rate at its bound, or a J at its bound, is not a measurement.
 - A global sign flip of all J is unobservable; relative signs are observable.

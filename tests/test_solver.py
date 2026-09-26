@@ -152,6 +152,75 @@ class SignVariantTests(unittest.TestCase):
         self.assertIn("sign_variant", with_variants[0].interpretation.metadata)
 
 
+class ProcessedSpectrumTests(unittest.TestCase):
+    """Refinement directly on spectra processed elsewhere (no FID)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from zulf_core.render.acquisition import evaluate_spectrum, process_record
+        from zulf_core.render.grid import SpectrumGrid
+        cls.truth = methyl_isotopologue()
+        tl = compute_transitions(cls.truth)
+        cls.fid = Renderer(ACQ).synthesize(tl, 1.5, gain=3.0 * np.exp(0.7j), phase_delay_s=0.0008)
+        cls.f = SpectrumGrid.for_acquisition(ACQ, 1.0, 400.0).frequencies_hz
+        cls.complex_values = evaluate_spectrum(process_record(cls.fid, ACQ), ACQ, cls.f)
+        cls.start = Interpretation((Component(perturbed(cls.truth, 0.5)),))
+        cls.settings = RefineSettings(starts=1)
+
+    def error(self, result):
+        return best_permutation(self.truth, result.interpretation.components[0].system).max_abs_error_hz
+
+    def test_complex_spectrum_with_record_matches_fid_route(self):
+        obs = ObservedSpectrum.from_spectrum(self.f, self.complex_values, RANGES, record=ACQ)
+        self.assertFalse(obs.real_only)
+        res = refine(self.start, obs, self.settings)
+        self.assertLess(self.error(res), 1e-3)
+        self.assertIn("continuation_unavailable_without_fid", res.flags)
+        fid_route = refine(self.start, ObservedSpectrum.from_fid(self.fid, ACQ, RANGES), self.settings)
+        self.assertLess(abs(res.relative_residual - fid_route.relative_residual), 1e-6)
+
+    def test_phase_corrected_real_spectrum_with_record(self):
+        from zulf_core.render.phasing import phase_correct
+        absorption = phase_correct(self.complex_values, self.f, 0.7, 0.0008, ACQ).real
+        obs = ObservedSpectrum.from_spectrum(self.f, absorption, RANGES, record=ACQ.to_dict(),
+                                             phasing={"phase0_rad": 0.7, "delay_s": 0.0008})
+        self.assertTrue(obs.real_only)
+        res = refine(self.start, obs, self.settings)
+        self.assertLess(self.error(res), 1e-3)
+        self.assertLess(res.relative_residual, 1e-4)
+
+    def test_real_spectrum_without_record_uses_lorentzian_lines(self):
+        from zulf_core.render.acquisition import evaluate_spectrum, process_record
+        from zulf_core.render.grid import SpectrumGrid
+        from zulf_core.render.phasing import phase_correct
+        acq = Acquisition(1000.0, 16384)
+        fid = Renderer(acq).synthesize(compute_transitions(self.truth), 1.5, gain=3.0)
+        f = SpectrumGrid.for_acquisition(acq, 1.0, 400.0).frequencies_hz
+        absorption = phase_correct(evaluate_spectrum(process_record(fid, acq), acq, f), f, 0.0, 0.0, acq).real
+        obs = ObservedSpectrum.from_spectrum(f, absorption, RANGES)
+        self.assertIsNone(obs.acquisition)
+        res = refine(self.start, obs, RefineSettings(starts=1, background_order=0))
+        self.assertLess(self.error(res), 0.02)
+
+    def test_table_loader(self):
+        import tempfile
+        from pathlib import Path
+        from zulf_core.io import load_spectrum_table
+        with tempfile.TemporaryDirectory() as tmp:
+            table = np.column_stack([self.f, self.complex_values.real, self.complex_values.imag])
+            np.save(Path(tmp) / "s.npy", table)
+            f, v = load_spectrum_table(Path(tmp) / "s.npy")
+            np.testing.assert_allclose(v, self.complex_values)
+            (Path(tmp) / "s.csv").write_text("freq,absorption\n" + "\n".join(f"{a},{b}" for a, b in
+                                                                              zip(self.f, self.complex_values.real)))
+            f, v = load_spectrum_table(Path(tmp) / "s.csv")
+            self.assertFalse(np.iscomplexobj(v))
+            np.testing.assert_allclose(v, self.complex_values.real)
+            np.savez(Path(tmp) / "s.npz", frequency_hz=self.f, values=self.complex_values)
+            f, v = load_spectrum_table(Path(tmp) / "s.npz")
+            np.testing.assert_allclose(f, self.f)
+
+
 if __name__ == "__main__":
     unittest.main()
 

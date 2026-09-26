@@ -86,7 +86,9 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
   Native bins or zero-filled bins are both exact evaluations of the processed
   finite record, never interpolation.
 - `ObservedSpectrum(grid, values, band_index, acquisition, label)`: complex
-  spectrum values used by the solver.
+  spectrum values used by the solver. Built from an averaged FID
+  (`from_fid`) or from a spectrum processed elsewhere (`from_spectrum`, with
+  optional record parameters, applied phasing and real-only comparison; D30).
 
 ## Interfaces meant for extension
 

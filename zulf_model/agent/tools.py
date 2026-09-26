@@ -44,8 +44,27 @@ FID_SOURCE = {"type": "object", "description": "Averaged FID: {average_npy, ini}
               "properties": {"average_npy": {"type": "string"}, "ini": {"type": "string"},
                              "fid_npy": {"type": "string"}, "sampling_rate_hz": {"type": "number"},
                              "label": {"type": "string"}}}
+SPECTRUM_SOURCE = {"type": "object", "description": (
+    "Spectrum processed elsewhere: file with frequency, real[, imaginary] columns (.npy, .npz with "
+    "frequency_hz/values, or CSV/text). 'record' describes how it was produced (sampling_rate_hz, points, "
+    "start_sample, sg_window, sg_order, remove_mean) so finite-record lineshapes are exact; without it ideal "
+    "Lorentzian lines are used. 'phasing' gives phase0_rad and delay_s already applied (render.phasing "
+    "convention). Real input is compared on the real part only."),
+    "properties": {"path": {"type": "string"}, "record": {"type": "object"},
+                   "phasing": {"type": "object", "properties": {"phase0_rad": {"type": "number"},
+                                                                "delay_s": {"type": "number"}}},
+                   "real_only": {"type": "boolean"}, "label": {"type": "string"}},
+    "required": ["path"]}
 RANGES = {"type": "array", "description": "Sorted disjoint [low_hz, high_hz] bands.",
           "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}}
+
+
+def _spectrum_observation(spec: dict, ranges, label: str):
+    from zulf_core.io import load_spectrum_table
+    from zulf_core.solver import ObservedSpectrum
+    f, values = load_spectrum_table(spec["path"])
+    return ObservedSpectrum.from_spectrum(f, values, ranges, record=spec.get("record"), phasing=spec.get("phasing"),
+                                          real_only=spec.get("real_only"), label=label)
 
 
 def _interp(data: dict) -> Interpretation:
@@ -264,7 +283,8 @@ def propose_candidates(args: dict) -> dict:
 
 
 @REGISTRY.tool("refine_candidates",
-               "Refine candidate interpretations against an averaged FID (all branches kept). Held-out FIDs give "
+               "Refine candidate interpretations against an averaged FID ('source') or a spectrum processed "
+               "elsewhere ('spectrum'); all branches kept. Held-out FIDs or spectra give "
                "frozen-prediction ranking. Settings follow RefineSettings (policy for bounds, ties via "
                "'ties', nuisance terms, background order, continuation, 'search' for a phase-insensitive "
                "global pattern search that supplies the starts, and 'sign_variants': true to also refine "
@@ -273,20 +293,29 @@ def propose_candidates(args: dict) -> dict:
                "(for example field_ut for a residual static field). Long-running for large records.",
                {"type": "object", "properties": {
                    "candidates": {"type": "array", "items": INTERPRETATION}, "source": FID_SOURCE,
-                   "held_out": {"type": "array", "items": FID_SOURCE}, "acquisition": ACQUISITION, "ranges": RANGES,
-                   "settings": {"type": "object"}, "protocol": {"type": "object"}},
-                "required": ["candidates", "source", "ranges"]}, long_running=True)
+                   "spectrum": SPECTRUM_SOURCE,
+                   "held_out": {"type": "array", "items": {"type": "object"}}, "acquisition": ACQUISITION,
+                   "ranges": RANGES, "settings": {"type": "object"}, "protocol": {"type": "object"}},
+                "required": ["candidates", "ranges"]}, long_running=True)
 def refine_candidates_tool(args: dict) -> dict:
     from zulf_core.solver import ObservedSpectrum, RefineSettings, refine_candidates
     from zulf_core.timing import Timer
-    exp = _load_fid(args["source"])
-    acq = _acquisition(exp, args.get("acquisition"))
     ranges = [tuple(r) for r in args["ranges"]]
-    obs = ObservedSpectrum.from_fid(exp.fid, acq, ranges, label="train")
-    held = []
-    for k, src in enumerate(args.get("held_out") or []):
-        h = _load_fid(src)
-        held.append(ObservedSpectrum.from_fid(h.fid, acq, ranges, label=src.get("label", f"held_out_{k}")))
+    if bool(args.get("source")) == bool(args.get("spectrum")):
+        raise ValueError("Give exactly one of 'source' (averaged FID) or 'spectrum' (processed spectrum).")
+    if args.get("spectrum"):
+        obs = _spectrum_observation(args["spectrum"], ranges, "train")
+        acq = obs.acquisition
+        held = [_spectrum_observation(src, ranges, src.get("label", f"held_out_{k}"))
+                for k, src in enumerate(args.get("held_out") or [])]
+    else:
+        exp = _load_fid(args["source"])
+        acq = _acquisition(exp, args.get("acquisition"))
+        obs = ObservedSpectrum.from_fid(exp.fid, acq, ranges, label="train")
+        held = []
+        for k, src in enumerate(args.get("held_out") or []):
+            h = _load_fid(src)
+            held.append(ObservedSpectrum.from_fid(h.fid, acq, ranges, label=src.get("label", f"held_out_{k}")))
     from zulf_core.physics.protocol import SUDDEN_DROP, Protocol
     settings = RefineSettings.from_dict(args.get("settings") or {})
     protocol = Protocol.from_dict(args["protocol"]) if args.get("protocol") else SUDDEN_DROP
@@ -295,7 +324,10 @@ def refine_candidates_tool(args: dict) -> dict:
     out = Path(args.get("_job_dir") or new_run_dir("refine"))
     summaries = [r.summary() for r in results]
     (out / "refinement.json").write_text(json.dumps(summaries, indent=2, default=float), encoding="utf-8")
-    return {"results": summaries, "acquisition": acq.to_dict(), "timing": timer.report(),
+    return {"results": summaries, "acquisition": acq.to_dict() if acq is not None else None,
+            "observation": {"points": int(len(obs.values)), "real_only": obs.real_only, "phasing": obs.phasing,
+                            "lineshape": "finite_record" if acq is not None else "lorentzian"},
+            "timing": timer.report(),
             "report_path": str(out / "refinement.json")}
 
 

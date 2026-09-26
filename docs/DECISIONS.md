@@ -295,6 +295,25 @@ fine-tuning, proposers, agent tools). The dependency is one-way and tested.
 Code is never copied between them. Moving `zulf_core` to its own repository
 later only changes packaging, not imports.
 
+## D30. Refinement on processed spectra (2026-09-26)
+
+Spectra are often processed elsewhere (cropping, baseline, manual phasing) and
+only the spectrum is kept. `ObservedSpectrum.from_spectrum(frequencies, values,
+ranges, record, phasing, real_only)` accepts such a spectrum;
+`io.load_spectrum_table` reads .npy/.npz/CSV tables and the agent tool
+`refine_candidates` takes `spectrum` instead of `source`. The model is made to
+match the data instead of undoing the processing: with `record` (sampling
+rate, points, crop, SG) the finite-record lineshape is exact, without it ideal
+Lorentzian lines are used; `phasing` (phase0_rad, delay_s in the
+render.phasing convention) multiplies every model column by the same
+correction phasor, and a real (absorption) spectrum is compared on the real
+part only. Complex input and a record reproduce the FID route. Global pattern
+search needs the FID and is skipped with the flag
+`search_unavailable_without_fid`. For real-only systems the background
+projection uses an SVD basis because the imaginary background columns vanish;
+complex systems keep QR (a change there moved a weakly identified nuisance
+rate, so it was reverted).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.
