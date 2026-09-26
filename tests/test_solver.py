@@ -189,6 +189,18 @@ class ProcessedSpectrumTests(unittest.TestCase):
         self.assertLess(self.error(res), 1e-3)
         self.assertLess(res.relative_residual, 1e-4)
 
+    def test_phased_real_spectrum_with_record_frame_background(self):
+        # A smooth baseline in the record's own frame (residual baseline, ringing leftovers) becomes a ripple of
+        # period 1/(crop + delay) after first-order correction; the background columns must follow the correction.
+        from zulf_core.render.phasing import phase_correct
+        smooth = (0.02 - 0.015j) * np.max(np.abs(self.complex_values)) * (1.0 + 0.3 * (self.f - 200.0) / 200.0)
+        absorption = phase_correct(self.complex_values + smooth, self.f, 0.7, 0.0008, ACQ).real
+        obs = ObservedSpectrum.from_spectrum(self.f, absorption, RANGES, record=ACQ,
+                                             phasing={"phase0_rad": 0.7, "delay_s": 0.0008})
+        res = refine(self.start, obs, RefineSettings(starts=1, background_order=1))
+        self.assertLess(self.error(res), 1e-3)
+        self.assertLess(res.relative_residual, 1e-4)
+
     def test_real_spectrum_without_record_uses_lorentzian_lines(self):
         from zulf_core.render.acquisition import evaluate_spectrum, process_record
         from zulf_core.render.grid import SpectrumGrid

@@ -156,6 +156,10 @@ class MixtureForward:
                 out[m, col] = basis
                 out[m, col + 1] = 1j * basis
                 col += 2
+        if self.correction is not None:
+            # Baseline and ringing leftovers are smooth in the record's own frame, not in the phase-corrected
+            # frame, where the first-order correction turns them into a ripple of period 1/(crop + delay).
+            out = out * self.correction[:, None]
         return out
 
     @staticmethod
