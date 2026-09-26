@@ -160,6 +160,11 @@ class _Runner:
         return out
 
 
+def _fixed_differs(model: HypothesisModel) -> bool:
+    """The fixed variant constrains something only if some ratio block has two or more components."""
+    return model.abundance_known and any(len(b) > 1 for b in model.blocks())
+
+
 def _same_model(a: HypothesisModel, b: HypothesisModel) -> bool:
     ca, cb = a.interpretation.components, b.interpretation.components
     return len(ca) == len(cb) and all(
@@ -184,7 +189,8 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     runner = _Runner(observed, settings, stick)
     log: List[dict] = [{"step": "yardstick", "points": int(stick.mask.sum()), "n": stick.n, "sigma": stick.sigma}]
 
-    jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models) for v in settings.variants]
+    jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models) for v in settings.variants
+            if v == "free" or _fixed_differs(m)]
     jobs += [(model_from_interpretation(interp, f"hint {i + 1}"), "free", "hint", None)
              for i, interp in enumerate(hinted)]
     evaluated = runner.run(jobs, log)
@@ -217,7 +223,8 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
                                 "note": "adds nothing observable; skipped"})
                     continue
                 for v in settings.variants:
-                    new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]"))
+                    if v == "free" or _fixed_differs(model):
+                        new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]"))
                 log.append({"step": "extend", "round": round_ + 1, "from": parent.name, "proposal": fragment.name,
                             "triggers": sorted({f.code for f in findings})})
         if not new_jobs:

@@ -353,3 +353,12 @@ skills under `skills/`; this file keeps the history.
   hand analysis (H7 -> H8, isopropyl rejected, lactic acid).
 - Yardstick on this window: 26 decimated core points (N = 52), small; the
   BIC differences are large compared with the penalty terms anyway.
+- e3d282da (L-alanine), 2.6 min: best clean CH3-CH [free] (amplitudes
+  0.64 : 1); the extension + HX has the lowest BIC (Delta -187) but an
+  abundance warning (0.55 : 1), so it is not chosen as best; the 74 Hz band
+  stays open (15N alternatives were outside the top 3 proposals).
+  Knowledge: L-alanine 0.88 vs lactic acid 0.90 Hz RMS - the CH-CH3
+  couplings alone do not separate the two compounds on this data (as in the
+  hand analysis). Isopropyl ranks below with bounds / background findings.
+- Fix: the fixed variant is skipped when no ratio block has two components
+  (isolated single-component parts gave duplicate rows).
