@@ -59,3 +59,23 @@ starting; follow the same observation -> inference -> test -> outcome format.
   "unresolved" until a blank or a chemistry change (pH, D2O) decides.
 - The CPU-scale models contributed nothing on this sample; chemistry-guided
   hypotheses plus the solver did the work.
+
+## Lessons from the confirmed case (lactic acid, sample b683220d)
+
+- Final guess correct. Decisive steps: two bands with free amplitudes at
+  1 : 1 (one CH, one CH3; isopropyl rejected again by abundance), the
+  CH-CH3 couplings (3J(HH) 7.06 Hz), and a same-instrument comparison with
+  a confirmed sample: 1J(CH) 147.1 vs 145.4 Hz in alanine (O vs N on the CH)
+  and no 72-76 Hz feature (no 15N-H).
+- Keep a library of confirmed samples processed identically and overlay new
+  data on them first: line shifts of 1-2 Hz between related compounds are
+  obvious in an overlay and are good substituent probes.
+- A decay rate on one isotopologue much larger than on the other (H7 on
+  lactic acid: 4.7 vs 1.9 1/s on the methyl carbon) marks missing couplings
+  on that isotopologue; adding one weakly coupled spin (H8) removed it and
+  halved the misfit. The extra spin's couplings were not determined (two
+  fits gave different sets), so report such a spin as "required, identity
+  open" unless its couplings are stable.
+- Solver defaults used here: band_weighting="signal" with envelope model
+  cores, free amplitudes first (they are the abundance test), then fixed
+  natural ratios with a shared rate as the physical check.

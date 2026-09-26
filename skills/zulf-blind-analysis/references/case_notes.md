@@ -56,3 +56,16 @@ so the answer was retained. Checks against the answer:
   with the ratio fixed is the first test for abundance-constrained amplitudes.
 - Ask for the sample state early (solvent, pH, pure or mixture): it decides
   the exchange model and the abundance constraints.
+
+## b683220d (confirmed: lactic acid)
+
+- Lines (0.05-1.05 s): 128.4 / 130.0 / 131.8, 144.3-151.9 (strongest
+  147.75, SNR 17), 257-263 Hz; nothing at 60-100 Hz besides instrument lines.
+- H7 (CH-CH3) free: 0.280, amplitudes 1 : 1.04, 1J 147.12 / 129.19,
+  2J -4.38 / -4.07, 3J(HH) 6.52 Hz; methyl carbon broadened (4.7 1/s).
+- H8 (H7 plus one weakly coupled proton on X): 0.190, 1 : 0.87, 1J 147.07 /
+  129.18, 2J -4.69 / -4.40, 3J(HH) 7.06 Hz; extra-spin couplings not
+  determined. Isopropyl 0.352 with 1 : 1.16 (needs 1 : 2): rejected.
+- Final guess lactic acid / lactate, runner-up alanine at another pH.
+  Confirmed by the user: lactic acid. Solvent and pH were not given; the
+  extra spin (OH in slow exchange, or another small effect) stays open.

@@ -300,3 +300,7 @@ skills under `skills/`; this file keeps the history.
   its fitted couplings are not determined. Runner-up: alanine at another pH
   (disfavoured by the larger 1J(CH) and the absent 74 Hz line); other
   CH(X)-CH3 acids (for example 2-halopropionic) less likely.
+- Confirmed by the user: lactic acid. Lessons added to the blind-analysis
+  skill and case notes (same-instrument overlay with confirmed samples,
+  isotopologue-rate asymmetry as a missing-coupling marker, extra spin
+  reported as required but unidentified).
