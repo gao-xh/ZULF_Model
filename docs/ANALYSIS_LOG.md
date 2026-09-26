@@ -201,3 +201,16 @@ skills under `skills/`; this file keeps the history.
   fitted points fall in its model cores (broad C-alpha component).
 - Running: constrained self-consistent alanine (1 : 1 : 0.34, shared rate)
   with envelope cores, three starts in parallel.
+- Result with envelope cores (6595bad): data-region 0.295 / 0.330 / 0.354
+  (candidate / earlier fit / random), overall 0.359 (0.410 with per-line
+  cores); shared rate 2.6 1/s; the random start hit the phase-delay bound.
+  The dips at 137 and 141 Hz are gone. Remaining: 130.8 and 148.5 Hz peaks
+  too low, a line at 251.5 Hz the data do not show (now at full weight), a
+  76 Hz dip deeper than the data.
+  Robust: 1J(N,H) -73.6 / -73.8 Hz; 1J(Cb,Hb) 129.4 / 130.3 Hz. Less so:
+  1J(Ca,Ha) 144.7 / 146.1 Hz. Not determined: 3J(Ha,Hb) 8.3 / 5.8,
+  3J(Ha,HN) 10.7 / 8.4 Hz.
+- Side effect: the envelope (2 sigma, profile tails to 20 Hz) covers most of
+  62-88, 125-152 and 250-270 Hz, about 350 points, so there the weighting is
+  close to uniform and the focus on peaks is reduced. Options: a higher
+  model threshold, or a shorter profile cut.
