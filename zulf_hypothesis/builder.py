@@ -42,7 +42,7 @@ from .labeling import Labeling
 class HypothesisModel:
     """A built hypothesis: interpretation plus the bookkeeping the solver and the report need."""
     name: str
-    fragment: Fragment
+    fragment: Optional[Fragment]              # None for outside interpretations
     interpretation: Interpretation
     component_labels: List[str]
     ratios: Tuple[float, ...]                 # label-set abundance ratios (first primary component = 1)
@@ -52,6 +52,7 @@ class HypothesisModel:
     ratio_blocks: Optional[List[List[int]]] = None   # components whose ratios are fixed together (None: all)
     parts: List["HypothesisModel"] = field(default_factory=list)   # separate molecules of a combined model
     parents: List[Optional[int]] = field(default_factory=list)    # minor isotopologue -> its parent component
+    abundance_known: bool = True     # False for outside interpretations (e.g. neural proposals): ratios unknown
 
     def parent(self, c: int) -> Optional[int]:
         return self.parents[c] if c < len(self.parents) else None
@@ -306,3 +307,18 @@ def combine_models(models: Sequence[HypothesisModel], name: Optional[str] = None
     interp = Interpretation(tuple(comps))
     return HypothesisModel(name or " | ".join(m.name for m in models), models[0].fragment, interp, labels,
                            tuple(ratios), names, tuple(unspecified), omitted, blocks, list(models), parents)
+
+
+def model_from_interpretation(interp: Interpretation, name: str) -> HypothesisModel:
+    """Wrap an outside interpretation (e.g. a neural proposal) so it can be refined and checked like the
+    others. Couplings keep their solver names; abundances are unknown, so abundance checks are skipped."""
+    names: Dict[str, List[str]] = {}
+    for c, comp in enumerate(interp.components):
+        n = len(comp.system.groups)
+        for a in range(n):
+            for b in range(a + 1, n):
+                names[f"c{c}.J{a}-{b}"] = [f"c{c}.J{a}-{b}"]
+    labels = [comp.label or f"component {c}" for c, comp in enumerate(interp.components)]
+    ratios = tuple(float(comp.contribution) or 1.0 for comp in interp.components)
+    return HypothesisModel(name, None, interp, labels, ratios, names, (), [], None, [],
+                           [None] * len(labels), abundance_known=False)

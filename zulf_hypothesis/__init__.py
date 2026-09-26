@@ -22,12 +22,12 @@ Layers (each a registry or interface meant for extension):
   (`HintProvider`, `ProposerHints`, `register_hint_provider`);
 * `enumerate` - band covers, topologies and equivalence -> fragments, with
   coupling priors (`register_prior`);
-* `pipeline`  - `propose_hypotheses`: spectrum -> built, ranked hypotheses.
-
-Planned (see docs/PLAN.md): a budgeted search loop that refines, checks and
-extends the proposals.
+* `pipeline`  - `propose_hypotheses`: spectrum -> built, ranked hypotheses;
+* `scoring`   - one yardstick for all hypotheses (data cores, noise, BIC);
+* `search`    - `search_hypotheses`: refine (free / fixed variants, parallel),
+  check, extend by triggered moves, rank, match known compounds.
 """
-from .builder import HypothesisModel, build_model, combine_models, min_ratio_for_snr
+from .builder import HypothesisModel, build_model, combine_models, min_ratio_for_snr, model_from_interpretation
 from .checks import CHECKS, CheckContext, Finding, register_check, run_checks
 from .fragment import DEFAULT_LABEL_ISOTOPES, Fragment, ProtonGroup, Site, pair
 from .fragments import TEMPLATES, register_template, template
@@ -39,9 +39,12 @@ from .inventory import Band, Inventory, Line, band_inventory
 from .knowledge import KnowledgeBase, ReferenceEntry
 from .labeling import Labeling
 from .pipeline import ProposalSet, propose_hypotheses
+from .scoring import Yardstick, yardstick
+from .search import Evaluated, SearchResult, SearchSettings, search_hypotheses
 from .moves import MOVES, AddCoupledProton, ExtensionMove, propose_all, register_move
 
-__all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_snr", "PRIORS", "CouplingPrior", "FragmentProposal",
+__all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_snr", "model_from_interpretation",
+           "Yardstick", "yardstick", "Evaluated", "SearchResult", "SearchSettings", "search_hypotheses", "PRIORS", "CouplingPrior", "FragmentProposal",
            "GenericSp3Prior", "enumerate_fragments", "register_prior", "PATTERNS", "GroupCandidate", "GroupPattern",
            "group_candidates", "register_pattern", "HINT_PROVIDERS", "Hint", "HintProvider", "ProposerHints",
            "apply_hints", "group_hints_from_interpretation", "insight_report", "register_hint_provider", "Band",

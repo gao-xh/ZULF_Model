@@ -74,6 +74,8 @@ def _bounds(ctx: CheckContext) -> List[Finding]:
 @register_check("abundance")
 def _abundance(ctx: CheckContext) -> List[Finding]:
     """Free amplitudes against the natural-abundance ratios of the built model."""
+    if not ctx.model.abundance_known:
+        return []
     amp = ctx.amplitudes
     expected = np.asarray(ctx.model.ratios, float)
     if len(amp) != len(expected) or len(amp) < 2 or amp.max() <= 0:
@@ -96,6 +98,8 @@ def _abundance(ctx: CheckContext) -> List[Finding]:
 @register_check("background_component")
 def _background_component(ctx: CheckContext) -> List[Finding]:
     """A component much stronger than natural abundance allows and much broader than its partners."""
+    if not ctx.model.abundance_known:
+        return []
     amp, rates = ctx.amplitudes, ctx.rates()
     expected = np.asarray(ctx.model.ratios, float)
     if len(amp) < 2 or len(rates) != len(amp):
@@ -148,3 +152,15 @@ def _undetermined(ctx: CheckContext) -> List[Finding]:
         return []
     return [Finding("undetermined", "info", f"couplings not determined across comparable fits: {sorted(spread)}",
                     {"spread": spread})]
+
+
+@register_check("misfit")
+def _misfit(ctx: CheckContext) -> List[Finding]:
+    """Reduced chi2 on the common yardstick (set by the search as summary['reduced_chi2']) well above 1:
+    the data hold structure the hypothesis does not explain."""
+    value = ctx.result.get("reduced_chi2")
+    limit = float(ctx.options.get("misfit_limit", 3.0))
+    if value is None or value <= limit:
+        return []
+    return [Finding("misfit", "info", f"reduced chi2 {value:.1f} on the data cores (> {limit:g}): unexplained structure",
+                    {"reduced_chi2": value})]

@@ -68,3 +68,67 @@ class KnowledgeBase:
             d = math.sqrt(sum((couplings[k] - e.couplings[k]) ** 2 for k in shared) / len(shared)) / scale_hz
             out.append((d, e))
         return sorted(out, key=lambda t: t[0])
+
+
+def match_template(fragment, template_fragment) -> Optional[Dict[str, str]]:
+    """Injective map from template labels onto fragment labels (element, proton-group sizes and bonds kept).
+
+    The template may be a sub-fragment (the fragment can carry extra sites or protons). Returns None when no
+    map exists; the first map in label order otherwise.
+    """
+    from itertools import permutations
+    if fragment is None:
+        return None
+    t_sites = [s.label for s in template_fragment.sites
+               if any(p.site == s.label for p in template_fragment.protons)]
+    f_sites = [s.label for s in fragment.sites]
+    t_bonds = {frozenset(b) for b in template_fragment.bonds}
+    f_bonds = {frozenset(b) for b in fragment.bonds}
+    protons_on = lambda frag, site: sorted(p.size for p in frag.protons if p.site == site)
+    for image in permutations(f_sites, len(t_sites)):
+        m = dict(zip(t_sites, image))
+        if any(template_fragment.site(t).element != fragment.site(f).element for t, f in m.items()):
+            continue
+        if any(protons_on(template_fragment, t) != protons_on(fragment, f) for t, f in m.items()):
+            continue
+        if any(frozenset(m[x] for x in b) not in f_bonds for b in t_bonds if all(x in m for x in b)):
+            continue
+        for t, f in list(m.items()):         # proton groups follow their sites (sizes already equal)
+            tp = [p for p in template_fragment.protons if p.site == t]
+            fp = [p for p in fragment.protons if p.site == f]
+            for a, b in zip(sorted(tp, key=lambda p: p.size), sorted(fp, key=lambda p: p.size)):
+                m[a.label] = b.label
+        return m
+    return None
+
+
+def translate_couplings(named: Mapping[str, float], mapping: Mapping[str, str], template_fragment) -> Dict[str, float]:
+    """Refined couplings (fragment key names) renamed to the template's key names where both labels map."""
+    from .fragment import pair
+    inverse = {v: k for k, v in mapping.items()}
+    orbits = template_fragment.coupling_orbits()
+    out = {}
+    for key, value in named.items():
+        if not key.startswith("J(") or ":" in key:
+            continue
+        a, b = key[2:-1].split(",")
+        if a in inverse and b in inverse:
+            out[template_fragment.key_name(orbits[pair(inverse[a], inverse[b])])] = value
+    return out
+
+
+def knowledge_matches(model, named: Mapping[str, float], kb: "KnowledgeBase", kinds=("measured",),
+                      top: int = 3) -> List[dict]:
+    """Nearest reference compounds over every template that maps onto the model's fragment."""
+    from .fragments import TEMPLATES
+    out = []
+    for name, factory in TEMPLATES.items():
+        template = factory()
+        mapping = match_template(getattr(model, "fragment", None), template)
+        if mapping is None:
+            continue
+        translated = translate_couplings(named, mapping, template)
+        for dist, entry in kb.nearest(name, translated, kinds=kinds)[:top]:
+            out.append({"template": name, "compound": entry.compound, "rms_hz": round(dist, 3),
+                        "keys": sorted(k for k in translated if k in entry.couplings), "source": entry.source_kind})
+    return sorted(out, key=lambda d: d["rms_hz"])[:top]

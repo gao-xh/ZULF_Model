@@ -73,7 +73,7 @@ class AddCoupledProton(ExtensionMove):
         self.initial_hz, self.exchangeable, self.label = initial_hz, exchangeable, label
 
     def triggered_by(self) -> Sequence[str]:
-        return ("rate_asymmetry",)
+        return ("rate_asymmetry", "misfit")
 
     def _anchors(self, fragment: Fragment) -> List[str]:
         if self.anchor is not None:

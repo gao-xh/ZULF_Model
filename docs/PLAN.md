@@ -137,10 +137,10 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Better hints: train or fine-tune a group-level head on the
       hypothesis vocabulary (group type, 1J) so model output maps directly
       onto group hints; calibrate hint confidence on the synthetic benchmark.
-- [ ] Stage 3: budgeted search loop (refine free and fixed variants in
-      parallel, run checks, apply triggered moves, rank by an information
-      criterion with zero-fill-corrected point counts); knowledge matching of
-      the leading fragments; report with named couplings.
+- [x] Stage 3 (D38): `search_hypotheses` (parallel refinement in free and
+      fixed variants, common yardstick and BIC, checks, triggered extension
+      moves with acceptance by BIC, knowledge matching, ranked table and
+      log).
 - [ ] More moves: add 15N site, change equivalence (CH3 <-> CH(CH3)2), add a
       remote proton group, split a group; more templates as cases arrive.
 - [ ] Validation: replay the four blind datasets end to end; synthetic

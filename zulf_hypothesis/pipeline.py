@@ -31,6 +31,7 @@ class ProposalSet:
     models: List[HypothesisModel]
     hinted_interpretations: List[Interpretation] = field(default_factory=list)
     failed: List[dict] = field(default_factory=list)
+    build_options: dict = field(default_factory=dict)     # how the models were built (reused for extensions)
 
     def table(self) -> List[dict]:
         return [{"rank": i + 1, "proposal": p.describe(), "score": round(p.score, 3), "sources": p.sources,
@@ -74,4 +75,6 @@ def propose_hypotheses(observed, instrument_hz: Sequence[float] = (), providers:
         built.append(combine_models(parts, p.describe()))
         kept.append(p)
     interps = [h.payload["interpretation"] for h in hints if h.kind == "interpretation"]
-    return ProposalSet(inventory, candidates, hints, insight, kept, built, interps, failed)
+    options = {"include_exchangeable": include_exchangeable, "ranges": inventory.ranges, "labeling": labeling,
+               "min_ratio": min_ratio}
+    return ProposalSet(inventory, candidates, hints, insight, kept, built, interps, failed, options)

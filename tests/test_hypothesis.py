@@ -269,3 +269,44 @@ class Stage2Tests(unittest.TestCase):
         # Fixed ratios hold within each part only: one free amplitude per part.
         self.assertEqual(c.settings(fixed_ratios=True).amplitude_map,
                          ((1.0, 0.0), (1.0, 0.0), (0.0, 1.0), (0.0, 2.0)))
+
+
+class SearchTests(unittest.TestCase):
+    def test_search_refines_extends_and_ranks(self):
+        from zulf_hypothesis import SearchSettings, propose_hypotheses, search_hypotheses
+        f = AddCoupledProton().propose(template("CH-CH3"))[0]
+        truth = f.with_couplings({"J(Ca,Ha)": 146.3, "J(Cb,Hb)": 129.6, "J(Ca,Hb)": -4.2, "J(Cb,Ha)": -5.1,
+                                  "J(Ha,Hb)": 7.1, "J(Ca,HX)": -2.0, "J(Cb,HX)": 1.5, "J(Ha,HX)": 5.0,
+                                  "J(Hb,HX)": 0.3})
+        tm = build_model(truth)
+        obs = observe([c.system for c in tm.interpretation.components], [1.0, 1.0], rate=0.8, noise=2.0,
+                      ranges=RANGES)
+        ps = propose_hypotheses(obs)
+        base = RefineSettings(starts=1, band_weighting="signal", background_order=1, max_seconds=120,
+                              continuation_rates_per_s=(0.0,))
+        res = search_hypotheses(obs, ps, SearchSettings(base=base, top_models=1, rounds=1, extend_top=1))
+        steps = [l["step"] for l in res.log]
+        self.assertIn("extend", steps)
+        self.assertIn("accept", steps)
+        self.assertIn("HX", res.best.name)                      # the extension with the coupled proton wins
+        self.assertEqual(sorted(g for g in {e.variant for e in res.evaluated}), ["fixed", "free"])
+        top = res.table()[0]
+        self.assertEqual(top["delta"], 0.0)
+        self.assertTrue(any("HX" in k for k in res.best.couplings))   # the added proton's couplings are reported
+        self.assertTrue(res.best.knowledge and res.best.knowledge[0]["template"] == "CH-CH3")
+
+    def test_yardstick_counts_and_noise(self):
+        from zulf_hypothesis import yardstick
+        m = build_model(template("CH-CH3"))
+        obs = observe([c.system for c in m.interpretation.components], [1.0, 1.0], rate=1.0, noise=2.0,
+                      ranges=RANGES)
+        stick = yardstick(obs)
+        self.assertEqual(stick.n, 2 * int(stick.mask.sum()))
+        self.assertGreater(stick.sigma, 0.0)
+        sel = obs.selected
+        # Chi2 of the noise-free truth equals the noise contribution: of order n, not orders of magnitude off.
+        clean = observe([c.system for c in m.interpretation.components], [1.0, 1.0], rate=1.0, noise=0.0,
+                        ranges=RANGES)
+        chi2 = stick.chi2(obs.values[sel], clean.values[clean.selected])
+        self.assertLess(0.2 * stick.n, chi2)
+        self.assertLess(chi2, 5.0 * stick.n)

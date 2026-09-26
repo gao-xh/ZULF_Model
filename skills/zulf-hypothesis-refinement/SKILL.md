@@ -31,6 +31,13 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   levels, and ask the user for them. Doubly labelled isotopologues are
   weighted by abundance, tied to a parent (no free amplitude or rate) and
   omitted when their lines cannot reach 2 sigma; read `model.omitted`.
+- Then `search_hypotheses(observed, proposals, SearchSettings(...))`: it
+  refines the top proposals in free and fixed-abundance variants (parallel
+  workers), scores all on one yardstick (data cores, BIC), runs the checks,
+  extends the best clean ones by triggered moves (accepted only when the BIC
+  improves by 6), matches known compounds, and returns a ranked table and a
+  log. Report the table with its findings; `best` prefers hypotheses without
+  warnings.
 - Build isotopologue sets with `zulf_hypothesis` instead of by hand:
   describe the fragment by labels (`Fragment`, or a template from
   `fragments.TEMPLATES`), then `build_model(fragment, ranges=...)` gives the

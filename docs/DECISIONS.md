@@ -475,6 +475,27 @@ zulf_hypothesis. The solver's `amplitude_map` (D36) stays in zulf_core as a
 general linear amplitude constraint with its own tests. Earlier entries
 that name `zulf_core.hypothesis` refer to this package.
 
+## D38. Stage 3: budgeted hypothesis search (2026-09-26)
+
+`zulf_hypothesis.search_hypotheses` refines the top stage-2 proposals (and,
+optionally, hinted interpretations) in two variants: free amplitudes and
+rates, and abundance ratios with one shared rate. Jobs run in parallel
+processes through the public solver API. Every result is scored on one
+yardstick (`scoring.py`): the data cores of signal weighting (the same points
+for every hypothesis), a per-component complex noise from the quiet parts of
+the spectrum, zero-fill decimation, and BIC = chi2 + k ln N with k the free
+nonlinear parameters plus amplitude degrees of freedom. The checks run on
+each result (the other variant as peer); a new "misfit" finding (reduced
+chi2 > 3) and the rate asymmetry trigger extension moves for the best
+clean hypotheses. Extensions are built with exchangeable protons kept (the
+move hypothesises slow exchange), compared with the same variant of their
+parent and accepted only if the BIC improves by 6. The best hypothesis is
+the lowest-BIC one without warnings (else the lowest overall). Known
+compounds are matched by mapping template fragments onto the hypothesis
+fragment (sub-fragments allowed) and translating the couplings. On a
+synthetic CH(XH)-CH3 spectrum the loop proposes CH3-CH, extends it by the
+coupled proton (Delta BIC about -22000) and ranks the extension first.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.
