@@ -91,3 +91,20 @@ skills under `skills/`; this file keeps the history.
 - Next: re-evaluate H7, H7 + 15NH3 and self-consistent alanine with smooth
   weights and model-predicted cores, 1 s window, 0.6 1/s, full ranges
   (running).
+
+### Re-evaluation with smooth weights and model-predicted cores (full ranges)
+- Complex, 0.05-1.05 s, 0.6 1/s apodization, ranges 62-320 Hz (instrument
+  lines only removed). Data cores: 74.25-74.5, 129.0-129.5, 130.25-131.5,
+  144.0-144.75, 145.5-146.5, 148.25-149.0, 258.75-259.25 Hz.
+- H7: signal-region 0.329, Cb/Ca 0.43, no bounds; 1J 145.40 / 130.28,
+  2J -4.41 / -6.81, 3J(HH) 7.03 Hz (model pass +5 points).
+- H7 + 15NH3: 0.316, 1 : 0.52 : 0.24, 1J(N,H) at bound (-84.8 Hz),
+  3J(HN, H-alpha) 1.9 Hz (inconsistent with slow exchange) (+18 points).
+- Self-consistent alanine: 0.288 but amplitudes 1 : 0.05 : 0.04 (C-beta and
+  15N suppressed, one broad C-alpha component, rate 8.5 1/s) (+23 points).
+  Its earlier reproduction of the 130 Hz doublet relied on spurious lines
+  outside the old mask; with model-predicted cores that solution is gone.
+- Verdict: H7 remains the physically consistent model; NH coupling not
+  established; 72-76 Hz unresolved. Next solver step: amplitude ratios fixed
+  by natural abundance (pure sample 1 : 1 : 0.35), so models cannot collapse
+  onto one isotopologue.
