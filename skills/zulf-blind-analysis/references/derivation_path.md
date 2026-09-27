@@ -95,6 +95,19 @@ inference names the observation it rests on and the test that could refute it.
    abundance test; rate asymmetry as the missing-coupling marker; one-step
    model extensions tested on identical data and weighting.
 
+## Sample 4322bdfc (strong signal; confirmed triethylamine; program missed the CH2)
+
+1. Observation: strong bands at about J and 2J of a methyl (125 / 250 Hz),
+   a weak band at 195.8 Hz (1.5 x 130.5: a CH2 carbon), weak 237 Hz.
+2. Program: CH-CH3 motif first (the 127.8 Hz lines read as a CH at J);
+   ethyl 6th in the quick scan and never refined; the misfit move added one
+   coupled proton near C1 and won with a near-empty CH component.
+3. What would have led to ethyl: the 195.8 Hz band read as a CH2 carbon
+   (1.5 J), a 1 : 1 amplitude test (CH-CH3 fails it), and a CH -> CH2 move.
+4. What identifies the tertiary amine: the labelled CH2 carbon needs extra
+   protons through N (3J(C,N,C,H) about 3 Hz); with fixed ratios this halves
+   chi2 against plain ethyl. Ethyl esters or ethanol would not have them.
+
 ## Sample fde3fbb2 (strong signal; final: CH2-CH2; confirmed ethylenediamine)
 
 1. Observation: one strong band group around 1.5 x 132 Hz (186-209 Hz), no

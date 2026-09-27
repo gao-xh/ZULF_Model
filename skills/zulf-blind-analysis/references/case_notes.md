@@ -82,3 +82,17 @@ so the answer was retained. Checks against the answer:
 - Hand guess succinic acid: core right, substituent wrong. Confirmed by the
   user: ethylenediamine. Solvent, pH and N-H exchange regime not given.
 
+## 4322bdfc (confirmed: triethylamine)
+
+- Bands: 123.8-130.2 Hz (127.8, SNR 101), 249.2 (79), 255.8 (35), 195.8
+  (13), 237.2 (10), weak 73.2 and 118.5 (6); structure below 62 Hz not
+  analysed.
+- Program only: best "CH-CH3 + HX on X" [free] with a near-empty CH
+  component (0.061 vs 1; abundance, background_component, bounds,
+  rate_asymmetry, misfit); c_hat 227. Ethyl motif 6th in the quick scan,
+  not refined.
+- After the reveal: reduced N-ethyl fragment (one ethyl + the other four
+  N-CH2 protons as one group, 3J(C,N,C,H) 3.1 Hz) with fixed natural ratios
+  ties with the program's fixed extension; the through-N protons halve chi2
+  against a fixed plain ethyl. The full 16-spin molecule is not tractable.
+

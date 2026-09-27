@@ -203,5 +203,14 @@ def _ethylenediamine():
                      pair("N1", "H2"): 1.5}, (swap,), (("C1", "C2"), ("C1", "N1"), ("C2", "N2")))
 
 
+@register_case("triethylamine (reduced)")
+def _triethylamine():
+    # couplings from the fixed-abundance refinement of 4322bdfc (reduced N-ethyl fragment)
+    return Fragment("triethylamine", (S("C1", "C"), S("C2", "C"), S("N1", "N", ()), S("X", "C", ())),
+                    (P("H1", 2, "C1"), P("H2", 3, "C2"), P("HX", 4, "X")),
+                    {pair("C1", "H1"): 131.0, pair("C2", "H2"): 125.0, pair("C1", "H2"): -4.4, pair("C2", "H1"): -3.0,
+                     pair("H1", "H2"): 7.1, pair("C1", "HX"): 3.1}, (), (("C1", "C2"), ("C1", "N1"), ("N1", "X")))
+
+
 if __name__ == "__main__":
     run_benchmark()

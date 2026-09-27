@@ -28,6 +28,7 @@ from zulf_core.solver import RefineSettings
 from zulf_core.solver.forward import MixtureForward
 
 from .builder import HypothesisModel, build_model
+from .fragments import n_ethyl_et3n as _et3n_template
 from .fragment import Fragment, ProtonGroup, Site, pair
 from .groups import _unit_lines
 from .inventory import Inventory
@@ -219,6 +220,12 @@ register_motif(Motif("(CH3)2CH-NH2", _chain("(CH3)2CH-NH2", [("C1", "C", 1), ("C
                                             [("C1", "C2"), ("C1", "C3"), ("C1", "N1")], (_ISO_SWAP,)),
                      (OneBondSite("C1", "13C", 1, (125, 155)), OneBondSite("C2", "13C", 3, (115, 140)),
                       OneBondSite("N1", "15N", 2, (55, 80))), "isopropylamine, slow N-H exchange"))
+
+# Tertiary amine without N-H: the ethyl carbons see the other N-CH2 protons through N (3J(C,N,C,H)); the reduced
+# fragment keeps them as one 4H group (template "N-ethyl (Et3N)"). Confirmed case: triethylamine (4322bdfc).
+register_motif(Motif("N-ethyl (Et3N)", lambda one_bond: _et3n_template(one_bond),
+                     (OneBondSite("C1", "13C", 2, (120, 160)), OneBondSite("C2", "13C", 3, (115, 150))),
+                     "ethyl on a tertiary N with two more N-CH2 groups (triethylamine type)"))
 
 
 @dataclass

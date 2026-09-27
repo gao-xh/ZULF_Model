@@ -550,3 +550,29 @@ skills under `skills/`; this file keeps the history.
   min. Diagnostic in progress: ethyl motif and a reduced N-ethyl fragment
   (one ethyl + one 4H group on C1 through N) refined on the auto-run data,
   settings and yardstick (runs/blind/4322bdfc/tea_refine.py).
+- Diagnostic result (same data, settings, yardstick; n = 102, c_hat 227):
+  ethyl free chi2 37370 (k 11; CH2 carbon rate 15.9 vs 3.4 1/s), ethyl
+  fixed 74812 (k 9), reduced N-ethyl free 37795 (k 12, stuck near the
+  ethyl optimum), reduced N-ethyl fixed 39974 (k 10: 1J 130.98 / 125.01,
+  2J -4.41 / -3.04, 3J(H,H) 7.10, 3J(C,N,C,H) 3.13 Hz). On the quasi-BIC
+  scale: program best (CH-CH3 + HX free) 156, ethyl free 216, CH-CH3 + HX
+  fixed 221, N-ethyl fixed 222, ethyl fixed 371, CH-CH3 motif fixed 410.
+  Among fixed-abundance fits the correct reduced structure ties with the
+  program's extension (+1); the through-N protons halve chi2 against the
+  fixed ethyl. The program's first place rests on a near-empty CH component
+  (amplitude 0.061 vs 1 expected), which the abundance check flagged.
+- Why the program missed it: (1) the quick scan picks 1J from band
+  positions with generic couplings; ethyl got 1J 130.5 / 123.8 and ranked
+  6th, below the refinement cutoff (top_motifs 3); (2) no move changes the
+  proton count of a carbon (CH -> CH2), so the CH-CH3 motif could not turn
+  into ethyl; (3) a free variant that nearly switches off an isotopologue
+  still ranks first (flag only); (4) the 13CH2 isotopologue of Et3N spreads
+  over many weak lines (195.8 Hz band, SNR 13; possibly features below
+  62 Hz, outside the ranges).
+- Added: template and motif "N-ethyl (Et3N)" (reduced: other N-CH2 protons
+  as one 4H group on a never-labelled pseudo-site), knowledge entry
+  "triethylamine" (fixed-variant values above), benchmark case
+  "triethylamine (reduced)": motif rank 2 behind an isolated methyl (weak
+  13CH2 isotopologue), 11 of 14 cases at rank 1. On the real data the new
+  motif ranks 3rd in the quick scan (1J picks 156.8 / 127.8, again from
+  band positions).

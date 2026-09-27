@@ -106,3 +106,16 @@ starting; follow the same observation -> inference -> test -> outcome format.
   and solvent, and propose a low-pH or D2O measurement to expose N-H.
 - A large c_hat and unassigned weak bands mean the model is incomplete:
   list them as open features rather than explaining them away.
+
+## Lessons from the confirmed case (triethylamine, sample 4322bdfc)
+
+- Read every band's X-Hn position before trusting the ranked table: a weak
+  band at 1.5 J marks a CH2 carbon even when the top hypothesis has a CH.
+- A free-variant winner with an isotopologue near zero (abundance finding)
+  is not a structure; compare the fixed-abundance variants among
+  themselves and report them next to the free winner.
+- Quick-scan motif ranks rest on 1J picked from band positions and generic
+  couplings; a motif just below the refinement cutoff can be the answer.
+- Extra couplings through a heteroatom (3J(C,N,C,H)) distinguish a
+  tertiary amine's N-CH2 from ethanol or ester ethyls.
+

@@ -42,7 +42,9 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   extends the best clean ones by triggered moves (accepted only when the BIC
   improves by 6), matches known compounds, and returns a ranked table and a
   log. Report the table with its findings; `best` prefers hypotheses without
-  warnings.
+  warnings. A free winner that switches an isotopologue off (abundance
+  finding) is not a structure: also report the best fixed-abundance fits
+  (4322bdfc: triethylamine lost to a CH-CH3 fit with a 0.06 CH component).
 - Build isotopologue sets with `zulf_hypothesis` instead of by hand:
   describe the fragment by labels (`Fragment`, or a template from
   `fragments.TEMPLATES`), then `build_model(fragment, ranges=...)` gives the

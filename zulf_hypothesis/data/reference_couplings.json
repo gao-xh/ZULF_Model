@@ -61,6 +61,30 @@
     "J(H1,H2)": 1.5
    },
    "notes": "Fit left large unexplained structure (reduced chi2 about 810); small couplings provisional."
+  },
+  {
+   "compound": "triethylamine",
+   "template": "N-ethyl (Et3N)",
+   "couplings": {
+    "J(C1,H1)": 130.98,
+    "J(C2,H2)": 125.01,
+    "J(C1,H2)": -4.41,
+    "J(C2,H1)": -3.04,
+    "J(H1,H2)": 7.1,
+    "J(C1,HX)": 3.13
+   },
+   "source": "blind sample 4322bdfc, reduced N-ethyl fragment refined after the identity was given (fixed natural-abundance ratios, shared rate; complex, 0.05-1.05 s, 0.6 1/s, signal weighting); identity confirmed by the user",
+   "source_kind": "measured",
+   "conditions": "solvent not given; NMRduino averaged FID, 4000 Hz; reduced model (other N-CH2 protons as one group, remote methyls dropped)",
+   "uncertainty_hz": {
+    "J(C1,H1)": 0.5,
+    "J(C2,H2)": 0.5,
+    "J(C1,H2)": 2.0,
+    "J(C2,H1)": 1.5,
+    "J(H1,H2)": 1.0,
+    "J(C1,HX)": 2.0
+   },
+   "notes": "Reduced chi2 about 430; the 13CH2 isotopologue is weak and poorly fitted; small couplings provisional."
   }
  ]
 }

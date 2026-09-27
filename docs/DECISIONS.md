@@ -526,7 +526,10 @@ isolated methyl (weak 15N line against the BIC penalty) and CH3-C(O)-CH3
 third (practically identical to an isolated methyl). The group path alone
 ranks the truth first in 2 of 12. Update (fde3fbb2, ethylenediamine): case
 13 "ethylenediamine (fast exchange)" is found as CH2-CH2 at rank 1 (11 of 13);
-a slow-exchange H2N-CH2-CH2-NH2 motif was added.
+a slow-exchange H2N-CH2-CH2-NH2 motif was added. Update (4322bdfc,
+triethylamine): motif "N-ethyl (Et3N)" (reduced fragment, other N-CH2 protons
+as one group) and case 14 "triethylamine (reduced)", found at rank 2 behind
+an isolated methyl (weak 13CH2 isotopologue): 11 of 14 at rank 1.
 
 ## D40. Quasi-likelihood ranking and a margin for clean hypotheses (2026-09-27)
 

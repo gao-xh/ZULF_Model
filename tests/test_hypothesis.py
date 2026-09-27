@@ -211,6 +211,9 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual([e.compound for e in kb.entries_for("CH2-CH2")], ["ethylenediamine"])
         m = build_model(template("CH2-CH2"))
         self.assertEqual(m.component_labels, ["13C@C1 (x2)"])                # both carbons equivalent
+        self.assertEqual([e.compound for e in kb.entries_for("N-ethyl (Et3N)")], ["triethylamine"])
+        et3n = build_model(template("N-ethyl (Et3N)"))
+        self.assertEqual(et3n.component_labels, ["13C@C1", "13C@C2"])       # N and the pseudo-site X never labelled
 
 
 if __name__ == "__main__":

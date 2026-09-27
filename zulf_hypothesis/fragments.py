@@ -69,3 +69,18 @@ def ch2_ch2(one_bond: Optional[Dict[str, float]] = None) -> Fragment:
     return Fragment("CH2-CH2", (Site("C1", "C"), Site("C2", "C")), (ProtonGroup("H1", 2, "C1"), ProtonGroup("H2", 2, "C2")),
                     {pair("C1", "H1"): ob["C1"], pair("C1", "H2"): -4.5, pair("H1", "H2"): 7.0, pair("C1", "C2"): 35.0},
                     (swap,), (("C1", "C2"),), "symmetric CH2-CH2")
+
+
+@register_template("N-ethyl (Et3N)")
+def n_ethyl_et3n(one_bond: Optional[Dict[str, float]] = None) -> Fragment:
+    """One ethyl of N(CH2CH3)3, reduced: the four protons of the two other N-CH2 groups form one group HX on a
+    never-labelled pseudo-site X, coupled to the labelled CH2 carbon through N (3J(C,N,C,H)). Their couplings to
+    their own methyls and the remote methyls are dropped (the full 16-spin molecule is not tractable)."""
+    ob = {"C1": 131.0, "C2": 125.0, **(one_bond or {})}
+    sites = (Site("C1", "C"), Site("C2", "C"), Site("N1", "N", ()), Site("X", "C", ()))
+    protons = (ProtonGroup("H1", 2, "C1"), ProtonGroup("H2", 3, "C2"), ProtonGroup("HX", 4, "X"))
+    couplings = {pair("C1", "H1"): ob["C1"], pair("C2", "H2"): ob["C2"], pair("C1", "H2"): -4.5,
+                 pair("C2", "H1"): -4.5, pair("H1", "H2"): 7.0, pair("C1", "HX"): 4.5}
+    return Fragment("N-ethyl (Et3N)", sites, protons, couplings, (), (("C1", "C2"), ("C1", "N1"), ("N1", "X")),
+                    "N-CH2-CH3 of a triethylamine-type N(CH2R)3; other N-CH2 protons as one group")
+
