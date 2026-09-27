@@ -143,14 +143,18 @@ class SlowExchange:  # noqa: D101 (documented below)
 
 
 def fit_settings(workers: int = 4, **changes) -> SearchSettings:
-    """Search settings for a given structure: no motif scan, thorough round-0 starts (4 perturbed starts plus a
-    60 s global pattern search), one round of the structure-preserving moves in the best variant. Budget: about
-    10 min on 4 cores for a 3-isotopologue amine (e66a4b08: 29 min with 8 starts, 240 s searches and all moves)."""
-    base = SearchSettings(base=default_fit_base(), top_models=100, top_motifs=0, motif_screen=0, rounds=2,
-                          extend_top=1, workers=workers, initial_global_search=True, moves=REFINING_MOVES,
-                          extension_starts=4, extension_global_search={"max_seconds": 60.0, "solutions": 3,
-                                                                       "popsize": 10, "maxiter": 40,
-                                                                       "one_bond_min_hz": 50.0})
+    """Search settings for a given structure: no motif scan, variants fixed and ratios, round-0 starts (3
+    perturbed starts plus a 45 s global pattern search), two rounds of the structure-preserving moves (remote
+    couplings, Gaussian width, slow exchange, protonated form) in the best variant. Budget target about 10 min on
+    4 cores for a 3-isotopologue amine (e66a4b08: 29 min with 8 starts, 240 s searches and all moves; 39 min on
+    2 workers with the exchange forms and three variants)."""
+    # "free" amplitudes are left out: for one known molecule they only reproduce what "ratios" allows plus
+    # switched-off isotopologues, and they were the slowest fits (e66a4b08).
+    base = SearchSettings(base=default_fit_base(), variants=("fixed", "ratios"), top_models=100, top_motifs=0,
+                          motif_screen=0, rounds=2, extend_top=1, workers=workers, initial_global_search=True,
+                          moves=REFINING_MOVES, extension_starts=3,
+                          extension_global_search={"max_seconds": 45.0, "solutions": 2, "popsize": 10,
+                                                   "maxiter": 30, "one_bond_min_hz": 50.0})
     return dataclasses.replace(base, **changes)
 
 

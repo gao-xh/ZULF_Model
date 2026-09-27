@@ -108,6 +108,8 @@ def _background_component(ctx: CheckContext) -> List[Finding]:
     out = []
     for c in range(len(amp)):
         scale = np.median(np.delete(per_site, c))
+        if scale <= 0:           # the others switched off: collapsed_component reports that case
+            continue
         if per_site[c] > 3 * scale and rates[c] > 2 * np.median(np.delete(rates, c)):
             out.append(Finding("background_component", "warn",
                                f"{ctx.model.component_labels[c]} acts as background (amplitude "
