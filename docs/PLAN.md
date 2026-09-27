@@ -152,6 +152,31 @@ fixed, so later phases are experiments rather than restructuring.
       change_proton_count (CH <-> CH2 <-> CH3), check collapsed_component
       and demotion of such fits in the ranking. Rerun on the five confirmed
       real samples: see ANALYSIS_LOG.
+- [ ] Automatic fitting without hand-proposed variants (e66a4b08,
+      N-ethylmethylamine; user: "the fit algorithm should do these tests
+      itself"). Steps:
+  - [ ] A1 variant "ratios" (fixed natural ratios, free rates) next to free
+        and fixed, in the search and every known-structure fit.
+  - [ ] A2 exchange variants: for a fragment with N-H / O-H groups, fit
+        fast exchange (groups dropped) and slow exchange (kept)
+        automatically.
+  - [ ] A3 round-0 starts: optional multi-start plus global pattern search
+        for the round-0 fits (on by default for a known structure).
+  - [ ] A4 `fit_structure(fragment, observed)`: a thin entry point over
+        `search_hypotheses` (the solver is unchanged) running A1-A3,
+        ranking, checks and a phased result figure.
+  - [ ] B change_proton_count rescales 1J so the main X-Hn line stays in
+        place (XH at J, XH2 at 1.5 J, XH3 at J); e66a4b08 turned a CH at
+        204 Hz into a CH2 at 204 Hz instead of 136 Hz.
+  - [ ] C automatic phasing as a library function, maintained: per-line
+        complex line fits on resolved lines, then a robust fit of line phase
+        against frequency (modulo pi) for phase0 and delay; each spectrum
+        phased on its own. Validation: synthetic test, noise-free rendered
+        e66a4b08 model, and the six confirmed samples against the phase of
+        their known-structure complex fits. (The minimum-entropy estimator
+        failed the synthetic test and is not in the library.)
+  - [ ] D rerun e66a4b08 with A4 (timed, both routes: complex fit and
+        phased-first), tests, benchmark, decision entry, skills.
 - [ ] More moves: add 15N site, change equivalence (CH3 <-> CH(CH3)2), add a
       remote proton group, split a group; more templates as cases arrive.
 - [ ] Validation: replay the four blind datasets end to end; synthetic
