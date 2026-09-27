@@ -586,6 +586,32 @@ test rank after the other fits and cannot be `best` either (alanine rerun:
 the rejected coupled-proton extension scored 2.3 below its parent, under
 `accept_delta` 6, and had become `best`).
 
+## D43. Automatic variants, fit_structure, fit phasing, exact short-record rendering (2026-09-27)
+
+From e66a4b08 (N-ethylmethylamine), where every improvement of the known-
+structure fit had been proposed by hand:
+- Variant "ratios" (natural ratios, a free rate per isotopologue) next to free
+  and fixed; extensions refined in the parent's best variant only.
+- `fit_structure(fragment, observed)`: every exchange regime of N/O/S-H
+  protons (dropped = fast, kept = slow), all variants, thorough round-0 starts
+  (perturbed plus global pattern search), triggered moves, one yardstick; a thin
+  entry point over `search_hypotheses`, the solver unchanged.
+- Moves: change_proton_count rescales 1J to keep the main X-Hn line (XH at J,
+  XH2 at 1.5 J, XH3 at J); free_remote_couplings (couplings built as 0);
+  gaussian_line_shape (one Voigt width shared by all components).
+- Phasing: the minimum-entropy and per-line model-free estimators both fail on
+  dense J multiplets (lines of either sign closer than one width): noise-free
+  rendering of the e66a4b08 fit gave single-line phase errors of 10-40 deg,
+  and on the real spectrum the delay was 4.7 ms off (reference: complex fits,
+  -3.4 to -3.5 ms). The phase-first route therefore phases the spectrum with
+  the phase of the best complex fit (all lines modelled jointly) and refits
+  the real part; `estimate_phase_lines` stays as a coarse tool for resolved
+  spectra with its limits documented.
+- Solver speed: models are rendered over `Acquisition.local_record()` (stop +
+  h + 1 samples) because the SG baseline is local; retained samples agree
+  with the full-record rendering to 4e-12, one e66a4b08 refinement went from
+  37.7 s to 10.7 s (same 91 evaluations).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

@@ -286,3 +286,34 @@ class BackendSelectionTests(unittest.TestCase):
         continuous = SampleRenderer(spec, ProcessingConfig(points=4096, mode="continuous"))
         out = continuous.render(sample.interpretation, rng)
         self.assertTrue(np.isfinite(out.features).all())
+
+
+class LocalRecordTests(unittest.TestCase):
+    def test_local_record_renders_the_same_retained_samples(self):
+        # Reference: the full-record rendering (SG over the whole record). The local record drops samples after
+        # stop + h, which the local SG filter never reaches.
+        from zulf_core.physics import compute_transitions
+        from zulf_core.render.acquisition import Acquisition
+        from zulf_core.render.renderer import Renderer
+        from zulf_core.spinsystem import SpinSystem
+        acq = Acquisition(4000.0, 30000, start_sample=200, stop_sample=4200, sg_window=201, sg_order=2,
+                          remove_mean=True, apodization_rate_per_s=0.6)
+        loc = acq.local_record()
+        self.assertEqual(loc.points, 4200 + 100 + 1)
+        whole = Acquisition(4000.0, 4000, start_sample=200, sg_window=201, sg_order=2)
+        self.assertIs(whole.local_record(), whole)                         # nothing to drop
+        system = SpinSystem.from_group_couplings(["13C", "1H", "1H"], [1, 2, 3],
+                                                 np.array([[0, 135.0, -4.5], [135.0, 0, 7.1], [-4.5, 7.1, 0]]))
+        tl = compute_transitions(system)
+        f = np.arange(62.0, 320.0, 0.25)
+        for backend in ("time", "analytic"):
+            full = Renderer(acq, backend=backend).render_pair(tl, 2.5, f, -0.0035)
+            short = Renderer(loc, backend=backend).render_pair(tl, 2.5, f, -0.0035)
+            self.assertLess(np.abs(full - short).max() / np.abs(full).max(), 1e-9)
+        k = len(tl.frequencies_hz)
+        args = (tl.frequencies_hz, np.full(k, 2.5), np.zeros(k), np.ones((2, k)) * tl.amplitudes,
+                np.full((2, k), 0.1), f, -0.0035)
+        full = Renderer(acq).render_pair_directions(*args)
+        short = Renderer(loc).render_pair_directions(*args)
+        self.assertLess(np.abs(full - short).max() / np.abs(full).max(), 1e-9)
+

@@ -11,6 +11,8 @@ recipes switch steps on explicitly in configuration.
 """
 from __future__ import annotations
 
+import dataclasses
+
 import json
 import math
 from dataclasses import asdict, dataclass
@@ -99,6 +101,21 @@ class Acquisition:
     @property
     def nyquist_hz(self) -> float:
         return self.sampling_rate_hz / 2
+
+    def local_record(self) -> "Acquisition":
+        """An equivalent acquisition over the shortest record that determines the retained samples.
+
+        The SG baseline is a local filter (window 2h+1, mirror edges): retained sample m depends on samples
+        m-h .. m+h only, so samples after stop + h never matter when stop + h < points. Rendering a model over
+        `points = stop + h + 1` then processing gives the same retained samples (to float rounding; checked in
+        tests) at a fraction of the cost for long records (e66a4b08: 4301 instead of 65516 samples). Mean removal
+        and apodization act on the retained samples only. Returns self when nothing can be dropped."""
+        stop = self.points if self.stop_sample is None else self.stop_sample
+        h = self.sg_window // 2 if self.sg_window else 0
+        needed = stop + h + 1
+        if needed >= self.points:
+            return self
+        return dataclasses.replace(self, points=int(needed))
 
     def times(self) -> np.ndarray:
         """Acquisition times of the full record in seconds."""

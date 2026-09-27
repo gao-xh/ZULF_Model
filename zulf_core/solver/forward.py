@@ -144,7 +144,8 @@ class MixtureForward:
         if observed.acquisition is None:
             self.renderer = ContinuousRenderer()
         else:
-            self.renderer = Renderer(observed.acquisition, timer=self.timer)
+            # Models are rendered over the shortest record that fixes the retained samples (exact; SG is local).
+            self.renderer = Renderer(observed.acquisition.local_record(), timer=self.timer)
         # Processed-spectrum observations: the model is phase-corrected exactly as the data were, and a
         # real (absorption) observation is compared on the real part only.
         self.real_only = bool(getattr(observed, "real_only", False))
