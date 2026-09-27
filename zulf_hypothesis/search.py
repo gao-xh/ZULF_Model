@@ -48,7 +48,9 @@ class SearchSettings:
     include_hinted: int = 0           # hinted interpretations refined in round 0 (free variant only)
     rounds: int = 1                   # extension rounds
     extend_top: int = 2               # hypotheses extended per round
-    accept_delta: float = 6.0         # BIC improvement needed to accept an extension
+    accept_delta: float = 6.0         # (quasi-)BIC improvement needed to accept an extension
+    clean_margin: float = 10.0        # prefer a hypothesis without warnings if it is within this of the minimum
+    overdispersion: bool = True       # scale chi2 by the best reduced chi2 (quasi-likelihood) before ranking
     workers: int = 1                  # parallel refinement processes
     criterion: str = "bic"            # "bic" | "aic"
     knowledge_kinds: Tuple[str, ...] = ("measured",)
@@ -97,15 +99,20 @@ class SearchResult:
     evaluated: List[Evaluated]
     log: List[dict]
     yardstick: Yardstick = field(repr=False)
+    c_hat: float = 1.0                # overdispersion used in the scores
+    clean_margin: float = 10.0
 
     def ranked(self) -> List[Evaluated]:
         return sorted(self.evaluated, key=lambda e: e.score)
 
     @property
     def best(self) -> Optional[Evaluated]:
+        """Lowest score; a hypothesis without warnings is preferred only when it is within `clean_margin`."""
         ranked = self.ranked()
-        clean = [e for e in ranked if e.clean]
-        return (clean or ranked or [None])[0]
+        if not ranked:
+            return None
+        clean = [e for e in ranked if e.clean and e.score <= ranked[0].score + self.clean_margin]
+        return clean[0] if clean else ranked[0]
 
     def table(self) -> List[dict]:
         ranked = self.ranked()
@@ -151,7 +158,7 @@ class _Runner:
                 log.append({"step": "refine", "hypothesis": model.name, "variant": variant, "error": res["error"]})
                 continue
             chi2 = self.stick.chi2(self.values, res["prediction"])
-            score = criterion(chi2, res["k"], self.stick.n, self.settings.criterion)
+            score = criterion(chi2, res["k"], self.stick.n, self.settings.criterion)    # rescored later
             couplings = model.named_couplings(res["summary"]["parameters"])
             res["summary"]["reduced_chi2"] = chi2 / max(self.stick.n - res["k"], 1)
             out.append(Evaluated(model.name, variant, origin, model, res["summary"], res["prediction"], res["k"],
@@ -164,6 +171,29 @@ class _Runner:
 def _fixed_differs(model: HypothesisModel) -> bool:
     """The fixed variant constrains something only if some ratio block has two or more components."""
     return model.abundance_known and any(len(b) > 1 for b in model.blocks())
+
+
+def _rescore(evaluated: List[Evaluated], settings: SearchSettings, n: int) -> float:
+    """Quasi-likelihood scores: chi2 / c_hat + penalty, c_hat = smallest reduced chi2 (>= 1). Real spectra are
+    never fitted to the noise, and the unmodelled structure would otherwise inflate every difference."""
+    c_hat = 1.0
+    if settings.overdispersion and evaluated:
+        c_hat = max(1.0, min(e.chi2 / max(n - e.k, 1) for e in evaluated))
+    for e in evaluated:
+        e.score = criterion(e.chi2 / c_hat, e.k, n, settings.criterion)
+    return c_hat
+
+
+def _decide_extensions(evaluated: List[Evaluated], settings: SearchSettings, log: List[dict]) -> None:
+    by_key = {e.key: e for e in evaluated}
+    for e in evaluated:
+        if e.parent is None:
+            continue
+        parent = by_key.get(e.parent)
+        better = parent is not None and e.score < parent.score - settings.accept_delta
+        e.status = "accepted" if better else "rejected"
+        log.append({"step": "accept" if better else "reject", "hypothesis": e.key, "parent": e.parent,
+                    "delta": round(e.score - parent.score, 2) if parent else None})
 
 
 def _same_model(a: HypothesisModel, b: HypothesisModel) -> bool:
@@ -198,6 +228,7 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     jobs += [(model_from_interpretation(interp, f"hint {i + 1}"), "free", "hint", None)
              for i, interp in enumerate(hinted)]
     evaluated = runner.run(jobs, log)
+    _rescore(evaluated, settings, stick.n)
     _check(evaluated)
 
     for round_ in range(settings.rounds):
@@ -235,17 +266,15 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
             log.append({"step": "extend", "round": round_ + 1, "note": "no move triggered"})
             break
         added = runner.run(new_jobs, log)
-        by_key = {e.key: e for e in evaluated}
-        for e in added:
-            parent = by_key.get(e.parent)
-            better = parent is not None and e.score < parent.score - settings.accept_delta
-            e.status = "accepted" if better else "rejected"
-            log.append({"step": "accept" if better else "reject", "hypothesis": e.key, "parent": e.parent,
-                        "delta": round(e.score - parent.score, 2) if parent else None})
         evaluated.extend(added)
+        _rescore(evaluated, settings, stick.n)
         _check(evaluated)
+
+    c_hat = _rescore(evaluated, settings, stick.n)          # final scale; extensions decided on it
+    log.append({"step": "score", "c_hat": round(c_hat, 3), "criterion": settings.criterion})
+    _decide_extensions(evaluated, settings, log)
 
     kb = knowledge or KnowledgeBase.packaged()
     for e in sorted(evaluated, key=lambda e: e.score)[:max(3, settings.top_models)]:
         e.knowledge = knowledge_matches(e.model, e.couplings, kb, kinds=settings.knowledge_kinds)
-    return SearchResult(evaluated, log, stick)
+    return SearchResult(evaluated, log, stick, c_hat, settings.clean_margin)

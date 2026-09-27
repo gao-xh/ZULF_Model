@@ -396,3 +396,12 @@ skills under `skills/`; this file keeps the history.
   extension per aromatic C-H of pyridine (5 x 2 variants of 7-spin
   isotopologues, tens of minutes). Ring atoms are now skipped as anchors
   (no free valence); CH-CH3 still gets its one extension.
+
+### Full pipeline with motifs on the real samples (runs/bench/search_real_motifs.py)
+- First run (plain BIC, clean-first best, free-amplitude motif scan):
+  pyridine found by the motif scan and ranked first after refinement, but
+  "best" was the benzene ring (both pyridine fits had warnings); the scan
+  ranked amine motifs first on lactic acid and alanine (15N isotopologue with
+  a free amplitude imitating the 147 Hz band); lactic acid unchanged.
+- Fixed by D40 (quasi-likelihood scores, clean margin, fixed-ratio scan);
+  rerun in progress.

@@ -4,8 +4,9 @@ Stage-2 group candidates assume isolated X-Hn patterns, which fails when
 protons couple strongly (CH2 next to CH3, aromatic rings). A motif is a
 whole fragment (with symmetry) whose spectrum is computed exactly; the scan
 takes the one-bond couplings from band positions, evaluates every
-combination with a closed-form linear solve (free complex amplitude per
-isotopologue and the background; no nonlinear fit), scores it on the common
+combination with a closed-form linear solve (one complex amplitude, the
+isotopologue ratios fixed by the labelling, and the background; no
+nonlinear fit), scores it on the common
 yardstick and keeps the best combinations per motif for stage 3.
 
 Couplings beyond 1J are generic values (sp3: 2J(C,H) -4.5, 3J(C,H) 4.5,
@@ -240,13 +241,16 @@ def _site_candidates(site: OneBondSite, inventory: Inventory, per_site: int) -> 
 
 
 def _quick_chi2(model: HypothesisModel, observed, stick: Yardstick, rate_per_s: float) -> float:
-    settings = model.settings(RefineSettings(), fix_unspecified=True)
+    # A motif is one molecule: its isotopologue ratios are fixed by the labelling, so a minor isotopologue
+    # (e.g. 15N) cannot take over a band of another nucleus in the quick score.
+    settings = model.settings(RefineSettings(), fixed_ratios=True, fix_unspecified=True)
     param = settings.parameterize(model.interpretation)
     values = param.values()
     for key in values:
         if ".log_rate" in key:
             values[key] = float(np.log(rate_per_s))
-    forward = MixtureForward(param, observed, gain_model="complex", background=1)
+    forward = MixtureForward(param, observed, gain_model="complex", background=1,
+                             amplitude_map=settings.amplitude_map)
     pred = forward.predict(values=values)
     return stick.chi2(observed.values[observed.selected], pred.model)
 

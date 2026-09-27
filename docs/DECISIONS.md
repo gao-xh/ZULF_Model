@@ -522,6 +522,22 @@ isolated methyl (weak 15N line against the BIC penalty) and CH3-C(O)-CH3
 third (practically identical to an isolated methyl). The group path alone
 ranks the truth first in 2 of 12.
 
+## D40. Quasi-likelihood ranking and a margin for clean hypotheses (2026-09-27)
+
+On real spectra every hypothesis leaves structure (reduced chi2 about 14
+for the CH-CH3 samples, about 380 for pyridine), which inflates all chi2
+differences. Scores are now chi2 / c_hat + k ln N with c_hat the smallest
+reduced chi2 of the evaluated set (at least 1), recomputed after every round;
+extensions are accepted on this scale at the end. The best hypothesis is the
+lowest score, unless one without warnings lies within `clean_margin` (10),
+which is then preferred. Before the change the clean-first rule chose a
+benzene ring 5e4 BIC worse than the (warned) pyridine fits, and alanine
+accepted a coupled-proton extension that is 1.5 worse on the quasi scale.
+The motif quick scan now fixes the isotopologue ratios (one molecule), so a
+15N isotopologue cannot take over a 13C band (amine motifs had ranked first
+on the lactic-acid and alanine data); the synthetic benchmark is unchanged
+(10 / 12 rank 1).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.
