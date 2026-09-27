@@ -424,8 +424,10 @@ class FitStructureTests(unittest.TestCase):
         move = SlowExchange(slow, {"ranges": [(62.0, 320.0)]})
         self.assertTrue(move.applies(m, [Finding("misfit", "info", "")]))
         self.assertFalse(move.applies(m, []))
-        (s,) = move.propose_model(m)
+        ((s, alts),) = move.propose_model(m)
         self.assertIn("(slow exchange)", s.name)
+        self.assertEqual(abs(s.fragment.couplings[pair("HN1", "HC2")]), 0.2)   # N-H couplings start near zero
+        self.assertEqual(alts[0].fragment.couplings[pair("HN1", "HC2")], slow.couplings[pair("HN1", "HC2")])
         self.assertIn("15N@N1", s.component_labels)                        # N-H kept: 15N couples again
         self.assertEqual(s.fragment.couplings[pair("C1", "HC1")], 124.9)    # fitted values carried
         self.assertIn("HN1", [p.label for p in s.fragment.protons])

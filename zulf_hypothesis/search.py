@@ -443,10 +443,13 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
                                                  line_shape=dict(parent.model.line_shape))
                 extra = [m for mv in settings.extra_model_moves if mv.applies(warm_model, findings)
                          for m in mv.propose_model(warm_model, findings)]
-                for model in propose_model_moves(warm_model, findings, allowed=settings.moves) + extra:
+                for item in propose_model_moves(warm_model, findings, allowed=settings.moves) + extra:
+                    # a model move may return (model, alternate start models)
+                    model, alts = item if isinstance(item, tuple) else (item, [])
                     for v in _extension_variants(settings, parent):
                         if _variant_applies(model, v):
-                            new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]", []))
+                            new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]",
+                                             list(alts)))
                     log.append({"step": "extend", "round": round_ + 1, "from": parent.name, "proposal": model.name,
                                 "triggers": sorted({f.code for f in findings})})
         if not new_jobs:

@@ -81,16 +81,27 @@ class SlowExchange:
             any(f.code in self.triggered_by() for f in findings)
 
     def propose_model(self, model, findings=()) -> list:
-        couplings = dict(self.slow.couplings)
-        couplings.update(model.fragment.couplings)               # fitted values of the shared couplings
+        """(model, alternates): the warm start has the fast fit's couplings and the new couplings of the
+        exchangeable protons near zero, so at its start it reproduces the fast fit (nested, e66a4b08: from generic
+        N-H couplings the slow model ended worse than its fast parent); the alternate starts them at the
+        structure's generic values."""
+        exch = {p.label for p in self.slow.protons} - {p.label for p in model.fragment.protons}
         name = model.fragment.name.replace("(fast exchange)", "(slow exchange)")
-        fragment = replace(self.slow, name=name, couplings=couplings)
-        try:
-            built = build_model(fragment, include_exchangeable=True, name=model.name.replace(
-                "(fast exchange)", "(slow exchange)"), **self.options)
-        except ValueError:
-            return []
-        return [dataclasses.replace(built, line_shape=dict(model.line_shape))]
+        label = model.name.replace("(fast exchange)", "(slow exchange)")
+        out = []
+        for near_zero in (True, False):
+            couplings = dict(self.slow.couplings)
+            if near_zero:
+                couplings.update({k: (0.2 if v > 0 else -0.2) if (set(k) & exch) and abs(v) < 50 else v
+                                  for k, v in couplings.items()})
+            couplings.update(model.fragment.couplings)           # fitted values of the shared couplings
+            try:
+                built = build_model(replace(self.slow, name=name, couplings=couplings), include_exchangeable=True,
+                                    name=label, **self.options)
+            except ValueError:
+                return []
+            out.append(dataclasses.replace(built, line_shape=dict(model.line_shape)))
+        return [(out[0], [out[1]])]
 
 
 def fit_settings(workers: int = 4, **changes) -> SearchSettings:
