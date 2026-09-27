@@ -576,3 +576,13 @@ skills under `skills/`; this file keeps the history.
   13CH2 isotopologue), 11 of 14 cases at rank 1. On the real data the new
   motif ranks 3rd in the quick scan (1J picks 156.8 / 127.8, again from
   band positions).
+
+### Blind sample e66a4b08 (automatic run only, D42 program)
+- Standard processing, compared with the confirmed samples. Bands:
+  120-135 Hz (strongest 125.0 and 131.5 Hz in the 1 s window, SNR 86 /
+  109), 139-153 Hz weak, 188-210 Hz (198 / 203 Hz, SNR 25), 238-272 Hz
+  (250 Hz SNR 80, 258-267 Hz SNR 30-40), features below 62 Hz (outside the
+  standard ranges). Automatic run started with the standard script (single-
+  label natural abundance), with the D42 program (motif screen,
+  change_proton_count, demotion); the 5-sample regression rerun was
+  reniced to lowest priority meanwhile.
