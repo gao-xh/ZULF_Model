@@ -581,7 +581,10 @@ Triethylamine (4322bdfc) was missed in three ways, each now changed:
   others and cannot be `best`; the table marks them (`demoted`) and their
   delta can be negative. The free CH-CH3 + HX fit on 4322bdfc (CH component
   0.061) had won by 60 quasi-BIC units. D40's clean-margin rule applies
-  among the fits that are not demoted.
+  among the fits that are not demoted. Extensions that failed the acceptance
+test rank after the other fits and cannot be `best` either (alanine rerun:
+the rejected coupled-proton extension scored 2.3 below its parent, under
+`accept_delta` 6, and had become `best`).
 
 ## Open questions
 

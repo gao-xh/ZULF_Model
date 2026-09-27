@@ -128,13 +128,14 @@ class SearchResult:
     demote: Tuple[str, ...] = ("collapsed_component",)
 
     def ranked(self) -> List[Evaluated]:
-        """By score, demoted fits (D42) after all others."""
-        return sorted(self.evaluated, key=lambda e: (e.demoted(self.demote), e.score))
+        """By score; extensions that failed the acceptance test next, demoted fits (D42) last. A rejected
+        extension can score slightly below its parent (by less than `accept_delta`) but was not supported."""
+        return sorted(self.evaluated, key=lambda e: (e.demoted(self.demote), e.status == "rejected", e.score))
 
     @property
     def best(self) -> Optional[Evaluated]:
-        """Lowest score among fits that are not demoted; a hypothesis without warnings is preferred only when it
-        is within `clean_margin`."""
+        """Lowest score among fits that are neither demoted nor rejected extensions; a hypothesis without
+        warnings is preferred only when it is within `clean_margin`."""
         ranked = self.ranked()
         if not ranked:
             return None

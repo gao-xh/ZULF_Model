@@ -335,6 +335,10 @@ class SearchTests(unittest.TestCase):
         self.assertIs(res.best, high)
         rows = res.table()
         self.assertEqual((rows[1]["demoted"], rows[1]["delta"]), (True, -40.0))
+        ext = Evaluated("b + HX", "fixed", "x", m, summary, np.zeros(1), score=48.0, status="rejected")
+        res = SearchResult([low, high, ext], [], None)
+        self.assertEqual([e.name for e in res.ranked()], ["b", "b + HX", "a"])   # e3d282da: rejected by 2.3
+        self.assertIs(res.best, high)
 
     def test_motif_screen_picks_top_motifs(self):
         from zulf_hypothesis import SearchSettings, propose_hypotheses, search_hypotheses

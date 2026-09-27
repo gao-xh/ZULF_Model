@@ -586,3 +586,25 @@ skills under `skills/`; this file keeps the history.
   label natural abundance), with the D42 program (motif screen,
   change_proton_count, demotion); the 5-sample regression rerun was
   reniced to lowest priority meanwhile.
+- Automatic result (57.7 min, shared CPU with the regression rerun; no
+  hand input). Bands: 125.2 (SNR 43), 131.8 (77), 202.8 (15), 249.8 (52),
+  256.2 (12), 262.5, weak 187.2 / 209.8 / 237.2. Screen kept CH-CH3 (scan
+  1st), ethyl (scan 8th) and (CH3)2CH-NH3+ (scan 5th). Best: group proposal
+  13CH3(125) + 13CH(203) + 13CH3(131) (bonded 13CH3-13CH, 13CH3-13CH3)
+  + HX, fixed variant, accepted (-28.4): 1J 124.86 / 204.1 / 131.31 Hz,
+  J(H1,H2) 10.5, J(C2,H3) 11.1 Hz; findings undetermined, misfit; c_hat
+  290. The three change_proton_count proposals were rejected (+72 to +244).
+  Free variants with a switched-off CH (0.04-0.18) are demoted. Motif
+  CH-CH3 +129 / +145, ethyl +262 / +270. Nearest knowledge entries lactic
+  acid / alanine at 25 Hz rms (no match). Reported as program output only.
+- Regression rerun with D42 (runs/bench/search_real_v2.log): triethylamine
+  best motif ethyl [free] (1J 130.98 / 125.0, 3J(HH) 7.12 Hz; before: CH-CH3
+  + HX); ethylenediamine CH2-CH2 unchanged; pyridine ring [fixed]
+  unchanged; lactic acid CH-CH3 + HX [fixed] (accepted -49; unchanged
+  structure); alanine: the coupled-proton extension was rejected (-2.3,
+  under accept_delta 6) but was reported as best because the ranking
+  ignored the rejection. Fixed: rejected extensions rank after the other
+  fits and cannot be best (D42 addendum); alanine's best is then its parent
+  CH3-CH. The proton-count move was rejected on every sample except
+  triethylamine's fixed variant, where ethyl -> CH-CH3 was accepted (-18.9);
+  the overall best there remains ethyl [free].
