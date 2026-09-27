@@ -206,6 +206,8 @@ class KnowledgeTests(unittest.TestCase):
         kb.add(ReferenceEntry("x", "CH-CH3", {"J(Ca,Ha)": 147.0}, "literature, test", source_kind="literature"))
         self.assertEqual(len(kb.nearest("CH-CH3", query)), 2)          # literature excluded by default
         self.assertEqual(len(kb.nearest("CH-CH3", query, kinds=None)), 3)
+        blind = kb.nearest("CH-CH3", query, exclude=("b683220d",))           # the lactic-acid sample itself
+        self.assertEqual([e.compound for _, e in blind], ["L-alanine"])
 
 
 if __name__ == "__main__":

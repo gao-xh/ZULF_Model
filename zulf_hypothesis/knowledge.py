@@ -54,14 +54,19 @@ class KnowledgeBase:
     def add(self, entry: ReferenceEntry) -> None:
         self.entries.append(entry)
 
-    def entries_for(self, template: str, kinds: Optional[Sequence[str]] = None) -> List[ReferenceEntry]:
-        return [e for e in self.entries if e.template == template and (kinds is None or e.source_kind in kinds)]
+    def entries_for(self, template: str, kinds: Optional[Sequence[str]] = None,
+                    exclude: Sequence[str] = ()) -> List[ReferenceEntry]:
+        """`exclude`: text fragments (e.g. sample ids); entries whose source mentions one are skipped, so a
+        blind analysis never matches against a reference fitted on the sample under test."""
+        return [e for e in self.entries if e.template == template and (kinds is None or e.source_kind in kinds)
+                and not any(x and x in e.source for x in exclude)]
 
     def nearest(self, template: str, couplings: Mapping[str, float], keys: Optional[Sequence[str]] = None,
-                kinds: Optional[Sequence[str]] = ("measured",), scale_hz: float = 1.0) -> List[Tuple[float, ReferenceEntry]]:
+                kinds: Optional[Sequence[str]] = ("measured",), scale_hz: float = 1.0,
+                exclude: Sequence[str] = ()) -> List[Tuple[float, ReferenceEntry]]:
         """Entries of `template` ranked by RMS coupling difference over shared keys (divided by `scale_hz`)."""
         out = []
-        for e in self.entries_for(template, kinds):
+        for e in self.entries_for(template, kinds, exclude):
             shared = [k for k in (keys or couplings) if k in e.couplings and k in couplings]
             if not shared:
                 continue
@@ -118,7 +123,7 @@ def translate_couplings(named: Mapping[str, float], mapping: Mapping[str, str], 
 
 
 def knowledge_matches(model, named: Mapping[str, float], kb: "KnowledgeBase", kinds=("measured",),
-                      top: int = 3) -> List[dict]:
+                      top: int = 3, exclude: Sequence[str] = ()) -> List[dict]:
     """Nearest reference compounds over every template that maps onto the model's fragment."""
     from .fragments import TEMPLATES
     out = []
@@ -128,7 +133,7 @@ def knowledge_matches(model, named: Mapping[str, float], kb: "KnowledgeBase", ki
         if mapping is None:
             continue
         translated = translate_couplings(named, mapping, template)
-        for dist, entry in kb.nearest(name, translated, kinds=kinds)[:top]:
+        for dist, entry in kb.nearest(name, translated, kinds=kinds, exclude=exclude)[:top]:
             out.append({"template": name, "compound": entry.compound, "rms_hz": round(dist, 3),
                         "keys": sorted(k for k in translated if k in entry.couplings), "source": entry.source_kind})
     return sorted(out, key=lambda d: d["rms_hz"])[:top]

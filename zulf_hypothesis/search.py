@@ -56,6 +56,7 @@ class SearchSettings:
     workers: int = 1                  # parallel refinement processes
     criterion: str = "bic"            # "bic" | "aic"
     knowledge_kinds: Tuple[str, ...] = ("measured",)
+    knowledge_exclude: Tuple[str, ...] = ()   # e.g. the sample id: never match references fitted on this sample
 
 
 @dataclass
@@ -319,5 +320,6 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
 
     kb = knowledge or KnowledgeBase.packaged()
     for e in sorted(evaluated, key=lambda e: e.score)[:max(3, settings.top_models)]:
-        e.knowledge = knowledge_matches(e.model, e.couplings, kb, kinds=settings.knowledge_kinds)
+        e.knowledge = knowledge_matches(e.model, e.couplings, kb, kinds=settings.knowledge_kinds,
+                                        exclude=settings.knowledge_exclude)
     return SearchResult(evaluated, log, stick, c_hat, settings.clean_margin)
