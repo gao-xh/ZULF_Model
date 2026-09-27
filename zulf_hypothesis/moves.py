@@ -240,7 +240,9 @@ def register_model_move(move: ModelVariantMove) -> ModelVariantMove:
 
 class GaussianLineShape(ModelVariantMove):
     """Voigt lines: one Gaussian width shared by all components (field inhomogeneity), fitted with the rates.
-    Triggered by misfit; the width range comes from the data (no instrument prior)."""
+    Triggered by misfit; the width range comes from the data (no instrument prior). The width starts near zero
+    (0.02 Hz), so the extension starts at its parent's fit (nested); from 0.3 Hz it ended worse than its parent
+    on e66a4b08."""
     name = "gaussian_line_shape"
 
     def triggered_by(self) -> Sequence[str]:

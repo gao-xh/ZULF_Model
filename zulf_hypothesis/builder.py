@@ -125,7 +125,7 @@ class HypothesisModel:
         if self.line_shape.get("gaussian"):
             lo, hi = self.line_shape.get("sigma_bounds_hz", (1e-3, 3.0))
             policy = dataclasses.replace(out.policy, fit_sigma=True, sigma_bounds_hz=(lo, hi),
-                                         initial_sigma_hz=float(self.line_shape.get("initial_sigma_hz", 0.3)))
+                                         initial_sigma_hz=float(self.line_shape.get("initial_sigma_hz", 0.02)))
             sig = tuple(f"c{c}.sigma" for c in range(len(self.component_labels)))
             out = dataclasses.replace(out, policy=policy, ties=out.ties + ((sig,) if len(sig) > 1 else ()))
         return out
