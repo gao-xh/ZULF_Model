@@ -27,6 +27,11 @@ Red flags
 - Couplings that differ between equally good starts are not determined;
   report them as such (e3d282da small couplings, b683220d extra spin).
 
+- An extension (a nested model) that scores worse than its parent: suspect
+  the start, not the physics. A parent that compensated for missing
+  couplings (broadened lines, shifted small couplings) traps a warm start;
+  refine extensions from both the parent's optimum and the proposal values.
+
 Comparisons
 - Same window, range, zero filling, mode (complex or real-only).
 - With signal weighting compare `data_region_residual` (data cores only);

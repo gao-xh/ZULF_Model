@@ -412,3 +412,19 @@ skills under `skills/`; this file keeps the history.
   (one start, worse local minimum), unlike the previous run. Fix: extensions
   start from the parent's refined couplings (warm start); a motif identical
   to a group proposal is refined once. Rerun in progress.
+- Warm-start rerun (b5ab115): pyridine best = pyridine ring [fixed] again;
+  alanine best CH3-CH [free], extension rejected (+9 / +11); lactic acid:
+  extension accepted only in the fixed variant (-10 vs its parent), the free
+  extension rejected (+6). Multi-start extensions (ecd032e: 4 starts, 1.5 Hz
+  around the warm start) gave identical numbers.
+- Diagnosis: the parent CH3-CH compensates the missing coupling with
+  broadened methyl lines (the rate_asymmetry finding); a warm start inherits
+  that compensation and stays in its basin. The first run reached the
+  better basin (chi2 1153 -> 528) only because its extension started from
+  the cold proposal values. Fix (69620d5): extensions start from both the
+  warm (parent's refined couplings) and the cold (proposal) values, each
+  with perturbations; refine keeps the best. Lactic-acid rerun in progress.
+- Lesson (skill): a nested extension is not guaranteed to improve from the
+  parent's optimum when the parent has compensated for the missing
+  physics; start extensions from both the parent's optimum and the
+  uncompensated proposal values.
