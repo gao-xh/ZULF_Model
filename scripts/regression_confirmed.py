@@ -82,10 +82,10 @@ def run_known(sample, obs, workers, out):
     return row
 
 
-def run_blind(sample, obs, workers, out, proc):
+def run_blind(sample, obs, workers, out, proc, rounds=1):
     t = time.time()
     ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))
-    res = search_hypotheses(obs, ps, blind_settings(workers, sample["id"], phase_delay_bounds_s=DELAY))
+    res = search_hypotheses(obs, ps, blind_settings(workers, sample["id"], phase_delay_bounds_s=DELAY, rounds=rounds))
     write_report(res, obs, str(out / f"{sample['id']}_blind"))
     truth = skeleton(structure_for(sample))
     ranked = [e for e in res.ranked() if e.model.fragment is not None]
@@ -102,6 +102,7 @@ def main():
     ap.add_argument("--mode", default="known", choices=["known", "blind", "both"])
     ap.add_argument("--samples", default="")
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--blind-rounds", type=int, default=1, help="extension rounds of the blind search")
     ap.add_argument("--out", default=f"runs/regression/{time.strftime('%Y%m%d_%H%M%S')}")
     args = ap.parse_args()
     cfg = json.load(open(CONFIG))
@@ -119,7 +120,7 @@ def main():
             row["known"] = run_known(sample, obs, args.workers, out)
             print(sample["id"], "known", row["known"], flush=True)
         if args.mode in ("blind", "both"):
-            row["blind"] = run_blind(sample, obs, args.workers, out, cfg["processing"])
+            row["blind"] = run_blind(sample, obs, args.workers, out, cfg["processing"], args.blind_rounds)
             print(sample["id"], "blind", row["blind"], flush=True)
         summary[sample["id"]] = row
         json.dump(summary, open(out / "summary.json", "w"), indent=1, default=str)
