@@ -405,3 +405,10 @@ skills under `skills/`; this file keeps the history.
   a free amplitude imitating the 147 Hz band); lactic acid unchanged.
 - Fixed by D40 (quasi-likelihood scores, clean margin, fixed-ratio scan);
   rerun in progress.
+- Rerun with D40: pyridine best = pyridine ring [fixed] (clean, 3.7 from the
+  minimum; benzene +78); alanine best CH3-CH [free], extension rejected
+  (+1.6, as expected). Lactic acid: extension rejected (+14) because it was
+  grown from the motif copy of CH-CH3 and restarted from generic couplings
+  (one start, worse local minimum), unlike the previous run. Fix: extensions
+  start from the parent's refined couplings (warm start); a motif identical
+  to a group proposal is refined once. Rerun in progress.

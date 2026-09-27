@@ -223,8 +223,12 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     motif_models = list(getattr(proposals, "motif_models", []))[:settings.top_motifs]
     jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models) for v in settings.variants
             if v == "free" or _fixed_differs(m)]
-    jobs += [(m, v, f"motif {i + 1}", None) for i, m in enumerate(motif_models) for v in settings.variants
-             if v == "free" or _fixed_differs(m)]
+    for i, m in enumerate(motif_models):
+        twin = next((o for o in models if _same_model(m, o)), None)
+        if twin is not None:          # the same structure from both routes is refined once
+            log.append({"step": "dedupe", "motif": m.name, "same_as": twin.name})
+            continue
+        jobs += [(m, v, f"motif {i + 1}", None) for v in settings.variants if v == "free" or _fixed_differs(m)]
     jobs += [(model_from_interpretation(interp, f"hint {i + 1}"), "free", "hint", None)
              for i, interp in enumerate(hinted)]
     evaluated = runner.run(jobs, log)
@@ -244,7 +248,11 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
         new_jobs = []
         for parent in parents:
             findings = [f for e in evaluated if e.name == parent.name for f in e.findings]
-            for fragment in propose_all(parent.model.fragment, findings):
+            # Warm start: the parent's refined couplings replace the proposal's starting values, so an
+            # extension (a nested model) starts next to the parent's optimum instead of from generic values.
+            refined = {k: v for k, v in parent.couplings.items() if k.startswith("J(") and ":" not in k}
+            start = parent.model.fragment.with_couplings(refined) if refined else parent.model.fragment
+            for fragment in propose_all(start, findings):
                 # A move hypothesises what it adds (a coupled proton is in slow exchange by definition), so
                 # extensions keep exchangeable protons whatever the proposals were built with.
                 options = dict(build_options, include_exchangeable=True)
