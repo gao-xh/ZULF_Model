@@ -673,3 +673,11 @@ skills under `skills/`; this file keeps the history.
   Added motif / template / knowledge entry / benchmark case for
   N-ethylmethylamine (CH3CH2-N-CH3, fast exchange).
 - R: configs/confirmed_samples.json + scripts/regression_confirmed.py.
+- fit_structure on e66a4b08: v3 (8 starts, 240 s global search, all moves)
+  29 min; found a warm-start bug (held 4J/5J couplings silently freed in every
+  extension; free_remote_couplings never triggered): fixed, test added. v4
+  (4 starts, 60 s search, structure-preserving moves only) 12.5 min: best
+  fast exchange + remote J [fixed] chi2 23868 (k 16) vs fast fixed 35946
+  (k 12); Gaussian width alone rejected (36266): the v3 "Gaussian" gain came
+  from the freed remote couplings. Slow exchange fixed 37976 (v3 with 8
+  starts: 25640): that model is start-sensitive; noted.
