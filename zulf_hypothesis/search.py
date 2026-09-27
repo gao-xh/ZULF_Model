@@ -144,6 +144,7 @@ def _refine_job(job):
         settings = dataclasses.replace(settings, **overrides)
     start = time.perf_counter()
     initial = None
+    notes: List[str] = []
     if alternates:
         # Several starting models of the same structure (e.g. warm start from the parent and the cold proposal
         # values), each also perturbed; refine keeps the best.
@@ -159,13 +160,18 @@ def _refine_job(job):
                 initial.append(np.clip(x + np.where(coupling, rng.normal(0, settings.start_spread_hz, len(x)), 0.0),
                                        lo, hi))
         if global_options and getattr(observed, "reprocessable", False):
-            initial.extend(_global_starts(model, settings, observed, global_options, lo, hi))
+            try:
+                starts = _global_starts(model, settings, observed, global_options, lo, hi)
+                initial.extend(starts)
+                notes.append(f"global search: {len(starts)} starts")
+            except Exception as exc:  # it only proposes starts; report and refine from the others
+                notes.append(f"global search failed: {type(exc).__name__}: {exc}")
     try:
         result = refine(model.interpretation, observed, settings, initial_points=initial)
     except Exception as exc:              # a failed candidate is reported, not fatal
         return {"error": f"{type(exc).__name__}: {exc}"}
     return {"summary": result.summary(), "prediction": np.asarray(result.prediction),
-            "k": free_parameter_count(model, settings), "seconds": time.perf_counter() - start}
+            "k": free_parameter_count(model, settings), "seconds": time.perf_counter() - start, "notes": notes}
 
 
 def _global_starts(model: HypothesisModel, settings: RefineSettings, observed, options: dict, lo, hi) -> List[np.ndarray]:
@@ -174,15 +180,18 @@ def _global_starts(model: HypothesisModel, settings: RefineSettings, observed, o
     from zulf_core.solver.search import SearchSettings as PatternSettings, global_search
     options = dict(options)
     one_bond = float(options.pop("one_bond_min_hz", 50.0))
+    acq = observed.acquisition
+    stop = acq.stop_sample if acq.stop_sample is not None else acq.points
+    record_s = (stop - acq.start_sample) / acq.sampling_rate_hz
+    # The search tapers must fit inside the processed record (a 1 s window is common here).
+    options.setdefault("rise_s", min(0.3, 0.15 * record_s))
+    options.setdefault("end_taper_s", min(1.0, 0.3 * record_s))
     param = settings.parameterize(model.interpretation)
     search_param = settings.parameterize(model.interpretation)
     big = [n for n in search_param.free_names if search_param.parameters[n].kind == "coupling"
            and abs(search_param.parameters[n].value) >= one_bond]
     search_param.fix(*big)
-    try:
-        found = global_search(search_param, observed, PatternSettings.from_dict(options))
-    except Exception:                 # the search only proposes starts; failures must not stop the refinement
-        return []
+    found = global_search(search_param, observed, PatternSettings.from_dict(options))
     out = []
     for x in found.points:
         values = search_param.values(x)
@@ -218,7 +227,7 @@ class _Runner:
             out.append(Evaluated(model.name, variant, origin, model, res["summary"], res["prediction"], res["k"],
                                  chi2, self.stick.n, score, couplings=couplings, parent=parent))
             log.append({"step": "refine", "hypothesis": model.name, "variant": variant, "score": round(score, 2),
-                        "seconds": round(res["seconds"], 1)})
+                        "seconds": round(res["seconds"], 1), **({"notes": res["notes"]} if res.get("notes") else {})})
         return out
 
 

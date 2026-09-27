@@ -451,3 +451,10 @@ skills under `skills/`; this file keeps the history.
   the phase-insensitive pattern objective over the small couplings and rates
   (one-bond couplings held at the warm values); its distinct starts join the
   warm / cold / perturbed ones. Lactic-acid rerun in progress.
+- The first global-search rerun changed nothing because the search never
+  ran: its default tapers (0.3 s rise + 1.0 s end) exceed the 1 s window and
+  the exception was swallowed. Fixed: tapers scale with the record (0.15 /
+  0.3 of its length) and search failures are logged in the refine step.
+  Standalone check on the lactic extension: 41 s, 4 distinct starts.
+- Lesson: a helper that "only proposes starts" must still report failures;
+  a silent fallback made two runs look like a result.
