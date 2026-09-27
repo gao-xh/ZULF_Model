@@ -716,3 +716,12 @@ skills under `skills/`; this file keeps the history.
   (variants fixed + ratios, 3 starts, 45 s global search).
 - Blind regression (2 workers): alanine and lactic acid skeletons found at
   rank 1 (7 min each). Running.
+- 11:14 container restart killed both regressions (blind: 4 of 6 done, all
+  skeletons correct at rank 1, 1.5-12 min each on 2 workers; known: alanine
+  225 s, lactic acid 147 s). Resumed for the remaining samples.
+- Found in the known-structure tables: (1) identical extensions refitted in
+  the second round (fixed: skipped); (2) two-step improvements rejected step
+  by step (lactic acid slow exchange + remote J was 7.4 better than the kept
+  fit, both steps < 6): acceptance now compares with the nearest kept
+  ancestor. Alanine: slow exchange (NH3+ kept) chi2 506 vs 852 fast, k 17
+  vs 10, tie on the quasi-BIC scale (+0.3).
