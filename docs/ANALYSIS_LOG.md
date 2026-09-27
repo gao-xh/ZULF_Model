@@ -760,3 +760,9 @@ skills under `skills/`; this file keeps the history.
   Budget: known-structure fits 2-4 min for two-carbon molecules, 10-22 min
   for pyridine and the 3-isotopologue amines (11-spin slow/protonated forms);
   blind 1-14 min.
+- Two extension rounds in the blind search, e66a4b08 (27.7 min, concurrent
+  with the full test suite): best = CH -> CH2 (1J rescaled) + remote J,
+  correct skeleton (chosen over the +HX fit by the clean-margin rule; +HX
+  scores 6.6 lower but carries warnings). Full test suite: 179 tests OK.
+  Blind regression with --blind-rounds 2 on the other five samples started
+  13:59; the default stays one round until it passes.
