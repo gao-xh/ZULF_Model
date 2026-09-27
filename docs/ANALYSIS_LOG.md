@@ -725,3 +725,15 @@ skills under `skills/`; this file keeps the history.
   fit, both steps < 6): acceptance now compares with the nearest kept
   ancestor. Alanine: slow exchange (NH3+ kept) chi2 506 vs 852 fast, k 17
   vs 10, tie on the quasi-BIC scale (+0.3).
+- Regression round 1 (code before the fixes below; 2 workers each):
+  blind: alanine, lactic acid, pyridine (+ Gaussian width), ethylenediamine
+  (+ Gaussian width) skeletons correct at rank 1; triethylamine wrong: the new
+  CH3CH2-N-CH3 motif + remote J won (chi2 10074, k 18), ethyl screened out
+  (6th of 8 in a fixed-variant screen), Et3N motif with a 1J of 157.8 Hz from
+  the scan. Known: alanine 225 s, lactic acid 147 s, pyridine 1001 s (all
+  fast exchange [ratios] best); ethylenediamine crashed (one component: no
+  variant applied with variants fixed + ratios).
+- Fixes: screen in the ratios variant (Et3N: ethyl 1st, was 6th); models with
+  one component fitted as free; extensions compared with the nearest kept
+  ancestor; identical extensions not refitted. Final regression (both modes,
+  4 workers) started 11:47.
