@@ -466,6 +466,12 @@ class FitStructureTests(unittest.TestCase):
         self.assertEqual(t.couplings[pair("HC2", "HN1")], 5.5)
         self.assertIsNone(protonated(template("CH-CH3")))                 # no nitrogen
 
+    def test_delay_prior_excluding_zero(self):
+        from zulf_hypothesis.fit import default_fit_base
+        st = default_fit_base(phase_delay_bounds_s=(-0.0046, -0.0026))
+        param = st.parameterize(build_model(template("CH-CH3")).interpretation)
+        self.assertAlmostEqual(param.parameters["phase_delay"].value, -0.0036)   # start inside the prior
+
     def test_warm_start_keeps_held_couplings_held(self):
         from zulf_hypothesis import exchange_variants
         from zulf_hypothesis.search import Evaluated, warm_fragment

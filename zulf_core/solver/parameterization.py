@@ -115,7 +115,8 @@ class Parameterization:
                                         True, "sigma", c_index))
         if policy.fit_phase_delay:
             lo, hi = policy.phase_delay_bounds_s
-            params.append(Parameter("phase_delay", 0.0, lo, hi, True, "phase_delay"))
+            start = 0.0 if lo <= 0.0 <= hi else 0.5 * (lo + hi)     # an instrument prior may exclude zero
+            params.append(Parameter("phase_delay", start, lo, hi, True, "phase_delay"))
         for i, term in enumerate(policy.nuisance):
             kind = term.get("kind")
             if kind in ("exponential", "damped_sinusoid"):
