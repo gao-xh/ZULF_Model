@@ -470,3 +470,10 @@ skills under `skills/`; this file keeps the history.
   motifs with about ten 7-8 spin components). User: default to natural
   abundance mode. Pipeline default is now single-label natural abundance
   (doubles opt-in); run restarted with it.
+- Automatic result (single-label natural abundance, 9.0 min, no hand input):
+  best = motif CH2-CH2 [free] (1J 132.35 Hz, 2J(C,H) -2.92, 3J(H,H) 5.61 Hz),
+  only finding "misfit"; then single 13CH2 / 13CH (+103, bounds), pyridine
+  ring (+136 free, +184 fixed, bounds), benzene ring (+1154). c_hat 810
+  (reduced chi2 of the best fit): large unexplained structure; no extension
+  move applies (no methine anchor); no knowledge match (no CH2-CH2 entry).
+  Reported to the user as program output only (no interpretation by me).
