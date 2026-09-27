@@ -2,7 +2,8 @@
 
     proposals (stage 2) [+ hinted interpretations]
       -> refine each in variants ("free": free amplitudes and rates;
-         "fixed": abundance ratios and one shared rate), in parallel processes
+         "fixed": abundance ratios and one shared rate; "ratios": abundance
+         ratios with a free rate per isotopologue), in parallel processes
       -> motif screen: short refinements of the first `motif_screen` motif-scan
          proposals pick the `top_motifs` that are refined in full (the scan's
          1J values come from band positions and generic couplings)
@@ -34,7 +35,7 @@ from zulf_core.solver import RefineSettings, refine
 from .builder import HypothesisModel, build_model, model_from_interpretation
 from .checks import Finding, run_checks
 from .knowledge import KnowledgeBase, knowledge_matches
-from .moves import propose_all
+from .moves import propose_all, propose_model_moves
 from .scoring import Yardstick, criterion, free_parameter_count, yardstick
 
 
@@ -46,7 +47,7 @@ def default_base() -> RefineSettings:
 @dataclass
 class SearchSettings:
     base: RefineSettings = field(default_factory=default_base)
-    variants: Tuple[str, ...] = ("free", "fixed")
+    variants: Tuple[str, ...] = ("free", "fixed", "ratios")
     top_models: int = 4               # stage-2 group proposals refined in round 0
     top_motifs: int = 3               # motif-scan proposals refined in round 0
     motif_screen: int = 8             # motif-scan proposals given a short refinement to choose the top_motifs (0: off)
@@ -58,12 +59,19 @@ class SearchSettings:
     include_hinted: int = 0           # hinted interpretations refined in round 0 (free variant only)
     rounds: int = 1                   # extension rounds
     extend_top: int = 2               # hypotheses extended per round
+    # Variants in which extensions are refined: "best" = only the parent's best-scoring variant (one fit per
+    # extension; several moves per parent made "all variants" too slow), or an explicit tuple of variants.
+    extension_variants: object = "best"
     extension_starts: int = 8         # starts for extensions (warm start plus perturbations): new couplings are
     extension_spread_hz: float = 1.5  # unknown and have several comparable minima
     # Global pattern search (zulf_core.solver.search) over the small couplings and rates of an extension, the
     # one-bond couplings held at the warm start; its starts join the warm / cold ones. None disables it.
     extension_global_search: Optional[dict] = field(default_factory=lambda: {
         "max_seconds": 240.0, "solutions": 4, "popsize": 12, "maxiter": 60, "one_bond_min_hz": 50.0})
+    # Round-0 fits with the extension start strategy (perturbed starts plus the global pattern search). Off for a
+    # blind search (cost); on in fit_structure, where a known structure must not be judged from a local minimum
+    # (e66a4b08: one start gave chi2 93774, four starts 37342 for the same model).
+    initial_global_search: bool = False
     accept_delta: float = 6.0         # (quasi-)BIC improvement needed to accept an extension
     clean_margin: float = 10.0        # prefer a hypothesis without warnings if it is within this of the minimum
     overdispersion: bool = True       # scale chi2 by the best reduced chi2 (quasi-likelihood) before ranking
@@ -149,11 +157,22 @@ class SearchResult:
         return [dict(rank=i + 1, **e.row(best, self.demote)) for i, e in enumerate(ranked)]
 
 
+# variant -> (fixed abundance ratios, one shared decay rate). "ratios" keeps the abundance constraint but lets each
+# isotopologue decay at its own rate: e66a4b08 (N-ethylmethylamine) had its CH2 carbon broadened (3.3 vs 1.3-1.7
+# 1/s), which one shared rate could not follow and free amplitudes misused.
+VARIANTS = {"free": (False, False), "fixed": (True, True), "ratios": (True, False)}
+
+
 def _settings_for(model: HypothesisModel, variant: str, base: RefineSettings) -> RefineSettings:
     if not model.abundance_known:
         return base
-    fixed = variant == "fixed"
-    return model.settings(base, fixed_ratios=fixed, shared_rate=fixed)
+    fixed_ratios, shared_rate = VARIANTS[variant]
+    return model.settings(base, fixed_ratios=fixed_ratios, shared_rate=shared_rate)
+
+
+def _variant_applies(model: HypothesisModel, variant: str) -> bool:
+    """free always; fixed and ratios only when some ratio block holds two or more components."""
+    return variant == "free" or _fixed_differs(model)
 
 
 def _refine_job(job):
@@ -167,9 +186,10 @@ def _refine_job(job):
     start = time.perf_counter()
     initial = None
     notes: List[str] = []
-    if alternates:
+    if alternates is not None or global_options:
         # Several starting models of the same structure (e.g. warm start from the parent and the cold proposal
-        # values), each also perturbed; refine keeps the best.
+        # values), each also perturbed, plus the global-search starts; refine keeps the best.
+        alternates = list(alternates or [])
         param = settings.parameterize(model.interpretation)
         lo, hi = param.bounds()
         rng = np.random.default_rng(settings.seed)
@@ -283,9 +303,23 @@ def _decide_extensions(evaluated: List[Evaluated], settings: SearchSettings, log
 
 def _same_model(a: HypothesisModel, b: HypothesisModel) -> bool:
     ca, cb = a.interpretation.components, b.interpretation.components
-    return len(ca) == len(cb) and all(
+    return len(ca) == len(cb) and a.line_shape == b.line_shape and all(
         x.system.isotopes == y.system.isotopes and x.system.groups == y.system.groups
         and np.allclose(x.system.couplings_hz, y.system.couplings_hz) for x, y in zip(ca, cb))
+
+
+def _extension_variants(settings: SearchSettings, parent: "Evaluated") -> Tuple[str, ...]:
+    if settings.extension_variants == "best":
+        return (parent.variant,)
+    return tuple(settings.extension_variants)
+
+
+def _thorough_overrides(settings: SearchSettings) -> dict:
+    """Start strategy of extensions (and of round 0 with `initial_global_search`)."""
+    out = {"starts": settings.extension_starts, "start_spread_hz": settings.extension_spread_hz}
+    if settings.extension_global_search:
+        out["global_search"] = dict(settings.extension_global_search)
+    return out
 
 
 def _screen_motifs(motif_models: List[HypothesisModel], models: List[HypothesisModel], runner: "_Runner",
@@ -328,23 +362,24 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
 
     motif_models = _screen_motifs(list(getattr(proposals, "motif_models", [])), models, runner, settings, log)
     jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models) for v in settings.variants
-            if v == "free" or _fixed_differs(m)]
+            if _variant_applies(m, v)]
     for i, m in enumerate(motif_models):
         twin = next((o for o in models if _same_model(m, o)), None)
         if twin is not None:          # the same structure from both routes is refined once
             log.append({"step": "dedupe", "motif": m.name, "same_as": twin.name})
             continue
-        jobs += [(m, v, f"motif {i + 1}", None) for v in settings.variants if v == "free" or _fixed_differs(m)]
+        jobs += [(m, v, f"motif {i + 1}", None) for v in settings.variants if _variant_applies(m, v)]
     jobs += [(model_from_interpretation(interp, f"hint {i + 1}"), "free", "hint", None)
              for i, interp in enumerate(hinted)]
-    evaluated = runner.run(jobs, log)
+    evaluated = runner.run(jobs, log, _thorough_overrides(settings) if settings.initial_global_search else None)
     _rescore(evaluated, settings, stick.n)
     _check(evaluated)
 
     for round_ in range(settings.rounds):
         ranked = sorted(evaluated, key=lambda e: e.score)
         parents, seen = [], set()
-        for e in sorted(ranked, key=lambda e: (e.demoted(settings.demote), not e.clean, e.score)):
+        demote_codes = settings.demote
+        for e in sorted(ranked, key=lambda e: (e.demoted(demote_codes), not e.clean, e.score)):
             if e.model.fragment is None or e.model.parts or e.name in seen:
                 continue
             seen.add(e.name)
@@ -380,19 +415,32 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
                         alternates = [build_model(cold_fragments[n_move], **options)]
                     except ValueError:
                         alternates = []
-                for v in settings.variants:
-                    if v == "free" or _fixed_differs(model):
+                for v in _extension_variants(settings, parent):
+                    if _variant_applies(model, v):
                         new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]",
                                          alternates))
                 log.append({"step": "extend", "round": round_ + 1, "from": parent.name, "proposal": fragment.name,
                             "triggers": sorted({f.code for f in findings})})
+            # Same structure, fitted differently (line shape): built from the warm fragment so the refined
+            # couplings are the start.
+            options = dict(build_options, include_exchangeable=True)
+            try:
+                warm_model = build_model(warm, **options)
+            except ValueError:
+                warm_model = None
+            if warm_model is not None:
+                warm_model = dataclasses.replace(warm_model, name=parent.model.name,
+                                                 line_shape=dict(parent.model.line_shape))
+                for model in propose_model_moves(warm_model, findings):
+                    for v in _extension_variants(settings, parent):
+                        if _variant_applies(model, v):
+                            new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]", []))
+                    log.append({"step": "extend", "round": round_ + 1, "from": parent.name, "proposal": model.name,
+                                "triggers": sorted({f.code for f in findings})})
         if not new_jobs:
             log.append({"step": "extend", "round": round_ + 1, "note": "no move triggered"})
             break
-        overrides = {"starts": settings.extension_starts, "start_spread_hz": settings.extension_spread_hz}
-        if settings.extension_global_search:
-            overrides["global_search"] = dict(settings.extension_global_search)
-        added = runner.run(new_jobs, log, overrides)
+        added = runner.run(new_jobs, log, _thorough_overrides(settings))
         evaluated.extend(added)
         _rescore(evaluated, settings, stick.n)
         _check(evaluated)

@@ -110,11 +110,17 @@ class AddCoupledProton(ExtensionMove):
         return out
 
 
+# Position of the main zero-field line of an isolated X-Hn group in units of 1J(X,H): XH at J, XH2 at 3/2 J,
+# XH3 at J (and 2 J). A proton-count change rescales 1J so that this line stays where the parent put it.
+MAIN_LINE_FACTOR = {1: 1.0, 2: 1.5, 3: 1.0}
+
+
 class ChangeProtonCount(ExtensionMove):
     """One more or one fewer proton on a site (between 1 and `max_protons`), applied to the site's whole symmetry
-    orbit so the fragment keeps its symmetry. Couplings keep their values (the group label is unchanged), so a
-    warm start carries the parent's refined 1J and small couplings. Exchangeable groups and ring sites are left
-    alone. Not a nested model: acceptance still asks for the score improvement over the parent."""
+    orbit so the fragment keeps its symmetry. The one-bond coupling is rescaled so the group's main line stays in
+    place (`MAIN_LINE_FACTOR`: a CH fitted at 204 Hz becomes a CH2 with 1J 136 Hz, not 204 Hz; e66a4b08); the
+    other couplings keep their values, so a warm start carries the parent's small couplings. Exchangeable groups
+    and ring sites are left alone. Not a nested model: acceptance still asks for the score improvement."""
     name = "change_proton_count"
 
     def __init__(self, max_protons: int = 3, steps: Sequence[int] = (1, -1)):
@@ -136,8 +142,15 @@ class ChangeProtonCount(ExtensionMove):
                 if not 1 <= size <= self.max_protons:
                     continue
                 protons = tuple(replace(p, size=size) if p.label in orbit else p for p in fragment.protons)
+                scale = MAIN_LINE_FACTOR.get(group.size, 1.0) / MAIN_LINE_FACTOR.get(size, 1.0)
+                couplings = dict(fragment.couplings)
+                for p in fragment.protons:
+                    key = pair(p.site, p.label)
+                    if p.label in orbit and couplings.get(key) is not None:
+                        couplings[key] = couplings[key] * scale
                 tag = {1: "H", 2: "H2", 3: "H3"}.get(size, f"H{size}")
-                out.append(replace(fragment, name=f"{fragment.name} with {group.site}{tag}", protons=protons))
+                out.append(replace(fragment, name=f"{fragment.name} with {group.site}{tag}", protons=protons,
+                                   couplings=couplings))
         return out
 
 
@@ -161,5 +174,96 @@ def _ring_sites(fragment: Fragment) -> set:
     return out
 
 
+class FreeRemoteCouplings(ExtensionMove):
+    """Give every coupling the structure leaves unspecified (built as 0 Hz and held there: 4J, 5J, couplings
+    through a heteroatom) a small starting value, so the refinement fits it. e66a4b08: freeing them lowered chi2
+    from 35769 to 23353 for the same skeleton. Symmetry orbits are kept (one value per orbit)."""
+    name = "free_remote_couplings"
+
+    def __init__(self, initial_hz: float = 0.3, max_new: int = 24):
+        self.initial_hz, self.max_new = initial_hz, max_new
+
+    def triggered_by(self) -> Sequence[str]:
+        return ("misfit",)
+
+    def propose(self, fragment: Fragment, findings: Sequence[Finding] = ()) -> List[Fragment]:
+        groups = [p.label for p in fragment.protons]
+        orbits = fragment.coupling_orbits()               # pair -> canonical representative of its orbit
+        # labelled sites that already couple to a proton (a site without any would add a new isotopologue)
+        labelled = [s.label for s in fragment.sites if s.label_isotopes()
+                    and any(fragment.coupling(s.label, g, orbits) is not None for g in groups)]
+        members: Dict[object, list] = {}
+        for k, rep in orbits.items():
+            members.setdefault(rep, []).append(k)
+        chosen, seen = {}, set()
+        for x in labelled + groups:
+            for g in groups:
+                if x == g or fragment.coupling(x, g, orbits) is not None:
+                    continue
+                rep = orbits.get(pair(x, g), pair(x, g))
+                if rep in seen:
+                    continue
+                seen.add(rep)
+                for k in members.get(rep, [pair(x, g)]):
+                    chosen[k] = self.initial_hz
+        if not chosen or len(seen) > self.max_new:
+            return []
+        couplings = dict(fragment.couplings)
+        couplings.update(chosen)
+        return [replace(fragment, name=f"{fragment.name} + remote J", couplings=couplings)]
+
+
+class ModelVariantMove(ABC):
+    """A move on a built model that keeps the structure and changes how it is fitted (line shape, ...)."""
+    name: str = "model_variant"
+
+    def triggered_by(self) -> Sequence[str]:
+        return ()
+
+    def applies(self, model, findings: Sequence[Finding] = ()) -> bool:
+        codes = self.triggered_by()
+        return not codes or any(f.code in codes for f in findings)
+
+    @abstractmethod
+    def propose_model(self, model, findings: Sequence[Finding] = ()) -> list:
+        """New HypothesisModel objects (different name, same structure)."""
+
+
+MODEL_MOVES: Dict[str, ModelVariantMove] = {}
+
+
+def register_model_move(move: ModelVariantMove) -> ModelVariantMove:
+    MODEL_MOVES[move.name] = move
+    return move
+
+
+class GaussianLineShape(ModelVariantMove):
+    """Voigt lines: one Gaussian width shared by all components (field inhomogeneity), fitted with the rates.
+    Triggered by misfit; the width range comes from the data (no instrument prior)."""
+    name = "gaussian_line_shape"
+
+    def triggered_by(self) -> Sequence[str]:
+        return ("misfit",)
+
+    def propose_model(self, model, findings: Sequence[Finding] = ()) -> list:
+        if model.line_shape.get("gaussian"):
+            return []
+        from dataclasses import replace as dc_replace
+        return [dc_replace(model, name=f"{model.name} + Gaussian width",
+                           line_shape=dict(model.line_shape, gaussian=True))]
+
+
+def propose_model_moves(model, findings: Sequence[Finding] = (), only: Optional[Sequence[str]] = None) -> list:
+    out = []
+    for name, move in MODEL_MOVES.items():
+        if only is not None and name not in only:
+            continue
+        if only is not None or move.applies(model, findings):
+            out.extend(move.propose_model(model, findings))
+    return out
+
+
 register_move(AddCoupledProton())
 register_move(ChangeProtonCount())
+register_move(FreeRemoteCouplings())
+register_model_move(GaussianLineShape())

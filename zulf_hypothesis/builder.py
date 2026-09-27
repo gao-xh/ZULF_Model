@@ -53,6 +53,9 @@ class HypothesisModel:
     parts: List["HypothesisModel"] = field(default_factory=list)   # separate molecules of a combined model
     parents: List[Optional[int]] = field(default_factory=list)    # minor isotopologue -> its parent component
     abundance_known: bool = True     # False for outside interpretations (e.g. neural proposals): ratios unknown
+    # Line shape beyond Lorentzian: {"gaussian": True} adds one Gaussian width (Voigt lines), tied across the
+    # components (one instrument field distribution). Carried by the model so extensions keep it.
+    line_shape: Dict[str, object] = field(default_factory=dict)
 
     def parent(self, c: int) -> Optional[int]:
         return self.parents[c] if c < len(self.parents) else None
@@ -117,8 +120,15 @@ class HypothesisModel:
         fixed = tuple(base.fixed) + (self.fixed() if fix_unspecified else ())
         # Fixed ratios hold within each part (separate molecules keep free relative amounts); minor
         # isotopologues always follow their parent.
-        return dataclasses.replace(base, ties=ties, fixed=fixed, amplitude_ratios=None,
-                                   amplitude_map=self.amplitude_map(fixed_ratios))
+        out = dataclasses.replace(base, ties=ties, fixed=fixed, amplitude_ratios=None,
+                                  amplitude_map=self.amplitude_map(fixed_ratios))
+        if self.line_shape.get("gaussian"):
+            lo, hi = self.line_shape.get("sigma_bounds_hz", (1e-3, 3.0))
+            policy = dataclasses.replace(out.policy, fit_sigma=True, sigma_bounds_hz=(lo, hi),
+                                         initial_sigma_hz=float(self.line_shape.get("initial_sigma_hz", 0.3)))
+            sig = tuple(f"c{c}.sigma" for c in range(len(self.component_labels)))
+            out = dataclasses.replace(out, policy=policy, ties=out.ties + ((sig,) if len(sig) > 1 else ()))
+        return out
 
     def named_couplings(self, parameters: Mapping[str, float]) -> Dict[str, float]:
         """Refined couplings by key name (first instance of each tied parameter)."""

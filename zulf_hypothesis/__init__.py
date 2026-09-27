@@ -26,8 +26,11 @@ Layers (each a registry or interface meant for extension):
   spectra of whole motifs (rings, CH2 chains) with 1J from band positions;
 * `pipeline`  - `propose_hypotheses`: spectrum -> built, ranked hypotheses;
 * `scoring`   - one yardstick for all hypotheses (data cores, noise, BIC);
-* `search`    - `search_hypotheses`: refine (free / fixed variants, parallel),
-  check, extend by triggered moves, rank, match known compounds.
+* `search`    - `search_hypotheses`: refine (free / fixed / ratios variants,
+  parallel), check, extend by triggered moves, rank, match known compounds;
+* `fit`       - `fit_structure`: a given structure in every exchange regime
+  and variant, thorough starts (a thin entry point over the search);
+* `report`    - automatic report: ranked table, J matrices, phased fit figure.
 """
 from .builder import HypothesisModel, build_model, combine_models, min_ratio_for_snr, model_from_interpretation
 from .checks import CHECKS, CheckContext, Finding, register_check, run_checks
@@ -44,6 +47,8 @@ from .motifs import MOTIFS, Motif, MotifProposal, OneBondSite, register_motif, s
 from .pipeline import ProposalSet, propose_hypotheses
 from .scoring import Yardstick, yardstick
 from .search import Evaluated, SearchResult, SearchSettings, search_hypotheses
+from .fit import exchange_variants, exchangeable_groups, fit_settings, fit_structure
+from .report import j_matrix, write_report
 from .moves import MOVES, AddCoupledProton, ChangeProtonCount, ExtensionMove, propose_all, register_move
 
 __all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_snr", "model_from_interpretation",
@@ -55,4 +60,5 @@ __all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_sn
            "Inventory", "Line", "band_inventory", "ProposalSet", "propose_hypotheses", "Labeling", "CHECKS", "CheckContext", "Finding", "register_check", "run_checks",
            "DEFAULT_LABEL_ISOTOPES", "Fragment", "ProtonGroup", "Site", "pair", "TEMPLATES", "register_template",
            "template", "KnowledgeBase", "ReferenceEntry", "MOVES", "AddCoupledProton", "ChangeProtonCount", "ExtensionMove",
-           "propose_all", "register_move"]
+           "propose_all", "register_move", "exchange_variants", "exchangeable_groups", "fit_settings",
+           "fit_structure", "j_matrix", "write_report"]

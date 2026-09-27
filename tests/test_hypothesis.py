@@ -98,9 +98,13 @@ class BuilderTests(unittest.TestCase):
         from zulf_hypothesis import ChangeProtonCount
         from zulf_hypothesis.motifs import MOTIFS
         move = ChangeProtonCount()
-        ethyl = move.propose(template("CH-CH3"))[0]                       # CH -> CH2: the ethyl skeleton
+        parent = template("CH-CH3")
+        ethyl = move.propose(parent)[0]                                   # CH -> CH2: the ethyl skeleton
         self.assertEqual([(p.label, p.size) for p in ethyl.protons], [("Ha", 2), ("Hb", 3)])
-        self.assertEqual(ethyl.couplings, template("CH-CH3").couplings)   # couplings carried over
+        # 1J rescaled so the main line stays: XH at J, XH2 at 1.5 J (e66a4b08: CH at 204 Hz -> CH2 at 136 Hz)
+        self.assertAlmostEqual(ethyl.couplings[pair("Ca", "Ha")], parent.couplings[pair("Ca", "Ha")] / 1.5)
+        rest = {k: v for k, v in ethyl.couplings.items() if k != pair("Ca", "Ha")}
+        self.assertEqual(rest, {k: v for k, v in parent.couplings.items() if k != pair("Ca", "Ha")})
         iso = move.propose(template("CH(CH3)2"))
         self.assertEqual([[p.size for p in f.protons] for f in iso], [[2, 3, 3], [1, 2, 2]])   # orbit changes together
         self.assertEqual(build_model(iso[1]).component_labels[:1], ["13C@Ca"])
@@ -317,7 +321,7 @@ class SearchTests(unittest.TestCase):
         self.assertIn("extend", steps)
         self.assertIn("accept", steps)
         self.assertIn("HX", res.best.name)                      # the extension with the coupled proton wins
-        self.assertEqual(sorted(g for g in {e.variant for e in res.evaluated}), ["fixed", "free"])
+        self.assertEqual(sorted(g for g in {e.variant for e in res.evaluated}), ["fixed", "free", "ratios"])
         top = res.table()[0]
         self.assertEqual(top["delta"], 0.0)
         self.assertTrue(any("HX" in k for k in res.best.couplings))   # the added proton's couplings are reported
@@ -372,6 +376,57 @@ class SearchTests(unittest.TestCase):
         chi2 = stick.chi2(obs.values[sel], clean.values[clean.selected])
         self.assertLess(0.2 * stick.n, chi2)
         self.assertLess(chi2, 5.0 * stick.n)
+
+
+class FitStructureTests(unittest.TestCase):
+    def fragment(self, nh=1):
+        from zulf_hypothesis.motifs import _chain
+        return _chain("CH3CH2-NH-CH3", [("C1", "C", 3), ("C2", "C", 2), ("N1", "N", nh), ("C3", "C", 3)],
+                      [("C1", "C2"), ("C2", "N1"), ("N1", "C3")])({"C1": 125.0, "C2": 135.0, "C3": 131.5, "N1": 68.0})
+
+    def test_exchange_variants(self):
+        from zulf_hypothesis import exchange_variants, exchangeable_groups
+        f = self.fragment()
+        self.assertEqual(exchangeable_groups(f), ["HN1"])                  # proton on N
+        fast, slow = exchange_variants(f)
+        self.assertNotIn("HN1", [p.label for p in fast.protons])
+        self.assertFalse(any("HN1" in k for k in fast.couplings))
+        # 15N keeps its small 2J / 3J to the carbon-bound protons: lines only at low frequency, so a build with
+        # the fitted ranges (as fit_structure does) omits it
+        self.assertIn("15N@N1", build_model(fast).component_labels)
+        self.assertEqual(build_model(fast, ranges=[(62.0, 320.0)]).component_labels, ["13C@C1", "13C@C2", "13C@C3"])
+        self.assertIn("15N@N1", build_model(slow).component_labels)
+        self.assertEqual(exchange_variants(template("CH-CH3")), [template("CH-CH3")])      # nothing to vary
+
+    def test_remote_couplings_and_line_shape_moves(self):
+        from zulf_hypothesis.moves import MODEL_MOVES, MOVES
+        from zulf_hypothesis import exchange_variants
+        fast = exchange_variants(self.fragment())[0]
+        m0 = build_model(fast, ranges=[(62.0, 320.0)])
+        self.assertTrue(m0.unspecified)                                    # 4J / 5J built as 0 and held
+        freed = MOVES["free_remote_couplings"].propose(fast)[0]
+        m1 = build_model(freed, ranges=[(62.0, 320.0)])
+        self.assertEqual(m1.unspecified, ())
+        self.assertEqual(m1.component_labels, m0.component_labels)          # no new (15N) isotopologue
+        self.assertEqual(MOVES["free_remote_couplings"].propose(freed), [])
+        v = MODEL_MOVES["gaussian_line_shape"].propose_model(m0)[0]
+        st = v.settings(None, fixed_ratios=True, shared_rate=True)
+        self.assertTrue(st.policy.fit_sigma)
+        self.assertIn(("c0.sigma", "c1.sigma", "c2.sigma"), st.ties)       # one width for the instrument
+        self.assertEqual(MODEL_MOVES["gaussian_line_shape"].propose_model(v), [])
+
+    def test_j_matrix_marks_held_couplings(self):
+        from zulf_hypothesis import exchange_variants, j_matrix
+        from zulf_hypothesis.search import Evaluated
+        m = build_model(exchange_variants(self.fragment())[0], ranges=[(62.0, 320.0)])
+        couplings = {k: 1.0 for k in m.coupling_names}
+        e = Evaluated("x", "fixed", "t", m, {"gains": [[1.0, 0.0]] * 3, "parameters": {}}, np.zeros(1),
+                      couplings=couplings)
+        jm = j_matrix(e)
+        self.assertEqual(jm["labels"][:3], ["C1", "C2", "C3"])
+        i, j = jm["labels"].index("C1"), jm["labels"].index("HC3")
+        self.assertEqual((jm["J_hz"][i][j], jm["fixed"][i][j]), (1.0, True))    # 4J(C1,HC3) held at its value
+        self.assertEqual(jm["J_hz"][j][i], jm["J_hz"][i][j])
 
 
 class MotifTests(unittest.TestCase):
