@@ -144,13 +144,19 @@ def write_report(result: SearchResult, observed, prefix: str, top: int = 3) -> D
     phase0, delay = fit_phasing(best) if best is not None else (0.0, 0.0)
     out = {"best": best.key if best else None, "c_hat": result.c_hat, "table": table, "log": result.log,
            "j_matrices": matrices, "best_phasing": {"phase0_rad": phase0, "delay_s": delay},
-           "best_rates": {k: float(np.exp(v)) for k, v in (best.summary["parameters"].items() if best else [])
-                          if "log_rate" in k}}
+           "best_rates_per_s": {k.replace("log_rate", "rate"): float(np.exp(v))
+                                for k, v in (best.summary["parameters"].items() if best else []) if "log_rate" in k},
+           "best_gaussian_sigma_hz": {k: float(v) for k, v in (best.summary["parameters"].items() if best else [])
+                                      if k.endswith(".sigma")},
+           "best_boundary_hits": best.summary.get("boundary_hits") if best else None}
     paths = {"json": prefix + ".json", "md": prefix + ".md"}
     with open(paths["json"], "w") as fh:
         json.dump(out, fh, indent=1, default=str)
     md = [f"# {best.key if best else 'no result'}", "",
-          f"c_hat {result.c_hat:.2f}; best phase0 {np.degrees(phase0):.1f} deg, delay {delay * 1e3:.3f} ms", "",
+          f"c_hat {result.c_hat:.2f}; best phase0 {np.degrees(phase0):.1f} deg, delay {delay * 1e3:.3f} ms; "
+          f"rates (1/s) {', '.join(f'{v:.2f}' for v in out['best_rates_per_s'].values())}; Gaussian sigma (Hz) "
+          f"{', '.join(f'{v:.3f}' for v in out['best_gaussian_sigma_hz'].values()) or 'none'}; parameters at bounds "
+          f"{out['best_boundary_hits'] or 'none'}", "",
           "| rank | hypothesis | variant | status | delta | chi2 | k | findings |", "|---|---|---|---|---|---|---|---|"]
     for r in table:
         md.append(f"| {r['rank']} | {r['hypothesis']} | {r['variant']} | {r['status']} | {r['delta']} | {r['chi2']} | "
