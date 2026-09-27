@@ -766,3 +766,12 @@ skills under `skills/`; this file keeps the history.
   scores 6.6 lower but carries warnings). Full test suite: 179 tests OK.
   Blind regression with --blind-rounds 2 on the other five samples started
   13:59; the default stays one round until it passes.
+- Blind regression with two extension rounds (runs/regression/blind_rounds2):
+  alanine 308 s, lactic acid 521 s, pyridine 575 s, ethylenediamine 53 s,
+  triethylamine 323 s, all right skeleton at rank 1; with e66a4b08 (rank 1,
+  1660 s alongside the test suite) 6 of 6. Two rounds made the blind default.
+- 14:30 end of the 6 h session. Open items (PLAN): known-structure budget for
+  the 11-spin exchange forms (10-22 min), the physics double diagonalisation
+  (compute_transitions and transition_derivatives on the same Hamiltonian),
+  instrument delay prior values, intermediate exchange, low-frequency range
+  (a 48-51 Hz feature not modelled).
