@@ -458,3 +458,8 @@ skills under `skills/`; this file keeps the history.
   Standalone check on the lactic extension: 41 s, 4 distinct starts.
 - Lesson: a helper that "only proposes starts" must still report failures;
   a silent fallback made two runs look like a result.
+- Working global search (526a952), lactic acid, 16 min: "global search: 4
+  starts" logged for both extension variants; the free extension reaches
+  chi2 593 (889 before; best seen 528) and is accepted, the fixed one 700.8,
+  accepted. Both variants now favour CH-CH3 + coupled proton, as the hand
+  analysis did (H8 over H7).
