@@ -645,3 +645,10 @@ skills under `skills/`; this file keeps the history.
 - Convention check (synthetic): the solver's shared gain phase and
   phase_delay give the absorption spectrum through phase_correct(values,
   f, phase0, delay, acquisition); cos FID -> absorptive, verified.
+
+## Autonomous optimisation session (6 h; user: "optimise on your own, keep records")
+- Scope (docs/PLAN.md Phase 3b A-H, R): 1J rescaling in change_proton_count,
+  automatic variants (ratios, exchange, round-0 global starts), fit_structure
+  entry, Voigt line shape, remote couplings, intermediate exchange, automatic
+  phasing library function, automatic report, regression script.
+  Budget: blind <= 30 min, known structure <= 10 min on 4 cores.

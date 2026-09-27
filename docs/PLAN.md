@@ -177,6 +177,22 @@ fixed, so later phases are experiments rather than restructuring.
         failed the synthetic test and is not in the library.)
   - [ ] D rerun e66a4b08 with A4 (timed, both routes: complex fit and
         phased-first), tests, benchmark, decision entry, skills.
+  - [ ] E line shape: Gaussian width (Voigt) as a triggered variant; width
+        range from the data (no instrument prior known).
+  - [ ] F remote couplings: a triggered move that frees the couplings built
+        as 0 (4J, 5J) between labelled sites and proton groups.
+  - [ ] G intermediate exchange: an approximate broadening of the lines that
+        the exchanging proton affects.
+  - [ ] H automatic report per fit: ranked table, phased fit figure, J
+        matrix file, findings.
+  - [ ] R regression script over the confirmed samples (blind search and
+        known-structure fit; skeleton found, chi2, time, 1J, phase), run
+        after each change.
+  - Budget agreed with the user: blind sample <= 30 min, known structure
+    <= 10 min (4 cores). Variants beyond the first round are triggered by
+    findings, not run for every hypothesis. Autonomous 6 h session started
+    2026-09-27 (UTC, see ANALYSIS_LOG); new problems found on the way are
+    fixed and logged.
 - [ ] More moves: add 15N site, change equivalence (CH3 <-> CH(CH3)2), add a
       remote proton group, split a group; more templates as cases arrive.
 - [ ] Validation: replay the four blind datasets end to end; synthetic
