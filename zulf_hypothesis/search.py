@@ -48,6 +48,8 @@ class SearchSettings:
     include_hinted: int = 0           # hinted interpretations refined in round 0 (free variant only)
     rounds: int = 1                   # extension rounds
     extend_top: int = 2               # hypotheses extended per round
+    extension_starts: int = 4         # starts for extensions (warm start plus perturbations): new couplings are
+    extension_spread_hz: float = 1.5  # unknown and have several comparable minima
     accept_delta: float = 6.0         # (quasi-)BIC improvement needed to accept an extension
     clean_margin: float = 10.0        # prefer a hypothesis without warnings if it is within this of the minimum
     overdispersion: bool = True       # scale chi2 by the best reduced chi2 (quasi-likelihood) before ranking
@@ -128,8 +130,10 @@ def _settings_for(model: HypothesisModel, variant: str, base: RefineSettings) ->
 
 
 def _refine_job(job):
-    model, variant, observed, base = job
+    model, variant, observed, base = job[:4]
     settings = _settings_for(model, variant, base)
+    if len(job) > 4 and job[4]:
+        settings = dataclasses.replace(settings, **job[4])
     start = time.perf_counter()
     try:
         result = refine(model.interpretation, observed, settings)
@@ -145,8 +149,9 @@ class _Runner:
         sel = observed.selected
         self.values = observed.values[sel]
 
-    def run(self, jobs: Sequence[Tuple[HypothesisModel, str, str, Optional[str]]], log: List[dict]) -> List[Evaluated]:
-        payload = [(m, v, self.observed, self.settings.base) for m, v, _, _ in jobs]
+    def run(self, jobs: Sequence[Tuple[HypothesisModel, str, str, Optional[str]]], log: List[dict],
+            overrides: Optional[dict] = None) -> List[Evaluated]:
+        payload = [(m, v, self.observed, self.settings.base, overrides) for m, v, _, _ in jobs]
         if self.settings.workers > 1 and len(payload) > 1:
             with ProcessPoolExecutor(max_workers=self.settings.workers) as pool:
                 outputs = list(pool.map(_refine_job, payload))
@@ -273,7 +278,8 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
         if not new_jobs:
             log.append({"step": "extend", "round": round_ + 1, "note": "no move triggered"})
             break
-        added = runner.run(new_jobs, log)
+        added = runner.run(new_jobs, log, {"starts": settings.extension_starts,
+                                           "start_spread_hz": settings.extension_spread_hz})
         evaluated.extend(added)
         _rescore(evaluated, settings, stick.n)
         _check(evaluated)
