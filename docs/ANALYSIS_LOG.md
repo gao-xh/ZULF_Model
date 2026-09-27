@@ -608,3 +608,11 @@ skills under `skills/`; this file keeps the history.
   CH3-CH. The proton-count move was rejected on every sample except
   triethylamine's fixed variant, where ethyl -> CH-CH3 was accepted (-18.9);
   the overall best there remains ethyl [free].
+- Blind check of D42 on 4322bdfc without the Et3N motif (added after the
+  reveal; runs/blind/4322bdfc/auto_blind_v2.log, 15.7 min): the screen kept
+  isopropyl (scan 4th), ethyl (scan 6th) and CH-CH3 (scan 1st); best =
+  motif ethyl [free] (1J 130.98 / 125.00, 2J -4.39 / -3.06, 3J(H,H)
+  7.12 Hz; amplitudes 1 : 0.94), next ethyl -> CH / CH3 variants (+25,
+  +30, rejected) and isopropyl (+60, abundance). The program now finds the
+  ethyl unit on its own; the tertiary-amine environment (through-N protons)
+  still needs the Et3N motif or a remote-proton move.
