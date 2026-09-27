@@ -793,3 +793,13 @@ skills under `skills/`; this file keeps the history.
   edge, is still off by 12-80 deg on several samples (lines of both signs
   overlap): a per-dataset phase0 needs another handle. Test running: lactic
   acid and pyridine refitted with the delay fixed at the edge time.
+- Edge vs fitted delay: lactic acid refitted with the delay fixed at the edge
+  (-3.43 ms): chi2 1184.6 vs 1151.9 free (-3.78 ms), 1J unchanged, phase0
+  shifted by 18 deg (compensation) -> the edge value is consistent with the
+  data. Pyridine: the free delay went to +1.0 ms (chi2 5881; the regression
+  run found -3.9 ms), edge-fixed 7326 with 1J(A2) 178.7 vs 176.4 Hz: the free
+  delay absorbs model error in a narrow band. Added
+  zulf_core.render.switching_edge_delay (per-dataset delay from the raw FID,
+  no model; test with a synthetic edge). Per-dataset zero-order phase remains
+  open (the J-spectrum alone does not fix it). Also fixed: a delay prior that
+  excludes zero crashed the parameterisation (start now inside the bounds).

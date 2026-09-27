@@ -139,6 +139,22 @@ class PhaseEstimationTests(unittest.TestCase):
             b = phase_correct(v, f, phase0, delay, acq).real
             self.assertGreater(abs(np.dot(a, b)) / (np.linalg.norm(a) * np.linalg.norm(b)), 0.97)
 
+    def test_switching_edge_delay(self):
+        from zulf_core.render.phasing import switching_edge_delay
+        acq = Acquisition(4000.0, 4096, start_sample=200)
+        t = np.arange(4096) / 4000.0
+        edge = 0.00346                                               # true switch-off time (between samples)
+        x = np.where(t < edge - 0.0005, 28840.0, 0.0)
+        ramp = (t >= edge - 0.0005) & (t < edge + 0.0005)             # linear 1 ms edge centred on `edge`
+        x[ramp] = 28840.0 * (1 - (t[ramp] - (edge - 0.0005)) / 0.001)
+        x[t >= edge + 0.0005] = -8000.0 * np.exp(-(t[t >= edge + 0.0005] - edge) / 0.01)
+        x += np.random.default_rng(0).normal(0, 5.0, len(x))
+        out = switching_edge_delay(x, acq)
+        # half height between the plateau and the first extremum (-8000) lies on the ramp
+        expected = edge - 0.0005 + 0.001 * (28840.0 - 0.5 * (28840.0 - 8000.0 * np.exp(-0.05))) / 28840.0
+        self.assertAlmostEqual(out["edge_time_s"], expected, delta=2e-5)
+        self.assertAlmostEqual(out["delay_s"], -out["edge_time_s"])
+
 
 class ComponentRatioTests(unittest.TestCase):
     def test_free_mode_sets_rendered_weight_independent_of_abundance(self):

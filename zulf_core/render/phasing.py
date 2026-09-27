@@ -265,3 +265,35 @@ def estimate_phase_lines(values: np.ndarray, frequencies_hz: np.ndarray, acquisi
                       for l, r, u in zip(lines, resid, use)],
             "method": "per-line complex Lorentzian phases, doubled-angle delay fit, outliers removed",
             "note": "Overall sign: strongest line positive (convention); phase0 + pi is equally consistent."}
+
+
+def switching_edge_delay(fid: np.ndarray, acquisition: Acquisition, search_s: Tuple[float, float] = (0.0005, 0.02),
+                         settle_samples: Tuple[int, int] = (2, 10)) -> dict:
+    """First-order phase (as a delay) of one dataset measured from its raw FID, without any spectrum model.
+
+    The field switch-off appears in the raw record as the end of a flat plateau followed by a steep edge and
+    ringing (NMRduino, standard_zf_4000Hz_no_dead sequence: plateau to 2.75 ms, edge half height 3.41-3.51 ms in
+    all confirmed datasets). The zero-field evolution starts at the edge, so the delay in the convention of
+    `phase_correct` is minus the edge time (time_origin included). The edge is located at half height between the
+    plateau (median of `settle_samples`) and the first extremum inside `search_s`, with linear interpolation
+    between samples. Agreement with complex fits: within 0.05 ms for alanine, triethylamine and
+    N-ethylmethylamine; for lactic acid the fitted -3.78 ms and the edge -3.43 ms fit equally well (chi2 +2.8 %),
+    the zero-order phase absorbing the difference; pyridine's free delay moved to +1.0 or -3.9 ms depending on
+    the start (model errors absorbed), so a measured delay is preferred over a fitted one."""
+    x = np.asarray(fid, float)
+    fs = acquisition.sampling_rate_hz
+    a, b = settle_samples
+    plateau = float(np.median(x[a:b]))
+    lo_i, hi_i = int(search_s[0] * fs), int(search_s[1] * fs)
+    window = x[lo_i:hi_i]
+    extreme = int(np.argmax(np.abs(window - plateau)))
+    target = float(window[extreme])
+    half = plateau + 0.5 * (target - plateau)
+    sign = np.sign(target - plateau)
+    cross = next((k for k in range(lo_i, lo_i + extreme + 1) if sign * (x[k] - half) >= 0), None)
+    if cross is None or cross == 0:
+        raise ValueError("No switching edge found in the raw FID.")
+    t = (cross - 1 + (half - x[cross - 1]) / (x[cross] - x[cross - 1])) / fs
+    return {"delay_s": -(t + acquisition.time_origin_s), "edge_time_s": t, "plateau": plateau,
+            "edge_amplitude": target - plateau,
+            "method": "half height of the field switch-off edge in the raw FID"}
