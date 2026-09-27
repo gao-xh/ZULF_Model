@@ -438,3 +438,11 @@ skills under `skills/`; this file keeps the history.
 - Caveat: the knowledge match "lactic acid 0.002 Hz" is circular (the
   reference entry was fitted on this same sample); blind use must exclude
   entries from the sample under test.
+- 8 extension starts (default now 8): lactic acid best = CH-CH3 + coupled
+  proton [fixed], chi2 700.8 (the same value as the first successful run's
+  fixed extension, so a reproducible basin), accepted against its fixed
+  parent (chi2 1741, quasi-BIC -42); the free extension reaches chi2 889
+  (first run 528) and is rejected by 1.1 on the quasi scale (four more
+  parameters). Outcome now matches the hand analysis (H8 over H7). The free
+  extension's better basin is still start-dependent; next option if needed:
+  global pattern search for extension starts.

@@ -542,8 +542,8 @@ on the lactic-acid and alanine data); the synthetic benchmark is unchanged
 
 Extensions (nested models from moves) are refined from several starts: the
 parent's refined couplings (warm), the proposal's original values (cold),
-and perturbations of both (`extension_starts` 4, `extension_spread_hz`
-1.5). A warm start alone inherits the parent's compensations (on lactic
+and perturbations of both (`extension_starts` 8, `extension_spread_hz`
+1.5; 4 starts were not enough on lactic acid). A warm start alone inherits the parent's compensations (on lactic
 acid: methyl lines broadened in place of the missing coupling) and stayed in
 the parent's basin (the extension was rejected); the cold start had reached
 the better basin (chi2 1153 -> 528). Motif and group proposals with the same

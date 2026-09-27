@@ -48,7 +48,7 @@ class SearchSettings:
     include_hinted: int = 0           # hinted interpretations refined in round 0 (free variant only)
     rounds: int = 1                   # extension rounds
     extend_top: int = 2               # hypotheses extended per round
-    extension_starts: int = 4         # starts for extensions (warm start plus perturbations): new couplings are
+    extension_starts: int = 8         # starts for extensions (warm start plus perturbations): new couplings are
     extension_spread_hz: float = 1.5  # unknown and have several comparable minima
     accept_delta: float = 6.0         # (quasi-)BIC improvement needed to accept an extension
     clean_margin: float = 10.0        # prefer a hypothesis without warnings if it is within this of the minimum
