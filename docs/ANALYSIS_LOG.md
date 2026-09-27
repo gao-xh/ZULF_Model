@@ -477,3 +477,11 @@ skills under `skills/`; this file keeps the history.
   (reduced chi2 of the best fit): large unexplained structure; no extension
   move applies (no methine anchor); no knowledge match (no CH2-CH2 entry).
   Reported to the user as program output only (no interpretation by me).
+- Neural checkpoints on fde3fbb2 (user: run the model): the three
+  transformers return five identical beams each (verify_clean: 13C + 5 H,
+  1J 218.9; verify_cpu: 13C + 5 H, no J >= 1 Hz; noiseless: 13C2 + 4 H,
+  1J 247.0) - degenerate beams, no alternatives. verify_cpu (set model)
+  gives five different 13C + H2 + H + H systems; its #1 has 13C-H2 124.1 Hz.
+  Insight report: one hint agrees with the data (13CH2 J 124.1 vs the data
+  candidate 13CH2 J 127.3 in the 186-192 Hz band); 13 of 14 group hints
+  predict lines where the data show none. Proposals unchanged by the hints.
