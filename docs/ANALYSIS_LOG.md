@@ -616,3 +616,32 @@ skills under `skills/`; this file keeps the history.
   +30, rejected) and isopropyl (+60, abundance). The program now finds the
   ethyl unit on its own; the tertiary-amine environment (through-N protons)
   still needs the Et3N motif or a remote-proton move.
+- Confirmed by the user: N-ethylmethylamine (CH3-CH2-NH-CH3). The program's
+  best had the right carbons except the CH2, read as a CH at 1J 204 Hz (its
+  1.5 J band at 202.8 Hz); change_proton_count kept 1J at 204 when turning
+  it into CH2 and was rejected (to fix: rescale 1J so the main X-Hn line
+  stays put).
+- Known-structure fits (complex route, fit phase): fast N-H exchange,
+  fixed ratios and one rate: chi2 37342 (k 12), 115-121 s on one core,
+  1J 124.89 / 134.93 / 131.71 Hz, 3J(H,H) 7.22, 3J(C,N,C,H) 3.88 / 3.86 Hz,
+  phase0 -179 deg, delay -3.51 ms. Fixed ratios with free rates: 35769
+  (k 14, 76 s). Slow exchange (NH kept) free: 22742 (k 27, 850 s),
+  1J(15N,H) -65.3 Hz, but the CH2 carbon amplitude 2x natural; on the
+  quasi-BIC scale the variants tie (241-244). Warm refits with the remote
+  couplings freed (variants_fig.png): fixed ratios + free rates 23353
+  (k 18), slow NH free 12408 (k 32; amplitudes far from natural). The fit
+  stays well above noise (reduced chi2 90-270): the model still misses
+  something (intermediate N-H exchange broadening is a candidate).
+- Phase-first route: a model-free phase (hand-tuned minimum derivative
+  entropy; delay -3.84 ms) was 35 deg off at the fitted optimum (residual
+  zero-order phase -145.6 deg), and the real-only fit was worse (reduced
+  chi2 745, 252 s). The entropy estimator is biased on this spectrum even
+  noise-free (delay -3.30 vs -3.51 ms; flat profile) and failed the
+  synthetic library test (correlation 0.56), so it was not added to the
+  library (kept as runs/bench/phase_entropy_experimental.py). AsLS (standard
+  and two-sided) did not separate baseline from lines; the broad humps are
+  reproduced by the fitted model (processing response), so they must not
+  be removed before fitting.
+- Convention check (synthetic): the solver's shared gain phase and
+  phase_delay give the absorption spectrum through phase_correct(values,
+  f, phase0, delay, acquisition); cos FID -> absorptive, verified.
