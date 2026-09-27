@@ -803,3 +803,34 @@ skills under `skills/`; this file keeps the history.
   no model; test with a synthetic edge). Per-dataset zero-order phase remains
   open (the J-spectrum alone does not fix it). Also fixed: a delay prior that
   excludes zero crashed the parameterisation (start now inside the bounds).
+
+## zulf_processing package (user: global search then fine-tune; SG and crop per spectrum; processing as its own part)
+- New package zulf_processing (raw, diagnostics, plan, phase, dataset; D44).
+  Plan per dataset: crop start = max(default, end of this dataset's ringing)
+  (e66a4b08: 203 instead of 200), stop moved to keep 1 s; SG / apodization
+  still defaults (next step). Phase: grid over delay (+-0.5 ms around the
+  switching edge, 10 us) x phase0 (0-180 deg, 1 deg), 4 best local minima,
+  Nelder-Mead fine-tune, sign by the strongest point.
+- Speed: process_dataset took 546 s per dataset, all in the 1-3 exponential
+  curve fits of zulf_core.diagnose_fid over 64k points (unused by processing).
+  Skipped in diagnose_raw -> 0.1 s. The first validation runs had timed out
+  for this reason. Test added (diagnostics < 20 s).
+- Validation (scripts/validate_processing.py, runs/processing_validation):
+  phase error at 125 / 200 / 250 Hz vs each sample's complex fit (deg):
+  calibration leave-one-out (median delay, ethylenediamine excluded from the
+  phase mean): alanine 8/8/7, lactic -14/-7/-2, pyridine -12/-2/5,
+  ethylenediamine -23/3/80 (its reference fit sits at +2.2 ms, ambiguous),
+  triethylamine 2/2/2, N-ethylmethylamine -1/-1/-1.
+  entropy:edge_fixed: -80/-79/-78, 33/42/48, 16/28/36, -9/17/-87, -2/-2/-1,
+  13/12/12. lines:edge_fixed: -53/-51/-50, 26/35/41, -18/-6/2, 84/-70/7,
+  42/43/43, -22/-22/-23. edge_prior delays run 0.25-0.5 ms past the edge
+  (to the window bound): the criteria trade delay against phase0.
+  The earlier "leave-one-out mean" row (52-90 deg errors) was an artefact:
+  the ethylenediamine +2.2 ms delay pulled the mean delay by 1 ms.
+- Decision: default phase = instrument calibration + this dataset's edge
+  (calibrated_phase; config phase_calibration: phase0 176.3 deg, delay =
+  edge - 0.033 ms). calibration:edge errors: 7/7/8, -10/-2/4, -12/-1/6,
+  -25/0/76, 1/1/0, -3/-5/-5 (not independent: fitted on all samples).
+  analyze_sample uses it (--phase entropy|lines to compare). Complex fits
+  are unaffected (they fit their own phase); the processed phase is for the
+  phased route and display.

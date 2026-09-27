@@ -277,3 +277,18 @@ def phase_dataset(values: np.ndarray, frequencies_hz: np.ndarray, acquisition: A
         notes.append(f"delay {best['delay_s'] * 1e3:.3f} ms is {abs(best['delay_s'] - edge_delay_s) * 1e3:.2f} ms from "
                      f"the switching edge ({edge_delay_s * 1e3:.3f} ms)")
     return PhaseResult(phase0, best["delay_s"], criterion, best["cost"], delay_mode, edge_delay_s, candidates, notes)
+
+
+def calibrated_phase(edge_delay_s: Optional[float], calibration: dict) -> PhaseResult:
+    """Instrument calibration plus this dataset's own delay: delay = switching edge + `delay_offset_s`, zero-order
+    phase = `phase0_deg` (absolute sign kept: it comes from fits, not from a sign convention). The calibration is
+    per instrument/sequence (configs/confirmed_samples.json "phase_calibration"); the edge is measured per dataset.
+    On the confirmed samples this is within 14 deg of each sample's own complex-fit phase at 125-250 Hz (leave-one-out,
+    ANALYSIS_LOG), closer than any model-free criterion so far."""
+    if edge_delay_s is None:
+        raise ValueError("calibrated phase needs the switching edge of this dataset.")
+    delay = float(edge_delay_s + calibration.get("delay_offset_s", 0.0))
+    phase0 = float(np.radians(calibration["phase0_deg"]))
+    phase0 = float((phase0 + np.pi) % (2 * np.pi) - np.pi)
+    return PhaseResult(phase0, delay, "calibration", 0.0, "edge_calibrated", float(edge_delay_s),
+                       notes=[f"calibration: {calibration.get('source', 'unspecified')}"])

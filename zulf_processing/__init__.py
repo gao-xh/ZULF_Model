@@ -10,17 +10,18 @@ Layers:
                   (wraps zulf_core.diagnostics.diagnose_fid);
 * `plan`        - processing parameters chosen per dataset (crop start and stop, SG window, apodization,
                   zero filling, ranges): `ProcessingPlan`, `plan_for_dataset`;
-* `phase`       - per-dataset phase: delay from the switching edge, then a global search over
-                  (phase0, delay) with a registered criterion and a local fine-tune (`phase_dataset`);
+* `phase`       - per-dataset phase: delay from the switching edge, then either the instrument calibration
+                  (`calibrated_phase`, the default in analyze_sample) or a global search over (phase0, delay)
+                  with a registered criterion and a local fine-tune (`phase_dataset`);
 * `dataset`     - `process_dataset`: raw FID -> plan -> complex ObservedSpectrum -> phase -> phased real
                   spectrum, with an overview figure and a JSON record of every choice.
 """
 from .diagnostics import RawDiagnostics, diagnose_raw, switching_edge
 from .plan import ProcessingPlan, plan_for_dataset
-from .phase import PHASE_CRITERIA, PhaseResult, phase_dataset, register_phase_criterion
+from .phase import PHASE_CRITERIA, PhaseResult, calibrated_phase, phase_dataset, register_phase_criterion
 from .dataset import ProcessedDataset, process_dataset
 from .raw import load_fid, read_settings
 
 __all__ = ["RawDiagnostics", "diagnose_raw", "switching_edge", "ProcessingPlan", "plan_for_dataset",
-           "PHASE_CRITERIA", "PhaseResult", "phase_dataset", "register_phase_criterion", "ProcessedDataset",
+           "PHASE_CRITERIA", "PhaseResult", "calibrated_phase", "phase_dataset", "register_phase_criterion", "ProcessedDataset",
            "process_dataset", "load_fid", "read_settings"]

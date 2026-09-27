@@ -12,7 +12,7 @@ from zulf_core.render.phasing import phase_correct
 from zulf_core.solver import ObservedSpectrum
 
 from .diagnostics import RawDiagnostics, diagnose_raw
-from .phase import PhaseResult, phase_dataset
+from .phase import PhaseResult, calibrated_phase, phase_dataset
 from .plan import ProcessingPlan, plan_for_dataset
 
 
@@ -80,10 +80,13 @@ class ProcessedDataset:
 
 def process_dataset(fid: np.ndarray, sampling_rate_hz: float = 4000.0, sample_id: str = "", plan=None,
                     defaults: Optional[dict] = None, phase_criterion: Optional[str] = "entropy",
-                    delay_mode: str = "edge_prior", **phase_options) -> ProcessedDataset:
+                    delay_mode: str = "edge_prior", phase_calibration: Optional[dict] = None,
+                    **phase_options) -> ProcessedDataset:
     """Raw FID -> per-dataset diagnostics -> plan (or the given plan) -> complex observation on the fitted ranges ->
     phase by global search and fine-tune on the continuous span of the ranges -> phased real observation.
-    `phase_criterion=None` skips phasing (complex fits need no phase correction)."""
+    `phase_criterion=None` skips phasing (complex fits need no phase correction); "calibration" uses the instrument
+    phase calibration with this dataset's switching edge (calibrated_phase); other names are model-free criteria
+    searched globally and fine-tuned (phase_dataset)."""
     x = np.asarray(fid, float)
     diagnostics = diagnose_raw(x, sampling_rate_hz)
     plan = plan or plan_for_dataset(len(x), sampling_rate_hz, diagnostics, defaults)
@@ -99,8 +102,14 @@ def process_dataset(fid: np.ndarray, sampling_rate_hz: float = 4000.0, sample_id
     out._fid = x
     if phase_criterion:
         edge = -(diagnostics.edge_time_s + acq.time_origin_s) if diagnostics.edge_time_s else None
-        out.phase = phase_dataset(spectrum, f, acq, edge_delay_s=edge, criterion=phase_criterion,
-                                  delay_mode=delay_mode, exclude_hz=plan.instrument_lines_hz, **phase_options)
+        if phase_criterion == "calibration":
+            calibration = phase_calibration or (defaults or {}).get("phase_calibration")
+            if not calibration:
+                raise ValueError("phase_criterion 'calibration' needs phase_calibration (or defaults['phase_calibration']).")
+            out.phase = calibrated_phase(edge, calibration)
+        else:
+            out.phase = phase_dataset(spectrum, f, acq, edge_delay_s=edge, criterion=phase_criterion,
+                                      delay_mode=delay_mode, exclude_hz=plan.instrument_lines_hz, **phase_options)
         sel = observed.selected
         real = phase_correct(observed.values[sel], observed.frequencies_hz[sel], out.phase.phase0_rad,
                              out.phase.delay_s, acq).real

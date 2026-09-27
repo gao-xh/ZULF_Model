@@ -10,16 +10,25 @@ Details and pitfalls: `references/phasing.md`.
 ## Per dataset (D44)
 
 The phase comes from the instrument and the processing, never from the
-molecule, and is set for every dataset from its own data:
-`zulf_processing.phase_dataset` / `process_dataset`: delay from the
-switching edge of the raw FID, then a global search over the zero-order
-phase (0-180 deg) and the delay within +-0.5 ms of the edge, then a local
-fine-tune, with a registered criterion (`register_phase_criterion`). Without
-the edge, bands near harmonics (J, 2J) make delays about 4 ms apart
-equivalent for any model-free criterion. The zero-order phase is the weak
-part (lines of both signs overlap); check `scripts/validate_processing.py`
-before trusting a new criterion, and report the method and its validation
-next to any phased figure.
+molecule. Default (`process_dataset(..., phase_criterion="calibration")`,
+used by `scripts/analyze_sample.py`): delay = this dataset's switching edge
+(raw FID, half height of the field switch-off) + a calibrated offset, zero-
+order phase from the instrument calibration (`calibrated_phase`, config
+`processing.phase_calibration`). Leave-one-out on the confirmed samples it is
+within 14 deg of each sample's own complex fit at 125-250 Hz.
+Refresh the calibration (median of fitted delay - edge, circular mean of
+fitted phase0 carried to that delay) whenever the pulse sequence, hardware or
+processing defaults change; leave out fits whose delay is > 1 ms from the
+others (harmonic-band ambiguity).
+
+Model-free alternative (`phase_criterion="entropy"` or `"lines"`,
+`zulf_processing.phase_dataset`): global search over phase0 (0-180 deg) and
+delay (+-0.5 ms around the edge), then Nelder-Mead fine-tune;
+`register_phase_criterion` adds criteria. On J-spectra these err 2-86 deg
+(lines of both signs overlap) and pull the delay to the window bound; never
+use one without running `scripts/validate_processing.py` (about 7 s) and
+reporting the method next to the phased figure. Without the edge, bands
+near harmonics (J, 2J) make delays about 4 ms apart equivalent.
 
 ## Rules
 
@@ -29,7 +38,7 @@ next to any phased figure.
    hypothesis: rank hypotheses on complex fits. For an unbiased phased
    spectrum a model-free phase is needed, but it only works when lines are
    resolved: `python scripts/phase_coherence.py FID.npy --start 200 --stop
-   4200` or `zulf_core.render.estimate_phase_lines`. On dense J multiplets
+   4200` or `zulf_processing.phase_dataset(..., criterion="lines")`. On dense J multiplets
    (lines of either sign closer than one width) every model-free estimator
    tried failed (D43; e66a4b08: minimum-entropy, doubled-angle and per-line
    fits, delay off by 0.4-4.7 ms, 10-40 deg line errors even noise-free).

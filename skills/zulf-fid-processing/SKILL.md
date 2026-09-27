@@ -24,7 +24,12 @@ All processing goes through `zulf_core.render.acquisition` (`Acquisition`,
 - After a change to the package run
   `ZULF_DATA_DIR=... python scripts/validate_processing.py` and compare with
   the last summary in ANALYSIS_LOG (phase errors against the known-structure
-  fits, next to the leave-one-out mean calibration).
+  fits, next to the leave-one-out median calibration). It takes about 7 s;
+  if it is slow, something in diagnostics or phase regressed (the unused
+  exponential fits of zulf_core.diagnose_fid once took 546 s per dataset).
+- Phase default: instrument calibration + this dataset's edge
+  (`phase_criterion="calibration"`, config `processing.phase_calibration`);
+  see the zulf-phasing skill.
 
 ## Acquisition assumptions
 

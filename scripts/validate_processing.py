@@ -6,7 +6,8 @@ the phase of each sample's known-structure complex fit (regression summary).
 
 Reports, per sample and phase method, the phase error (deg, modulo 180) at 125, 200 and 250 Hz and the delay
 minus the edge. The reference is itself a fit (model-dependent); a method is better when it agrees with it more
-closely than the leave-one-out median calibration does. Writes OUT/summary.json, OUT/summary.md and a figure per
+closely than the leave-one-out median calibration does ("calibration:edge" uses the config calibration, fitted on
+all samples: not an independent test). Writes OUT/summary.json, OUT/summary.md and a figure per
 sample.
 """
 import argparse
@@ -32,7 +33,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--reference", default="runs/regression/final/summary.json")
     ap.add_argument("--out", default="runs/processing_validation")
-    ap.add_argument("--methods", default="entropy:edge_prior,entropy:edge_fixed,lines:edge_prior,lines:edge_fixed")
+    ap.add_argument("--methods", default="calibration:edge,entropy:edge_prior,entropy:edge_fixed,lines:edge_prior,lines:edge_fixed")
     args = ap.parse_args()
     cfg = json.load(open(ROOT / "configs" / "confirmed_samples.json"))
     ref = {k: (np.radians(v["known"]["phase0_deg"]), v["known"]["delay_ms"] * 1e-3)
@@ -57,7 +58,8 @@ def main():
             rows["calibration (leave-one-out median)"] = {"errors_deg": error_deg(c0, ct, *ref[sid]),
                                                           "delay_ms": round(ct * 1e3, 3), "used": keep}
         for crit, mode in methods:
-            d = process_dataset(fid, cfg["processing"]["sampling_rate_hz"], sid, phase_criterion=crit, delay_mode=mode)
+            d = process_dataset(fid, cfg["processing"]["sampling_rate_hz"], sid, phase_criterion=crit, delay_mode=mode,
+                                phase_calibration=cfg["processing"].get("phase_calibration"))
             p = d.phase
             row = {"phase0_deg": round(float(np.degrees(p.phase0_rad)), 1), "delay_ms": round(p.delay_s * 1e3, 3),
                    "edge_ms": round(p.edge_delay_s * 1e3, 3) if p.edge_delay_s else None}

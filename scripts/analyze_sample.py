@@ -62,6 +62,8 @@ def main():
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--structure", default="")
+    ap.add_argument("--phase", default="", help="phase criterion for the processed spectrum: calibration (default "
+                    "when the config has phase_calibration), entropy or lines")
     ap.add_argument("--delay-bounds", default="", help="instrument prior for the fitted delay in s, 'lo,hi'")
     args = ap.parse_args()
     proc = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
@@ -72,7 +74,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     x = load_fid(args.fid)
     # per-dataset processing (zulf_processing, D44): plan with reasons, switching edge, per-dataset phase
-    data = process_dataset(x, proc["sampling_rate_hz"], args.id, defaults=proc)
+    criterion = args.phase or ("calibration" if proc.get("phase_calibration") else "entropy")
+    data = process_dataset(x, proc["sampling_rate_hz"], args.id, defaults=proc, phase_criterion=criterion)
     data.figure(str(out / "processing.png"))
     data.save_record(str(out / "processing.json"))
     obs, acq = data.observed, data.plan.acquisition()

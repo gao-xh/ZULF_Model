@@ -37,6 +37,7 @@
    322.9
   ],
   "phase_delay_bounds_s": null,
+  "phase_calibration": {"phase0_deg": 176.3, "delay_offset_s": -3.3e-05, "source": "known-structure complex fits of the confirmed samples (runs/regression/final) except fde3fbb2 (fitted delay +2.2 ms, harmonic-band ambiguity): delay = switching edge + offset (median), phase0 = circular mean of the fitted phases carried to that delay at 200 Hz; NMRduino standard_zf_4000Hz_no_dead.seq"},
   "phase_delay_note": "Instrument prior for the fitted delay, e.g. [-0.0046, -0.0026] for this NMRduino setup (fits of the confirmed samples: -3.4 to -3.9 ms). null = no prior (+-10 ms)."
  },
  "samples": [

@@ -651,6 +651,18 @@ instrument and environment, and must be recalibrated for every dataset
   equivalent (4 ms on a synthetic J / 2J spectrum). Accuracy on the confirmed
   samples: scripts/validate_processing.py (ANALYSIS_LOG); the criteria are
   the next thing to optimise.
+- Addendum (validation): no model-free criterion reaches the calibration.
+  Instrument calibration + per-dataset edge (`calibrated_phase`: delay =
+  edge + offset, phase0 fixed per instrument/sequence, config
+  "phase_calibration") is within 14 deg of each sample's own complex fit at
+  125-250 Hz (leave-one-out, 5 samples; ethylenediamine reference itself
+  ambiguous); entropy / line criteria err 2-86 deg. So: delay measured per
+  dataset, phase0 from the instrument calibration by default; the criteria
+  stay available (`phase_criterion`) and are validated by the same script.
+  The calibration must be refreshed when the sequence or hardware changes.
+- Addendum (speed): `diagnose_raw` skips the multi-exponential fits of
+  `zulf_core.diagnose_fid` (546 s per 64k-point FID, unused here); processing
+  of one dataset now takes 0.1 s.
 
 ## Open questions
 

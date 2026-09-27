@@ -87,6 +87,32 @@ class PhaseSearchTests(unittest.TestCase):
         self.assertLess(abs(err), 0.1)
 
 
+class CalibratedPhaseTests(unittest.TestCase):
+    def test_edge_plus_offset_and_calibrated_phase_recovers_truth(self):
+        from zulf_processing import calibrated_phase
+        acq, fid = synthetic_fid(1.1, 0.0008)
+        r = calibrated_phase(0.00085, {"phase0_deg": np.degrees(1.1), "delay_offset_s": -5e-5})
+        self.assertAlmostEqual(r.delay_s, 0.0008, places=12)            # edge + offset (arithmetic reference)
+        self.assertAlmostEqual(r.phase0_rad, 1.1, places=12)
+        f = np.arange(100.0, 300.0, acq.sampling_rate_hz / acq.points / 2)
+        v = evaluate_spectrum(process_record(fid, acq), acq, f)
+        a = phase_correct(v, f, r.phase0_rad, r.delay_s, acq)
+        # truth phase: the corrected spectrum is the absorption spectrum (imaginary part small next to real)
+        b = phase_correct(v, f, 1.1, 0.0008, acq)
+        self.assertLess(np.linalg.norm(a - b), 1e-9 * np.linalg.norm(b))
+        with self.assertRaises(ValueError):
+            calibrated_phase(None, {"phase0_deg": 0.0})
+
+    def test_diagnostics_are_fast(self):
+        # regression: the multi-exponential fits of zulf_core.diagnose_fid took minutes per 64k-point FID
+        import time
+        from zulf_processing import diagnose_raw
+        _, fid = synthetic_fid(1.1, 0.0008, points=65536, fs=4000.0)
+        t = time.time()
+        diagnose_raw(fid, 4000.0)
+        self.assertLess(time.time() - t, 20.0)
+
+
 class DatasetTests(unittest.TestCase):
     def test_process_dataset_records_every_choice(self):
         from zulf_processing import process_dataset
@@ -101,6 +127,9 @@ class DatasetTests(unittest.TestCase):
         self.assertIn("start_sample", rec["plan"]["reasons"])
         self.assertTrue(d.phased.real_only)
         self.assertEqual(d.phased.phasing["delay_s"], d.phase.delay_s)
+        with self.assertRaises(ValueError):                           # calibration needs a calibration
+            process_dataset(fid, 1000.0, "synthetic", defaults={"ranges": [[100.0, 300.0]]},
+                            phase_criterion="calibration")
 
 
 if __name__ == "__main__":

@@ -213,10 +213,16 @@ fixed, so later phases are experiments rather than restructuring.
       (tests/test_processing.py); validation script
       (scripts/validate_processing.py) against the known-structure fits.
 - [x] Delay per dataset from the switching edge of the raw FID.
-- [ ] Zero-order phase per dataset: better criteria (validation shows the
-      current ones do not beat a mean calibration); ideas: a phase reference
-      recorded with every acquisition (test signal), the ringing after the
-      edge, joint use of several processing windows.
+- [x] Diagnostics speed: 546 s -> 0.1 s per dataset (exponential fits
+      skipped in diagnose_raw).
+- [x] Default phase: instrument calibration + per-dataset edge
+      (`calibrated_phase`, config "phase_calibration"; within 14 deg
+      leave-one-out on 5 samples).
+- [ ] Zero-order phase per dataset from the data alone: better criteria
+      (validation: entropy / lines err 2-86 deg, worse than the
+      calibration); ideas: a phase reference recorded with every acquisition
+      (test signal), the ringing after the edge, joint use of several
+      processing windows, criteria restricted to +-20 deg of the calibration.
 - [ ] Processing parameters per dataset from the data: window length from
       the SNR curve, SG window from the baseline rates, apodization; each
       choice validated on the confirmed samples.

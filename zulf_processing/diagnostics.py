@@ -54,7 +54,8 @@ class RawDiagnostics:
 
 def diagnose_raw(fid: np.ndarray, sampling_rate_hz: float) -> RawDiagnostics:
     """Switching edge plus the zulf_core FID diagnostics (plateau, ringing end, late noise)."""
-    d = diagnose_fid(fid, sampling_rate_hz)
+    # the multi-exponential fits of diagnose_fid are not used here and cost minutes per FID: skipped
+    d = diagnose_fid(fid, sampling_rate_hz, max_exponentials=0)
     notes = list(d.notes)
     try:
         edge = switching_edge(fid, sampling_rate_hz)["edge_time_s"]
