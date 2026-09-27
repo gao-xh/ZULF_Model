@@ -518,3 +518,11 @@ skills under `skills/`; this file keeps the history.
   230-290 Hz (low weight there). Open: unequal line widths (e.g. residual
   N-H coupling under intermediate exchange, or several rates) and the two
   weak bands; not tested yet.
+
+### Blind sample 4322bdfc (automatic run only, same protocol as fde3fbb2)
+- Standard processing (crop 0.05 s, SG 201 / 2, mean removed, fs 4000 Hz),
+  compared with the confirmed samples. Strong band 121-133 Hz (peaks 123.3,
+  125.0, 127.3-127.7 Hz, SNR up to 113), band 235-257 Hz (250 Hz strongest
+  in the 0.3 s window), weak structure 190-210 Hz, and features at 15-60 Hz
+  (outside the standard ranges, which start at 62 Hz). Automatic run started
+  with the fde3fbb2 script unchanged (single-label natural abundance).
