@@ -194,5 +194,14 @@ def _methylamine():
                      pair("H1", "H2"): 5.8}, (), (("C1", "N1"),))
 
 
+@register_case("ethylenediamine (fast exchange)")
+def _ethylenediamine():
+    swap = {"C1": "C2", "C2": "C1", "H1": "H2", "H2": "H1", "N1": "N2", "N2": "N1"}
+    return Fragment("ethylenediamine", (S("C1", "C"), S("C2", "C"), S("N1", "N"), S("N2", "N")),
+                    (P("H1", 2, "C1"), P("H2", 2, "C2")),
+                    {pair("C1", "H1"): 133.0, pair("C1", "H2"): -3.5, pair("H1", "H2"): 6.0, pair("N1", "H1"): -1.2,
+                     pair("N1", "H2"): 1.5}, (swap,), (("C1", "C2"), ("C1", "N1"), ("C2", "N2")))
+
+
 if __name__ == "__main__":
     run_benchmark()

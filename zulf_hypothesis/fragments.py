@@ -59,3 +59,13 @@ def isopropyl(one_bond: Optional[Dict[str, float]] = None) -> Fragment:
     swap = {"Cb1": "Cb2", "Cb2": "Cb1", "Hb1": "Hb2", "Hb2": "Hb1"}
     return Fragment("CH(CH3)2", sites, protons, couplings, (swap,), (("Ca", "Cb1"), ("Ca", "Cb2")),
                     "isopropyl; the 4J between the two methyls is left unspecified (built as 0 Hz, fixed)")
+
+
+@register_template("CH2-CH2")
+def ch2_ch2(one_bond: Optional[Dict[str, float]] = None) -> Fragment:
+    """X-CH2-CH2-X with two equivalent CH2 groups (succinate, ethylenediamine, ethylene glycol type)."""
+    ob = {"C1": 132.0, **(one_bond or {})}
+    swap = {"C1": "C2", "C2": "C1", "H1": "H2", "H2": "H1"}
+    return Fragment("CH2-CH2", (Site("C1", "C"), Site("C2", "C")), (ProtonGroup("H1", 2, "C1"), ProtonGroup("H2", 2, "C2")),
+                    {pair("C1", "H1"): ob["C1"], pair("C1", "H2"): -4.5, pair("H1", "H2"): 7.0, pair("C1", "C2"): 35.0},
+                    (swap,), (("C1", "C2"),), "symmetric CH2-CH2")

@@ -95,6 +95,20 @@ inference names the observation it rests on and the test that could refute it.
    abundance test; rate asymmetry as the missing-coupling marker; one-step
    model extensions tested on identical data and weighting.
 
+## Sample fde3fbb2 (strong signal; final: CH2-CH2; confirmed ethylenediamine)
+
+1. Observation: one strong band group around 1.5 x 132 Hz (186-209 Hz), no
+   band near 2J or J of a methyl, no methine band. Inference: CH2 carbons
+   only, and one 1J value -> symmetric CH2-CH2 (both carbons equivalent).
+2. Program (no hand input): the motif scan ranks CH2-CH2 first; refinement
+   gives 1J 132.35, 2J(C,H) -2.92, 3J(H,H) 5.61 Hz; c_hat 810.
+3. Hand step: substituent from 1J alone -> carboxyl (succinic acid). Wrong:
+   the substituents were NH2 groups. 1J cannot separate N from C(O)OH.
+4. What would have decided it: 15N isotopologue lines or N-H couplings
+   (need slow exchange: low pH or D2O), or an overlay with a known diamine
+   and a known diacid on the same instrument. Report the substituent as
+   open when none of these is available.
+
 ## Sample 7ad4aafb (strong signal; pyridine-consistent)
 
 1. Observation: one band 148-192 Hz, about ten line groups, no band at 2x.

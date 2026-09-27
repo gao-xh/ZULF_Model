@@ -3,22 +3,64 @@
   {
    "compound": "L-alanine",
    "template": "CH-CH3",
-   "couplings": {"J(Ca,Ha)": 145.41, "J(Cb,Hb)": 130.28, "J(Ca,Hb)": -4.35, "J(Cb,Ha)": -6.56, "J(Ha,Hb)": 6.95},
+   "couplings": {
+    "J(Ca,Ha)": 145.41,
+    "J(Cb,Hb)": 130.28,
+    "J(Ca,Hb)": -4.35,
+    "J(Cb,Ha)": -6.56,
+    "J(Ha,Hb)": 6.95
+   },
    "source": "blind sample e3d282da, H7 fit (complex, 0.05-1.05 s, 0.6 1/s, signal weighting); identity confirmed by the user",
    "source_kind": "measured",
    "conditions": "pure, in water (pH not given); NMRduino averaged FID, 4000 Hz",
-   "uncertainty_hz": {"J(Ca,Ha)": 0.5, "J(Cb,Hb)": 0.5, "J(Ca,Hb)": 1.0, "J(Cb,Ha)": 2.0, "J(Ha,Hb)": 1.0},
+   "uncertainty_hz": {
+    "J(Ca,Ha)": 0.5,
+    "J(Cb,Hb)": 0.5,
+    "J(Ca,Hb)": 1.0,
+    "J(Cb,Ha)": 2.0,
+    "J(Ha,Hb)": 1.0
+   },
    "notes": "Fit amplitudes 1 : 0.39 (natural 1 : 1); small couplings drift with the model (H7 vs self-consistent alanine)."
   },
   {
    "compound": "lactic acid",
    "template": "CH-CH3",
-   "couplings": {"J(Ca,Ha)": 147.12, "J(Cb,Hb)": 129.19, "J(Ca,Hb)": -4.38, "J(Cb,Ha)": -4.07, "J(Ha,Hb)": 6.52},
+   "couplings": {
+    "J(Ca,Ha)": 147.12,
+    "J(Cb,Hb)": 129.19,
+    "J(Ca,Hb)": -4.38,
+    "J(Cb,Ha)": -4.07,
+    "J(Ha,Hb)": 6.52
+   },
    "source": "blind sample b683220d, H7 fit with free amplitudes (complex, 0.05-1.05 s, 0.6 1/s, signal weighting with envelope cores); identity confirmed by the user",
    "source_kind": "measured",
    "conditions": "solvent and pH not given; NMRduino averaged FID, 4000 Hz",
-   "uncertainty_hz": {"J(Ca,Ha)": 0.5, "J(Cb,Hb)": 0.5, "J(Ca,Hb)": 0.5, "J(Cb,Ha)": 0.5, "J(Ha,Hb)": 0.6},
+   "uncertainty_hz": {
+    "J(Ca,Ha)": 0.5,
+    "J(Cb,Hb)": 0.5,
+    "J(Ca,Hb)": 0.5,
+    "J(Cb,Ha)": 0.5,
+    "J(Ha,Hb)": 0.6
+   },
    "notes": "Fit amplitudes 1 : 1.04. H7 plus one weakly coupled proton (H8) fits better; with it J(Ha,Hb) 7.06, J(Ca,Hb) -4.69, J(Cb,Ha) -4.40 Hz."
+  },
+  {
+   "compound": "ethylenediamine",
+   "template": "CH2-CH2",
+   "couplings": {
+    "J(C1,H1)": 132.35,
+    "J(C1,H2)": -2.92,
+    "J(H1,H2)": 5.61
+   },
+   "source": "blind sample fde3fbb2, automatic zulf_hypothesis run (motif CH2-CH2, free amplitudes; complex, 0.05-1.05 s, 0.6 1/s, signal weighting); identity confirmed by the user",
+   "source_kind": "measured",
+   "conditions": "solvent and pH not given; NMRduino averaged FID, 4000 Hz; N-H exchange assumed fast (not modelled)",
+   "uncertainty_hz": {
+    "J(C1,H1)": 0.5,
+    "J(C1,H2)": 1.5,
+    "J(H1,H2)": 1.5
+   },
+   "notes": "Fit left large unexplained structure (reduced chi2 about 810); small couplings provisional."
   }
  ]
 }

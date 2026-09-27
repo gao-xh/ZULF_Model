@@ -208,6 +208,9 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual(len(kb.nearest("CH-CH3", query, kinds=None)), 3)
         blind = kb.nearest("CH-CH3", query, exclude=("b683220d",))           # the lactic-acid sample itself
         self.assertEqual([e.compound for _, e in blind], ["L-alanine"])
+        self.assertEqual([e.compound for e in kb.entries_for("CH2-CH2")], ["ethylenediamine"])
+        m = build_model(template("CH2-CH2"))
+        self.assertEqual(m.component_labels, ["13C@C1 (x2)"])                # both carbons equivalent
 
 
 if __name__ == "__main__":
@@ -329,10 +332,13 @@ class MotifTests(unittest.TestCase):
         benzene = build_model(MOTIFS["benzene ring"].fragment({"A2": 158.0}))
         self.assertEqual(len(benzene.component_labels), 1)                 # six equivalent carbons
         self.assertEqual(sum(len(g) for g in benzene.interpretation.components[0].system.groups), 7)
+        diamine = build_model(MOTIFS["H2N-CH2-CH2-NH2"].fragment({"C1": 135.0, "N1": 68.0}))
+        self.assertEqual(diamine.component_labels, ["13C@C1 (x2)", "15N@N1 (x2)"])  # symmetric ends merged
 
     def test_benchmark_cases_found_by_the_motif_scan(self):
         from zulf_hypothesis.benchmark import run_benchmark
-        rows = {r["case"]: r for r in run_benchmark(["ethyl", "CH2-CH2", "isopropyl", "CH3-15NH3"], verbose=False)}
+        rows = {r["case"]: r for r in run_benchmark(["ethyl", "CH2-CH2", "isopropyl", "CH3-15NH3",
+                                                          "ethylenediamine (fast exchange)"], verbose=False)}
         for case, row in rows.items():
             self.assertEqual(row["motif_rank"], 1, msg=f"{case}: {row}")
         self.assertIsNone(rows["ethyl"]["group_rank"])                      # the group path alone misses it

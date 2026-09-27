@@ -93,3 +93,16 @@ starting; follow the same observation -> inference -> test -> outcome format.
 - Solver defaults used here: band_weighting="signal" with envelope model
   cores, free amplitudes first (they are the abundance test), then fixed
   natural ratios with a shared rate as the physical check.
+
+## Lessons from the confirmed case (ethylenediamine, sample fde3fbb2)
+
+- The automatic program found the correct core (symmetric CH2-CH2) with no
+  hand input; the hand guess added a wrong substituent (carboxyl).
+- 1J(CH) identifies the carbon type (CH2, sp3), not the neighbour: CH2 next
+  to NH2 and next to COOH differ by a few Hz at most. Name a substituent
+  only with direct evidence (15N lines, N-H couplings, an overlay with a
+  confirmed reference); otherwise report "CH2-CH2 core, substituents open".
+- Amines with fast N-H exchange look like bare carbon skeletons; ask for pH
+  and solvent, and propose a low-pH or D2O measurement to expose N-H.
+- A large c_hat and unassigned weak bands mean the model is incomplete:
+  list them as open features rather than explaining them away.

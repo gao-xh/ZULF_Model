@@ -485,3 +485,23 @@ skills under `skills/`; this file keeps the history.
   Insight report: one hint agrees with the data (13CH2 J 124.1 vs the data
   candidate 13CH2 J 127.3 in the 186-192 Hz band); 13 of 14 group hints
   predict lines where the data show none. Proposals unchanged by the hints.
+- Hand guess (user asked for it after the program run): succinic acid
+  (CH2-CH2 between two carboxyl groups), reasoned from 1J(CH) 132 Hz and
+  the absence of methyl or methine bands.
+- Confirmed by the user: ethylenediamine (H2N-CH2-CH2-NH2). The program's
+  core (symmetric CH2-CH2, 1J 132.35 Hz, 3J(H,H) 5.61 Hz) was right; the
+  substituent in the hand guess was wrong.
+- Lessons: (1) 1J(CH) of a CH2 next to N and next to a carboxyl lie within
+  a few Hz of each other; 1J alone does not identify the substituent.
+  (2) The evidence for N is 15N isotopologue lines or N-H couplings (slow
+  exchange); with fast N-H exchange the amine protons decouple and the
+  molecule looks like a bare CH2-CH2. The decisive measurements are a low-pH
+  or D2O sample, or a same-instrument overlay with a known diamine / diacid.
+  (3) A large c_hat (810 here) and unassigned weak bands (65.2 and 156.5 Hz,
+  SNR 5 and 4) mean the model is incomplete; they must be reported as open,
+  not filled with a guessed substituent.
+- Added to the program: template CH2-CH2 (fragments), knowledge entry
+  "ethylenediamine" (sample fde3fbb2, J(C1,H1) 132.35, J(C1,H2) -2.92,
+  J(H1,H2) 5.61 Hz), slow-exchange motif H2N-CH2-CH2-NH2 (13C and 15N
+  isotopologues, symmetric ends merged), and benchmark case
+  "ethylenediamine (fast exchange)" (motif rank 1, found as CH2-CH2).

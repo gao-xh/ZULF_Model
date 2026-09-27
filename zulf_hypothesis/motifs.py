@@ -207,6 +207,13 @@ register_motif(Motif("(CH3)2CH-NH3+", _chain("(CH3)2CH-NH3+", [("C1", "C", 1), (
                                              [("C1", "C2"), ("C1", "C3"), ("C1", "N1")], (_ISO_SWAP,)),
                      (OneBondSite("C1", "13C", 1, (130, 160)), OneBondSite("C2", "13C", 3, (115, 140)),
                       OneBondSite("N1", "15N", 3, (65, 90))), "isopropylammonium, slow N-H exchange"))
+register_motif(Motif("H2N-CH2-CH2-NH2", _chain("H2N-CH2-CH2-NH2", [("C1", "C", 2), ("C2", "C", 2), ("N1", "N", 2),
+                                                                    ("N2", "N", 2)],
+                                                [("C1", "C2"), ("C1", "N1"), ("C2", "N2")],
+                                                ({"C1": "C2", "C2": "C1", "N1": "N2", "N2": "N1", "HC1": "HC2",
+                                                  "HC2": "HC1", "HN1": "HN2", "HN2": "HN1"},)),
+                     (OneBondSite("C1", "13C", 2, (125, 150)), OneBondSite("N1", "15N", 2, (55, 80))),
+                     "ethylenediamine, slow N-H exchange (fast exchange: use CH2-CH2)"))
 register_motif(Motif("(CH3)2CH-NH2", _chain("(CH3)2CH-NH2", [("C1", "C", 1), ("C2", "C", 3), ("C3", "C", 3),
                                                             ("N1", "N", 2)],
                                             [("C1", "C2"), ("C1", "C3"), ("C1", "N1")], (_ISO_SWAP,)),

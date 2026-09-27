@@ -69,3 +69,16 @@ so the answer was retained. Checks against the answer:
 - Final guess lactic acid / lactate, runner-up alanine at another pH.
   Confirmed by the user: lactic acid. Solvent and pH were not given; the
   extra spin (OH in slow exchange, or another small effect) stays open.
+
+## fde3fbb2 (confirmed: ethylenediamine)
+
+- Bands: 186.5-192.5 Hz (SNR 26), 197.8-200.2 (strongest 198.8, SNR 266),
+  204.5-209.2 (SNR 45); weak 65.2 (SNR 5) and 156.5 Hz (SNR 4), unassigned.
+- Program only (single-label natural abundance, 9 min): best motif CH2-CH2
+  [free], 1J 132.35, 2J(C,H) -2.92, 3J(H,H) 5.61 Hz; c_hat 810 (large
+  unexplained structure); no move applied, no knowledge match at the time.
+- Neural checkpoints: degenerate transformer beams; one set-model hint
+  (13CH2 J 124.1) agreed with the data.
+- Hand guess succinic acid: core right, substituent wrong. Confirmed by the
+  user: ethylenediamine. Solvent, pH and N-H exchange regime not given.
+
