@@ -7,6 +7,20 @@ description: Phase experimental ZULF spectra correctly and without bias - projec
 
 Details and pitfalls: `references/phasing.md`.
 
+## Per dataset (D44)
+
+The phase comes from the instrument and the processing, never from the
+molecule, and is set for every dataset from its own data:
+`zulf_processing.phase_dataset` / `process_dataset`: delay from the
+switching edge of the raw FID, then a global search over the zero-order
+phase (0-180 deg) and the delay within +-0.5 ms of the edge, then a local
+fine-tune, with a registered criterion (`register_phase_criterion`). Without
+the edge, bands near harmonics (J, 2J) make delays about 4 ms apart
+equivalent for any model-free criterion. The zero-order phase is the weak
+part (lines of both signs overlap); check `scripts/validate_processing.py`
+before trusting a new criterion, and report the method and its validation
+next to any phased figure.
+
 ## Rules
 
 1. Prefer complex fitting (real and imaginary) with zero-order phase and

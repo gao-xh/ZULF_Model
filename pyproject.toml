@@ -19,7 +19,7 @@ dev = ["torch>=2.1", "h5py>=3.8", "matplotlib>=3.7"]
 zulf-model = "zulf_model.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["zulf_core*", "zulf_model*", "zulf_hypothesis*"]
+include = ["zulf_core*", "zulf_model*", "zulf_hypothesis*", "zulf_processing*"]
 
 [tool.setuptools.package-data]
 zulf_hypothesis = ["data/*.json"]

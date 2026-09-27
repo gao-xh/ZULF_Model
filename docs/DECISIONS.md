@@ -627,6 +627,31 @@ structure fit had been proposed by hand:
   not refitted, single-component models fitted as free. Regression over the
   six confirmed samples: right skeleton first in 6 of 6 (one round: 5 of 6).
 
+## D44. Experimental processing as its own package; phase per dataset (2026-09-27)
+
+User: phase correction is data processing, the phase comes from the
+instrument and environment, and must be recalibrated for every dataset
+(processing parameters such as SG window and crop may differ per spectrum).
+- New package `zulf_processing`: raw FID and settings, diagnostics, a
+  per-dataset `ProcessingPlan` (crop start after the switching ringing, other
+  parameters default for now, every choice with its reason), per-dataset
+  phase, `process_dataset`. The processing operator stays single
+  (`zulf_core.render.acquisition`); phase convention stays in
+  `zulf_core.render.phasing`. The model-free estimators added in D43
+  (per-line fits, switching edge) moved there from zulf_core.
+- Delay per dataset from the raw FID: the field switch-off edge (half height,
+  3.41-3.51 ms in the confirmed datasets) is the start of the zero-field
+  evolution; it matches the complex-fit delay within 0.05 ms on three samples,
+  lactic acid fits equally well with it, and fitted delays of narrow-band
+  spectra absorb model error (pyridine: +1.0 or -3.9 ms by start).
+- Zero-order phase per dataset: global search over 0-180 deg together with
+  the delay in +-0.5 ms around the edge, then Nelder-Mead fine-tune, with a
+  registered criterion (derivative entropy, per-line coherence). Without the
+  edge, bands near harmonics make delays about 1 / (2 x line spacing) apart
+  equivalent (4 ms on a synthetic J / 2J spectrum). Accuracy on the confirmed
+  samples: scripts/validate_processing.py (ANALYSIS_LOG); the criteria are
+  the next thing to optimise.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

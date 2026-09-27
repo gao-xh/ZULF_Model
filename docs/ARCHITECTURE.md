@@ -36,6 +36,15 @@ checked against held-out acquisitions.
   keeps neural models at arm's length: they are optional hint providers
   (`zulf_hypothesis.adapters.model_hints`, imported lazily). Neither
   `zulf_core` nor `zulf_model` imports it.
+- `zulf_processing` (NumPy, SciPy): experimental data processing, one
+  dataset at a time (D44): raw FID and instrument settings, raw-FID
+  diagnostics (switching edge, plateau, ringing end, noise), processing
+  parameters chosen per dataset with reasons (`ProcessingPlan`), phase per
+  dataset (delay from the switching edge, global search over the zero-order
+  phase and a delay window, local fine-tune; registered criteria), and
+  `process_dataset` producing the complex and the phased observations. It
+  uses the single processing operator of `zulf_core` and never interprets a
+  spectrum; no other package imports it except the scripts.
 
 `zulf_model` imports `zulf_core`; `zulf_core` never imports `zulf_model` or
 torch (`tests/test_spinsystem.py` checks this), so training data and

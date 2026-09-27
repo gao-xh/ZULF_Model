@@ -207,6 +207,23 @@ fixed, so later phases are experiments rather than restructuring.
       benchmark from the generator (fraction of correct fragments within a
       budget), compared with the neural proposers.
 
+## Phase 3c: experimental processing (D44, package `zulf_processing`)
+
+- [x] Package split: raw, diagnostics, plan, phase, dataset; tests
+      (tests/test_processing.py); validation script
+      (scripts/validate_processing.py) against the known-structure fits.
+- [x] Delay per dataset from the switching edge of the raw FID.
+- [ ] Zero-order phase per dataset: better criteria (validation shows the
+      current ones do not beat a mean calibration); ideas: a phase reference
+      recorded with every acquisition (test signal), the ringing after the
+      edge, joint use of several processing windows.
+- [ ] Processing parameters per dataset from the data: window length from
+      the SNR curve, SG window from the baseline rates, apodization; each
+      choice validated on the confirmed samples.
+- [ ] Instrument-line detection per dataset instead of a fixed list.
+- [ ] Wire `process_dataset` into the regression (per-dataset plans) once
+      the choices are validated.
+
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
 - [ ] Train CNN+Transformer; compare (a) graph search, (b) CNN set, (c)

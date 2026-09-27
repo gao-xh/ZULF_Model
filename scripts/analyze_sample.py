@@ -5,7 +5,8 @@
 
 Without --structure: blind search (propose_hypotheses + search_hypotheses) with the settings used for the
 confirmed samples; with --structure: fit_structure (every exchange regime and variant, fit-phased route too).
-Processing and ranges come from configs/confirmed_samples.json ("processing"). Writes OUT/overview.png,
+Processing: zulf_processing.process_dataset per dataset (defaults from configs/confirmed_samples.json
+"processing"; crop after this dataset's ringing; phase per dataset). Writes OUT/processing.{png,json}, OUT/overview.png,
 OUT/blind.{json,md,png} or OUT/structure.{json,md,png} (+ _phased), and prints the ranked table.
 """
 import argparse
@@ -20,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from zulf_core.render.acquisition import Acquisition, evaluate_spectrum, process_record   # noqa: E402
-from zulf_core.solver import ObservedSpectrum                                              # noqa: E402
+from zulf_processing import load_fid, process_dataset                                      # noqa: E402
 from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
                              search_hypotheses, write_report)
 
@@ -69,12 +70,16 @@ def main():
     DELAY = tuple(float(x) for x in (bounds.split(",") if isinstance(bounds, str) else bounds)) if bounds else None
     out = Path(args.out or f"runs/blind/{args.id}")
     out.mkdir(parents=True, exist_ok=True)
-    x = np.load(args.fid).astype(float)
-    acq = Acquisition(proc["sampling_rate_hz"], len(x), start_sample=proc["start_sample"],
-                      stop_sample=proc["stop_sample"], sg_window=proc["sg_window"], sg_order=proc["sg_order"],
-                      remove_mean=proc["remove_mean"], apodization_rate_per_s=proc["apodization_rate_per_s"])
-    obs = ObservedSpectrum.from_fid(x, acq, [tuple(r) for r in proc["ranges"]], zero_fill=proc["zero_fill"])
-    overview(x, acq, out / "overview.png", proc["instrument_lines_hz"])
+    x = load_fid(args.fid)
+    # per-dataset processing (zulf_processing, D44): plan with reasons, switching edge, per-dataset phase
+    data = process_dataset(x, proc["sampling_rate_hz"], args.id, defaults=proc)
+    data.figure(str(out / "processing.png"))
+    data.save_record(str(out / "processing.json"))
+    obs, acq = data.observed, data.plan.acquisition()
+    overview(x, acq, out / "overview.png", data.plan.instrument_lines_hz)
+    print(f"{args.id}: crop {data.plan.start_sample}-{data.plan.stop_sample} ({data.plan.reasons['start_sample']}), "
+          f"edge {data.diagnostics.edge_time_s * 1e3 if data.diagnostics.edge_time_s else float('nan'):.3f} ms, "
+          f"phase0 {np.degrees(data.phase.phase0_rad):.1f} deg, delay {data.phase.delay_s * 1e3:.3f} ms")
     t = time.time()
     if args.structure:
         import regression_confirmed as reg

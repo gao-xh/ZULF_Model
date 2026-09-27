@@ -8,6 +8,24 @@ description: Diagnose and process an averaged experimental ZULF FID before any i
 All processing goes through `zulf_core.render.acquisition` (`Acquisition`,
 `process_record`, `evaluate_spectrum`); never re-implement it.
 
+## Package zulf_processing (D44): use it for every dataset
+
+- `process_dataset(fid, fs, sample_id)` gives the per-dataset diagnostics,
+  a `ProcessingPlan` (each choice with its reason), the complex observation
+  for fits, the phase and the phased observation; `.figure(path)` and
+  `.save_record(path)` document it. Processing parameters may differ between
+  datasets (crop after this dataset's ringing, later SG and window from the
+  data), so never copy another dataset's phase: the crop reference and the
+  line shapes change with the plan.
+- The raw FID starts with the field switch-off: plateau (2.75 ms), a steep
+  edge (3.41-3.51 ms on the NMRduino no-dead-time sequence), ringing to about
+  50 ms. `switching_edge` measures the edge per dataset; minus its time is
+  the delay of the processed spectrum.
+- After a change to the package run
+  `ZULF_DATA_DIR=... python scripts/validate_processing.py` and compare with
+  the last summary in ANALYSIS_LOG (phase errors against the known-structure
+  fits, next to the leave-one-out mean calibration).
+
 ## Acquisition assumptions
 
 - Without an ini, match the array length to earlier datasets of the same

@@ -117,45 +117,6 @@ class PhaseEstimationTests(unittest.TestCase):
             self.assertLess(abs(estimate["delay_s"] - delay), 1e-4)
             self.assertAlmostEqual(estimate["reference_delay_s"], 0.1)
 
-    def test_line_phasing_on_resolved_lines(self):
-        import sys
-        from pathlib import Path
-        sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from test_solver import methine_isotopologue, methyl_isotopologue
-        from zulf_core.render.acquisition import evaluate_spectrum, process_record
-        from zulf_core.render.phasing import estimate_phase_lines, phase_correct
-        acq = Acquisition(1000.0, 16384, start_sample=100, sg_window=301, sg_order=2)
-        renderer = Renderer(acq)
-        for phase0, delay in [(1.1, 0.0008), (-2.5, -0.003)]:
-            fid = (renderer.synthesize(compute_transitions(methine_isotopologue()), 1.0, gain=np.exp(1j * phase0),
-                                       phase_delay_s=delay)
-                   + renderer.synthesize(compute_transitions(methyl_isotopologue()), 1.5, gain=2 * np.exp(1j * phase0),
-                                         phase_delay_s=delay)
-                   + np.random.default_rng(0).normal(0, 0.01, acq.points))
-            f = np.arange(100.0, 300.0, acq.sampling_rate_hz / acq.points / 2)
-            v = evaluate_spectrum(process_record(fid, acq), acq, f)
-            e = estimate_phase_lines(v, f, acq)
-            a = phase_correct(v, f, e["phase0_rad"], e["delay_s"], acq).real
-            b = phase_correct(v, f, phase0, delay, acq).real
-            self.assertGreater(abs(np.dot(a, b)) / (np.linalg.norm(a) * np.linalg.norm(b)), 0.97)
-
-    def test_switching_edge_delay(self):
-        from zulf_core.render.phasing import switching_edge_delay
-        acq = Acquisition(4000.0, 4096, start_sample=200)
-        t = np.arange(4096) / 4000.0
-        edge = 0.00346                                               # true switch-off time (between samples)
-        x = np.where(t < edge - 0.0005, 28840.0, 0.0)
-        ramp = (t >= edge - 0.0005) & (t < edge + 0.0005)             # linear 1 ms edge centred on `edge`
-        x[ramp] = 28840.0 * (1 - (t[ramp] - (edge - 0.0005)) / 0.001)
-        x[t >= edge + 0.0005] = -8000.0 * np.exp(-(t[t >= edge + 0.0005] - edge) / 0.01)
-        x += np.random.default_rng(0).normal(0, 5.0, len(x))
-        out = switching_edge_delay(x, acq)
-        # half height between the plateau and the first extremum (-8000) lies on the ramp
-        expected = edge - 0.0005 + 0.001 * (28840.0 - 0.5 * (28840.0 - 8000.0 * np.exp(-0.05))) / 28840.0
-        self.assertAlmostEqual(out["edge_time_s"], expected, delta=2e-5)
-        self.assertAlmostEqual(out["delay_s"], -out["edge_time_s"])
-
-
 class ComponentRatioTests(unittest.TestCase):
     def test_free_mode_sets_rendered_weight_independent_of_abundance(self):
         tls = [compute_transitions(ch3()), compute_transitions(ch())]
