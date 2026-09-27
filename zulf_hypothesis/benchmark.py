@@ -212,5 +212,14 @@ def _triethylamine():
                      pair("H1", "H2"): 7.1, pair("C1", "HX"): 3.1}, (), (("C1", "C2"), ("C1", "N1"), ("N1", "X")))
 
 
+@register_case("N-ethylmethylamine (fast exchange)")
+def _n_ethylmethylamine():
+    # couplings from the known-structure fit of e66a4b08
+    from .fragments import template
+    return template("CH3CH2-N-CH3").with_couplings({"J(C1,HC1)": 124.9, "J(C1,HC2)": -3.4, "J(HC1,HC2)": 7.2,
+                                                    "J(C2,HC1)": -6.3, "J(C2,HC2)": 134.9, "J(C2,HC3)": 3.9,
+                                                    "J(C3,HC2)": 3.9, "J(C3,HC3)": 131.7})
+
+
 if __name__ == "__main__":
     run_benchmark()

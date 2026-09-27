@@ -227,6 +227,15 @@ register_motif(Motif("N-ethyl (Et3N)", lambda one_bond: _et3n_template(one_bond)
                      (OneBondSite("C1", "13C", 2, (120, 160)), OneBondSite("C2", "13C", 3, (115, 150))),
                      "ethyl on a tertiary N with two more N-CH2 groups (triethylamine type)"))
 
+# Secondary amine with ethyl and methyl on N, fast N-H exchange (the NH decoupled): the carbons couple to the other
+# side's protons through N (3J(C,N,C,H)). Confirmed case: N-ethylmethylamine (e66a4b08).
+register_motif(Motif("CH3CH2-N-CH3", _chain("CH3CH2-N-CH3", [("C1", "C", 3), ("C2", "C", 2), ("N1", "N", 0),
+                                                            ("C3", "C", 3)],
+                                            [("C1", "C2"), ("C2", "N1"), ("N1", "C3")]),
+                     (OneBondSite("C1", "13C", 3, (115, 140)), OneBondSite("C2", "13C", 2, (120, 150)),
+                      OneBondSite("C3", "13C", 3, (120, 145))),
+                     "N-ethyl-N-methyl amine, fast N-H exchange (N-ethylmethylamine type)"))
+
 
 @dataclass
 class MotifProposal:
@@ -269,11 +278,48 @@ def _quick_chi2(model: HypothesisModel, observed, stick: Yardstick, rate_per_s: 
     return stick.chi2(observed.values[observed.selected], pred.model)
 
 
+def _refine_one_bond(motif, best: "MotifProposal", observed, inventory, stick, labeling, min_ratio, rate_per_s,
+                     kind, span_hz, step_hz, passes) -> "MotifProposal":
+    current = best
+    offsets = np.arange(-span_hz, span_hz + step_hz / 2, step_hz)
+    for _ in range(passes):
+        improved = False
+        for site in motif.one_bond:
+            center = current.one_bond[site.site]
+            for d in offsets:
+                if d == 0:
+                    continue
+                one_bond = dict(current.one_bond, **{site.site: float(center + d)})
+                lo, hi = site.j_range_hz
+                if not lo <= one_bond[site.site] <= hi:
+                    continue
+                try:
+                    model = build_model(motif.fragment(one_bond), ranges=inventory.ranges, labeling=labeling,
+                                        min_ratio=min_ratio, name=f"motif {motif.name}")
+                    chi2 = _quick_chi2(model, observed, stick, rate_per_s)
+                except ValueError:
+                    continue
+                k = free_parameter_count(model, model.settings(RefineSettings()))
+                score = criterion(chi2, k, stick.n, kind)
+                if score < current.score:
+                    current = MotifProposal(motif.name, one_bond, model, chi2, score)
+                    improved = True
+        if not improved:
+            break
+    return current
+
+
 def scan_motifs(observed, inventory: Inventory, stick: Yardstick, motifs: Optional[Sequence[str]] = None,
                 labeling: Optional[Labeling] = None, min_ratio: float = 0.0, per_site: int = 6,
                 max_combinations: int = 300, keep_per_motif: int = 1, rate_per_s: float = 2.0,
-                kind: str = "bic") -> List[MotifProposal]:
-    """Best one-bond assignments of every motif, scored on the yardstick (linear solve only)."""
+                kind: str = "bic", refine_hz: float = 4.0, refine_step_hz: float = 0.5,
+                refine_passes: int = 2) -> List[MotifProposal]:
+    """Best one-bond assignments of every motif, scored on the yardstick (linear solve only).
+
+    The band positions give 1J to a few Hz only (triethylamine and N-ethylmethylamine: the right motif lost
+    against CH-CH3 at band-position values). The best combination of each motif is therefore refined by
+    coordinate search: each site's 1J on a grid of +-`refine_hz` (step `refine_step_hz`), `refine_passes`
+    passes, symmetric sites through the motif's own representatives (0 disables)."""
     out: List[MotifProposal] = []
     for name in (motifs or list(MOTIFS)):
         motif = MOTIFS[name]
@@ -292,6 +338,10 @@ def scan_motifs(observed, inventory: Inventory, stick: Yardstick, motifs: Option
             k = free_parameter_count(model, model.settings(RefineSettings()))
             scored.append(MotifProposal(name, one_bond, model, chi2, criterion(chi2, k, stick.n, kind)))
         scored.sort(key=lambda p: p.score)
+        if refine_hz > 0 and scored:
+            scored[0] = _refine_one_bond(motif, scored[0], observed, inventory, stick, labeling, min_ratio,
+                                         rate_per_s, kind, refine_hz, refine_step_hz, refine_passes)
+            scored.sort(key=lambda p: p.score)
         out.extend(scored[:keep_per_motif])
     out.sort(key=lambda p: p.score)
     for p in out:

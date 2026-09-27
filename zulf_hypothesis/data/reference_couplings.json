@@ -85,6 +85,34 @@
     "J(C1,HX)": 2.0
    },
    "notes": "Reduced chi2 about 430; the 13CH2 isotopologue is weak and poorly fitted; small couplings provisional."
+  },
+  {
+   "compound": "N-ethylmethylamine",
+   "template": "CH3CH2-N-CH3",
+   "couplings": {
+    "J(C1,HC1)": 124.89,
+    "J(C1,HC2)": -3.42,
+    "J(HC1,HC2)": 7.22,
+    "J(C2,HC1)": -6.31,
+    "J(C2,HC2)": 134.93,
+    "J(C2,HC3)": 3.88,
+    "J(C3,HC2)": 3.86,
+    "J(C3,HC3)": 131.71
+   },
+   "source": "blind sample e66a4b08, known-structure fit after the identity was given (fast N-H exchange, fixed natural ratios, shared rate; complex, 0.05-1.05 s, 0.6 1/s, signal weighting); identity confirmed by the user",
+   "source_kind": "measured",
+   "conditions": "solvent and pH not given; NMRduino averaged FID, 4000 Hz; N-H exchange treated as fast",
+   "uncertainty_hz": {
+    "J(C1,HC1)": 0.3,
+    "J(C1,HC2)": 1.0,
+    "J(HC1,HC2)": 0.5,
+    "J(C2,HC1)": 1.0,
+    "J(C2,HC2)": 0.8,
+    "J(C2,HC3)": 2.5,
+    "J(C3,HC2)": 1.0,
+    "J(C3,HC3)": 0.3
+   },
+   "notes": "Fit well above noise (reduced chi2 about 270); per-isotopologue rates or a slow-exchange NH lower it; J(C2,HC3) not determined (3.9-6.6 Hz across variants)."
   }
  ]
 }

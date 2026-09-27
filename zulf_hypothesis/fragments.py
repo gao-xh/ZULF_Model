@@ -84,3 +84,10 @@ def n_ethyl_et3n(one_bond: Optional[Dict[str, float]] = None) -> Fragment:
     return Fragment("N-ethyl (Et3N)", sites, protons, couplings, (), (("C1", "C2"), ("C1", "N1"), ("N1", "X")),
                     "N-CH2-CH3 of a triethylamine-type N(CH2R)3; other N-CH2 protons as one group")
 
+
+@register_template("CH3CH2-N-CH3")
+def ch3ch2_n_ch3(one_bond: Optional[Dict[str, float]] = None) -> Fragment:
+    """N-ethyl-N-methyl amine with the N-H decoupled (fast exchange); same labels as the motif."""
+    from .motifs import MOTIFS
+    return MOTIFS["CH3CH2-N-CH3"].fragment({"C1": 125.0, "C2": 135.0, "C3": 131.5, **(one_bond or {})})
+

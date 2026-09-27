@@ -652,3 +652,24 @@ skills under `skills/`; this file keeps the history.
   entry, Voigt line shape, remote couplings, intermediate exchange, automatic
   phasing library function, automatic report, regression script.
   Budget: blind <= 30 min, known structure <= 10 min on 4 cores.
+- 08:44 start. B: change_proton_count rescales 1J (main X-Hn line kept).
+  A1-A4, H: ratios variant, thorough round-0 starts, fit_structure (exchange
+  regimes x variants), report (table, J matrices, fit-phased figure). New
+  moves: free_remote_couplings, gaussian_line_shape (model-level move);
+  extensions refined in the parent's best variant only (budget).
+- C (phasing): minimum-entropy and per-line estimators fail on dense J
+  multiplets (noise-free rendering of the e66a4b08 fit: single-line phase
+  errors 10-40 deg; real spectrum: delay 4.7 ms off). Phase-first route now
+  uses the best complex fit's phase (fit_structure route="both");
+  estimate_phase_lines kept for resolved spectra with its limits (D43).
+- Found on the way (profiling one e66a4b08 refinement): 85 % of the time in
+  NUFFT rendering over the full 65516-sample record although only samples
+  200-4200 (+ SG half window) matter. Acquisition.local_record(): exact to
+  4e-12, refinement 37.7 s -> 10.7 s (same evaluations).
+- Motif scan: 1J of the best combination refined by coordinate search
+  (+-4 Hz, 0.5 Hz): pyridine motif rank 2 -> 1; other confirmed samples
+  unchanged; scan 5-27 s. The scan alone still ranks CH3-NH3+ first on
+  alanine and lactic acid (the screen and refinement fix that downstream).
+  Added motif / template / knowledge entry / benchmark case for
+  N-ethylmethylamine (CH3CH2-N-CH3, fast exchange).
+- R: configs/confirmed_samples.json + scripts/regression_confirmed.py.
