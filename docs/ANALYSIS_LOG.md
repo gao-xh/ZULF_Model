@@ -737,3 +737,26 @@ skills under `skills/`; this file keeps the history.
   one component fitted as free; extensions compared with the nearest kept
   ancestor; identical extensions not refitted. Final regression (both modes,
   4 workers) started 11:47.
+- Final regression (13:29, both modes, 4 workers; runs/regression/final):
+
+  | sample | compound | known best | red. chi2 | time s | 1J | blind best | skeleton ok | time s |
+  |---|---|---|---|---|---|---|---|---|
+  | e3d282da | L-alanine | L-alanine (fast exchange) [ratios] | 17.76 | 122 | [129.87, 145.39] | 13CH3(129) + 13CH(146) (bonded: 13CH3-13CH) [ratios] | True (1) | 288 |
+  | b683220d | lactic acid | lactic acid (slow exchange) + remote J [ratios] | 18.81 | 142 | [129.06, 146.79] | 13CH3(128) + 13CH(148) (bonded: 13CH3-13CH) + HX on X [ratios] | True (1) | 269 |
+  | 7ad4aafb | pyridine | pyridine ring (fast exchange) + Gaussian width [fixed] | 70.59 | 1012 | [163.08, 163.24, 178.68] | motif pyridine ring [A2=173.5, A3=160.2, A4=161.5] + Gaussian width [fixed] | True (1) | 542 |
+  | fde3fbb2 | ethylenediamine | H2N-CH2-CH2-NH2 (fast exchange) + Gaussian width [free] | 680.02 | 643 | [132.29] | motif CH2-CH2 [C1=132.5] + Gaussian width [free] | True (1) | 54 |
+  | 4322bdfc | triethylamine | N-ethyl (Et3N) (fast exchange) + remote J [ratios] | 114.94 | 585 | [125.02, 130.92] | motif ethyl [C1=127.0, C2=123.2] [ratios] | True (1) | 325 |
+  | e66a4b08 | N-ethylmethylamine | N-ethylmethylamine (fast exchange) + remote J [fixed] | 195.64 | 1351 | [124.9, 131.75, 135.63] | 13CH3(125) + 13CH(203) + 13CH3(131) (bonded: 13CH3-13CH, 13CH3-13CH3) + HX on X [ratios] | False (2) | 866 |
+
+  Blind: 5 of 6 skeletons correct at rank 1 (triethylamine now ethyl, was
+  wrong in round 1); N-ethylmethylamine correct at rank 2: the CH -> CH2
+  move with rescaled 1J was accepted (-83) but an added coupled proton on the
+  CH form scores better (20879 vs 31014, k 23 vs 17). Known structure:
+  lactic acid now slow exchange (OH kept) + remote J, as in the hand
+  analysis (H8); triethylamine reduced chi2 115 (was about 430 with fixed
+  ratios); fitted delays -3.4 to -3.9 ms on all samples except
+  ethylenediamine (+2.2 ms: one narrow band, delay and phase trade off) ->
+  optional instrument delay prior added (processing.phase_delay_bounds_s).
+  Budget: known-structure fits 2-4 min for two-carbon molecules, 10-22 min
+  for pyridine and the 3-isotopologue amines (11-spin slow/protonated forms);
+  blind 1-14 min.

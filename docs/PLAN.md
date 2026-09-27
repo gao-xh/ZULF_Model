@@ -155,31 +155,31 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Automatic fitting without hand-proposed variants (e66a4b08,
       N-ethylmethylamine; user: "the fit algorithm should do these tests
       itself"). Steps:
-  - [ ] A1 variant "ratios" (fixed natural ratios, free rates) next to free
+  - [x] A1 variant "ratios" (fixed natural ratios, free rates) next to free
         and fixed, in the search and every known-structure fit.
-  - [ ] A2 exchange variants: for a fragment with N-H / O-H groups, fit
+  - [x] A2 exchange variants: for a fragment with N-H / O-H groups, fit
         fast exchange (groups dropped) and slow exchange (kept)
         automatically.
-  - [ ] A3 round-0 starts: optional multi-start plus global pattern search
+  - [x] A3 round-0 starts: optional multi-start plus global pattern search
         for the round-0 fits (on by default for a known structure).
-  - [ ] A4 `fit_structure(fragment, observed)`: a thin entry point over
+  - [x] A4 `fit_structure(fragment, observed)`: a thin entry point over
         `search_hypotheses` (the solver is unchanged) running A1-A3,
         ranking, checks and a phased result figure.
-  - [ ] B change_proton_count rescales 1J so the main X-Hn line stays in
+  - [x] B change_proton_count rescales 1J so the main X-Hn line stays in
         place (XH at J, XH2 at 1.5 J, XH3 at J); e66a4b08 turned a CH at
         204 Hz into a CH2 at 204 Hz instead of 136 Hz.
-  - [ ] C automatic phasing as a library function, maintained: per-line
+  - [x] C automatic phasing as a library function, maintained: per-line
         complex line fits on resolved lines, then a robust fit of line phase
         against frequency (modulo pi) for phase0 and delay; each spectrum
         phased on its own. Validation: synthetic test, noise-free rendered
         e66a4b08 model, and the six confirmed samples against the phase of
         their known-structure complex fits. (The minimum-entropy estimator
         failed the synthetic test and is not in the library.)
-  - [ ] D rerun e66a4b08 with A4 (timed, both routes: complex fit and
+  - [x] D rerun e66a4b08 with A4 (timed, both routes: complex fit and
         phased-first), tests, benchmark, decision entry, skills.
-  - [ ] E line shape: Gaussian width (Voigt) as a triggered variant; width
+  - [x] E line shape: Gaussian width (Voigt) as a triggered variant; width
         range from the data (no instrument prior known).
-  - [ ] F remote couplings: a triggered move that frees the couplings built
+  - [x] F remote couplings: a triggered move that frees the couplings built
         as 0 (4J, 5J) between labelled sites and proton groups.
   - [~] G intermediate exchange: not implemented. Both limits were fitted
         with nested starts on e66a4b08 (fast; slow and protonated as
@@ -187,11 +187,15 @@ fixed, so later phases are experiments rather than restructuring.
         misfit, so an intermediate-regime model (Redfield scalar relaxation
         of the second kind per transition, one exchange time) is unlikely to
         be the main missing term; kept as a design note.
-  - [ ] H automatic report per fit: ranked table, phased fit figure, J
+  - [x] H automatic report per fit: ranked table, phased fit figure, J
         matrix file, findings.
-  - [ ] R regression script over the confirmed samples (blind search and
+  - [x] R regression script over the confirmed samples (blind search and
         known-structure fit; skeleton found, chi2, time, 1J, phase), run
         after each change.
+  - Result (ANALYSIS_LOG, final regression): blind 5/6 at rank 1, N-ethylmethylamine rank 2;
+    C done as fit-phased route (model-free phasing unreliable on dense multiplets, D43).
+    Open: known-structure budget for 11-spin forms (10-22 min), blind two extension rounds,
+    physics double diagonalisation (compute_transitions + transition_derivatives), delay prior values.
   - Budget agreed with the user: blind sample <= 30 min, known structure
     <= 10 min (4 cores). Variants beyond the first round are triggered by
     findings, not run for every hypothesis. Autonomous 6 h session started
