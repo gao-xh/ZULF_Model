@@ -9,7 +9,6 @@ Processing and ranges come from configs/confirmed_samples.json ("processing"). W
 OUT/blind.{json,md,png} or OUT/structure.{json,md,png} (+ _phased), and prints the ranked table.
 """
 import argparse
-import dataclasses
 import json
 import sys
 import time
@@ -22,9 +21,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from zulf_core.render.acquisition import Acquisition, evaluate_spectrum, process_record   # noqa: E402
 from zulf_core.solver import ObservedSpectrum                                              # noqa: E402
-from zulf_hypothesis import (SearchSettings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
+from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
                              search_hypotheses, write_report)
-from zulf_hypothesis.fit import default_fit_base                                           # noqa: E402
 
 
 def overview(x, acq, path, instrument):
@@ -80,9 +78,7 @@ def main():
         table, best = fit.table(), fit.best
     else:
         ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))
-        settings = SearchSettings(base=dataclasses.replace(default_fit_base(), starts=1), top_models=2, top_motifs=3,
-                                  workers=args.workers, rounds=1, extend_top=1, knowledge_exclude=(args.id,))
-        res = search_hypotheses(obs, ps, settings)
+        res = search_hypotheses(obs, ps, blind_settings(args.workers, args.id))
         write_report(res, obs, str(out / "blind"))
         table, best = res.table(), res.best
     print(f"{args.id}: {time.time() - t:.0f} s, best {best.key}")

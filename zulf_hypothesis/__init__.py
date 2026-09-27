@@ -47,7 +47,7 @@ from .motifs import MOTIFS, Motif, MotifProposal, OneBondSite, register_motif, s
 from .pipeline import ProposalSet, propose_hypotheses
 from .scoring import Yardstick, yardstick
 from .search import Evaluated, SearchResult, SearchSettings, search_hypotheses
-from .fit import StructureFit, exchange_variants, exchangeable_groups, fit_settings, fit_structure, phased_observation
+from .fit import StructureFit, blind_settings, exchange_variants, exchangeable_groups, fit_settings, fit_structure, phased_observation
 from .report import j_matrix, write_report
 from .moves import MOVES, AddCoupledProton, ChangeProtonCount, ExtensionMove, propose_all, register_move
 
@@ -61,4 +61,4 @@ __all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_sn
            "DEFAULT_LABEL_ISOTOPES", "Fragment", "ProtonGroup", "Site", "pair", "TEMPLATES", "register_template",
            "template", "KnowledgeBase", "ReferenceEntry", "MOVES", "AddCoupledProton", "ChangeProtonCount", "ExtensionMove",
            "propose_all", "register_move", "exchange_variants", "exchangeable_groups", "fit_settings",
-           "fit_structure", "j_matrix", "write_report", "StructureFit", "phased_observation"]
+           "fit_structure", "j_matrix", "write_report", "StructureFit", "phased_observation", "blind_settings"]

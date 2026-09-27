@@ -7,7 +7,6 @@ phase). Run after every change to zulf_hypothesis or the solver and compare with
 Writes OUT/summary.json and OUT/summary.md, plus the automatic report of every fit (OUT/<id>_known*, _blind*).
 """
 import argparse
-import dataclasses
 import json
 import os
 import sys
@@ -20,9 +19,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from zulf_core.render.acquisition import Acquisition                        # noqa: E402
 from zulf_core.solver import ObservedSpectrum                               # noqa: E402
-from zulf_hypothesis import (SearchSettings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
+from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
                              search_hypotheses, write_report)
-from zulf_hypothesis.fit import EXCHANGE_ELEMENTS, default_fit_base          # noqa: E402
+from zulf_hypothesis.fit import EXCHANGE_ELEMENTS                            # noqa: E402
 from zulf_hypothesis.motifs import MOTIFS, _chain                           # noqa: E402
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "confirmed_samples.json"
@@ -80,10 +79,7 @@ def run_known(sample, obs, workers, out):
 def run_blind(sample, obs, workers, out, proc):
     t = time.time()
     ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))
-    base = default_fit_base()
-    settings = SearchSettings(base=dataclasses.replace(base, starts=1), top_models=2, top_motifs=3, workers=workers,
-                              rounds=1, extend_top=1, knowledge_exclude=(sample["id"],))
-    res = search_hypotheses(obs, ps, settings)
+    res = search_hypotheses(obs, ps, blind_settings(workers, sample["id"]))
     write_report(res, obs, str(out / f"{sample['id']}_blind"))
     truth = skeleton(structure_for(sample))
     ranked = [e for e in res.ranked() if e.model.fragment is not None]

@@ -142,6 +142,15 @@ class SlowExchange:  # noqa: D101 (documented below)
         return [(out[0], [out[1]])]
 
 
+def blind_settings(workers: int = 4, sample_id: Optional[str] = None, **changes) -> SearchSettings:
+    """Search settings for an unknown sample, as used for the confirmed samples (scripts/analyze_sample.py and
+    the regression): one start per round-0 fit, 2 group proposals and 3 screened motifs, one extension round."""
+    base = SearchSettings(base=dataclasses.replace(default_fit_base(), starts=1), top_models=2, top_motifs=3,
+                          workers=workers, rounds=1, extend_top=1,
+                          knowledge_exclude=(sample_id,) if sample_id else ())
+    return dataclasses.replace(base, **changes)
+
+
 def fit_settings(workers: int = 4, **changes) -> SearchSettings:
     """Search settings for a given structure: no motif scan, variants fixed and ratios, round-0 starts (3
     perturbed starts plus a 45 s global pattern search), two rounds of the structure-preserving moves (remote
