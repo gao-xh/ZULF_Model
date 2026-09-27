@@ -32,7 +32,11 @@ Red flags
   report them as such (e3d282da small couplings, b683220d extra spin).
 
 - An extension (a nested model) that scores worse than its parent: suspect
-  the start, not the physics. A parent that compensated for missing
+  the start, not the physics. Extensions now start nested at the parent's fit
+  (held couplings stay held, new N-H couplings near 0.2 Hz, Gaussian width
+  0.02 Hz); from generic starts slow exchange + remote J ended at chi2 54223
+  against 23868 for its parent on e66a4b08. Acceptance compares with the
+  nearest kept ancestor, so two small steps can add up. A parent that compensated for missing
   couplings (broadened lines, shifted small couplings) traps a warm start;
   refine extensions from both the parent's optimum and the proposal values.
 
