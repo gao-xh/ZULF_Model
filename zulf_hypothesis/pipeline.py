@@ -56,12 +56,13 @@ def propose_hypotheses(observed, instrument_hz: Sequence[float] = (), providers:
                        prior: str = "generic_sp3", max_proposals: int = 20, threshold: float = 4.0,
                        include_exchangeable: bool = False, labeling: Optional[Labeling] = None,
                        min_ratio: Optional[float] = None, motifs=True) -> ProposalSet:
-    """`labeling`: natural abundance with up to two labels per isotopologue (default) or an enriched scheme
-    (`Labeling.enriched`). Minor isotopologues are built at their abundance weight and kept only when their
+    """`labeling`: natural abundance with single-label isotopologues (default); `Labeling.natural(max_labels=2)`
+    adds doubly labelled ones (about 1 % of their parents, slow for large motifs), `Labeling.enriched(...)`
+    handles enriched samples. Minor isotopologues are built at their abundance weight and kept only when their
     lines could reach 2 sigma (`min_ratio` defaults to 2 / peak SNR of the strongest band); omitted ones are
     listed with the reason. `motifs`: True scans every registered motif (motifs.py), a list scans those,
     False skips the scan."""
-    labeling = labeling or Labeling.natural(max_labels=2)
+    labeling = labeling or Labeling.natural()
     inventory = band_inventory(observed, instrument_hz, threshold=threshold)
     candidates = group_candidates(inventory)
     hints: List[Hint] = []

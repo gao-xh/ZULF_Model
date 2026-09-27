@@ -455,7 +455,11 @@ rate, so they add no free parameters and cannot absorb background. Sets
 whose relative amplitude is below `min_ratio` are omitted with the reason;
 the proposal pipeline sets it to 2 / peak SNR (lines must be able to reach
 2 sigma), which drops the 13C-13C set on the current data (0.0108 < 0.050)
-and keeps it at higher SNR or in enriched samples. Chemically but not
+and keeps it at higher SNR or in enriched samples. (Changed 2026-09-27 at
+the user's request: the pipeline default is single-label natural abundance;
+doubly labelled sets need `Labeling.natural(max_labels=2)`. At SNR 266 the
+doubles made pyridine / benzene motifs ten-component models and the search
+very slow.) Chemically but not
 magnetically equivalent label sets (both methyl carbons of isopropyl) keep
 separate spins with tied symmetric couplings. Site-specific enrichment that
 breaks a fragment symmetry is rejected.

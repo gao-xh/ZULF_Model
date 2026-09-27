@@ -463,3 +463,10 @@ skills under `skills/`; this file keeps the history.
   chi2 593 (889 before; best seen 528) and is accepted, the fixed one 700.8,
   accepted. Both variants now favour CH-CH3 + coupled proton, as the hand
   analysis did (H8 over H7).
+
+### Blind sample fde3fbb2 (automatic run only; user: do not take part)
+- Standard processing; the automatic run started with doubly labelled
+  isotopologues admitted by the SNR gate (peak SNR 266) and was slow (ring
+  motifs with about ten 7-8 spin components). User: default to natural
+  abundance mode. Pipeline default is now single-label natural abundance
+  (doubles opt-in); run restarted with it.
