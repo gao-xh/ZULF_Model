@@ -415,6 +415,19 @@ class FitStructureTests(unittest.TestCase):
         self.assertIn(("c0.sigma", "c1.sigma", "c2.sigma"), st.ties)       # one width for the instrument
         self.assertEqual(MODEL_MOVES["gaussian_line_shape"].propose_model(v), [])
 
+    def test_warm_start_keeps_held_couplings_held(self):
+        from zulf_hypothesis import exchange_variants
+        from zulf_hypothesis.search import Evaluated, warm_fragment
+        m = build_model(exchange_variants(self.fragment())[0], ranges=[(62.0, 320.0)])
+        def built(k):
+            a, b = k[2:-1].split(",")
+            return m.fragment.coupling(a, b) or 0.0
+        couplings = {k: (2.0 if k in m.unspecified else built(k) + 0.5) for k in m.coupling_names}  # held ones too
+        e = Evaluated("x", "fixed", "t", m, {"gains": [], "parameters": {}}, np.zeros(1), couplings=couplings)
+        warm = build_model(warm_fragment(e), ranges=[(62.0, 320.0)])
+        self.assertEqual(warm.unspecified, m.unspecified)                # still built as 0 and held
+        self.assertEqual(warm_fragment(e).couplings[pair("C1", "HC1")], 125.5)  # refined values carried
+
     def test_j_matrix_marks_held_couplings(self):
         from zulf_hypothesis import exchange_variants, j_matrix
         from zulf_hypothesis.search import Evaluated

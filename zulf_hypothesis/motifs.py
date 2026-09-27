@@ -313,13 +313,14 @@ def scan_motifs(observed, inventory: Inventory, stick: Yardstick, motifs: Option
                 labeling: Optional[Labeling] = None, min_ratio: float = 0.0, per_site: int = 6,
                 max_combinations: int = 300, keep_per_motif: int = 1, rate_per_s: float = 2.0,
                 kind: str = "bic", refine_hz: float = 4.0, refine_step_hz: float = 0.5,
-                refine_passes: int = 2) -> List[MotifProposal]:
+                refine_passes: int = 2, refine_top: int = 8) -> List[MotifProposal]:
     """Best one-bond assignments of every motif, scored on the yardstick (linear solve only).
 
     The band positions give 1J to a few Hz only (triethylamine and N-ethylmethylamine: the right motif lost
     against CH-CH3 at band-position values). The best combination of each motif is therefore refined by
     coordinate search: each site's 1J on a grid of +-`refine_hz` (step `refine_step_hz`), `refine_passes`
-    passes, symmetric sites through the motif's own representatives (0 disables)."""
+    passes, symmetric sites through the motif's own representatives, for the `refine_top` leading motifs
+    (0 disables)."""
     out: List[MotifProposal] = []
     for name in (motifs or list(MOTIFS)):
         motif = MOTIFS[name]
@@ -338,12 +339,14 @@ def scan_motifs(observed, inventory: Inventory, stick: Yardstick, motifs: Option
             k = free_parameter_count(model, model.settings(RefineSettings()))
             scored.append(MotifProposal(name, one_bond, model, chi2, criterion(chi2, k, stick.n, kind)))
         scored.sort(key=lambda p: p.score)
-        if refine_hz > 0 and scored:
-            scored[0] = _refine_one_bond(motif, scored[0], observed, inventory, stick, labeling, min_ratio,
-                                         rate_per_s, kind, refine_hz, refine_step_hz, refine_passes)
-            scored.sort(key=lambda p: p.score)
         out.extend(scored[:keep_per_motif])
     out.sort(key=lambda p: p.score)
+    if refine_hz > 0:
+        # only the leading motifs (those the search screens) are worth the local 1J search
+        for i, p in enumerate(out[:refine_top]):
+            out[i] = _refine_one_bond(MOTIFS[p.motif], p, observed, inventory, stick, labeling, min_ratio,
+                                      rate_per_s, kind, refine_hz, refine_step_hz, refine_passes)
+        out.sort(key=lambda p: p.score)
     for p in out:
         p.model.name = p.describe()
     return out

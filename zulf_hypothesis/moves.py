@@ -47,12 +47,13 @@ def register_move(move: ExtensionMove) -> ExtensionMove:
     return move
 
 
-def propose_all(fragment: Fragment, findings: Sequence[Finding] = (), only: Optional[Sequence[str]] = None) -> List[Fragment]:
+def propose_all(fragment: Fragment, findings: Sequence[Finding] = (), only: Optional[Sequence[str]] = None,
+                allowed: Optional[Sequence[str]] = None) -> List[Fragment]:
     """Proposals of every registered move whose trigger findings are present; moves named in `only`
-    run regardless of triggers (an explicit request)."""
+    run regardless of triggers (an explicit request); `allowed` restricts the moves considered."""
     out = []
     for name, move in MOVES.items():
-        if only is not None and name not in only:
+        if (only is not None and name not in only) or (allowed is not None and name not in allowed):
             continue
         if only is not None or move.applies(fragment, findings):
             out.extend(move.propose(fragment, findings))
@@ -253,10 +254,11 @@ class GaussianLineShape(ModelVariantMove):
                            line_shape=dict(model.line_shape, gaussian=True))]
 
 
-def propose_model_moves(model, findings: Sequence[Finding] = (), only: Optional[Sequence[str]] = None) -> list:
+def propose_model_moves(model, findings: Sequence[Finding] = (), only: Optional[Sequence[str]] = None,
+                        allowed: Optional[Sequence[str]] = None) -> list:
     out = []
     for name, move in MODEL_MOVES.items():
-        if only is not None and name not in only:
+        if (only is not None and name not in only) or (allowed is not None and name not in allowed):
             continue
         if only is not None or move.applies(model, findings):
             out.extend(move.propose_model(model, findings))

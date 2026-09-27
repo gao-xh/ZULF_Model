@@ -19,7 +19,7 @@ from zulf_core.solver import ParameterPolicy, RefineSettings
 from .builder import HypothesisModel, build_model
 from .fragment import Fragment
 from .labeling import Labeling
-from .search import SearchResult, SearchSettings, search_hypotheses
+from .search import SearchResult, SearchSettings, search_hypotheses, warm_fragment
 
 # Protons on these elements exchange with the solvent; their regime (fast or slow) is not known in advance.
 EXCHANGE_ELEMENTS = ("N", "O", "S")
@@ -60,10 +60,19 @@ def exchange_variants(fragment: Fragment, mode: str = "auto") -> List[Fragment]:
     return {"auto": [fast, slow], "fast": [fast], "slow": [slow]}[mode]
 
 
+# Moves that refine how a given structure is fitted without changing it (proton counts, added protons would).
+REFINING_MOVES = ("free_remote_couplings", "gaussian_line_shape")
+
+
 def fit_settings(workers: int = 4, **changes) -> SearchSettings:
-    """Search settings for a given structure: no motif scan, thorough round-0 starts, one extension round."""
+    """Search settings for a given structure: no motif scan, thorough round-0 starts (4 perturbed starts plus a
+    60 s global pattern search), one round of the structure-preserving moves in the best variant. Budget: about
+    10 min on 4 cores for a 3-isotopologue amine (e66a4b08: 29 min with 8 starts, 240 s searches and all moves)."""
     base = SearchSettings(base=default_fit_base(), top_models=100, top_motifs=0, motif_screen=0, rounds=1,
-                          extend_top=1, workers=workers, initial_global_search=True)
+                          extend_top=1, workers=workers, initial_global_search=True, moves=REFINING_MOVES,
+                          extension_starts=4, extension_global_search={"max_seconds": 60.0, "solutions": 3,
+                                                                       "popsize": 10, "maxiter": 40,
+                                                                       "one_bond_min_hz": 50.0})
     return dataclasses.replace(base, **changes)
 
 
@@ -135,9 +144,8 @@ def fit_structure(fragment: Fragment, observed, settings: Optional[SearchSetting
             if e.name in seen or e.model.fragment is None or e.status == "rejected" or e.demoted(settings.demote):
                 continue
             seen.add(e.name)
-            refined = {k: v for k, v in e.couplings.items() if k.startswith("J(")}
-            m = build_model(e.model.fragment.with_couplings(refined), include_exchangeable=True, labeling=labeling,
-                            name=e.name, ranges=ranges)
+            m = build_model(warm_fragment(e), include_exchangeable=True, labeling=labeling, name=e.name,
+                            ranges=ranges)
             warm_models.append(dataclasses.replace(m, line_shape=dict(e.model.line_shape)))
         base = dataclasses.replace(settings.base, policy=dataclasses.replace(settings.base.policy,
                                                                               fit_phase_delay=False))

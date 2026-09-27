@@ -79,6 +79,7 @@ class SearchSettings:
     criterion: str = "bic"            # "bic" | "aic"
     knowledge_kinds: Tuple[str, ...] = ("measured",)
     knowledge_exclude: Tuple[str, ...] = ()   # e.g. the sample id: never match references fitted on this sample
+    moves: Optional[Tuple[str, ...]] = None    # allowed move names (fragment and model moves); None = all
     # Findings that move a fit behind every fit without them (D42): a free fit that switches an isotopologue off
     # describes a different set of isotopologues than the molecule has.
     demote: Tuple[str, ...] = ("collapsed_component",)
@@ -308,6 +309,15 @@ def _same_model(a: HypothesisModel, b: HypothesisModel) -> bool:
         and np.allclose(x.system.couplings_hz, y.system.couplings_hz) for x, y in zip(ca, cb))
 
 
+def warm_fragment(e: "Evaluated"):
+    """The fit's structure with its refined couplings as values. Couplings the structure leaves unspecified
+    (built as 0 Hz and held) stay unspecified: setting them explicitly would silently free them in every
+    extension (found on e66a4b08)."""
+    held = set(e.model.unspecified)
+    refined = {k: v for k, v in e.couplings.items() if k.startswith("J(") and ":" not in k and k not in held}
+    return e.model.fragment.with_couplings(refined) if refined else e.model.fragment
+
+
 def _extension_variants(settings: SearchSettings, parent: "Evaluated") -> Tuple[str, ...]:
     if settings.extension_variants == "best":
         return (parent.variant,)
@@ -391,10 +401,9 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
             findings = [f for e in evaluated if e.name == parent.name for f in e.findings]
             # Warm start: the parent's refined couplings replace the proposal's starting values, so an
             # extension (a nested model) starts next to the parent's optimum instead of from generic values.
-            refined = {k: v for k, v in parent.couplings.items() if k.startswith("J(") and ":" not in k}
-            warm = parent.model.fragment.with_couplings(refined) if refined else parent.model.fragment
-            cold_fragments = propose_all(parent.model.fragment, findings)
-            for n_move, fragment in enumerate(propose_all(warm, findings)):
+            warm = warm_fragment(parent)
+            cold_fragments = propose_all(parent.model.fragment, findings, allowed=settings.moves)
+            for n_move, fragment in enumerate(propose_all(warm, findings, allowed=settings.moves)):
                 # A move hypothesises what it adds (a coupled proton is in slow exchange by definition), so
                 # extensions keep exchangeable protons whatever the proposals were built with.
                 options = dict(build_options, include_exchangeable=True)
@@ -431,7 +440,7 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
             if warm_model is not None:
                 warm_model = dataclasses.replace(warm_model, name=parent.model.name,
                                                  line_shape=dict(parent.model.line_shape))
-                for model in propose_model_moves(warm_model, findings):
+                for model in propose_model_moves(warm_model, findings, allowed=settings.moves):
                     for v in _extension_variants(settings, parent):
                         if _variant_applies(model, v):
                             new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]", []))
