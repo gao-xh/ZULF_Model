@@ -689,3 +689,10 @@ skills under `skills/`; this file keeps the history.
 - Residual after fast + remote J: mostly the 13CH2 isotopologue (194-216 Hz,
   line positions off by 1-2 Hz, e.g. 198.8 in the data vs 200.5 Hz), the
   131.8 Hz peak height, and a 235/237 Hz doublet the model shows as one line.
+- Staged exchange (v5, standard ranges, 2 workers, 17 min): fast + remote J
+  [fixed] best again (23868); slow exchange warm-started from the fast fit
+  but with generic N-H couplings ended at 36308 (not better than fast) and
+  slow + remote J at 54223 (worse than its parent: not a nested start).
+  Changed: the slow model starts with its N-H couplings near zero (then it
+  reproduces the fast fit at the start) plus a generic alternate start.
+  Also added scripts/analyze_sample.py (one command for a new sample).
