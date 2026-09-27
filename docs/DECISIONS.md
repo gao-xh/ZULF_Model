@@ -524,7 +524,9 @@ of 12 cases (methyl, CH-CH3, isopropyl, ethyl, CH2(CH3)2, CH2-CH2, benzene,
 pyridine, CH3-15NH3+, (CH3)2CH-NH3+); CH3-15NH2 is second behind an
 isolated methyl (weak 15N line against the BIC penalty) and CH3-C(O)-CH3
 third (practically identical to an isolated methyl). The group path alone
-ranks the truth first in 2 of 12.
+ranks the truth first in 2 of 12. Update (fde3fbb2, ethylenediamine): case
+13 "ethylenediamine (fast exchange)" is found as CH2-CH2 at rank 1 (11 of 13);
+a slow-exchange H2N-CH2-CH2-NH2 motif was added.
 
 ## D40. Quasi-likelihood ranking and a margin for clean hypotheses (2026-09-27)
 

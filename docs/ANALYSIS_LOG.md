@@ -505,3 +505,16 @@ skills under `skills/`; this file keeps the history.
   J(H1,H2) 5.61 Hz), slow-exchange motif H2N-CH2-CH2-NH2 (13C and 15N
   isotopologues, symmetric ends merged), and benchmark case
   "ethylenediamine (fast exchange)" (motif rank 1, found as CH2-CH2).
+- Fit inspection (user asked to see the CH2-CH2 fit; runs/blind/fde3fbb2/
+  fit_ch2ch2.py, same settings as the auto run): re-refinement stays at 1J
+  132.35, 2J(C,H) -2.92, 3J(H,H) 5.61 Hz, one decay rate exp(log_rate0)
+  = exp(1.565) = 4.8 1/s, reduced chi2 738 on the yardstick. The model reproduces the main
+  band's pattern (lines 187.7, 192.0, 198.5/198.7, 200.2, 204.5 Hz) but
+  residuals reach 75-130 sigma at 191-192, 197-199 and 204.5 Hz: the data
+  lines are sharper and taller than the single-rate model (the dispersive
+  edges at 198.5 and 204.5 Hz are underestimated). Weak features at 65-68 Hz
+  and 156-158 Hz (about 5 sigma above the local level) have no model line.
+  Outside the cores the model's tail and linear background deviate at
+  230-290 Hz (low weight there). Open: unequal line widths (e.g. residual
+  N-H coupling under intermediate exchange, or several rates) and the two
+  weak bands; not tested yet.

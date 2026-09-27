@@ -142,8 +142,8 @@ fixed, so later phases are experiments rather than restructuring.
       moves with acceptance by BIC, knowledge matching, ranked table and
       log).
 - [x] Motif library scan (D39) and recognition benchmark
-      (`python -m zulf_hypothesis.benchmark`): motif rank 1 in 10 / 12 cases,
-      including slow-exchange amines.
+      (`python -m zulf_hypothesis.benchmark`): motif rank 1 in 11 / 13 cases,
+      including slow-exchange amines (13th: ethylenediamine, fde3fbb2).
 - [ ] More motifs as structures are confirmed (CH2-CH, rings with
       substituents, carbonyl-bridged groups); a stage-3 benchmark column.
 - [ ] More moves: add 15N site, change equivalence (CH3 <-> CH(CH3)2), add a
