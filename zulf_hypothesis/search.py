@@ -177,6 +177,13 @@ def _variant_applies(model: HypothesisModel, variant: str) -> bool:
     return variant == "free" or _fixed_differs(model)
 
 
+def _variants_for(model: HypothesisModel, variants: Sequence[str]) -> List[str]:
+    """The requested variants that constrain something for this model; "free" when none does (one component:
+    free, fixed and ratios are the same fit; ethylenediamine got no fit at all with variants fixed and ratios)."""
+    out = [v for v in variants if _variant_applies(model, v)]
+    return out or ["free"]
+
+
 def _refine_job(job):
     model, variant, observed, base = job[:4]
     overrides = dict(job[4]) if len(job) > 4 and job[4] else {}
@@ -347,13 +354,15 @@ def _thorough_overrides(settings: SearchSettings) -> dict:
 
 def _screen_motifs(motif_models: List[HypothesisModel], models: List[HypothesisModel], runner: "_Runner",
                    settings: SearchSettings, log: List[dict]) -> List[HypothesisModel]:
-    """The first `motif_screen` scan proposals get a short refinement (fixed-abundance variant when it
-    constrains anything: one molecule, as in the scan) and the `top_motifs` best by score are kept. The scan
+    """The first `motif_screen` scan proposals get a short refinement (ratios variant when it constrains
+    anything: one molecule, one rate per isotopologue) and the `top_motifs` best by score are kept. The scan
     alone ranked ethyl 6th on triethylamine (4322bdfc) because its 1J values come from band positions."""
     if settings.motif_screen <= settings.top_motifs or len(motif_models) <= settings.top_motifs:
         return motif_models[:settings.top_motifs]
     pool = [m for m in motif_models[:settings.motif_screen] if not any(_same_model(m, o) for o in models)]
-    jobs = [(m, "fixed" if _fixed_differs(m) else "free", "motif screen", None) for m in pool]
+    # ratios (natural amplitudes, a rate per isotopologue): with one shared rate the screen dropped ethyl on
+    # triethylamine, whose CH2 carbon is broadened (ethyl 6th of 8 with fixed, 1st with ratios)
+    jobs = [(m, "ratios" if _fixed_differs(m) else "free", "motif screen", None) for m in pool]
     scratch: List[dict] = []
     screened = runner.run(jobs, scratch, dict(settings.motif_screen_overrides))
     order = sorted(screened, key=lambda e: e.score)
@@ -384,14 +393,14 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     log: List[dict] = [{"step": "yardstick", "points": int(stick.mask.sum()), "n": stick.n, "sigma": stick.sigma}]
 
     motif_models = _screen_motifs(list(getattr(proposals, "motif_models", [])), models, runner, settings, log)
-    jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models) for v in settings.variants
-            if _variant_applies(m, v)]
+    jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models)
+            for v in _variants_for(m, settings.variants)]
     for i, m in enumerate(motif_models):
         twin = next((o for o in models if _same_model(m, o)), None)
         if twin is not None:          # the same structure from both routes is refined once
             log.append({"step": "dedupe", "motif": m.name, "same_as": twin.name})
             continue
-        jobs += [(m, v, f"motif {i + 1}", None) for v in settings.variants if _variant_applies(m, v)]
+        jobs += [(m, v, f"motif {i + 1}", None) for v in _variants_for(m, settings.variants)]
     jobs += [(model_from_interpretation(interp, f"hint {i + 1}"), "free", "hint", None)
              for i, interp in enumerate(hinted)]
     evaluated = runner.run(jobs, log, _thorough_overrides(settings) if settings.initial_global_search else None)

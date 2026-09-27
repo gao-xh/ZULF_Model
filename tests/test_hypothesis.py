@@ -355,6 +355,17 @@ class SearchTests(unittest.TestCase):
         self.assertEqual((step1.status, step2.status), ("rejected", "accepted"))
         self.assertEqual([l["compared_with"] for l in log], ["a [ratios]", "a [ratios]"])
 
+    def test_single_component_model_is_fitted_with_constraining_variants_only(self):
+        from zulf_hypothesis import SearchSettings, search_hypotheses
+        m = build_model(template("CH2-CH2"))                                # one component (two equivalent C)
+        obs = observe([c.system for c in m.interpretation.components], [1.0], rate=1.0, noise=2.0, ranges=RANGES)
+        base = RefineSettings(starts=1, band_weighting="signal", background_order=1, max_seconds=60,
+                              continuation_rates_per_s=(0.0,))
+        res = search_hypotheses(obs, [m], SearchSettings(base=base, variants=("fixed", "ratios"), rounds=0,
+                                                         motif_screen=0))
+        self.assertEqual([e.variant for e in res.evaluated], ["free"])      # before: no fit at all
+        self.assertIsNotNone(res.best)
+
     def test_motif_screen_picks_top_motifs(self):
         from zulf_hypothesis import SearchSettings, propose_hypotheses, search_hypotheses
         m = build_model(template("CH-CH3"))
