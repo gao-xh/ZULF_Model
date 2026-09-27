@@ -859,3 +859,18 @@ skills under `skills/`; this file keeps the history.
 - Running: known-structure fits of lactic acid, triethylamine and
   N-ethylmethylamine with the signal-extent windows
   (runs/regression/window_extent), to compare with runs/regression/final.
+- Results (signal-extent window vs the 1 s window of runs/regression/final):
+  lactic acid (3.0 s, zero_fill 1): same best model, 1J 129.15 / 147.04
+  (was 129.06 / 146.79), delay -3.528 ms (was -3.746; edge -3.407),
+  phase0 -178.9 deg (was -159.7; calibration 176.3), phased-route reduced
+  chi2 34.6 (was 85.5), 803 s (was 142 s).
+  Triethylamine (5.25 s): best model now slow exchange, protonated
+  (ammonium) + remote J (was fast exchange), 1J 124.98 / 131.02 (was
+  125.02 / 130.92), delay -3.459 ms (edge -3.472), phased-route chi2 578
+  (was 1138), 2195 s (was 585 s).
+  Reading: 1J stable within 0.25 Hz; delay and phase0 much better fixed
+  (closer to the switching edge and to the calibration, no delay-phase
+  trade-off); exchange regime changes with the late narrow lines. Complex
+  reduced chi2 not comparable (zero_fill 4 -> 1: uncorrelated points).
+  Cost grows with the record length (render + SG over the whole record):
+  3.8-5.6x.
