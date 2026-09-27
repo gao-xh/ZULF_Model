@@ -131,12 +131,29 @@ def _settings_for(model: HypothesisModel, variant: str, base: RefineSettings) ->
 
 def _refine_job(job):
     model, variant, observed, base = job[:4]
+    overrides = dict(job[4]) if len(job) > 4 and job[4] else {}
+    alternates = overrides.pop("alternates", None)
     settings = _settings_for(model, variant, base)
-    if len(job) > 4 and job[4]:
-        settings = dataclasses.replace(settings, **job[4])
+    if overrides:
+        settings = dataclasses.replace(settings, **overrides)
     start = time.perf_counter()
+    initial = None
+    if alternates:
+        # Several starting models of the same structure (e.g. warm start from the parent and the cold proposal
+        # values), each also perturbed; refine keeps the best.
+        param = settings.parameterize(model.interpretation)
+        lo, hi = param.bounds()
+        rng = np.random.default_rng(settings.seed)
+        coupling = np.array([param.parameters[n].kind == "coupling" for n in param.free_names])
+        initial = []
+        for alt in [model] + list(alternates):
+            x = np.clip(settings.parameterize(alt.interpretation).vector(), lo, hi)
+            initial.append(x)
+            for _ in range(max(settings.starts - 1, 0) // (1 + len(alternates))):
+                initial.append(np.clip(x + np.where(coupling, rng.normal(0, settings.start_spread_hz, len(x)), 0.0),
+                                       lo, hi))
     try:
-        result = refine(model.interpretation, observed, settings)
+        result = refine(model.interpretation, observed, settings, initial_points=initial)
     except Exception as exc:              # a failed candidate is reported, not fatal
         return {"error": f"{type(exc).__name__}: {exc}"}
     return {"summary": result.summary(), "prediction": np.asarray(result.prediction),
@@ -149,16 +166,18 @@ class _Runner:
         sel = observed.selected
         self.values = observed.values[sel]
 
-    def run(self, jobs: Sequence[Tuple[HypothesisModel, str, str, Optional[str]]], log: List[dict],
-            overrides: Optional[dict] = None) -> List[Evaluated]:
-        payload = [(m, v, self.observed, self.settings.base, overrides) for m, v, _, _ in jobs]
+    def run(self, jobs: Sequence[tuple], log: List[dict], overrides: Optional[dict] = None) -> List[Evaluated]:
+        payload = [(j[0], j[1], self.observed, self.settings.base,
+                    dict(overrides or {}, **({"alternates": j[4]} if len(j) > 4 and j[4] else {})))
+                   for j in jobs]
         if self.settings.workers > 1 and len(payload) > 1:
             with ProcessPoolExecutor(max_workers=self.settings.workers) as pool:
                 outputs = list(pool.map(_refine_job, payload))
         else:
             outputs = [_refine_job(p) for p in payload]
         out = []
-        for (model, variant, origin, parent), res in zip(jobs, outputs):
+        for job, res in zip(jobs, outputs):
+            model, variant, origin, parent = job[:4]
             if "error" in res:
                 log.append({"step": "refine", "hypothesis": model.name, "variant": variant, "error": res["error"]})
                 continue
@@ -256,8 +275,9 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
             # Warm start: the parent's refined couplings replace the proposal's starting values, so an
             # extension (a nested model) starts next to the parent's optimum instead of from generic values.
             refined = {k: v for k, v in parent.couplings.items() if k.startswith("J(") and ":" not in k}
-            start = parent.model.fragment.with_couplings(refined) if refined else parent.model.fragment
-            for fragment in propose_all(start, findings):
+            warm = parent.model.fragment.with_couplings(refined) if refined else parent.model.fragment
+            cold_fragments = propose_all(parent.model.fragment, findings)
+            for n_move, fragment in enumerate(propose_all(warm, findings)):
                 # A move hypothesises what it adds (a coupled proton is in slow exchange by definition), so
                 # extensions keep exchangeable protons whatever the proposals were built with.
                 options = dict(build_options, include_exchangeable=True)
@@ -270,9 +290,18 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
                     log.append({"step": "extend", "from": parent.name, "proposal": fragment.name,
                                 "note": "adds nothing observable; skipped"})
                     continue
+                # The warm start inherits the parent's compensations (e.g. broadened lines standing in for the
+                # missing coupling), so the cold start from the proposal values is refined as well.
+                alternates = []
+                if n_move < len(cold_fragments):
+                    try:
+                        alternates = [build_model(cold_fragments[n_move], **options)]
+                    except ValueError:
+                        alternates = []
                 for v in settings.variants:
                     if v == "free" or _fixed_differs(model):
-                        new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]"))
+                        new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]",
+                                         alternates))
                 log.append({"step": "extend", "round": round_ + 1, "from": parent.name, "proposal": fragment.name,
                             "triggers": sorted({f.code for f in findings})})
         if not new_jobs:
