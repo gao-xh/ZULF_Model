@@ -446,3 +446,8 @@ skills under `skills/`; this file keeps the history.
   parameters). Outcome now matches the hand analysis (H8 over H7). The free
   extension's better basin is still start-dependent; next option if needed:
   global pattern search for extension starts.
+- User chose option 2: global pattern search (zulf_core.solver.search) for
+  extension starts. `extension_global_search` runs differential evolution on
+  the phase-insensitive pattern objective over the small couplings and rates
+  (one-bond couplings held at the warm values); its distinct starts join the
+  warm / cold / perturbed ones. Lactic-acid rerun in progress.

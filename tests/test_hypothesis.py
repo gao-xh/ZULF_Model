@@ -286,7 +286,9 @@ class SearchTests(unittest.TestCase):
         ps = propose_hypotheses(obs)
         base = RefineSettings(starts=1, band_weighting="signal", background_order=1, max_seconds=120,
                               continuation_rates_per_s=(0.0,))
-        res = search_hypotheses(obs, ps, SearchSettings(base=base, top_models=1, rounds=1, extend_top=1))
+        res = search_hypotheses(obs, ps, SearchSettings(base=base, top_models=1, rounds=1, extend_top=1,
+                                                        extension_global_search={"max_seconds": 20.0, "solutions": 2,
+                                                                                 "popsize": 6, "maxiter": 10}))
         steps = [l["step"] for l in res.log]
         self.assertIn("extend", steps)
         self.assertIn("accept", steps)

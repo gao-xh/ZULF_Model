@@ -50,6 +50,10 @@ class SearchSettings:
     extend_top: int = 2               # hypotheses extended per round
     extension_starts: int = 8         # starts for extensions (warm start plus perturbations): new couplings are
     extension_spread_hz: float = 1.5  # unknown and have several comparable minima
+    # Global pattern search (zulf_core.solver.search) over the small couplings and rates of an extension, the
+    # one-bond couplings held at the warm start; its starts join the warm / cold ones. None disables it.
+    extension_global_search: Optional[dict] = field(default_factory=lambda: {
+        "max_seconds": 240.0, "solutions": 4, "popsize": 12, "maxiter": 60, "one_bond_min_hz": 50.0})
     accept_delta: float = 6.0         # (quasi-)BIC improvement needed to accept an extension
     clean_margin: float = 10.0        # prefer a hypothesis without warnings if it is within this of the minimum
     overdispersion: bool = True       # scale chi2 by the best reduced chi2 (quasi-likelihood) before ranking
@@ -134,6 +138,7 @@ def _refine_job(job):
     model, variant, observed, base = job[:4]
     overrides = dict(job[4]) if len(job) > 4 and job[4] else {}
     alternates = overrides.pop("alternates", None)
+    global_options = overrides.pop("global_search", None)
     settings = _settings_for(model, variant, base)
     if overrides:
         settings = dataclasses.replace(settings, **overrides)
@@ -153,12 +158,36 @@ def _refine_job(job):
             for _ in range(max(settings.starts - 1, 0) // (1 + len(alternates))):
                 initial.append(np.clip(x + np.where(coupling, rng.normal(0, settings.start_spread_hz, len(x)), 0.0),
                                        lo, hi))
+        if global_options and getattr(observed, "reprocessable", False):
+            initial.extend(_global_starts(model, settings, observed, global_options, lo, hi))
     try:
         result = refine(model.interpretation, observed, settings, initial_points=initial)
     except Exception as exc:              # a failed candidate is reported, not fatal
         return {"error": f"{type(exc).__name__}: {exc}"}
     return {"summary": result.summary(), "prediction": np.asarray(result.prediction),
             "k": free_parameter_count(model, settings), "seconds": time.perf_counter() - start}
+
+
+def _global_starts(model: HypothesisModel, settings: RefineSettings, observed, options: dict, lo, hi) -> List[np.ndarray]:
+    """Starts from the solver's phase-insensitive global search over the small couplings and the rates; the
+    one-bond couplings stay at the model's (warm) values. Returned as vectors of the refinement's parameters."""
+    from zulf_core.solver.search import SearchSettings as PatternSettings, global_search
+    options = dict(options)
+    one_bond = float(options.pop("one_bond_min_hz", 50.0))
+    param = settings.parameterize(model.interpretation)
+    search_param = settings.parameterize(model.interpretation)
+    big = [n for n in search_param.free_names if search_param.parameters[n].kind == "coupling"
+           and abs(search_param.parameters[n].value) >= one_bond]
+    search_param.fix(*big)
+    try:
+        found = global_search(search_param, observed, PatternSettings.from_dict(options))
+    except Exception:                 # the search only proposes starts; failures must not stop the refinement
+        return []
+    out = []
+    for x in found.points:
+        values = search_param.values(x)
+        out.append(np.clip(np.array([values[n] for n in param.free_names]), lo, hi))
+    return out
 
 
 class _Runner:
@@ -308,8 +337,10 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
         if not new_jobs:
             log.append({"step": "extend", "round": round_ + 1, "note": "no move triggered"})
             break
-        added = runner.run(new_jobs, log, {"starts": settings.extension_starts,
-                                           "start_spread_hz": settings.extension_spread_hz})
+        overrides = {"starts": settings.extension_starts, "start_spread_hz": settings.extension_spread_hz}
+        if settings.extension_global_search:
+            overrides["global_search"] = dict(settings.extension_global_search)
+        added = runner.run(new_jobs, log, overrides)
         evaluated.extend(added)
         _rescore(evaluated, settings, stick.n)
         _check(evaluated)
