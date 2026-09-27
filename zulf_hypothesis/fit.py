@@ -10,7 +10,7 @@ isotopologue rates, more starts) is done here by default.
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from types import SimpleNamespace
 from typing import List, Optional, Sequence, Tuple
 
@@ -67,11 +67,48 @@ def fit_settings(workers: int = 4, **changes) -> SearchSettings:
     return dataclasses.replace(base, **changes)
 
 
+@dataclass
+class StructureFit:
+    """Result of fit_structure: the complex-data fit, and optionally the fit of the phase-corrected real part
+    (phase taken from the best complex fit)."""
+    result: SearchResult
+    phased: Optional[SearchResult] = None
+    phased_observed: object = None
+    phasing: dict = field(default_factory=dict)
+
+    @property
+    def best(self):
+        return self.result.best
+
+    def table(self):
+        return self.result.table()
+
+
+def phased_observation(observed, phase0_rad: float, delay_s: float):
+    """The phase-corrected real (absorption) part of a complex observation as a real-only ObservedSpectrum; the
+    solver applies the same correction to its models (ObservedSpectrum.phasing)."""
+    from zulf_core.render.phasing import phase_correct
+    from zulf_core.solver import ObservedSpectrum
+    sel = observed.selected
+    f = observed.frequencies_hz[sel]
+    real = phase_correct(observed.values[sel], f, phase0_rad, delay_s, observed.acquisition).real
+    ranges = [tuple(r) for r in (observed.metadata or {}).get("ranges", [])] or None
+    out = ObservedSpectrum.from_spectrum(f, real, ranges, record=observed.acquisition,
+                                         phasing={"phase0_rad": phase0_rad, "delay_s": delay_s})
+    out.metadata["zero_fill"] = (observed.metadata or {}).get("zero_fill", 1)
+    return out
+
+
 def fit_structure(fragment: Fragment, observed, settings: Optional[SearchSettings] = None,
                   labeling: Optional[Labeling] = None, exchange: str = "auto", knowledge=None,
-                  report: Optional[str] = None) -> SearchResult:
-    """Fit a structure to an observed spectrum with every applicable variant; returns the ranked SearchResult.
-    `report`: path prefix for the automatic report (report.write_report)."""
+                  report: Optional[str] = None, route: str = "complex") -> StructureFit:
+    """Fit a structure to an observed spectrum with every applicable variant.
+
+    route: "complex" (default: complex data, phase and delay fitted with the couplings), or "both": in addition,
+    the spectrum is phase-corrected with the best complex fit's phase and the real part alone is refitted from
+    the complex optima (delay held; a residual zero-order phase stays free and is reported). A model-free phase is
+    not used: for J-spectra with dense multiplets it is not accurate enough (D43).
+    `report`: path prefix for the automatic report (report.write_report; "_phased" for the second route)."""
     settings = settings or fit_settings()
     labeling = labeling or Labeling.natural()
     # components without a line in the fitted ranges are omitted (e.g. a 15N isotopologue with only small
@@ -84,7 +121,33 @@ def fit_structure(fragment: Fragment, observed, settings: Optional[SearchSetting
     proposals = SimpleNamespace(models=models, build_options={"labeling": labeling, "ranges": ranges})
     result = search_hypotheses(observed, proposals,
                                dataclasses.replace(settings, top_models=max(settings.top_models, len(models))), knowledge)
+    out = StructureFit(result)
     if report:
         from .report import write_report
         write_report(result, observed, report)
-    return result
+    if route == "both" and result.best is not None:
+        from .report import fit_phasing
+        phase0, delay = fit_phasing(result.best)
+        phased = phased_observation(observed, phase0, delay)
+        # warm starts: each structure's best complex optimum; delay held (the data carry the correction)
+        warm_models, seen = [], set()
+        for e in result.ranked():
+            if e.name in seen or e.model.fragment is None or e.status == "rejected" or e.demoted(settings.demote):
+                continue
+            seen.add(e.name)
+            refined = {k: v for k, v in e.couplings.items() if k.startswith("J(")}
+            m = build_model(e.model.fragment.with_couplings(refined), include_exchangeable=True, labeling=labeling,
+                            name=e.name, ranges=ranges)
+            warm_models.append(dataclasses.replace(m, line_shape=dict(e.model.line_shape)))
+        base = dataclasses.replace(settings.base, policy=dataclasses.replace(settings.base.policy,
+                                                                              fit_phase_delay=False))
+        phased_settings = dataclasses.replace(settings, base=base, rounds=0, initial_global_search=False,
+                                              top_models=len(warm_models))
+        out.phased = search_hypotheses(phased, SimpleNamespace(models=warm_models,
+                                                               build_options={"labeling": labeling, "ranges": ranges}),
+                                       phased_settings, knowledge)
+        out.phased_observed = phased
+        out.phasing = {"phase0_rad": phase0, "delay_s": delay, "source": f"complex fit {result.best.key}"}
+        if report:
+            write_report(out.phased, phased, report + "_phased")
+    return out
