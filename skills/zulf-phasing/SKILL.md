@@ -12,8 +12,17 @@ Details and pitfalls: `references/phasing.md`.
 1. Prefer complex fitting (real and imaginary) with zero-order phase and
    delay fitted; no phasing is needed and nothing is assumed.
 2. A phase taken from a hypothesis fit must not be used to test that
-   hypothesis. For an unbiased phased spectrum use the model-free phase:
-   `python scripts/phase_coherence.py FID.npy --start 200 --stop 4200`.
+   hypothesis: rank hypotheses on complex fits. For an unbiased phased
+   spectrum a model-free phase is needed, but it only works when lines are
+   resolved: `python scripts/phase_coherence.py FID.npy --start 200 --stop
+   4200` or `zulf_core.render.estimate_phase_lines`. On dense J multiplets
+   (lines of either sign closer than one width) every model-free estimator
+   tried failed (D43; e66a4b08: minimum-entropy, doubled-angle and per-line
+   fits, delay off by 0.4-4.7 ms, 10-40 deg line errors even noise-free).
+   Then show the data phased with each hypothesis's own complex fit
+   (`fit_structure(..., route="both")`, `report.fit_phasing`) and say that
+   the phase came from that fit; the phased real-only refit is a display and
+   cross-check, not independent evidence.
 3. Check the coherence curve: with all strong peaks in one narrow band the
    delay is weakly determined (plateau of several ms); say so, and show what
    changes outside the band (for example the shape of a weak line at 2J).

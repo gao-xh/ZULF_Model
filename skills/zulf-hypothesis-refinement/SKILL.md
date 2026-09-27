@@ -18,6 +18,25 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   gave skeletons but no small couplings, and nothing on weak data. Trust the
   models only as far as their clean (leak-free) validation says.
 
+## Automatic fitting (D43)
+
+- A known or proposed structure: `fit_structure(fragment, observed,
+  report=prefix, route="both")`. It fits every exchange regime of N/O/S-H
+  protons (dropped = fast, kept = slow), the variants free / fixed / ratios
+  (ratios: natural amplitudes, one rate per isotopologue), thorough starts
+  (perturbed + global pattern search), then the triggered moves (coupled
+  proton, proton count with 1J rescaled, free remote couplings, Gaussian
+  line width) on one yardstick, and writes the report (ranked table, J
+  matrices with held couplings marked, fit-phased figure). Do not propose
+  these variants by hand; read the table and the findings.
+- After any change to zulf_hypothesis or the solver run
+  `ZULF_DATA_DIR=... python scripts/regression_confirmed.py --mode known`
+  (and `--mode blind` for search changes) and compare with the previous
+  summary in ANALYSIS_LOG; add every newly confirmed sample to
+  `configs/confirmed_samples.json`.
+- Solver rendering uses `Acquisition.local_record()` (exact); a fit of a
+  9-spin, 3-isotopologue model takes about 10 s per start on one core.
+
 ## Building hypotheses
 
 - Start with `propose_hypotheses(observed, instrument_hz, providers=...)`:
