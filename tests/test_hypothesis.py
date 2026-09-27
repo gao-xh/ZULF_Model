@@ -433,6 +433,17 @@ class FitStructureTests(unittest.TestCase):
         self.assertIn("HN1", [p.label for p in s.fragment.protons])
         self.assertFalse(move.applies(s, [Finding("misfit", "info", "")]))  # not applied twice
 
+    def test_protonated_forms(self):
+        from zulf_hypothesis.fit import protonated
+        from zulf_hypothesis.motifs import MOTIFS
+        p = protonated(self.fragment())                                    # NH -> NH2+ (two heavy neighbours)
+        self.assertEqual(p.proton("HN1").size, 2)
+        t = protonated(MOTIFS["CH3CH2-N-CH3"].fragment({"C1": 125.0, "C2": 135.0, "C3": 131.5}))
+        self.assertEqual(t.proton("HN1").size, 1)                          # N -> NH+ with generic couplings
+        self.assertEqual(t.couplings[pair("N1", "HN1")], -75.0)
+        self.assertEqual(t.couplings[pair("HC2", "HN1")], 5.5)
+        self.assertIsNone(protonated(template("CH-CH3")))                 # no nitrogen
+
     def test_warm_start_keeps_held_couplings_held(self):
         from zulf_hypothesis import exchange_variants
         from zulf_hypothesis.search import Evaluated, warm_fragment

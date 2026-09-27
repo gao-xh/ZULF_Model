@@ -48,6 +48,44 @@ def without_groups(fragment: Fragment, labels: Sequence[str], name: Optional[str
     return replace(fragment, name=name or fragment.name, protons=protons, couplings=couplings, symmetry=symmetry)
 
 
+def protonated(fragment: Fragment) -> Optional[Fragment]:
+    """The fragment with one more proton on every N that has room (valence 4 counting its heavy-atom bonds):
+    amine -> ammonium (NH2 -> NH3+, NH -> NH2+, N -> NH+). Amines in water near neutral pH are mostly protonated
+    (e66a4b08, pKa about 10.8), and the N-H count changes the multiplets of the neighbouring CH groups. New N-H
+    couplings take generic amine values. None when no N can take a proton."""
+    from .fragment import ProtonGroup, pair
+    from .motifs import AMINE
+    bonds = [tuple(b) for b in fragment.bonds]
+    protons = list(fragment.protons)
+    couplings = dict(fragment.couplings)
+    changed = False
+    for site in fragment.sites:
+        if site.element != "N":
+            continue
+        heavy = [b for a, b in bonds if a == site.label] + [a for a, b in bonds if b == site.label]
+        groups = [p for p in protons if p.site == site.label]
+        count = sum(p.size for p in groups)
+        if count + 1 > 4 - len(heavy):
+            continue
+        if groups:
+            protons = [replace(p, size=p.size + 1) if p is groups[0] else p for p in protons]
+        else:
+            label = f"H{site.label}"
+            protons.append(ProtonGroup(label, 1, site.label))
+            couplings[pair(site.label, label)] = -75.0
+            for nb in heavy:
+                for p in fragment.protons:
+                    if p.site == nb:
+                        couplings[pair(label, p.label)] = AMINE["3JHH_N"]
+                if any(s.label == nb and s.label_isotopes() for s in fragment.sites):
+                    couplings[pair(nb, label)] = AMINE["2JNH"]
+        changed = True
+    if not changed:
+        return None
+    return replace(fragment, name=f"{fragment.name} (protonated)", protons=tuple(protons), couplings=couplings,
+                   symmetry=())
+
+
 def exchange_variants(fragment: Fragment, mode: str = "auto") -> List[Fragment]:
     """Fragments for the exchange regimes to fit. mode: "auto" (both when the fragment has exchangeable protons),
     "fast", "slow"."""
@@ -64,14 +102,14 @@ def exchange_variants(fragment: Fragment, mode: str = "auto") -> List[Fragment]:
 REFINING_MOVES = ("free_remote_couplings", "gaussian_line_shape")
 
 
-class SlowExchange:
+class SlowExchange:  # noqa: D101 (documented below)
     """Model move of one fit_structure call: the structure with its exchangeable protons kept (slow exchange),
     warm-started from the fitted fast-exchange couplings. Slow-exchange models have more spins and minima; from
     generic starts they were start-sensitive (e66a4b08: chi2 25640 with 8 starts, 37976 with 4)."""
     name = "slow_exchange"
 
-    def __init__(self, slow: Fragment, build_options: dict):
-        self.slow, self.options = slow, dict(build_options)
+    def __init__(self, slow: Fragment, build_options: dict, tag: str = "slow exchange"):
+        self.slow, self.options, self.tag = slow, dict(build_options), tag
 
     def triggered_by(self):
         return ("misfit", "rate_asymmetry")
@@ -86,8 +124,8 @@ class SlowExchange:
         N-H couplings the slow model ended worse than its fast parent); the alternate starts them at the
         structure's generic values."""
         exch = {p.label for p in self.slow.protons} - {p.label for p in model.fragment.protons}
-        name = model.fragment.name.replace("(fast exchange)", "(slow exchange)")
-        label = model.name.replace("(fast exchange)", "(slow exchange)")
+        name = model.fragment.name.replace("(fast exchange)", f"({self.tag})")
+        label = model.name.replace("(fast exchange)", f"({self.tag})")
         out = []
         for near_zero in (True, False):
             couplings = dict(self.slow.couplings)
@@ -167,10 +205,19 @@ def fit_structure(fragment: Fragment, observed, settings: Optional[SearchSetting
     # couplings to carbon-bound protons: low-frequency lines only)
     ranges = [tuple(r) for r in (getattr(observed, "metadata", None) or {}).get("ranges", [])] or None
     variants = exchange_variants(fragment, "auto" if exchange in ("auto", "both") else exchange)
+    options = {"labeling": labeling, "ranges": ranges}
     extra = ()
-    if exchange == "auto" and len(variants) == 2:
-        extra = (SlowExchange(variants[1], {"labeling": labeling, "ranges": ranges}),)
-        variants = variants[:1]
+    if exchange == "auto":
+        if len(variants) == 1:            # no exchangeable proton yet (e.g. a tertiary amine)
+            variants = [replace(fragment, name=f"{fragment.name} (fast exchange)")]
+            slow_forms = []
+        else:
+            slow_forms = [SlowExchange(variants[1], options)]
+            variants = variants[:1]
+        prot = protonated(fragment)
+        if prot is not None:
+            slow_forms.append(SlowExchange(prot, options, tag="slow exchange, protonated"))
+        extra = tuple(slow_forms)
     models: List[HypothesisModel] = [build_model(f, include_exchangeable=True, labeling=labeling, name=f.name,
                                                  ranges=ranges) for f in variants]
     settings = dataclasses.replace(settings, extra_model_moves=tuple(settings.extra_model_moves) + extra)
