@@ -181,8 +181,12 @@ fixed, so later phases are experiments rather than restructuring.
         range from the data (no instrument prior known).
   - [ ] F remote couplings: a triggered move that frees the couplings built
         as 0 (4J, 5J) between labelled sites and proton groups.
-  - [ ] G intermediate exchange: an approximate broadening of the lines that
-        the exchanging proton affects.
+  - [~] G intermediate exchange: not implemented. Both limits were fitted
+        with nested starts on e66a4b08 (fast; slow and protonated as
+        warm-started extensions) and neither explained the remaining
+        misfit, so an intermediate-regime model (Redfield scalar relaxation
+        of the second kind per transition, one exchange time) is unlikely to
+        be the main missing term; kept as a design note.
   - [ ] H automatic report per fit: ranked table, phased fit figure, J
         matrix file, findings.
   - [ ] R regression script over the confirmed samples (blind search and
