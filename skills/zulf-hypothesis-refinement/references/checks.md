@@ -18,6 +18,10 @@ Red flags
 - A fit that improves the residual by fitting the edges of a band or the
   low-frequency background instead of the molecular lines.
 - A component whose weight collapses to zero: the hypothesis did not need it.
+  In a free variant of one molecule this means the fit describes a
+  different set of isotopologues (check `collapsed_component`, < 0.2 of the
+  strongest per unit abundance); the search ranks such fits last (D42).
+  4322bdfc: a CH-CH3 fit with its CH at 0.061 beat the correct ethyl.
 - A component that turns into background: much larger amplitude than its
   partners together with a high decay rate (e3d282da: C-alpha 7.5x at
   7.7 1/s). Its broad lines can cut holes (139 Hz) that cost little outside

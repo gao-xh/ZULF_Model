@@ -147,11 +147,11 @@ fixed, so later phases are experiments rather than restructuring.
       14th: triethylamine, 4322bdfc, rank 2).
 - [ ] More motifs as structures are confirmed (CH2-CH, rings with
       substituents, carbonyl-bridged groups); a stage-3 benchmark column.
-- [ ] Lessons from 4322bdfc (triethylamine): a move that changes a
-      carbon's proton count (CH <-> CH2), refining more quick-scan motifs or
-      a short refinement before the cutoff (1J picks from band positions are
-      unreliable), and a ranking rule for free variants that switch off an
-      isotopologue (abundance finding) - proposed to the user, not decided.
+- [x] Lessons from 4322bdfc (triethylamine), D42: motif screen (short
+      refinement of the first 8 scan proposals before the cutoff), move
+      change_proton_count (CH <-> CH2 <-> CH3), check collapsed_component
+      and demotion of such fits in the ranking. Rerun on the five confirmed
+      real samples: see ANALYSIS_LOG.
 - [ ] More moves: add 15N site, change equivalence (CH3 <-> CH(CH3)2), add a
       remote proton group, split a group; more templates as cases arrive.
 - [ ] Validation: replay the four blind datasets end to end; synthetic

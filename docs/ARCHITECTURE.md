@@ -116,7 +116,7 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Fragment templates | `zulf_hypothesis.fragments.register_template` | New structural motifs (CH2-CH3, aromatic rings, N-methyl ...) as label-based fragments with symmetry. |
 | Labelled isotopes | `zulf_hypothesis.fragment.DEFAULT_LABEL_ISOTOPES`, `Site.isotopes` | Further spin-1/2 labels (19F, 31P, 29Si) or per-site choices. |
 | Hypothesis checks | `zulf_hypothesis.checks.register_check` | New physical red flags on refined results (read summaries, return findings). |
-| Extension moves | `zulf_hypothesis.moves.ExtensionMove`, `register_move` | New one-step model extensions triggered by findings (add 15N site, change equivalence, add remote proton). |
+| Extension moves | `zulf_hypothesis.moves.ExtensionMove`, `register_move` | New one-step model extensions triggered by findings. Implemented: add_coupled_proton, change_proton_count (D42). Planned: add 15N site, change equivalence, add remote proton group. |
 | Reference couplings | `zulf_hypothesis.knowledge.KnowledgeBase` | More confirmed samples (`add`, `save`), other files (`load`), or a database/literature source (subclass, override `entries_for`); `source_kind` keeps literature apart from measured values. |
 | Labelling schemes | `zulf_hypothesis.labeling.Labeling` | Natural abundance (default), uniform or site-specific enrichment; other isotope sources (e.g. 2H exchange) as new schemes. |
 | Amplitude constraints | `solver.RefineSettings.amplitude_map` | Any linear map from free amplitudes to component gains (fixed abundance ratios, minor isotopologues following a parent, per-part blocks). |

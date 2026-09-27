@@ -3,13 +3,17 @@
     proposals (stage 2) [+ hinted interpretations]
       -> refine each in variants ("free": free amplitudes and rates;
          "fixed": abundance ratios and one shared rate), in parallel processes
+      -> motif screen: short refinements of the first `motif_screen` motif-scan
+         proposals pick the `top_motifs` that are refined in full (the scan's
+         1J values come from band positions and generic couplings)
       -> common yardstick (scoring.py): chi2 on the data cores, BIC
       -> checks (checks.py) per result, with the other variant as peer
       -> extension round(s): moves (moves.py) triggered by the findings of the
          best clean hypotheses, built like the originals and refined on the
          same data; accepted only if the BIC improves by `accept_delta`
       -> knowledge matching of the leaders (knowledge.py)
-      -> ranked table and a step log
+      -> ranked table and a step log; fits flagged by a `demote` finding
+         (an isotopologue switched off) rank after all others (D42)
 
 The solver is used through `refine` / `RefineSettings` only. Hint sources
 never enter the ranking; hinted interpretations are refined as ordinary
@@ -45,6 +49,12 @@ class SearchSettings:
     variants: Tuple[str, ...] = ("free", "fixed")
     top_models: int = 4               # stage-2 group proposals refined in round 0
     top_motifs: int = 3               # motif-scan proposals refined in round 0
+    motif_screen: int = 8             # motif-scan proposals given a short refinement to choose the top_motifs (0: off)
+    # The scan's 1J values can be a few Hz off (band positions): the screen needs several starts and broadened
+    # continuation to reach the basin, or a wrong motif with a luckier start wins (synthetic CH-CH3: CH3-NH3+).
+    motif_screen_overrides: dict = field(default_factory=lambda: {
+        "starts": 3, "start_spread_hz": 2.0, "continuation_rates_per_s": (10.0, 3.0, 1.0, 0.0),
+        "max_evaluations": 4000, "max_seconds": 60.0, "signal_model_passes": 1})
     include_hinted: int = 0           # hinted interpretations refined in round 0 (free variant only)
     rounds: int = 1                   # extension rounds
     extend_top: int = 2               # hypotheses extended per round
@@ -61,6 +71,9 @@ class SearchSettings:
     criterion: str = "bic"            # "bic" | "aic"
     knowledge_kinds: Tuple[str, ...] = ("measured",)
     knowledge_exclude: Tuple[str, ...] = ()   # e.g. the sample id: never match references fitted on this sample
+    # Findings that move a fit behind every fit without them (D42): a free fit that switches an isotopologue off
+    # describes a different set of isotopologues than the molecule has.
+    demote: Tuple[str, ...] = ("collapsed_component",)
 
 
 @dataclass
@@ -89,7 +102,10 @@ class Evaluated:
     def key(self) -> str:
         return f"{self.name} [{self.variant}]"
 
-    def row(self, best: float) -> dict:
+    def demoted(self, codes: Sequence[str]) -> bool:
+        return any(f.code in codes for f in self.findings)
+
+    def row(self, best: float, demote: Sequence[str] = ()) -> dict:
         amp = [abs(complex(*g)) for g in self.summary["gains"]]
         top = max(amp) if amp and max(amp) > 0 else 1.0
         return {"hypothesis": self.name, "variant": self.variant, "origin": self.origin, "status": self.status,
@@ -98,6 +114,7 @@ class Evaluated:
                 "amplitudes": [round(a / top, 3) for a in amp], "expected": [round(r, 3) for r in self.model.ratios]
                 if self.model.abundance_known else None,
                 "bounds": self.summary.get("boundary_hits"), "findings": [f.code for f in self.findings],
+                "demoted": self.demoted(demote),
                 "couplings": {k: round(v, 2) for k, v in self.couplings.items()}, "knowledge": self.knowledge[:2]}
 
 
@@ -108,13 +125,16 @@ class SearchResult:
     yardstick: Yardstick = field(repr=False)
     c_hat: float = 1.0                # overdispersion used in the scores
     clean_margin: float = 10.0
+    demote: Tuple[str, ...] = ("collapsed_component",)
 
     def ranked(self) -> List[Evaluated]:
-        return sorted(self.evaluated, key=lambda e: e.score)
+        """By score, demoted fits (D42) after all others."""
+        return sorted(self.evaluated, key=lambda e: (e.demoted(self.demote), e.score))
 
     @property
     def best(self) -> Optional[Evaluated]:
-        """Lowest score; a hypothesis without warnings is preferred only when it is within `clean_margin`."""
+        """Lowest score among fits that are not demoted; a hypothesis without warnings is preferred only when it
+        is within `clean_margin`."""
         ranked = self.ranked()
         if not ranked:
             return None
@@ -122,9 +142,10 @@ class SearchResult:
         return clean[0] if clean else ranked[0]
 
     def table(self) -> List[dict]:
+        """Ranked rows; `delta` is relative to the first row (a demoted fit can show a negative delta)."""
         ranked = self.ranked()
         best = ranked[0].score if ranked else 0.0
-        return [dict(rank=i + 1, **e.row(best)) for i, e in enumerate(ranked)]
+        return [dict(rank=i + 1, **e.row(best, self.demote)) for i, e in enumerate(ranked)]
 
 
 def _settings_for(model: HypothesisModel, variant: str, base: RefineSettings) -> RefineSettings:
@@ -266,6 +287,27 @@ def _same_model(a: HypothesisModel, b: HypothesisModel) -> bool:
         and np.allclose(x.system.couplings_hz, y.system.couplings_hz) for x, y in zip(ca, cb))
 
 
+def _screen_motifs(motif_models: List[HypothesisModel], models: List[HypothesisModel], runner: "_Runner",
+                   settings: SearchSettings, log: List[dict]) -> List[HypothesisModel]:
+    """The first `motif_screen` scan proposals get a short refinement (fixed-abundance variant when it
+    constrains anything: one molecule, as in the scan) and the `top_motifs` best by score are kept. The scan
+    alone ranked ethyl 6th on triethylamine (4322bdfc) because its 1J values come from band positions."""
+    if settings.motif_screen <= settings.top_motifs or len(motif_models) <= settings.top_motifs:
+        return motif_models[:settings.top_motifs]
+    pool = [m for m in motif_models[:settings.motif_screen] if not any(_same_model(m, o) for o in models)]
+    jobs = [(m, "fixed" if _fixed_differs(m) else "free", "motif screen", None) for m in pool]
+    scratch: List[dict] = []
+    screened = runner.run(jobs, scratch, dict(settings.motif_screen_overrides))
+    order = sorted(screened, key=lambda e: e.score)
+    for i, e in enumerate(order):
+        log.append({"step": "screen", "motif": e.name, "variant": e.variant, "score": round(e.score, 2),
+                    "scan_rank": motif_models.index(e.model) + 1, "kept": i < settings.top_motifs})
+    for entry in scratch:
+        if "error" in entry:
+            log.append(dict(entry, step="screen"))
+    return [e.model for e in order[:settings.top_motifs]]   # twins of group proposals are refined with those
+
+
 def _check(evaluated: List[Evaluated]) -> None:
     for e in evaluated:
         peers = [p.summary for p in evaluated if p.name == e.name and p is not e]
@@ -283,7 +325,7 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     runner = _Runner(observed, settings, stick)
     log: List[dict] = [{"step": "yardstick", "points": int(stick.mask.sum()), "n": stick.n, "sigma": stick.sigma}]
 
-    motif_models = list(getattr(proposals, "motif_models", []))[:settings.top_motifs]
+    motif_models = _screen_motifs(list(getattr(proposals, "motif_models", [])), models, runner, settings, log)
     jobs = [(m, v, f"proposal {i + 1}", None) for i, m in enumerate(models) for v in settings.variants
             if v == "free" or _fixed_differs(m)]
     for i, m in enumerate(motif_models):
@@ -301,7 +343,7 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     for round_ in range(settings.rounds):
         ranked = sorted(evaluated, key=lambda e: e.score)
         parents, seen = [], set()
-        for e in sorted(ranked, key=lambda e: (not e.clean, e.score)):
+        for e in sorted(ranked, key=lambda e: (e.demoted(settings.demote), not e.clean, e.score)):
             if e.model.fragment is None or e.model.parts or e.name in seen:
                 continue
             seen.add(e.name)
@@ -362,4 +404,4 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
     for e in sorted(evaluated, key=lambda e: e.score)[:max(3, settings.top_models)]:
         e.knowledge = knowledge_matches(e.model, e.couplings, kb, kinds=settings.knowledge_kinds,
                                         exclude=settings.knowledge_exclude)
-    return SearchResult(evaluated, log, stick, c_hat, settings.clean_margin)
+    return SearchResult(evaluated, log, stick, c_hat, settings.clean_margin, tuple(settings.demote))

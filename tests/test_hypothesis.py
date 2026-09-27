@@ -83,7 +83,8 @@ class BuilderTests(unittest.TestCase):
     def test_add_coupled_proton_and_fast_exchange(self):
         f0 = template("CH-CH3")
         self.assertEqual(propose_all(f0), [])            # not triggered without a finding
-        self.assertEqual(len(propose_all(f0, [Finding("rate_asymmetry", "info", "")])), 1)
+        names = [g.name for g in propose_all(f0, [Finding("rate_asymmetry", "info", "")])]
+        self.assertEqual(names, ["CH-CH3 + HX on X", "CH-CH3 with CaH2", "CH-CH3 with CbH2"])
         f = AddCoupledProton(initial_hz=1.5).propose(f0)[0]
         m = build_model(f)
         self.assertEqual([[len(g) for g in c.system.groups] for c in m.interpretation.components],
@@ -92,6 +93,20 @@ class BuilderTests(unittest.TestCase):
         fast = build_model(f, include_exchangeable=False)
         self.assertEqual([[len(g) for g in c.system.groups] for c in fast.interpretation.components],
                          [[1, 1, 3], [1, 1, 3]])
+
+    def test_change_proton_count(self):
+        from zulf_hypothesis import ChangeProtonCount
+        from zulf_hypothesis.motifs import MOTIFS
+        move = ChangeProtonCount()
+        ethyl = move.propose(template("CH-CH3"))[0]                       # CH -> CH2: the ethyl skeleton
+        self.assertEqual([(p.label, p.size) for p in ethyl.protons], [("Ha", 2), ("Hb", 3)])
+        self.assertEqual(ethyl.couplings, template("CH-CH3").couplings)   # couplings carried over
+        iso = move.propose(template("CH(CH3)2"))
+        self.assertEqual([[p.size for p in f.protons] for f in iso], [[2, 3, 3], [1, 2, 2]])   # orbit changes together
+        self.assertEqual(build_model(iso[1]).component_labels[:1], ["13C@Ca"])
+        self.assertEqual(move.propose(MOTIFS["benzene ring"].fragment({"A2": 158.0})), [])  # ring C-H left alone
+        withx = AddCoupledProton().propose(template("CH-CH3"))[0]
+        self.assertFalse(any("X" in f.name.split(" with ")[-1] for f in move.propose(withx)))  # exchangeable kept
 
     def test_fragment_round_trip(self):
         f = template("CH(CH3)2")
@@ -187,6 +202,8 @@ class CheckTests(unittest.TestCase):
         codes = lambda fs: sorted(f.code for f in fs)
         self.assertEqual(codes(run_checks(m, self.summary([1.0, 0.95], [2.0, 2.2]))), [])
         self.assertEqual(codes(run_checks(m, self.summary([1.0, 0.4], [2.0, 2.2]))), ["abundance"])
+        # 4322bdfc: the CH component of a CH-CH3 fit switched off (0.061 of the methyl carbon)
+        self.assertIn("collapsed_component", codes(run_checks(m, self.summary([0.061, 1.0], [2.0, 2.2]))))
         self.assertEqual(codes(run_checks(m, self.summary([1.0, 1.0], [1.9, 4.7]))), ["rate_asymmetry"])
         self.assertIn("background_component", codes(run_checks(m, self.summary([7.5, 1.0], [7.7, 1.1]))))
         self.assertEqual(codes(run_checks(m, self.summary([1.0, 1.0], [2.0, 2.0], hits=["c0.J0-1"]))), ["bounds"])
@@ -293,6 +310,7 @@ class SearchTests(unittest.TestCase):
         base = RefineSettings(starts=1, band_weighting="signal", background_order=1, max_seconds=120,
                               continuation_rates_per_s=(0.0,))
         res = search_hypotheses(obs, ps, SearchSettings(base=base, top_models=1, rounds=1, extend_top=1,
+                                                        motif_screen=0,
                                                         extension_global_search={"max_seconds": 20.0, "solutions": 2,
                                                                                  "popsize": 6, "maxiter": 10}))
         steps = [l["step"] for l in res.log]
@@ -304,6 +322,36 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(top["delta"], 0.0)
         self.assertTrue(any("HX" in k for k in res.best.couplings))   # the added proton's couplings are reported
         self.assertTrue(res.best.knowledge and res.best.knowledge[0]["template"] == "CH-CH3")
+
+    def test_demoted_fits_rank_last(self):
+        from zulf_hypothesis.search import Evaluated, SearchResult
+        m = build_model(template("CH-CH3"))
+        summary = {"gains": [[1.0, 0.0], [1.0, 0.0]]}
+        low = Evaluated("a", "free", "x", m, summary, np.zeros(1), score=10.0,
+                        findings=[Finding("collapsed_component", "warn", "")])
+        high = Evaluated("b", "fixed", "x", m, summary, np.zeros(1), score=50.0)
+        res = SearchResult([low, high], [], None)
+        self.assertEqual([e.name for e in res.ranked()], ["b", "a"])
+        self.assertIs(res.best, high)
+        rows = res.table()
+        self.assertEqual((rows[1]["demoted"], rows[1]["delta"]), (True, -40.0))
+
+    def test_motif_screen_picks_top_motifs(self):
+        from zulf_hypothesis import SearchSettings, propose_hypotheses, search_hypotheses
+        m = build_model(template("CH-CH3"))
+        obs = observe([c.system for c in m.interpretation.components], [1.0, 1.0], rate=1.0, noise=2.0,
+                      ranges=RANGES)
+        ps = propose_hypotheses(obs)
+        base = RefineSettings(starts=1, band_weighting="signal", background_order=1, max_seconds=60,
+                              continuation_rates_per_s=(0.0,))
+        res = search_hypotheses(obs, ps, SearchSettings(base=base, top_models=0, top_motifs=1, motif_screen=4,
+                                                        rounds=0))
+        screen = [l for l in res.log if l["step"] == "screen"]
+        self.assertGreaterEqual(len(screen), 2)
+        self.assertEqual(sum(l["kept"] for l in screen), 1)
+        self.assertTrue(screen[0]["kept"])
+        self.assertEqual({e.name for e in res.evaluated}, {screen[0]["motif"]})
+        self.assertIn("CH-CH3", res.best.name)
 
     def test_yardstick_counts_and_noise(self):
         from zulf_hypothesis import yardstick

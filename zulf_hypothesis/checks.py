@@ -116,6 +116,26 @@ def _background_component(ctx: CheckContext) -> List[Finding]:
     return out
 
 
+@register_check("collapsed_component")
+def _collapsed_component(ctx: CheckContext) -> List[Finding]:
+    """An isotopologue switched (almost) off: its amplitude per unit of natural abundance is below
+    `collapse_fraction` (0.2) of the strongest one. The fit then describes fewer isotopologues than the molecule
+    has, so it is not a structure for that molecule; the search ranks such fits after the others (D42)."""
+    if not ctx.model.abundance_known:
+        return []
+    amp = ctx.amplitudes
+    expected = np.asarray(ctx.model.ratios, float)
+    if len(amp) != len(expected) or len(amp) < 2 or amp.max() <= 0:
+        return []
+    per_site = amp / expected
+    limit = float(ctx.options.get("collapse_fraction", 0.2))
+    top = per_site.max()
+    return [Finding("collapsed_component", "warn",
+                    f"{ctx.model.component_labels[c]} nearly off: {per_site[c] / top:.3g} of the strongest "
+                    f"isotopologue per unit abundance (< {limit:g})", {"component": c, "relative": per_site[c] / top})
+            for c in range(len(amp)) if per_site[c] < limit * top]
+
+
 @register_check("rate_asymmetry")
 def _rate_asymmetry(ctx: CheckContext) -> List[Finding]:
     """Isotopologues of one molecule should decay alike; a much faster one hides couplings."""

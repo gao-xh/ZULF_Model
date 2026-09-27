@@ -44,7 +44,7 @@ from .motifs import MOTIFS, Motif, MotifProposal, OneBondSite, register_motif, s
 from .pipeline import ProposalSet, propose_hypotheses
 from .scoring import Yardstick, yardstick
 from .search import Evaluated, SearchResult, SearchSettings, search_hypotheses
-from .moves import MOVES, AddCoupledProton, ExtensionMove, propose_all, register_move
+from .moves import MOVES, AddCoupledProton, ChangeProtonCount, ExtensionMove, propose_all, register_move
 
 __all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_snr", "model_from_interpretation",
            "Yardstick", "yardstick", "MOTIFS", "Motif", "MotifProposal", "OneBondSite", "register_motif",
@@ -54,5 +54,5 @@ __all__ = ["HypothesisModel", "build_model", "combine_models", "min_ratio_for_sn
            "apply_hints", "group_hints_from_interpretation", "insight_report", "register_hint_provider", "Band",
            "Inventory", "Line", "band_inventory", "ProposalSet", "propose_hypotheses", "Labeling", "CHECKS", "CheckContext", "Finding", "register_check", "run_checks",
            "DEFAULT_LABEL_ISOTOPES", "Fragment", "ProtonGroup", "Site", "pair", "TEMPLATES", "register_template",
-           "template", "KnowledgeBase", "ReferenceEntry", "MOVES", "AddCoupledProton", "ExtensionMove",
+           "template", "KnowledgeBase", "ReferenceEntry", "MOVES", "AddCoupledProton", "ChangeProtonCount", "ExtensionMove",
            "propose_all", "register_move"]

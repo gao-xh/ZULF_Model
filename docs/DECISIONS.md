@@ -560,6 +560,29 @@ the parent's basin (the extension was rejected); the cold start had reached
 the better basin (chi2 1153 -> 528). Motif and group proposals with the same
 component systems are refined once.
 
+## D42. Motif screen, proton-count move, demotion of collapsed fits (2026-09-27)
+
+Triethylamine (4322bdfc) was missed in three ways, each now changed:
+- The quick scan picks 1J from band positions with generic couplings; ethyl
+  ranked 6th and only the first `top_motifs` (3) were refined. The search
+  now gives the first `motif_screen` (8) scan proposals a short refinement
+  (fixed-abundance variant when it constrains anything; 3 starts, spread
+  2 Hz, continuation 10/3/1/0 1/s, 60 s) and refines the best `top_motifs`
+  by score in full; the screen is logged (`step: screen`). A one-start
+  screen without continuation chose CH3-NH3+ over the truth on synthetic
+  CH-CH3 data (1J starts 2-3 Hz off), hence the broadened continuation.
+- New move `change_proton_count`: one more or one fewer proton (1-3) on a
+  site and its symmetry orbit, couplings kept (warm start), ring sites and
+  exchangeable groups left alone; triggered by misfit, abundance,
+  collapsed_component or rate_asymmetry. CH-CH3 -> ethyl is one step.
+- New check `collapsed_component` (warn): an isotopologue whose amplitude
+  per unit of natural abundance is below 0.2 of the strongest. Fits with a
+  finding in `SearchSettings.demote` (default this one) rank after all
+  others and cannot be `best`; the table marks them (`demoted`) and their
+  delta can be negative. The free CH-CH3 + HX fit on 4322bdfc (CH component
+  0.061) had won by 60 quasi-BIC units. D40's clean-margin rule applies
+  among the fits that are not demoted.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

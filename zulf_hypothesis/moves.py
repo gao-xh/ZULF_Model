@@ -7,7 +7,9 @@ keeps what an information criterion supports. Add a move by subclassing
 `ExtensionMove` and calling `register_move`.
 
 Implemented: `AddCoupledProton` (the H7 -> H8 step on lactic acid: one more
-weakly coupled proton, for example a slowly exchanging OH).
+weakly coupled proton, for example a slowly exchanging OH) and
+`ChangeProtonCount` (CH <-> CH2 <-> CH3 on one site and its symmetry partners;
+4322bdfc: a CH-CH3 fit whose CH was the CH2 of triethylamine).
 Planned: add a 15N isotopologue site, change an equivalence (CH3 <-> CH(CH3)2),
 add a remote proton group, split a group.
 """
@@ -108,6 +110,37 @@ class AddCoupledProton(ExtensionMove):
         return out
 
 
+class ChangeProtonCount(ExtensionMove):
+    """One more or one fewer proton on a site (between 1 and `max_protons`), applied to the site's whole symmetry
+    orbit so the fragment keeps its symmetry. Couplings keep their values (the group label is unchanged), so a
+    warm start carries the parent's refined 1J and small couplings. Exchangeable groups and ring sites are left
+    alone. Not a nested model: acceptance still asks for the score improvement over the parent."""
+    name = "change_proton_count"
+
+    def __init__(self, max_protons: int = 3, steps: Sequence[int] = (1, -1)):
+        self.max_protons, self.steps = max_protons, tuple(steps)
+
+    def triggered_by(self) -> Sequence[str]:
+        return ("misfit", "abundance", "collapsed_component", "rate_asymmetry")
+
+    def propose(self, fragment: Fragment, findings: Sequence[Finding] = ()) -> List[Fragment]:
+        ring = _ring_sites(fragment)
+        out, done = [], set()
+        for group in fragment.protons:
+            if group.exchangeable or group.site in ring or group.label in done:
+                continue
+            orbit = {group.label} | {g.get(group.label, group.label) for g in fragment.symmetry}
+            done |= orbit
+            for step in self.steps:
+                size = group.size + step
+                if not 1 <= size <= self.max_protons:
+                    continue
+                protons = tuple(replace(p, size=size) if p.label in orbit else p for p in fragment.protons)
+                tag = {1: "H", 2: "H2", 3: "H3"}.get(size, f"H{size}")
+                out.append(replace(fragment, name=f"{fragment.name} with {group.site}{tag}", protons=protons))
+        return out
+
+
 def _ring_sites(fragment: Fragment) -> set:
     """Sites on a cycle of the bond graph (an edge is in a cycle if its ends stay connected without it)."""
     bonds = [tuple(b) for b in fragment.bonds]
@@ -129,3 +162,4 @@ def _ring_sites(fragment: Fragment) -> set:
 
 
 register_move(AddCoupledProton())
+register_move(ChangeProtonCount())
