@@ -11,9 +11,9 @@ from zulf_core.render.acquisition import evaluate_spectrum, process_record
 from zulf_core.render.phasing import phase_correct
 from zulf_core.solver import ObservedSpectrum
 
-from .diagnostics import RawDiagnostics, diagnose_raw
+from .diagnostics import RawDiagnostics, diagnose_raw, signal_extent
 from .phase import PhaseResult, calibrated_phase, phase_dataset
-from .plan import ProcessingPlan, plan_for_dataset
+from .plan import DEFAULTS, ProcessingPlan, plan_for_dataset
 
 
 @dataclass
@@ -26,10 +26,11 @@ class ProcessedDataset:
     spectrum: np.ndarray = field(repr=False)          # complex processed spectrum on that grid
     phase: Optional[PhaseResult] = None
     phased: Optional[ObservedSpectrum] = None  # real (absorption) part with the phase recorded for the solver
+    extent: Optional[dict] = None              # diagnostics.signal_extent when the window came from it
 
     def record(self) -> dict:
         return {"sample_id": self.sample_id, "diagnostics": self.diagnostics.to_dict(), "plan": self.plan.to_dict(),
-                "phase": self.phase.to_dict() if self.phase else None}
+                "phase": self.phase.to_dict() if self.phase else None, "signal_extent": self.extent}
 
     def save_record(self, path: str) -> None:
         with open(path, "w") as fh:
@@ -89,7 +90,13 @@ def process_dataset(fid: np.ndarray, sampling_rate_hz: float = 4000.0, sample_id
     searched globally and fine-tuned (phase_dataset)."""
     x = np.asarray(fid, float)
     diagnostics = diagnose_raw(x, sampling_rate_hz)
-    plan = plan or plan_for_dataset(len(x), sampling_rate_hz, diagnostics, defaults)
+    extent = None
+    if plan is None:
+        plan = plan_for_dataset(len(x), sampling_rate_hz, diagnostics, defaults)
+        if dict(DEFAULTS, **(defaults or {})).get("window_mode") == "signal_extent":
+            extent = signal_extent(x, sampling_rate_hz, plan.start_sample, plan.sg_window,
+                                   exclude_hz=plan.instrument_lines_hz)
+            plan = plan_for_dataset(len(x), sampling_rate_hz, diagnostics, defaults, extent=extent)
     acq = plan.acquisition()
     observed = ObservedSpectrum.from_fid(x, acq, [tuple(r) for r in plan.ranges], zero_fill=plan.zero_fill,
                                          label=sample_id)
@@ -98,7 +105,7 @@ def process_dataset(fid: np.ndarray, sampling_rate_hz: float = 4000.0, sample_id
     hi = max(r[1] for r in plan.ranges)
     f = np.arange(int(np.ceil(lo / step)), int(np.floor(hi / step)) + 1) * step
     spectrum = evaluate_spectrum(process_record(x, acq), acq, f)
-    out = ProcessedDataset(sample_id, diagnostics, plan, observed, f, spectrum)
+    out = ProcessedDataset(sample_id, diagnostics, plan, observed, f, spectrum, extent=extent)
     out._fid = x
     if phase_criterion:
         edge = -(diagnostics.edge_time_s + acq.time_origin_s) if diagnostics.edge_time_s else None

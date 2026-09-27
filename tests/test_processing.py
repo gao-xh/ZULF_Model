@@ -42,6 +42,36 @@ class SwitchingEdgeTests(unittest.TestCase):
         self.assertAlmostEqual(out["edge_time_s"], expected, delta=2e-5)
 
 
+class SignalExtentTests(unittest.TestCase):
+    def test_end_matches_closed_form(self):
+        # three decaying cosines (amplitude A, rate R) in white noise (sigma). Per block of N samples (Parseval) the
+        # band power is lines (A N / 2)^2 exp(-2 R t) + nbins N sigma^2, the late floor nbins N sigma^2; the ratio
+        # falls to 3 at t = ln(lines (A N / 2)^2 / (2 nbins N sigma^2)) / (2 R) (nbins from the reported bands)
+        from zulf_processing import signal_extent
+        fs, n, start, A, sigma = 4000.0, 65536, 200, 50.0, 1.0
+        t = np.arange(n) / fs
+        for R in (1.0, 4.0):
+            x = sum(np.cos(2 * np.pi * f0 * t) * np.exp(-R * t) for f0 in (130.0, 131.3, 200.0)) * A
+            x = x + np.random.default_rng(1).normal(0, sigma, n)
+            e = signal_extent(x, fs, start, block_s=0.25)
+            N = 1000
+            nbins = sum(hi - lo + 2.0 for lo, hi in e["bands_hz"]) * 0.25
+            t_end = np.log(3 * (A * N / 2) ** 2 / (2 * nbins * N * sigma ** 2)) / (2 * R)
+            self.assertAlmostEqual(e["end_s"] + start / fs, t_end, delta=0.3, msg=f"R {R}: {e['end_s']} vs {t_end}")
+
+    def test_plan_window_from_extent(self):
+        from zulf_processing import plan_for_dataset
+        defaults = {"window_mode": "signal_extent", "max_window_s": 4.0, "points_per_hz": 4.0}
+        p = plan_for_dataset(65536, 4000.0, defaults=defaults, extent={"end_s": 2.6})
+        self.assertEqual(p.stop_sample - p.start_sample, 10400)          # ceil(2.6 s x 4 kHz)
+        self.assertEqual(p.zero_fill, 2)                                  # round(4 / 2.6)
+        self.assertEqual(plan_for_dataset(65536, 4000.0, defaults=defaults, extent={"end_s": 0.3}).stop_sample,
+                         4200)                                            # never shorter than the default 1 s
+        self.assertEqual(plan_for_dataset(65536, 4000.0, defaults=defaults, extent={"end_s": 9.0}).stop_sample,
+                         200 + 16000)                                     # capped at max_window_s
+        self.assertEqual(plan_for_dataset(65536, 4000.0, extent={"end_s": 2.6}).stop_sample, 4200)  # fixed mode
+
+
 class PlanTests(unittest.TestCase):
     def test_crop_after_ringing_and_reasons(self):
         from zulf_processing import ProcessingPlan, plan_for_dataset
@@ -123,7 +153,7 @@ class DatasetTests(unittest.TestCase):
                                                                    "instrument_lines_hz": []},
                             delay_mode="global", delay_span_s=0.005)
         rec = d.record()
-        self.assertEqual(set(rec), {"sample_id", "diagnostics", "plan", "phase"})
+        self.assertEqual(set(rec), {"sample_id", "diagnostics", "plan", "phase", "signal_extent"})
         self.assertIn("start_sample", rec["plan"]["reasons"])
         self.assertTrue(d.phased.real_only)
         self.assertEqual(d.phased.phasing["delay_s"], d.phase.delay_s)

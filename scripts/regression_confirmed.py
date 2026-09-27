@@ -23,6 +23,7 @@ from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propos
                              search_hypotheses, write_report)
 from zulf_hypothesis.fit import EXCHANGE_ELEMENTS                            # noqa: E402
 from zulf_hypothesis.motifs import MOTIFS, _chain                           # noqa: E402
+from zulf_processing import process_dataset                                 # noqa: E402
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "confirmed_samples.json"
 # instrument prior for the fitted delay (configs: processing.phase_delay_bounds_s; env ZULF_DELAY_BOUNDS "lo,hi")
@@ -104,6 +105,11 @@ def main():
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--blind-rounds", type=int, default=2, help="extension rounds of the blind search")
     ap.add_argument("--out", default=f"runs/regression/{time.strftime('%Y%m%d_%H%M%S')}")
+    ap.add_argument("--processing", default="config", choices=["config", "dataset"],
+                    help="config: the fixed processing of the config; dataset: zulf_processing.process_dataset "
+                         "(per-dataset plan)")
+    ap.add_argument("--window-mode", default="", help="processing window mode for --processing dataset "
+                    "(fixed or signal_extent; default from the config)")
     args = ap.parse_args()
     cfg = json.load(open(CONFIG))
     data_dir = os.environ.get("ZULF_DATA_DIR", "")
@@ -114,7 +120,14 @@ def main():
     for sample in cfg["samples"]:
         if wanted and sample["id"] not in wanted:
             continue
-        obs = observed_for(sample, cfg["processing"], data_dir)
+        if args.processing == "dataset":
+            proc = dict(cfg["processing"], **({"window_mode": args.window_mode} if args.window_mode else {}))
+            data = process_dataset(np.load(Path(data_dir) / sample["file"]).astype(float), proc["sampling_rate_hz"],
+                                   sample["id"], defaults=proc, phase_criterion=None)
+            data.save_record(str(out / f"{sample['id']}_processing.json"))
+            obs = data.observed
+        else:
+            obs = observed_for(sample, cfg["processing"], data_dir)
         row = {"compound": sample["compound"]}
         if args.mode in ("known", "both"):
             row["known"] = run_known(sample, obs, args.workers, out)

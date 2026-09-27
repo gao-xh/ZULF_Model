@@ -834,3 +834,28 @@ skills under `skills/`; this file keeps the history.
   analyze_sample uses it (--phase entropy|lines to compare). Complex fits
   are unaffected (they fit their own phase); the processed phase is for the
   phased route and display.
+
+## Window length per dataset (user: a too-short window loses spectral information)
+- The records are 16.4 s; the fixed processing used 1 s (samples 200-4200).
+  Signal extent per dataset (zulf_processing.signal_extent: power inside the
+  signal bands per 0.25 s block vs the same bands in the last 30 % of the
+  record): energy inside 1 s: alanine 88 %, lactic acid 88 %, pyridine
+  99.6 %, ethylenediamine 98 %, triethylamine 89 %, N-ethylmethylamine 86 %;
+  signal end (power stays below 3x floor for 1 s): 1.25, 2.75, 1.75, 3.5,
+  4.75, 4.5 s. The missing 11-14 % are the narrow lines, and frequency
+  information grows with t^2, so the tail matters for small couplings.
+- For a forward-model fit a longer window does not lose information (the
+  model applies the same processing; a noise-only tail adds no bias); costs
+  are compute (record length) and exposure to late drift. Zero filling adds
+  no information and makes the fitted points correlated, so with a longer
+  window zero_fill is reduced to keep 4 points per Hz (same number of fitted
+  points).
+- Implemented: diagnostics.signal_extent (test against the closed form for
+  decaying cosines in white noise: end 5.75 / 1.50 s vs 5.76 / 1.50 s), plan
+  window_mode "signal_extent" (window = max(default, end), cap max_window_s
+  8 s, zero_fill = round(4 / window_s)); default stays "fixed" until fits
+  confirm. regression_confirmed.py --processing dataset --window-mode.
+  Resulting windows: 2.0, 3.0, 1.75, 3.5, 5.25, 4.5 s.
+- Running: known-structure fits of lactic acid, triethylamine and
+  N-ethylmethylamine with the signal-extent windows
+  (runs/regression/window_extent), to compare with runs/regression/final.
