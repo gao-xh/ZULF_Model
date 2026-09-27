@@ -428,3 +428,13 @@ skills under `skills/`; this file keeps the history.
   parent's optimum when the parent has compensated for the missing
   physics; start extensions from both the parent's optimum and the
   uncompensated proposal values.
+- Warm + cold starts (69620d5) on lactic acid: unchanged in substance - the
+  fixed extension is accepted (-7 vs its fixed parent), the free extension
+  rejected (+14). The earliest success (chi2 1153 -> 528) used a base of 2
+  starts in runs/blind/search_real.py: the better basin depends on the
+  number and placement of starts (several comparable minima for the extra
+  proton, as in the hand analysis). Trying 8 extension starts; next option:
+  the solver's global pattern search for extension starts.
+- Caveat: the knowledge match "lactic acid 0.002 Hz" is circular (the
+  reference entry was fitted on this same sample); blind use must exclude
+  entries from the sample under test.
