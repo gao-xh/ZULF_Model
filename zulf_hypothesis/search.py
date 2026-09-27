@@ -80,6 +80,7 @@ class SearchSettings:
     knowledge_kinds: Tuple[str, ...] = ("measured",)
     knowledge_exclude: Tuple[str, ...] = ()   # e.g. the sample id: never match references fitted on this sample
     moves: Optional[Tuple[str, ...]] = None    # allowed move names (fragment and model moves); None = all
+    extra_model_moves: Tuple[object, ...] = ()   # model moves of this search only (e.g. fit_structure's exchange)
     # Findings that move a fit behind every fit without them (D42): a free fit that switches an isotopologue off
     # describes a different set of isotopologues than the molecule has.
     demote: Tuple[str, ...] = ("collapsed_component",)
@@ -440,7 +441,9 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
             if warm_model is not None:
                 warm_model = dataclasses.replace(warm_model, name=parent.model.name,
                                                  line_shape=dict(parent.model.line_shape))
-                for model in propose_model_moves(warm_model, findings, allowed=settings.moves):
+                extra = [m for mv in settings.extra_model_moves if mv.applies(warm_model, findings)
+                         for m in mv.propose_model(warm_model, findings)]
+                for model in propose_model_moves(warm_model, findings, allowed=settings.moves) + extra:
                     for v in _extension_variants(settings, parent):
                         if _variant_applies(model, v):
                             new_jobs.append((model, v, f"extension of {parent.name}", f"{parent.name} [{v}]", []))

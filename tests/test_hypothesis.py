@@ -415,6 +415,22 @@ class FitStructureTests(unittest.TestCase):
         self.assertIn(("c0.sigma", "c1.sigma", "c2.sigma"), st.ties)       # one width for the instrument
         self.assertEqual(MODEL_MOVES["gaussian_line_shape"].propose_model(v), [])
 
+    def test_slow_exchange_move_starts_from_fast_fit(self):
+        from zulf_hypothesis import exchange_variants
+        from zulf_hypothesis.fit import SlowExchange
+        fast, slow = exchange_variants(self.fragment())
+        fitted = fast.with_couplings({"J(C1,HC1)": 124.9, "J(C2,HC2)": 134.9})
+        m = build_model(fitted, ranges=[(62.0, 320.0)], name=fitted.name)
+        move = SlowExchange(slow, {"ranges": [(62.0, 320.0)]})
+        self.assertTrue(move.applies(m, [Finding("misfit", "info", "")]))
+        self.assertFalse(move.applies(m, []))
+        (s,) = move.propose_model(m)
+        self.assertIn("(slow exchange)", s.name)
+        self.assertIn("15N@N1", s.component_labels)                        # N-H kept: 15N couples again
+        self.assertEqual(s.fragment.couplings[pair("C1", "HC1")], 124.9)    # fitted values carried
+        self.assertIn("HN1", [p.label for p in s.fragment.protons])
+        self.assertFalse(move.applies(s, [Finding("misfit", "info", "")]))  # not applied twice
+
     def test_warm_start_keeps_held_couplings_held(self):
         from zulf_hypothesis import exchange_variants
         from zulf_hypothesis.search import Evaluated, warm_fragment

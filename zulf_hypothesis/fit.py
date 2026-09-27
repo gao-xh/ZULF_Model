@@ -64,11 +64,40 @@ def exchange_variants(fragment: Fragment, mode: str = "auto") -> List[Fragment]:
 REFINING_MOVES = ("free_remote_couplings", "gaussian_line_shape")
 
 
+class SlowExchange:
+    """Model move of one fit_structure call: the structure with its exchangeable protons kept (slow exchange),
+    warm-started from the fitted fast-exchange couplings. Slow-exchange models have more spins and minima; from
+    generic starts they were start-sensitive (e66a4b08: chi2 25640 with 8 starts, 37976 with 4)."""
+    name = "slow_exchange"
+
+    def __init__(self, slow: Fragment, build_options: dict):
+        self.slow, self.options = slow, dict(build_options)
+
+    def triggered_by(self):
+        return ("misfit", "rate_asymmetry")
+
+    def applies(self, model, findings=()) -> bool:
+        return model.fragment is not None and "(fast exchange)" in model.fragment.name and \
+            any(f.code in self.triggered_by() for f in findings)
+
+    def propose_model(self, model, findings=()) -> list:
+        couplings = dict(self.slow.couplings)
+        couplings.update(model.fragment.couplings)               # fitted values of the shared couplings
+        name = model.fragment.name.replace("(fast exchange)", "(slow exchange)")
+        fragment = replace(self.slow, name=name, couplings=couplings)
+        try:
+            built = build_model(fragment, include_exchangeable=True, name=model.name.replace(
+                "(fast exchange)", "(slow exchange)"), **self.options)
+        except ValueError:
+            return []
+        return [dataclasses.replace(built, line_shape=dict(model.line_shape))]
+
+
 def fit_settings(workers: int = 4, **changes) -> SearchSettings:
     """Search settings for a given structure: no motif scan, thorough round-0 starts (4 perturbed starts plus a
     60 s global pattern search), one round of the structure-preserving moves in the best variant. Budget: about
     10 min on 4 cores for a 3-isotopologue amine (e66a4b08: 29 min with 8 starts, 240 s searches and all moves)."""
-    base = SearchSettings(base=default_fit_base(), top_models=100, top_motifs=0, motif_screen=0, rounds=1,
+    base = SearchSettings(base=default_fit_base(), top_models=100, top_motifs=0, motif_screen=0, rounds=2,
                           extend_top=1, workers=workers, initial_global_search=True, moves=REFINING_MOVES,
                           extension_starts=4, extension_global_search={"max_seconds": 60.0, "solutions": 3,
                                                                        "popsize": 10, "maxiter": 40,
@@ -113,6 +142,9 @@ def fit_structure(fragment: Fragment, observed, settings: Optional[SearchSetting
                   report: Optional[str] = None, route: str = "complex") -> StructureFit:
     """Fit a structure to an observed spectrum with every applicable variant.
 
+    exchange: "auto" (default) fits fast exchange first and tries slow exchange as a warm-started extension
+    (accepted only if it scores better); "both" fits both regimes from the start; "fast" / "slow" one regime.
+
     route: "complex" (default: complex data, phase and delay fitted with the couplings), or "both": in addition,
     the spectrum is phase-corrected with the best complex fit's phase and the real part alone is refitted from
     the complex optima (delay held; a residual zero-order phase stays free and is reported). A model-free phase is
@@ -123,9 +155,14 @@ def fit_structure(fragment: Fragment, observed, settings: Optional[SearchSetting
     # components without a line in the fitted ranges are omitted (e.g. a 15N isotopologue with only small
     # couplings to carbon-bound protons: low-frequency lines only)
     ranges = [tuple(r) for r in (getattr(observed, "metadata", None) or {}).get("ranges", [])] or None
+    variants = exchange_variants(fragment, "auto" if exchange in ("auto", "both") else exchange)
+    extra = ()
+    if exchange == "auto" and len(variants) == 2:
+        extra = (SlowExchange(variants[1], {"labeling": labeling, "ranges": ranges}),)
+        variants = variants[:1]
     models: List[HypothesisModel] = [build_model(f, include_exchangeable=True, labeling=labeling, name=f.name,
-                                                 ranges=ranges)
-                                     for f in exchange_variants(fragment, exchange)]
+                                                 ranges=ranges) for f in variants]
+    settings = dataclasses.replace(settings, extra_model_moves=tuple(settings.extra_model_moves) + extra)
     # extensions are built with the same labelling scheme as the structure
     proposals = SimpleNamespace(models=models, build_options={"labeling": labeling, "ranges": ranges})
     result = search_hypotheses(observed, proposals,
