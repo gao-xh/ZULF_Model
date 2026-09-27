@@ -526,3 +526,15 @@ skills under `skills/`; this file keeps the history.
   in the 0.3 s window), weak structure 190-210 Hz, and features at 15-60 Hz
   (outside the standard ranges, which start at 62 Hz). Automatic run started
   with the fde3fbb2 script unchanged (single-label natural abundance).
+- Automatic result (18.7 min, no hand input). Bands: 127.8 (SNR 101, 123.8-
+  130.2), 249.2 (79), 255.8 (35), 195.8 (13), 237.2 (10), 73.2 (6), 118.5
+  (6). Motif scan first: CH-CH3 (1J 127.8 / 125.0). Search: c_hat 227;
+  misfit triggered the coupled-proton move on the CH-CH3 motif, accepted in
+  both variants (free -260, fixed -189). Best = "CH-CH3 + HX on X" [free]
+  with warnings bounds, abundance (amplitudes 0.061 : 1, expected 1 : 1),
+  background_component, rate_asymmetry, misfit; its fixed variant is +64.5
+  (undetermined, misfit): 1J 127.30 / 124.98, 3J(H,H) 12.1 Hz. Then motif
+  CH3-NH3+ (+238, 1J(N,H) -64.2), plain CH-CH3 (+254 fixed: 1J 127.33 /
+  125.13, 2J -4.16 / -5.80, 3J(H,H) 6.52 Hz). No hypothesis without
+  warnings. Nearest knowledge entries L-alanine / lactic acid at 8.2 / 8.8
+  Hz rms (far). Reported as program output only.
