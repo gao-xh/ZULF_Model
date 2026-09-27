@@ -874,3 +874,12 @@ skills under `skills/`; this file keeps the history.
   reduced chi2 not comparable (zero_fill 4 -> 1: uncorrelated points).
   Cost grows with the record length (render + SG over the whole record):
   3.8-5.6x.
+  N-ethylmethylamine (4.5 s): same best model (fast exchange + remote J,
+  fixed variant), 1J 124.92 / 131.75 / 136.98 (was 124.90 / 131.75 /
+  135.63: the third 1J moved 1.35 Hz), delay -3.363 ms (was -3.495; edge
+  -3.510: now further off), phase0 168.1 deg (was 177.4), phased-route chi2
+  589 (was 881) but its residual phase is 29.7 deg (not self-consistent),
+  5804 s (was 1351 s). Mixed: 25 parameters over a 4.5 s record; the delay
+  moved away from the edge. Default window stays "fixed" for now. Next:
+  renderer cost for long records, then a soft (flat + Gaussian edge) crop
+  window and weighted SG (user proposal), then re-run all six.
