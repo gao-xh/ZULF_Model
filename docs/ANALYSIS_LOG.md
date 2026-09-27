@@ -681,3 +681,11 @@ skills under `skills/`; this file keeps the history.
   (k 12); Gaussian width alone rejected (36266): the v3 "Gaussian" gain came
   from the freed remote couplings. Slow exchange fixed 37976 (v3 with 8
   starts: 25640): that model is start-sensitive; noted.
+- Low-frequency lines: the fitted e66a4b08 model puts strong lines of the
+  13CH2 isotopologue at 5-30 Hz (strongest 20.9 Hz, 0.54 of its maximum) and
+  weaker ones at 30-31 Hz; the data show lines at 15-23 and 32 Hz. The
+  standard ranges start at 62 Hz, so the worst-fitted isotopologue is fitted
+  without its most informative lines. Test planned: ranges from 12 Hz.
+- Residual after fast + remote J: mostly the 13CH2 isotopologue (194-216 Hz,
+  line positions off by 1-2 Hz, e.g. 198.8 in the data vs 200.5 Hz), the
+  131.8 Hz peak height, and a 235/237 Hz doublet the model shows as one line.
