@@ -622,6 +622,10 @@ structure fit had been proposed by hand:
   for fast + remote J, a tie on the quasi-BIC scale (+2.8). The motif scan
   refines 1J of its 8 leading motifs locally (+-4 Hz). Intermediate exchange
   was not implemented (both limits fitted, neither explained the misfit).
+- Blind search: motif screen in the ratios variant, two extension rounds,
+  extensions compared with the nearest kept ancestor, identical extensions
+  not refitted, single-component models fitted as free. Regression over the
+  six confirmed samples: right skeleton first in 6 of 6 (one round: 5 of 6).
 
 ## Open questions
 

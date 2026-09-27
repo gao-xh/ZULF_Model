@@ -82,7 +82,7 @@ def run_known(sample, obs, workers, out):
     return row
 
 
-def run_blind(sample, obs, workers, out, proc, rounds=1):
+def run_blind(sample, obs, workers, out, proc, rounds=2):
     t = time.time()
     ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))
     res = search_hypotheses(obs, ps, blind_settings(workers, sample["id"], phase_delay_bounds_s=DELAY, rounds=rounds))
@@ -102,7 +102,7 @@ def main():
     ap.add_argument("--mode", default="known", choices=["known", "blind", "both"])
     ap.add_argument("--samples", default="")
     ap.add_argument("--workers", type=int, default=4)
-    ap.add_argument("--blind-rounds", type=int, default=1, help="extension rounds of the blind search")
+    ap.add_argument("--blind-rounds", type=int, default=2, help="extension rounds of the blind search")
     ap.add_argument("--out", default=f"runs/regression/{time.strftime('%Y%m%d_%H%M%S')}")
     args = ap.parse_args()
     cfg = json.load(open(CONFIG))

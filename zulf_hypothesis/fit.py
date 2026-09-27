@@ -151,10 +151,11 @@ class SlowExchange:  # noqa: D101 (documented below)
 def blind_settings(workers: int = 4, sample_id: Optional[str] = None,
                    phase_delay_bounds_s: Optional[Tuple[float, float]] = None, **changes) -> SearchSettings:
     """Search settings for an unknown sample, as used for the confirmed samples (scripts/analyze_sample.py and
-    the regression): one start per round-0 fit, 2 group proposals and 3 screened motifs, one extension round."""
+    the regression): one start per round-0 fit, 2 group proposals and 3 screened motifs, two extension rounds
+    (with one round N-ethylmethylamine stopped at CH -> CH2 without its remote couplings, rank 2; with two all
+    six confirmed samples give the right skeleton first, 1-10 min each, up to 28 min for e66a4b08)."""
     base = SearchSettings(base=dataclasses.replace(default_fit_base(phase_delay_bounds_s), starts=1), top_models=2,
-                          top_motifs=3,
-                          workers=workers, rounds=1, extend_top=1,
+                          top_motifs=3, workers=workers, rounds=2, extend_top=1,
                           knowledge_exclude=(sample_id,) if sample_id else ())
     return dataclasses.replace(base, **changes)
 
