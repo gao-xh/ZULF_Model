@@ -538,3 +538,15 @@ skills under `skills/`; this file keeps the history.
   125.13, 2J -4.16 / -5.80, 3J(H,H) 6.52 Hz). No hypothesis without
   warnings. Nearest knowledge entries L-alanine / lactic acid at 8.2 / 8.8
   Hz rms (far). Reported as program output only.
+- Confirmed by the user: triethylamine, N(CH2CH3)3. The program's best
+  (CH-CH3 + a coupled proton on a neighbour) has the wrong carbon type on
+  C1 (CH instead of CH2); the ethyl motif was ranked 6th of 13 in the quick
+  scan (1J 130.5 / 123.8 from band positions) and not refined (top_motifs 3).
+  The accepted "HX on X" extension (J(C1,HX) 5.9 Hz) points at the real
+  extra couplings: in Et3N the labelled CH2 carbon couples through N to the
+  four protons of the two other N-CH2 groups (3J(C,N,C,H)).
+- A full Et3N fragment (16 spins, split into magnetically inequivalent
+  groups by the builder) did not finish one transition calculation in 15
+  min. Diagnostic in progress: ethyl motif and a reduced N-ethyl fragment
+  (one ethyl + one 4H group on C1 through N) refined on the auto-run data,
+  settings and yardstick (runs/blind/4322bdfc/tea_refine.py).
