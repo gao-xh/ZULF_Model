@@ -72,7 +72,10 @@ def run_known(sample, obs, workers, out):
         row["phased_best"] = pb.key
         row["phased_reduced_chi2"] = round(pb.chi2 / max(pb.n - pb.k, 1), 2)
         gains = [complex(*g) for g in pb.summary["gains"]]
-        row["phased_residual_phase_deg"] = round(float(np.degrees(np.angle(max(gains, key=abs)))), 1)
+        # the phased model is corrected like the data, so its gain phase should equal the complex fit's phase
+        # (modulo 180 deg); report the difference
+        diff = np.angle(max(gains, key=abs)) - fit.phasing.get("phase0_rad", 0.0)
+        row["phased_residual_phase_deg"] = round(float(np.degrees((diff + np.pi / 2) % np.pi - np.pi / 2)), 1)
     return row
 
 
