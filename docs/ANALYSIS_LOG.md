@@ -775,3 +775,21 @@ skills under `skills/`; this file keeps the history.
   (compute_transitions and transition_derivatives on the same Hamiltonian),
   instrument delay prior values, intermediate exchange, low-frequency range
   (a 48-51 Hz feature not modelled).
+
+## Phase per dataset (user: phase correction is data processing and must be recalibrated for every dataset)
+- Fitted phases of the six confirmed samples cluster: phase0 about -174 deg,
+  delay -3.62 ms (sd 0.17 ms). A leave-one-out mean calibration is within
+  12 deg of each sample's own complex-fit phase at its line frequencies; the
+  per-spectrum model-free estimators (minimum entropy, per-line fits) in a
+  narrow window around it were worse (15-89 deg): not usable per dataset.
+- The raw FID (samples before the 0.05 s crop) shows the field switch-off:
+  a plateau to 2.75 ms, a falling edge (half height 3.41-3.51 ms in every
+  dataset), then ringing to about 25 ms. The pulse sequence in the uploaded
+  NMRduino settings is standard_zf_4000Hz_no_dead.seq. The edge time equals
+  the fitted delay within 0.05 ms for alanine, triethylamine and
+  N-ethylmethylamine; lactic acid and pyridine fits differ by 0.34 / 0.44 ms.
+  So the delay can be measured per dataset from the raw FID (no model).
+- Zero-order phase from the J-spectrum alone, with the delay fixed at the
+  edge, is still off by 12-80 deg on several samples (lines of both signs
+  overlap): a per-dataset phase0 needs another handle. Test running: lactic
+  acid and pyridine refitted with the delay fixed at the edge time.
