@@ -292,15 +292,27 @@ def _rescore(evaluated: List[Evaluated], settings: SearchSettings, n: int) -> fl
 
 
 def _decide_extensions(evaluated: List[Evaluated], settings: SearchSettings, log: List[dict]) -> None:
+    """An extension is accepted when it beats its nearest ancestor that was not rejected by `accept_delta`.
+    Comparing with the direct parent only rejected two-step improvements whose steps were each below the
+    threshold (lactic acid: slow exchange -4.4, then + remote J -3.0, together -7.4 on the quasi-BIC scale)."""
     by_key = {e.key: e for e in evaluated}
-    for e in evaluated:
-        if e.parent is None:
-            continue
-        parent = by_key.get(e.parent)
-        better = parent is not None and e.score < parent.score - settings.accept_delta
+
+    def depth(e):
+        d, seen = 0, set()
+        while e.parent is not None and e.parent in by_key and e.key not in seen:
+            seen.add(e.key)
+            e, d = by_key[e.parent], d + 1
+        return d
+
+    for e in sorted((x for x in evaluated if x.parent is not None), key=depth):
+        ref = by_key.get(e.parent)
+        while ref is not None and ref.status == "rejected" and ref.parent is not None:
+            ref = by_key.get(ref.parent)
+        better = ref is not None and e.score < ref.score - settings.accept_delta
         e.status = "accepted" if better else "rejected"
         log.append({"step": "accept" if better else "reject", "hypothesis": e.key, "parent": e.parent,
-                    "delta": round(e.score - parent.score, 2) if parent else None})
+                    "compared_with": ref.key if ref else None,
+                    "delta": round(e.score - ref.score, 2) if ref else None})
 
 
 def _same_model(a: HypothesisModel, b: HypothesisModel) -> bool:
@@ -454,6 +466,21 @@ def search_hypotheses(observed, proposals, settings: Optional[SearchSettings] = 
                                 "triggers": sorted({f.code for f in findings})})
         if not new_jobs:
             log.append({"step": "extend", "round": round_ + 1, "note": "no move triggered"})
+            break
+        # the same extension (model and variant) is not refined twice (a parent kept for a second round
+        # proposes its first-round extensions again)
+        done = {(e.name, e.variant) for e in evaluated}
+        unique, seen_jobs = [], set()
+        for job in new_jobs:
+            key = (job[0].name, job[1])
+            if key in done or key in seen_jobs:
+                log.append({"step": "extend", "proposal": job[0].name, "variant": job[1], "note": "already refined"})
+                continue
+            seen_jobs.add(key)
+            unique.append(job)
+        new_jobs = unique
+        if not new_jobs:
+            log.append({"step": "extend", "round": round_ + 1, "note": "nothing new"})
             break
         added = runner.run(new_jobs, log, _thorough_overrides(settings))
         evaluated.extend(added)

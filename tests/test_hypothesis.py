@@ -344,6 +344,17 @@ class SearchTests(unittest.TestCase):
         self.assertEqual([e.name for e in res.ranked()], ["b", "b + HX", "a"])   # e3d282da: rejected by 2.3
         self.assertIs(res.best, high)
 
+    def test_two_step_extension_compared_with_nearest_kept_ancestor(self):
+        from zulf_hypothesis.search import Evaluated, SearchSettings, _decide_extensions
+        m = build_model(template("CH-CH3"))
+        mk = lambda name, score, parent=None: Evaluated(name, "ratios", "x", m, {}, np.zeros(1), score=score,
+                                                        parent=parent)
+        base, step1, step2 = mk("a", 0.0), mk("a+s", -4.4, "a [ratios]"), mk("a+s+r", -7.4, "a+s [ratios]")
+        log = []
+        _decide_extensions([step2, base, step1], SearchSettings(), log)   # any order
+        self.assertEqual((step1.status, step2.status), ("rejected", "accepted"))
+        self.assertEqual([l["compared_with"] for l in log], ["a [ratios]", "a [ratios]"])
+
     def test_motif_screen_picks_top_motifs(self):
         from zulf_hypothesis import SearchSettings, propose_hypotheses, search_hypotheses
         m = build_model(template("CH-CH3"))
