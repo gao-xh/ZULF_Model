@@ -707,3 +707,12 @@ skills under `skills/`; this file keeps the history.
 - Added protonated forms (amine -> ammonium: one more H on each N with room)
   as warm-started slow-exchange extensions; e66a4b08 is likely protonated in
   water (pKa about 10.8). Run v7 pending.
+- Protonated form (v7, 39 min on 2 workers): slow exchange protonated
+  (NH2+) [fixed] accepted over fast (22649, k 21); protonated + remote J
+  reached chi2 17456 (k 25), 27 % below fast + remote J (23868, k 16), but
+  on the quasi-BIC scale only 2.8 better than its parent (accept needs 6):
+  a statistical tie, reported next to the best; chemically the ammonium
+  form is expected in water. fit_structure budget trimmed afterwards
+  (variants fixed + ratios, 3 starts, 45 s global search).
+- Blind regression (2 workers): alanine and lactic acid skeletons found at
+  rank 1 (7 min each). Running.
