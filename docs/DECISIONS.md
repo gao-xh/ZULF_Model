@@ -611,6 +611,17 @@ structure fit had been proposed by hand:
   h + 1 samples) because the SG baseline is local; retained samples agree
   with the full-record rendering to 4e-12, one e66a4b08 refinement went from
   37.7 s to 10.7 s (same 91 evaluations).
+- Addendum (same session): extensions start nested at their parent's fit
+  (held couplings stay held in warm starts; new N-H couplings start near
+  0.2 Hz; the Gaussian width at 0.02 Hz); from generic starts extensions had
+  ended worse than their parents. fit_structure fits the fast-exchange
+  structure first and tries the slow-exchange and protonated (ammonium) forms
+  as warm-started model moves, variants fixed and ratios, only
+  structure-preserving moves (`SearchSettings.moves`). On e66a4b08 the
+  protonated form with free remote couplings reached chi2 17456 against 23868
+  for fast + remote J, a tie on the quasi-BIC scale (+2.8). The motif scan
+  refines 1J of its 8 leading motifs locally (+-4 Hz). Intermediate exchange
+  was not implemented (both limits fitted, neither explained the misfit).
 
 ## Open questions
 

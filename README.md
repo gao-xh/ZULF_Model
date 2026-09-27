@@ -48,6 +48,9 @@ Simulation always runs in float64 on the CPU.
 
 ```bash
 python -m unittest discover -s tests              # full test suite
+python scripts/analyze_sample.py FID.npy --id ID  # new sample: overview, blind search, report (runs/blind/ID)
+python scripts/analyze_sample.py FID.npy --id ID --structure '{"motif": "ethyl", "one_bond": {"C1": 131, "C2": 125}}'
+ZULF_DATA_DIR=... python scripts/regression_confirmed.py --mode both   # confirmed-sample regression
 python scripts/smoke_pipeline.py                  # generate -> train -> propose -> refine
 zulf-model tools list                             # agent tools
 zulf-model diagnose AVERAGE.npy 0.ini             # per-dataset processing diagnostics

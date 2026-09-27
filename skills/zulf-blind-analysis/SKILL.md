@@ -38,6 +38,12 @@ starting; follow the same observation -> inference -> test -> outcome format.
 
 ## Working practice
 
+- Start every new sample with `python scripts/analyze_sample.py FID --id ID`
+  (standard processing, overview figure, blind search, report with J
+  matrices and a fit-phased figure); after the reveal run it again with
+  `--structure` for the confirmed structure, add the sample to
+  `configs/confirmed_samples.json` and run the regression.
+
 - Start with an overlay on confirmed samples and a no-signal dataset,
   processed identically; then fit the simplest fragment, then extend it one
   step at a time on the same data, window and weighting.
