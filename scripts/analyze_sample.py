@@ -51,6 +51,9 @@ def overview(x, acq, path, instrument):
     plt.close(fig)
 
 
+DELAY = None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("fid")
@@ -58,8 +61,12 @@ def main():
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--structure", default="")
+    ap.add_argument("--delay-bounds", default="", help="instrument prior for the fitted delay in s, 'lo,hi'")
     args = ap.parse_args()
     proc = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
+    global DELAY
+    bounds = args.delay_bounds or proc.get("phase_delay_bounds_s")
+    DELAY = tuple(float(x) for x in (bounds.split(",") if isinstance(bounds, str) else bounds)) if bounds else None
     out = Path(args.out or f"runs/blind/{args.id}")
     out.mkdir(parents=True, exist_ok=True)
     x = np.load(args.fid).astype(float)
@@ -73,12 +80,12 @@ def main():
         import regression_confirmed as reg
         spec = json.loads(args.structure)
         spec.setdefault("compound", args.id)
-        fit = fit_structure(reg.structure_for(spec), obs, fit_settings(workers=args.workers),
+        fit = fit_structure(reg.structure_for(spec), obs, fit_settings(workers=args.workers, phase_delay_bounds_s=DELAY),
                             report=str(out / "structure"), route="both")
         table, best = fit.table(), fit.best
     else:
         ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))
-        res = search_hypotheses(obs, ps, blind_settings(args.workers, args.id))
+        res = search_hypotheses(obs, ps, blind_settings(args.workers, args.id, phase_delay_bounds_s=DELAY))
         write_report(res, obs, str(out / "blind"))
         table, best = res.table(), res.best
     print(f"{args.id}: {time.time() - t:.0f} s, best {best.key}")

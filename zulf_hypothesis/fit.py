@@ -25,12 +25,18 @@ from .search import SearchResult, SearchSettings, search_hypotheses, warm_fragme
 EXCHANGE_ELEMENTS = ("N", "O", "S")
 
 
-def default_fit_base() -> RefineSettings:
-    """Refinement settings used for the confirmed samples (complex data, signal weighting, linear background)."""
+def default_fit_base(phase_delay_bounds_s: Optional[Tuple[float, float]] = None) -> RefineSettings:
+    """Refinement settings used for the confirmed samples (complex data, signal weighting, linear background).
+
+    `phase_delay_bounds_s`: an instrument prior for the fitted delay. The zero-order phase differs from spectrum
+    to spectrum, but the delay is set by the instrument (confirmed samples: -3.4 to -3.9 ms); a narrow band
+    lets delay and phase trade off (ethylenediamine: +2.2 ms)."""
+    policy = ParameterPolicy(coupling_margin_hz=8.0, coupling_margin_relative=0.05, rate_bounds_per_s=(0.05, 20.0),
+                             initial_rate_per_s=2.0)
+    if phase_delay_bounds_s is not None:
+        policy = dataclasses.replace(policy, phase_delay_bounds_s=tuple(float(x) for x in phase_delay_bounds_s))
     return RefineSettings(starts=4, start_spread_hz=0.5, band_weighting="signal", background_order=1,
-                          max_seconds=900.0, max_evaluations=20000, continuation_rates_per_s=(0.0,),
-                          policy=ParameterPolicy(coupling_margin_hz=8.0, coupling_margin_relative=0.05,
-                                                 rate_bounds_per_s=(0.05, 20.0), initial_rate_per_s=2.0))
+                          max_seconds=900.0, max_evaluations=20000, continuation_rates_per_s=(0.0,), policy=policy)
 
 
 def exchangeable_groups(fragment: Fragment) -> List[str]:
@@ -142,16 +148,19 @@ class SlowExchange:  # noqa: D101 (documented below)
         return [(out[0], [out[1]])]
 
 
-def blind_settings(workers: int = 4, sample_id: Optional[str] = None, **changes) -> SearchSettings:
+def blind_settings(workers: int = 4, sample_id: Optional[str] = None,
+                   phase_delay_bounds_s: Optional[Tuple[float, float]] = None, **changes) -> SearchSettings:
     """Search settings for an unknown sample, as used for the confirmed samples (scripts/analyze_sample.py and
     the regression): one start per round-0 fit, 2 group proposals and 3 screened motifs, one extension round."""
-    base = SearchSettings(base=dataclasses.replace(default_fit_base(), starts=1), top_models=2, top_motifs=3,
+    base = SearchSettings(base=dataclasses.replace(default_fit_base(phase_delay_bounds_s), starts=1), top_models=2,
+                          top_motifs=3,
                           workers=workers, rounds=1, extend_top=1,
                           knowledge_exclude=(sample_id,) if sample_id else ())
     return dataclasses.replace(base, **changes)
 
 
-def fit_settings(workers: int = 4, **changes) -> SearchSettings:
+def fit_settings(workers: int = 4, phase_delay_bounds_s: Optional[Tuple[float, float]] = None,
+                 **changes) -> SearchSettings:
     """Search settings for a given structure: no motif scan, variants fixed and ratios, round-0 starts (3
     perturbed starts plus a 45 s global pattern search), two rounds of the structure-preserving moves (remote
     couplings, Gaussian width, slow exchange, protonated form) in the best variant. Budget target about 10 min on
@@ -159,7 +168,8 @@ def fit_settings(workers: int = 4, **changes) -> SearchSettings:
     2 workers with the exchange forms and three variants)."""
     # "free" amplitudes are left out: for one known molecule they only reproduce what "ratios" allows plus
     # switched-off isotopologues, and they were the slowest fits (e66a4b08).
-    base = SearchSettings(base=default_fit_base(), variants=("fixed", "ratios"), top_models=100, top_motifs=0,
+    base = SearchSettings(base=default_fit_base(phase_delay_bounds_s), variants=("fixed", "ratios"), top_models=100,
+                          top_motifs=0,
                           motif_screen=0, rounds=2, extend_top=1, workers=workers, initial_global_search=True,
                           moves=REFINING_MOVES, extension_starts=3,
                           extension_global_search={"max_seconds": 45.0, "solutions": 2, "popsize": 10,

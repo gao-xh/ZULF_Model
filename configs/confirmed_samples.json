@@ -1,25 +1,201 @@
 {
-  "note": "Confirmed samples (identity given by the user after blind analysis). Data files are read from ZULF_DATA_DIR and never committed. Structures: 'chain' = (site, element, H count) groups and bonds for zulf_hypothesis.motifs._chain (generic couplings), or a registered 'motif'; one_bond: starting 1J (Hz). Skeleton = multiset of (element, H count) over labelled sites with protons, exchangeable elements excluded.",
-  "processing": {"sampling_rate_hz": 4000.0, "start_sample": 200, "stop_sample": 4200, "sg_window": 201, "sg_order": 2,
-                 "remove_mean": true, "apodization_rate_per_s": 0.6, "zero_fill": 4,
-                 "ranges": [[62.0, 119.0], [121.0, 179.0], [181.0, 293.0], [295.0, 320.0]],
-                 "instrument_lines_hz": [60, 120, 180, 240, 294.0, 300, 322.9]},
-  "samples": [
-    {"id": "e3d282da", "file": "e3d282da-average_of_two_batch_fids.npy", "compound": "L-alanine",
-     "chain": {"groups": [["C1", "C", 1], ["C2", "C", 3], ["N1", "N", 3]], "bonds": [["C1", "C2"], ["C1", "N1"]]},
-     "one_bond": {"C1": 145.0, "C2": 129.0, "N1": 75.0}},
-    {"id": "b683220d", "file": "b683220d-average_fid.npy", "compound": "lactic acid",
-     "chain": {"groups": [["C1", "C", 1], ["C2", "C", 3], ["O1", "O", 1]], "bonds": [["C1", "C2"], ["C1", "O1"]]},
-     "one_bond": {"C1": 147.0, "C2": 129.0}},
-    {"id": "7ad4aafb", "file": "7ad4aafb-average_fid.npy", "compound": "pyridine",
-     "motif": "pyridine ring", "one_bond": {"A2": 178.0, "A3": 162.0, "A4": 162.0}},
-    {"id": "fde3fbb2", "file": "fde3fbb2-average_fid.npy", "compound": "ethylenediamine",
-     "motif": "H2N-CH2-CH2-NH2", "one_bond": {"C1": 132.0, "N1": 68.0}},
-    {"id": "4322bdfc", "file": "4322bdfc-average_fid.npy", "compound": "triethylamine",
-     "motif": "N-ethyl (Et3N)", "one_bond": {"C1": 131.0, "C2": 125.0}},
-    {"id": "e66a4b08", "file": "e66a4b08-average_fid.npy", "compound": "N-ethylmethylamine",
-     "chain": {"groups": [["C1", "C", 3], ["C2", "C", 2], ["N1", "N", 1], ["C3", "C", 3]],
-               "bonds": [["C1", "C2"], ["C2", "N1"], ["N1", "C3"]]},
-     "one_bond": {"C1": 125.0, "C2": 135.0, "C3": 131.5, "N1": 68.0}}
-  ]
+ "note": "Confirmed samples (identity given by the user after blind analysis). Data files are read from ZULF_DATA_DIR and never committed. Structures: 'chain' = (site, element, H count) groups and bonds for zulf_hypothesis.motifs._chain (generic couplings), or a registered 'motif'; one_bond: starting 1J (Hz). Skeleton = multiset of (element, H count) over labelled sites with protons, exchangeable elements excluded.",
+ "processing": {
+  "sampling_rate_hz": 4000.0,
+  "start_sample": 200,
+  "stop_sample": 4200,
+  "sg_window": 201,
+  "sg_order": 2,
+  "remove_mean": true,
+  "apodization_rate_per_s": 0.6,
+  "zero_fill": 4,
+  "ranges": [
+   [
+    62.0,
+    119.0
+   ],
+   [
+    121.0,
+    179.0
+   ],
+   [
+    181.0,
+    293.0
+   ],
+   [
+    295.0,
+    320.0
+   ]
+  ],
+  "instrument_lines_hz": [
+   60,
+   120,
+   180,
+   240,
+   294.0,
+   300,
+   322.9
+  ],
+  "phase_delay_bounds_s": null,
+  "phase_delay_note": "Instrument prior for the fitted delay, e.g. [-0.0046, -0.0026] for this NMRduino setup (fits of the confirmed samples: -3.4 to -3.9 ms). null = no prior (+-10 ms)."
+ },
+ "samples": [
+  {
+   "id": "e3d282da",
+   "file": "e3d282da-average_of_two_batch_fids.npy",
+   "compound": "L-alanine",
+   "chain": {
+    "groups": [
+     [
+      "C1",
+      "C",
+      1
+     ],
+     [
+      "C2",
+      "C",
+      3
+     ],
+     [
+      "N1",
+      "N",
+      3
+     ]
+    ],
+    "bonds": [
+     [
+      "C1",
+      "C2"
+     ],
+     [
+      "C1",
+      "N1"
+     ]
+    ]
+   },
+   "one_bond": {
+    "C1": 145.0,
+    "C2": 129.0,
+    "N1": 75.0
+   }
+  },
+  {
+   "id": "b683220d",
+   "file": "b683220d-average_fid.npy",
+   "compound": "lactic acid",
+   "chain": {
+    "groups": [
+     [
+      "C1",
+      "C",
+      1
+     ],
+     [
+      "C2",
+      "C",
+      3
+     ],
+     [
+      "O1",
+      "O",
+      1
+     ]
+    ],
+    "bonds": [
+     [
+      "C1",
+      "C2"
+     ],
+     [
+      "C1",
+      "O1"
+     ]
+    ]
+   },
+   "one_bond": {
+    "C1": 147.0,
+    "C2": 129.0
+   }
+  },
+  {
+   "id": "7ad4aafb",
+   "file": "7ad4aafb-average_fid.npy",
+   "compound": "pyridine",
+   "motif": "pyridine ring",
+   "one_bond": {
+    "A2": 178.0,
+    "A3": 162.0,
+    "A4": 162.0
+   }
+  },
+  {
+   "id": "fde3fbb2",
+   "file": "fde3fbb2-average_fid.npy",
+   "compound": "ethylenediamine",
+   "motif": "H2N-CH2-CH2-NH2",
+   "one_bond": {
+    "C1": 132.0,
+    "N1": 68.0
+   }
+  },
+  {
+   "id": "4322bdfc",
+   "file": "4322bdfc-average_fid.npy",
+   "compound": "triethylamine",
+   "motif": "N-ethyl (Et3N)",
+   "one_bond": {
+    "C1": 131.0,
+    "C2": 125.0
+   }
+  },
+  {
+   "id": "e66a4b08",
+   "file": "e66a4b08-average_fid.npy",
+   "compound": "N-ethylmethylamine",
+   "chain": {
+    "groups": [
+     [
+      "C1",
+      "C",
+      3
+     ],
+     [
+      "C2",
+      "C",
+      2
+     ],
+     [
+      "N1",
+      "N",
+      1
+     ],
+     [
+      "C3",
+      "C",
+      3
+     ]
+    ],
+    "bonds": [
+     [
+      "C1",
+      "C2"
+     ],
+     [
+      "C2",
+      "N1"
+     ],
+     [
+      "N1",
+      "C3"
+     ]
+    ]
+   },
+   "one_bond": {
+    "C1": 125.0,
+    "C2": 135.0,
+    "C3": 131.5,
+    "N1": 68.0
+   }
+  }
+ ]
 }

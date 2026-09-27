@@ -25,6 +25,9 @@ from zulf_hypothesis.fit import EXCHANGE_ELEMENTS                            # n
 from zulf_hypothesis.motifs import MOTIFS, _chain                           # noqa: E402
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "confirmed_samples.json"
+# instrument prior for the fitted delay (configs: processing.phase_delay_bounds_s; env ZULF_DELAY_BOUNDS "lo,hi")
+_bounds = os.environ.get("ZULF_DELAY_BOUNDS") or json.load(open(CONFIG))["processing"].get("phase_delay_bounds_s")
+DELAY = tuple(float(x) for x in (_bounds.split(",") if isinstance(_bounds, str) else _bounds)) if _bounds else None
 
 
 def observed_for(sample, proc, data_dir):
@@ -59,7 +62,7 @@ def one_bond(couplings, threshold=90.0):
 
 def run_known(sample, obs, workers, out):
     t = time.time()
-    fit = fit_structure(structure_for(sample), obs, fit_settings(workers=workers), report=str(out / f"{sample['id']}_known"),
+    fit = fit_structure(structure_for(sample), obs, fit_settings(workers=workers, phase_delay_bounds_s=DELAY), report=str(out / f"{sample['id']}_known"),
                         route="both")
     best = fit.best
     red = best.chi2 / max(best.n - best.k, 1)
@@ -82,7 +85,7 @@ def run_known(sample, obs, workers, out):
 def run_blind(sample, obs, workers, out, proc):
     t = time.time()
     ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))
-    res = search_hypotheses(obs, ps, blind_settings(workers, sample["id"]))
+    res = search_hypotheses(obs, ps, blind_settings(workers, sample["id"], phase_delay_bounds_s=DELAY))
     write_report(res, obs, str(out / f"{sample['id']}_blind"))
     truth = skeleton(structure_for(sample))
     ranked = [e for e in res.ranked() if e.model.fragment is not None]
