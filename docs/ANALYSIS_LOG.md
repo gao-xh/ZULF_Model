@@ -696,3 +696,14 @@ skills under `skills/`; this file keeps the history.
   Changed: the slow model starts with its N-H couplings near zero (then it
   reproduces the fast fit at the start) plus a generic alternate start.
   Also added scripts/analyze_sample.py (one command for a new sample).
+- Low-frequency ranges (v5low, ranges from 12 Hz): 32 min on 2 workers; the
+  model follows 12-40 Hz roughly but not a 48-51 Hz feature (instrument or
+  unmodelled), and the 13CH2 region is not improved. Not made a default.
+- Nested starts (v6): slow exchange from the fast fit with N-H couplings near
+  zero: 26921 (generic start: 36308); slow + remote J 23889 vs fast + remote J
+  23868 with 9 more parameters (rejected). So slow N-H exchange does not
+  explain the remaining misfit either. Gaussian width started at 0.3 Hz ended
+  worse than its parent (not nested): now starts at 0.02 Hz.
+- Added protonated forms (amine -> ammonium: one more H on each N with room)
+  as warm-started slow-exchange extensions; e66a4b08 is likely protonated in
+  water (pKa about 10.8). Run v7 pending.
