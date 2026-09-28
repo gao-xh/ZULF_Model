@@ -66,5 +66,6 @@ Experimental inputs are read-only and never committed.
 
 ## Status
 
-See `docs/PLAN.md`. Results from the solver are conditional numerical
+Start with `docs/HANDOFF.md` (state, data, how to regenerate results, work in
+flight), then `docs/PLAN.md`. Results from the solver are conditional numerical
 candidates, reported with their flags, residuals and held-out scores.

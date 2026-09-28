@@ -223,12 +223,22 @@ fixed, so later phases are experiments rather than restructuring.
       calibration); ideas: a phase reference recorded with every acquisition
       (test signal), the ringing after the edge, joint use of several
       processing windows, criteria restricted to +-20 deg of the calibration.
-- [ ] Processing parameters per dataset from the data: window length from
-      the SNR curve, SG window from the baseline rates, apodization; each
-      choice validated on the confirmed samples.
+- [x] Window length per dataset (user: a too-short window loses spectral
+      information): `signal_extent` + plan window_mode "signal_extent"
+      (commit 160c33d; default still "fixed"). Known fits (ANALYSIS_LOG):
+      lactic acid and triethylamine better (delay at the edge, phased-route
+      chi2 halved), N-ethylmethylamine mixed; cost 4-6x.
+- [ ] Renderer / SG cost for long records (needed before the long window
+      becomes the default).
+- [ ] Soft crop window (flat middle, Gaussian roll-off at both ends) and a
+      weighted SG kernel of the same shape (user proposal; design in
+      docs/HANDOFF.md), inside zulf_core's single operator, default off.
+- [ ] Processing parameters per dataset from the data: SG window from the
+      lowest band / baseline rates, apodization vs stop taper; each choice
+      validated on the confirmed samples (J stability, uncertainty, c_hat).
 - [ ] Instrument-line detection per dataset instead of a fixed list.
-- [ ] Wire `process_dataset` into the regression (per-dataset plans) once
-      the choices are validated.
+- [x] Wire `process_dataset` into the regression:
+      `regression_confirmed.py --processing dataset [--window-mode ...]`.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
