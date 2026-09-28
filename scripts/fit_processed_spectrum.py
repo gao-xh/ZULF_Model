@@ -64,6 +64,9 @@ def main():
     ap.add_argument("--exchange", default="auto", choices=["auto", "fast", "slow", "both"],
                     help="exchange regimes (fit_structure); 'fast' fits the given protonation state only")
     ap.add_argument("--protonate", action="store_true", help="add one proton on every N that has room first")
+    ap.add_argument("--moves", default="", help="comma-separated refining moves (default: fit_settings' "
+                    "REFINING_MOVES); e.g. free_remote_couplings to skip the Gaussian width, whose derivatives "
+                    "need --record and are slow for long records")
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
@@ -84,7 +87,8 @@ def main():
     out = Path(args.out or f"runs/processed/{args.id}")
     out.mkdir(parents=True, exist_ok=True)
     t = time.time()
-    fit = fit_structure(fragment, obs, fit_settings(workers=args.workers), exchange=args.exchange,
+    changes = {"moves": tuple(m for m in args.moves.split(",") if m)} if args.moves else {}
+    fit = fit_structure(fragment, obs, fit_settings(workers=args.workers, **changes), exchange=args.exchange,
                         report=str(out / "structure"))
     best = fit.best
     row = {"id": args.id, "best": best.key, "reduced_chi2": round(best.chi2 / max(best.n - best.k, 1), 2),
