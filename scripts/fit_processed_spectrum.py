@@ -2,10 +2,13 @@
 
     python scripts/fit_processed_spectrum.py --freq F.npy --values V.npy --id NAME \\
         --structure '{"motif": "pyridine ring", "one_bond": {"A2": 178, "A3": 162, "A4": 162}}' \\
-        [--couplings '{"J(HA2,HA3)": 4.9, ...}'] [--range 140,200] [--out runs/processed/NAME] [--workers 4]
+        [--couplings '{"J(HA2,HA3)": 4.9, ...}'] [--range 140,200] [--record 4000,88457]
+        [--out runs/processed/NAME] [--workers 4]
 
-The spectrum is compared on its real part with ideal Lorentzian (infinite-record) lines
-(ObservedSpectrum.from_spectrum with record=None); a residual common phase and a delay are fitted with the
+The spectrum is compared on its real part. `--record fs,points` gives the acquisition it came from (a plain FFT of
+`points` samples at `fs`; e.g. a frequency axis k fs / points): the model is then rendered on that finite record
+with analytic derivatives for every line shape (with record=None ideal Lorentzian lines are used and fits with a
+Gaussian width fall back to finite differences, several times slower). A residual common phase and a delay are fitted with the
 couplings, as for any processed spectrum. Without a FID there is no global pattern search, so the starting
 couplings matter: `--couplings` overrides fragment couplings by key (symmetry partners follow). Writes the
 report of zulf_hypothesis.write_report (OUT/structure.{json,md,png}) and OUT/fit.json.
@@ -21,6 +24,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
+from zulf_core.render.acquisition import Acquisition            # noqa: E402
 from zulf_core.solver import ObservedSpectrum                     # noqa: E402
 from zulf_hypothesis import fit_settings, fit_structure            # noqa: E402
 from zulf_hypothesis.fragment import pair                          # noqa: E402
@@ -55,13 +59,18 @@ def main():
     ap.add_argument("--structure", required=True)
     ap.add_argument("--couplings", default="{}")
     ap.add_argument("--range", default="140,200")
+    ap.add_argument("--record", default="", help="fs,points of the acquisition (plain FFT, no processing)")
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
     import regression_confirmed as reg
     f, v = np.load(args.freq).astype(float), np.load(args.values).astype(float)
     lo, hi = (float(x) for x in args.range.split(","))
-    obs = ObservedSpectrum.from_spectrum(f, v, [(lo, hi)], record=None, real_only=True, label=args.id)
+    record = None
+    if args.record:
+        fs, points = args.record.split(",")
+        record = Acquisition.pure(float(fs), int(points))
+    obs = ObservedSpectrum.from_spectrum(f, v, [(lo, hi)], record=record, real_only=True, label=args.id)
     spec = json.loads(args.structure)
     spec.setdefault("compound", args.id)
     fragment = override_couplings(reg.structure_for(spec), json.loads(args.couplings))
