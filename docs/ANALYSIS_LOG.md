@@ -883,3 +883,29 @@ skills under `skills/`; this file keeps the history.
   moved away from the edge. Default window stays "fixed" for now. Next:
   renderer cost for long records, then a soft (flat + Gaussian edge) crop
   window and weighted SG (user proposal), then re-run all six.
+
+## Blake pyridine series (processed spectra, real part; x_pyridine 0.02-1.00, pyridinium in 6 M HCl)
+- Data: frequency / amplitude arrays, 0-4000 Hz, 88458 points (spacing
+  4000/88457 Hz: a plain FFT of 88457 samples at 4 kHz, 22.1 s). Given as
+  phased, baseline-corrected real parts (user). Fitted range 140-200 Hz.
+  Tool: scripts/fit_processed_spectrum.py (known structure, coupling
+  overrides; --record 4000,88457 renders the finite record so every line
+  shape has analytic derivatives: with record=None the Gaussian-width
+  extensions fell back to finite differences and a fit took 65 min).
+- Start: pyridine motif with literature couplings (J23 4.9, J34 7.7,
+  J24 1.8, J35 1.4, J25 0.9, J26 -0.1; 1J 178 / 162.5 / 161.5, long-range
+  CH from tables); predicted lines already close to the data.
+- First fit (x = 0.50, exchange auto): best "slow exchange, protonated +
+  remote J", k 53, reduced chi2 21.5; neutral symmetric pyridine k 26,
+  chi2 3.8x higher. Cause: `protonated()` dropped every symmetry generator,
+  so C2/C6 and C3/C5 became separate isotopomers with free couplings
+  (double the parameters), which fitted line-shape detail; the N-H
+  couplings themselves were below 1.1 Hz. Not physical for neutral pyridine
+  in water. Fix: protonated() keeps generators that map the new N-H onto an
+  existing label (pyridinium keeps the mirror; test added). This also
+  affected the protonated forms in the confirmed regression (triethylamine,
+  N-ethylmethylamine, ethylenediamine): re-run the regression.
+- Re-run: pyridine samples with exchange "fast" (given protonation state
+  only, symmetric), pyridinium as the protonated symmetric fragment
+  (exchange auto: N-H decoupled vs coupled). C3/C4 1J of pyridinium from a
+  scan: 171 Hz; C2 ambiguous (179 or 190 Hz), both starts to be fitted.

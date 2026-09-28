@@ -88,8 +88,22 @@ def protonated(fragment: Fragment) -> Optional[Fragment]:
         changed = True
     if not changed:
         return None
+    # Symmetry is kept: a generator maps the new proton on N to the new proton on the image of N (pyridinium keeps
+    # the ring mirror, ethylenediammonium the N1 <-> N2 swap). A generator that maps a new label onto a label that
+    # does not exist is dropped. (Before this, every generator was dropped, which doubled the free couplings of
+    # symmetric molecules and let the protonated form win by over-fitting, e.g. neutral pyridine; ANALYSIS_LOG.)
+    labels = {p.label for p in protons}
+    new = [p.label for p in protons if p.label not in {q.label for q in fragment.protons}]
+    symmetry = []
+    for g in fragment.symmetry:
+        image = dict(g)
+        for label in new:
+            site = next(p.site for p in protons if p.label == label)
+            image[label] = f"H{g.get(site, site)}"
+        if all(image[label] in labels for label in new):
+            symmetry.append(image)
     return replace(fragment, name=f"{fragment.name} (protonated)", protons=tuple(protons), couplings=couplings,
-                   symmetry=())
+                   symmetry=tuple(symmetry))
 
 
 def exchange_variants(fragment: Fragment, mode: str = "auto") -> List[Fragment]:

@@ -466,6 +466,21 @@ class FitStructureTests(unittest.TestCase):
         self.assertEqual(t.couplings[pair("HC2", "HN1")], 5.5)
         self.assertIsNone(protonated(template("CH-CH3")))                 # no nitrogen
 
+    def test_protonated_keeps_symmetry(self):
+        # pyridine -> pyridinium: the mirror through N fixes N, so it maps the new N-H onto itself; the 13C
+        # isotopomers stay the three symmetry-distinct carbons (C2/C6, C3/C5, C4: counted by hand)
+        from zulf_hypothesis.fit import protonated
+        from zulf_hypothesis.motifs import MOTIFS
+        base = MOTIFS["pyridine ring"].fragment({"A2": 185.0, "A3": 170.0, "A4": 170.0})
+        p = protonated(base)
+        self.assertEqual(len(p.symmetry), 1)
+        self.assertEqual(p.symmetry[0]["HA1"], "HA1")
+        model = build_model(p, ranges=[(140.0, 200.0)])
+        self.assertEqual(len(model.component_labels), 3)
+        # new couplings: N-H to the two ortho protons (mirror images, one key) and the 1J(N,H): the other keys stay
+        self.assertEqual(len(model.coupling_names) - len(build_model(base, ranges=[(140.0, 200.0)]).coupling_names),
+                         len({k for k in model.coupling_names if "HA1" in k}))
+
     def test_delay_prior_excluding_zero(self):
         from zulf_hypothesis.fit import default_fit_base
         st = default_fit_base(phase_delay_bounds_s=(-0.0046, -0.0026))

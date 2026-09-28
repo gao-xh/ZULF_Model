@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from zulf_core.render.acquisition import Acquisition            # noqa: E402
 from zulf_core.solver import ObservedSpectrum                     # noqa: E402
 from zulf_hypothesis import fit_settings, fit_structure            # noqa: E402
+from zulf_hypothesis.fit import protonated                        # noqa: E402
 from zulf_hypothesis.fragment import pair                          # noqa: E402
 
 
@@ -60,6 +61,9 @@ def main():
     ap.add_argument("--couplings", default="{}")
     ap.add_argument("--range", default="140,200")
     ap.add_argument("--record", default="", help="fs,points of the acquisition (plain FFT, no processing)")
+    ap.add_argument("--exchange", default="auto", choices=["auto", "fast", "slow", "both"],
+                    help="exchange regimes (fit_structure); 'fast' fits the given protonation state only")
+    ap.add_argument("--protonate", action="store_true", help="add one proton on every N that has room first")
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
@@ -73,11 +77,15 @@ def main():
     obs = ObservedSpectrum.from_spectrum(f, v, [(lo, hi)], record=record, real_only=True, label=args.id)
     spec = json.loads(args.structure)
     spec.setdefault("compound", args.id)
-    fragment = override_couplings(reg.structure_for(spec), json.loads(args.couplings))
+    fragment = reg.structure_for(spec)
+    if args.protonate:
+        fragment = protonated(fragment)
+    fragment = override_couplings(fragment, json.loads(args.couplings))
     out = Path(args.out or f"runs/processed/{args.id}")
     out.mkdir(parents=True, exist_ok=True)
     t = time.time()
-    fit = fit_structure(fragment, obs, fit_settings(workers=args.workers), report=str(out / "structure"))
+    fit = fit_structure(fragment, obs, fit_settings(workers=args.workers), exchange=args.exchange,
+                        report=str(out / "structure"))
     best = fit.best
     row = {"id": args.id, "best": best.key, "reduced_chi2": round(best.chi2 / max(best.n - best.k, 1), 2),
            "k": best.k, "seconds": round(time.time() - t), "couplings": {k: round(float(x), 3) for k, x in best.couplings.items()},
