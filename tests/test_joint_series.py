@@ -16,7 +16,7 @@ from zulf_hypothesis.search import _settings_for
 
 
 class JointSeriesTests(unittest.TestCase):
-    def test_jacobian_matches_finite_differences_and_linear_couplings(self):
+    def test_monotone_couplings_and_jacobian_against_finite_differences(self):
         model = build_model(template("CH-CH3"))
         settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
         acq = Acquisition.pure(1000.0, 4000)
@@ -33,24 +33,22 @@ class JointSeriesTests(unittest.TestCase):
                 p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model
             obs.append(ObservedSpectrum.from_spectrum(f, np.asarray(sig) + 0.01 * rng.normal(size=len(f)),
                                                       [(100.0, 200.0)], record=acq))
-        for shape in ("linear", "monotone"):
-            joint = JointSeries(model, settings, obs, [0.1, 0.5, 1.0], shape=shape,
-                                signs=[1.0 if k % 2 else -1.0 for k in range(len(model.coupling_names))])
-            table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])
-            z = joint.pack(table + np.arange(3)[:, None] * 0.2, [p.vector() for p in joint.params]) + 0.05
-            joint.set_priors([0], [1.0 + joint.coupling_values(z, 0).mean()], [0.5], 2.0)
-            i = joint.coupling.index(model.coupling_names["J(Ca,Ha)"][0])
-            vals = np.array([joint.spectrum_vector(z, s)[joint.col[joint.coupling[i]]] for s in range(3)])
-            steps = np.diff(vals)
-            if shape == "linear":      # exactly linear in x
-                self.assertAlmostEqual(steps[1], steps[0] * 0.5 / 0.4, places=10)
-            else:                      # one direction only (independent check of the design matrix)
-                self.assertTrue(np.all(steps >= -1e-12) or np.all(steps <= 1e-12))
-            jac = joint.jacobian(z)
-            h = 1e-6
-            numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
-                                       for e in np.eye(len(z))])
-            self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0), msg=shape)
+        joint = JointSeries(model, settings, obs, [0.1, 0.5, 1.0])
+        table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])
+        z = joint.pack(table + np.array([0.0, 0.3, 0.2])[:, None], [p.vector() for p in joint.params])
+        z[:joint.nt:joint.m] += 0.05
+        z[1:joint.nt:joint.m] = np.where(np.arange(joint.nc) % 2, 0.7, -0.4)    # both directions
+        joint.set_priors([0], [1.0 + joint.coupling_values(z, 0).mean()], [0.5], 2.0)
+        for k in range(joint.nc):   # monotone by construction, direction = sign of A (independent check)
+            steps = np.diff(joint.coupling_values(z, k))
+            a = joint.theta(z, k)[1]
+            self.assertTrue(np.all(steps * np.sign(a) >= -1e-12))
+            self.assertAlmostEqual(joint.coupling_values(z, k)[-1] - joint.coupling_values(z, k)[0], a, places=10)
+        jac = joint.jacobian(z)
+        h = 1e-6
+        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                   for e in np.eye(len(z))])
+        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
 if __name__ == "__main__":
     unittest.main()
