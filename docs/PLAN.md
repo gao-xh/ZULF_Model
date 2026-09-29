@@ -181,12 +181,12 @@ fixed, so later phases are experiments rather than restructuring.
         range from the data (no instrument prior known).
   - [x] F remote couplings: a triggered move that frees the couplings built
         as 0 (4J, 5J) between labelled sites and proton groups.
-  - [~] G intermediate exchange: not implemented. Both limits were fitted
-        with nested starts on e66a4b08 (fast; slow and protonated as
-        warm-started extensions) and neither explained the remaining
-        misfit, so an intermediate-regime model (Redfield scalar relaxation
-        of the second kind per transition, one exchange time) is unlikely to
-        be the main missing term; kept as a design note.
+  - [x] G intermediate exchange (D45, 2026-09-29): Liouville-space model
+        with a fitted exchange rate per exchangeable group
+        (zulf_core.physics.exchange, analytic derivatives, optional torch/GPU
+        backend); fit_staged.py --exchange. Earlier: both limits were fitted
+        on e66a4b08 and neither explained the misfit. Applied first to
+        pyridinium (Blake 6 M HCl).
   - [x] H automatic report per fit: ranked table, phased fit figure, J
         matrix file, findings.
   - [x] R regression script over the confirmed samples (blind search and

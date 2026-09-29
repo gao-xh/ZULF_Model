@@ -3,7 +3,9 @@
 The detected real signal is `s(t) = dc + sum_k Re(A_k exp(2 pi i f_k t))` with
 positive `f_k` in Hz. Amplitudes are per molecule when the protocol normalizes
 by the full Hilbert dimension. Transition lists do not depend on linewidth and
-can be cached and re-rendered.
+can be cached and re-rendered. A list may carry `line_rates` (1/s): a decay of
+each line that belongs to the spin dynamics (chemical exchange, physics.exchange)
+and adds to the component's fitted rate when rendered; None means zero.
 """
 from __future__ import annotations
 
@@ -31,6 +33,7 @@ class TransitionList:
     dc: complex = 0.0
     families: Optional[np.ndarray] = None
     metadata: dict = field(default_factory=dict)
+    line_rates: Optional[np.ndarray] = None
 
     def __post_init__(self):
         self.frequencies_hz = np.asarray(self.frequencies_hz, float)
@@ -42,23 +45,37 @@ class TransitionList:
         if self.families is None:
             self.families = np.zeros(len(self.frequencies_hz), dtype=int)
         self.families = np.asarray(self.families, int)
+        if self.line_rates is not None:
+            self.line_rates = np.asarray(self.line_rates, float)
+            if self.line_rates.shape != self.frequencies_hz.shape or not np.all(np.isfinite(self.line_rates)) \
+                    or np.any(self.line_rates < 0):
+                raise ValueError("line_rates must be finite, nonnegative and one per transition.")
+
+    def rates_of_lines(self) -> np.ndarray:
+        """Intrinsic decay rate of every line (zeros without line_rates)."""
+        return self.line_rates if self.line_rates is not None else np.zeros(len(self.frequencies_hz))
+
+    def _lr(self, keep=None):
+        if self.line_rates is None:
+            return None
+        return self.line_rates.copy() if keep is None else self.line_rates[keep]
 
     def __len__(self) -> int:
         return len(self.frequencies_hz)
 
     def signal(self, times_s: np.ndarray) -> np.ndarray:
-        """Noiseless undamped real signal at the given times (test reference)."""
+        """Noiseless real signal at the given times, damped only by line_rates (test reference)."""
         t = np.asarray(times_s, float)
-        phase = np.exp(2j * np.pi * t[:, None] * self.frequencies_hz[None, :])
+        phase = np.exp((2j * np.pi * self.frequencies_hz[None, :] - self.rates_of_lines()[None, :]) * t[:, None])
         return (phase @ self.amplitudes).real + np.real(self.dc)
 
     def scaled(self, factor: complex) -> "TransitionList":
         return TransitionList(self.frequencies_hz.copy(), self.amplitudes * factor, self.dc * factor,
-                              self.families.copy(), dict(self.metadata))
+                              self.families.copy(), dict(self.metadata), self._lr())
 
     def with_families(self, families: np.ndarray) -> "TransitionList":
         return TransitionList(self.frequencies_hz.copy(), self.amplitudes.copy(), self.dc,
-                              np.asarray(families, int), dict(self.metadata))
+                              np.asarray(families, int), dict(self.metadata), self._lr())
 
     def split_families(self, edges_hz: Sequence[float]) -> "TransitionList":
         """Label transitions by frequency interval; a transition on an edge goes up."""
@@ -67,30 +84,35 @@ class TransitionList:
     def within(self, f_min: float, f_max: float) -> "TransitionList":
         keep = (self.frequencies_hz >= f_min) & (self.frequencies_hz <= f_max)
         return TransitionList(self.frequencies_hz[keep], self.amplitudes[keep], self.dc,
-                              self.families[keep], dict(self.metadata))
+                              self.families[keep], dict(self.metadata), self._lr(keep))
 
     @staticmethod
     def concatenate(parts: Sequence["TransitionList"]) -> "TransitionList":
         if not parts:
             return TransitionList(np.zeros(0), np.zeros(0, complex))
+        line_rates = None
+        if any(p.line_rates is not None for p in parts):
+            line_rates = np.concatenate([p.rates_of_lines() for p in parts])
         return TransitionList(np.concatenate([p.frequencies_hz for p in parts]),
                               np.concatenate([p.amplitudes for p in parts]),
                               complex(sum(p.dc for p in parts)),
-                              np.concatenate([p.families for p in parts]))
+                              np.concatenate([p.families for p in parts]), line_rates=line_rates)
 
     def to_dict(self) -> dict:
         return {"frequencies_hz": self.frequencies_hz.tolist(),
                 "amplitudes_real": self.amplitudes.real.tolist(),
                 "amplitudes_imag": self.amplitudes.imag.tolist(),
                 "dc": [float(np.real(self.dc)), float(np.imag(self.dc))],
-                "families": self.families.tolist(), "metadata": self.metadata}
+                "families": self.families.tolist(), "metadata": self.metadata,
+                "line_rates": None if self.line_rates is None else self.line_rates.tolist()}
 
     @classmethod
     def from_dict(cls, data: dict) -> "TransitionList":
         return cls(np.asarray(data["frequencies_hz"]),
                    np.asarray(data["amplitudes_real"]) + 1j * np.asarray(data["amplitudes_imag"]),
                    complex(*data.get("dc", [0.0, 0.0])), np.asarray(data.get("families"), int)
-                   if data.get("families") is not None else None, dict(data.get("metadata", {})))
+                   if data.get("families") is not None else None, dict(data.get("metadata", {})),
+                   None if data.get("line_rates") is None else np.asarray(data["line_rates"], float))
 
 
 def merge_transitions(frequencies: np.ndarray, amplitudes: np.ndarray,

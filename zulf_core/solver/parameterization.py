@@ -26,9 +26,9 @@ class Parameter:
     lower: float
     upper: float
     free: bool = True
-    kind: str = "coupling"          # coupling | log_rate | sigma | phase_delay
+    kind: str = "coupling"          # coupling | log_rate | sigma | phase_delay | log_exchange
     component: int = -1
-    detail: tuple = ()               # (group_a, group_b) for couplings, (family,) for rates
+    detail: tuple = ()               # (group_a, group_b) for couplings, (family,) for rates, (group,) for exchange
 
     def check(self) -> None:
         if not (math.isfinite(self.value) and self.lower <= self.value <= self.upper and self.lower < self.upper):
@@ -163,6 +163,31 @@ class Parameterization:
             self.ties[f] = leader
             self.parameters[f].value = self.parameters[leader].value
         return self
+
+    def add_exchange(self, component: int, group: int, rate_per_s: float = 10.0,
+                     bounds_per_s: Tuple[float, float] = (0.01, 1.0e5), free: bool = True,
+                     name: Optional[str] = None) -> str:
+        """Let every spin of one group of a component exchange with the solvent at a fitted rate k (1/s),
+        parameterized as log k (physics.exchange, D45). Returns the parameter name; tie it across the
+        isotopologues of one molecule with `tie`."""
+        if not 0 <= component < len(self.layouts) or not 0 <= group < len(self.layouts[component].group_sizes):
+            raise ValueError("No such component or group.")
+        lo, hi = bounds_per_s
+        name = name or f"c{component}.log_kex{group}"
+        value = float(np.clip(rate_per_s, lo, hi))
+        prm = Parameter(name, math.log(value), math.log(lo), math.log(hi), free, "log_exchange", component, (group,))
+        prm.check()
+        self.parameters[name] = prm
+        self.order.append(name)
+        return name
+
+    def exchange_rates(self, values: Dict[str, float], component: int) -> Dict[int, float]:
+        """{group: k (1/s)} of the exchanging groups of a component (empty: static spin system)."""
+        return {self.parameters[n].detail[0]: math.exp(values[n]) for n in self.order
+                if self.parameters[n].kind == "log_exchange" and self.parameters[n].component == component}
+
+    def has_exchange(self, component: int) -> bool:
+        return any(p.kind == "log_exchange" and p.component == component for p in self.parameters.values())
 
     def coupling_names(self, component: int) -> List[str]:
         return [n for n in self.order if self.parameters[n].kind == "coupling" and self.parameters[n].component == component]

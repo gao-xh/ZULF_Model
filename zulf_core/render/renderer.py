@@ -49,6 +49,12 @@ def _per_transition(values: Rates, transitions: TransitionList, name: str, posit
     return out
 
 
+def _decay_rates(rates: Rates, transitions: TransitionList) -> np.ndarray:
+    """Fitted rates (scalar or per family) plus each line's own rate (TransitionList.line_rates)."""
+    r = _per_transition(rates, transitions, "Decay rates")
+    return r + transitions.rates_of_lines() if transitions.line_rates is not None else r
+
+
 def gaussian_envelope(times_s: np.ndarray, sigma_hz: float) -> np.ndarray:
     """exp(-(2 pi sigma t)^2 / 2): FID envelope of a Gaussian frequency distribution with std sigma."""
     return np.exp(-0.5 * (2 * np.pi * sigma_hz * np.asarray(times_s)) ** 2)
@@ -110,7 +116,7 @@ class Renderer:
     # -- mode bookkeeping ----------------------------------------------------
     def _modes(self, transitions: TransitionList, rates: Rates, gain: complex, phase_delay_s: float):
         f = transitions.frequencies_hz
-        r = _per_transition(rates, transitions, "Decay rates")
+        r = _decay_rates(rates, transitions)
         lam = -r + 2j * np.pi * f
         a = transitions.amplitudes * gain * np.exp(2j * np.pi * f * phase_delay_s)
         t0 = self.acq.time_origin_s
@@ -360,7 +366,7 @@ class Renderer:
         if not len(transitions):
             return out
         f = transitions.frequencies_hz
-        r = _per_transition(rates, transitions, "Decay rates")
+        r = _decay_rates(rates, transitions)
         sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
         a = transitions.amplitudes * gain * np.exp(2j * np.pi * f * (phase_delay_s + acq.time_origin_s))
         times = acq.times()
@@ -425,7 +431,7 @@ class ContinuousRenderer:
         if not len(transitions):
             return np.zeros(len(f), complex)
         fk = transitions.frequencies_hz
-        r = _per_transition(rates, transitions, "Decay rates")
+        r = _decay_rates(rates, transitions)
         sigma = _per_transition(gaussian_sigma_hz, transitions, "Gaussian sigma")
         if np.any((r <= 0) & (sigma <= 0)):
             raise ValueError("Each transition needs a positive rate or a positive Gaussian sigma.")

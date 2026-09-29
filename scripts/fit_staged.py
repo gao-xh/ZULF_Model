@@ -4,6 +4,12 @@
         --structure '{"motif": "pyridine ring", "one_bond": {...}}' --couplings '{"J(HA2,HA3)": 4.9, ...}' \\
         [--hold-first J(HA] [--starts 12] [--spread 1.0] [--variant ratios] [--range 140,200] [--out DIR]
 
+Chemical exchange (`--exchange HA1`): the listed proton groups (labels, comma-separated) exchange with the
+solvent at a fitted rate k (1/s, log-parameterized, one value tied across the isotopologues; start
+`--kex-start`, bounds `--kex-bounds`); the model is then a Liouville-space one (zulf_core.physics.exchange) and
+its derivatives are numerical. `--device numpy|cpu|cuda` selects the dense linear-algebra backend of the
+exchange model (cpu/cuda: PyTorch; cuda needs a GPU); the environment variable ZULF_LINALG_DEVICE does the same.
+
 Optional Gaussian priors (`--prior-sigma-hh`, `--prior-sigma-ch`, `--prior-weight`) keep the small couplings
 (|J| < 50 Hz) near their starting values (e.g. literature) with a weight, while every coupling stays free
 (RefineSettings.priors). Stage 1 holds every coupling whose key starts with one of the `--hold-first` prefixes at its starting value (e.g.
@@ -53,6 +59,42 @@ def figure(obs, prediction, title, path):
     plt.close(fig)
 
 
+def group_index(model, label: str, component: int) -> int:
+    """Group index of a proton-group label in one component, from the coupling parameter names."""
+    sets = []
+    for key, names in model.coupling_names.items():
+        members = key[2:-1].split(",")
+        if label not in members:
+            continue
+        for n in names:
+            if n.startswith(f"c{component}.J"):
+                a, b = n.split(".J")[1].split("-")
+                sets.append({int(a), int(b)})
+    common = set.intersection(*sets) if len(sets) >= 2 else set()
+    if len(common) != 1:
+        raise ValueError(f"Cannot locate group {label} in component {component}.")
+    return common.pop()
+
+
+def add_exchange(param, model, labels, start, bounds):
+    """One exchange-rate parameter per label, tied across the components that contain the label."""
+    names = []
+    for label in labels:
+        leader = None
+        for c in range(len(model.component_labels)):
+            try:
+                g = group_index(model, label, c)
+            except ValueError:
+                continue
+            name = param.add_exchange(c, g, start, bounds, name=f"c{c}.log_kex_{label}")
+            if leader is None:
+                leader = name
+                names.append(name)
+            else:
+                param.tie(leader, name)
+    return names
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--freq", required=True)
@@ -73,8 +115,16 @@ def main():
                     help="prior width (Hz) of every other small coupling (|J| < 50 Hz) around its starting value")
     ap.add_argument("--prior-weight", type=float, default=1.0,
                     help="prior weight: 1 = a one-sigma deviation costs one data point one noise sigma off")
+    ap.add_argument("--exchange", default="", help="proton group labels exchanging with the solvent, e.g. HA1")
+    ap.add_argument("--kex-start", type=float, default=10.0, help="starting exchange rate (1/s)")
+    ap.add_argument("--kex-bounds", default="0.01,1e5", help="exchange rate bounds (1/s)")
+    ap.add_argument("--device", default="", help="exchange linear algebra: numpy (default), cpu or cuda (torch)")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
+    if args.device:
+        from zulf_core.physics import exchange as exchange_backend
+        exchange_backend.set_backend("numpy") if args.device == "numpy" else \
+            exchange_backend.set_backend("torch", args.device)
     import regression_confirmed as reg
     from fit_processed_spectrum import override_couplings
     f, v = np.load(args.freq).astype(float), np.load(args.values).astype(float)
@@ -106,10 +156,14 @@ def main():
     t0 = time.time()
     prefixes = tuple(p for p in args.hold_first.split(",") if p)
     held = {n for key, names in model.coupling_names.items() if key.startswith(prefixes) for n in names}
+    exch_labels = [x for x in args.exchange.split(",") if x]
+    kex_bounds = tuple(float(v) for v in args.kex_bounds.split(","))
     p1 = settings.parameterize(model.interpretation)
+    add_exchange(p1, model, exch_labels, args.kex_start, kex_bounds)
     p1.fix(*[n for n in p1.order if n in held])
     r1 = refine(model.interpretation, obs, settings, parameterization=p1)
     p2 = settings.parameterize(model.interpretation)
+    kex_names = add_exchange(p2, model, exch_labels, args.kex_start, kex_bounds)
     for n, value in r1.parameters.items():
         if n in p2.parameters:
             p2.set(n, value)
@@ -119,6 +173,13 @@ def main():
     rng = np.random.default_rng(args.seed)
     starts = [x0] + [np.clip(x0 + np.where(coupling, rng.normal(0, args.spread, len(x0)), 0.0), lower, upper)
                      for _ in range(max(args.starts - 1, 0))]
+    if kex_names:
+        # exchange-rate starts spread over decades (the rate is not known in advance)
+        col = p2.free_names.index(kex_names[0])
+        for k in (1.0, 100.0, 3000.0):
+            x = x0.copy()
+            x[col] = np.clip(np.log(k), lower[col], upper[col])
+            starts.append(x)
     r2 = refine(model.interpretation, obs, settings, parameterization=p2, initial_points=starts)
     e = Evaluated(model.name, args.variant, "staged", model, r2.summary(), r2.prediction,
                   k=free_parameter_count(model, settings))
@@ -134,9 +195,13 @@ def main():
                       "flags": r2.flags, "boundary_hits": r2.boundary_hits,
                       "couplings": {k: round(x, 3) for k, x in e.couplings.items()},
                       "rates_per_s": {n: float(np.exp(x)) for n, x in r2.parameters.items() if "log_rate" in n},
+                      "exchange_rates_per_s": {n.split("log_kex_")[1]: float(np.exp(r2.parameters[n]))
+                                               for n in kex_names},
                       "delay_ms": 1e3 * r2.parameters.get("phase_delay", 0.0)},
            "k": e.k}
     try:
+        if kex_names:
+            raise NotImplementedError("linearised uncertainties do not include the exchange model yet")
         u = coupling_uncertainties(e, obs, base)
         row["uncertainty"] = u
         agreement = start_agreement(e, base)

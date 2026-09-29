@@ -1,0 +1,175 @@
+import unittest
+
+import numpy as np
+
+from zulf_core.physics import compute_transitions
+from zulf_core.physics.exchange import (exchange_transition_derivatives, exchange_transitions,
+                                       reference_exchange_signal)
+from zulf_core.physics.transitions import TransitionList
+from zulf_core.render.renderer import ContinuousRenderer
+from zulf_core.solver import ObservedSpectrum, ParameterPolicy, Parameterization
+from zulf_core.solver.forward import MixtureForward
+from zulf_core.spinsystem import Component, Interpretation, SpinSystem
+
+
+def small_system():
+    # 13C with a strongly coupled proton and one exchanging proton (index 2)
+    j = np.zeros((3, 3))
+    j[0, 1] = j[1, 0] = 140.0
+    j[0, 2] = j[2, 0] = -4.0
+    j[1, 2] = j[2, 1] = 7.0
+    return SpinSystem(("13C", "1H", "1H"), j, groups=[(0,), (1,), (2,)])
+
+
+def full_signal(tl, t):
+    m = tl.metadata
+    return tl.signal(t) + sum(a * np.exp(-r * t) for r, a in zip(m["nonoscillating_rates"],
+                                                                 m["nonoscillating_amplitudes"]))
+
+
+class ExchangeTest(unittest.TestCase):
+    def test_matches_full_liouville_propagation(self):
+        system = small_system()
+        t = np.linspace(0.0, 0.15, 121)
+        for k in (0.0, 2.0, 25.0, 400.0):
+            tl = exchange_transitions(system, {2: k})
+            ref = reference_exchange_signal(system, {2: k}, t)
+            np.testing.assert_allclose(full_signal(tl, t), ref, atol=1e-9 * np.abs(ref).max())
+
+    def test_unpolarized_solvent(self):
+        system = small_system()
+        t = np.linspace(0.0, 0.1, 81)
+        tl = exchange_transitions(system, {2: 30.0}, solvent_weight=0.0)
+        ref = reference_exchange_signal(system, {2: 30.0}, t, solvent_weight=0.0)
+        np.testing.assert_allclose(full_signal(tl, t), ref, atol=1e-9 * np.abs(ref).max())
+
+    def test_zero_rate_is_static_system(self):
+        system = small_system()
+        tl = exchange_transitions(system, {2: 0.0})
+        ref = compute_transitions(system)
+        np.testing.assert_allclose(tl.frequencies_hz, ref.frequencies_hz, atol=1e-6)
+        np.testing.assert_allclose(tl.amplitudes, ref.amplitudes, atol=1e-9 * np.abs(ref.amplitudes).max())
+        self.assertLess(tl.rates_of_lines().max(), 1e-8)
+
+    def test_fast_exchange_decouples(self):
+        system = small_system()
+        decoupled = compute_transitions(SpinSystem(("13C", "1H"), system.couplings_hz[:2, :2]))
+        tl = exchange_transitions(system, {2: 1.0e5})
+        strong = np.abs(tl.amplitudes) > 1e-3 * np.abs(tl.amplitudes).max()
+        np.testing.assert_allclose(tl.frequencies_hz[strong], decoupled.frequencies_hz, atol=1e-3)
+        np.testing.assert_allclose(np.abs(tl.amplitudes[strong]), np.abs(decoupled.amplitudes), rtol=1e-3)
+        # residual broadening of order J^2 / k
+        self.assertLess(tl.rates_of_lines()[strong].max(), 50.0 ** 2 / 1.0e5 * 10)
+
+    def test_line_rates_add_to_fitted_rates(self):
+        tl = TransitionList(np.array([10.0, 20.0]), np.array([1.0, 0.5j]), line_rates=np.array([0.5, 2.0]))
+        plain = TransitionList(np.array([10.0, 20.0]), np.array([1.0, 0.5j]))
+        f = np.linspace(5, 25, 200)
+        r = ContinuousRenderer()
+        a = r.render(tl, 1.0, f)
+        b = r.render(plain.within(9, 11), 1.5, f) + r.render(plain.within(19, 21), 3.0, f)
+        np.testing.assert_allclose(a, b, atol=1e-12)
+
+    def test_derivatives_match_differences(self):
+        # C with two equivalent protons (degenerate modes) and one exchanging proton; independent reference:
+        # central differences of the oscillating signal of recomputed lists
+        iso = ("13C", "1H", "1H", "1H")
+        j = np.zeros((4, 4))
+        j[0, 1] = j[1, 0] = j[0, 2] = j[2, 0] = 130.0
+        j[1, 2] = j[2, 1] = -12.0
+        j[0, 3] = j[3, 0] = -3.0
+        j[1, 3] = j[3, 1] = j[2, 3] = j[3, 2] = 6.5
+        groups = [(0,), (1, 2), (3,)]
+        k0 = 15.0
+        t = np.linspace(0.0, 0.3, 300)
+
+        def osc(jm, k):
+            tl = exchange_transitions(SpinSystem(iso, jm, groups=groups), {3: k})
+            return tl.signal(t) - np.real(tl.dc)
+
+        directions = [[(0, 1), (0, 2)], [(0, 3)], [(1, 3), (2, 3)]]
+        d = exchange_transition_derivatives(SpinSystem(iso, j, groups=groups), {3: k0}, directions, [[3]])
+        tl = d.transitions
+        lam = -tl.rates_of_lines() + 2j * np.pi * tl.frequencies_hz
+
+        def analytic(k):
+            return np.real(((d.d_amplitudes[k][None, :] + d.t_terms[k][None, :] * t[:, None])
+                            * np.exp(lam[None, :] * t[:, None])).sum(axis=1))
+        for k, pairs in enumerate(directions):
+            h = 1e-4
+            jp, jm = j.copy(), j.copy()
+            for p, q in pairs:
+                jp[p, q] += h
+                jp[q, p] += h
+                jm[p, q] -= h
+                jm[q, p] -= h
+            num = (osc(jp, k0) - osc(jm, k0)) / (2 * h)
+            np.testing.assert_allclose(analytic(k), num, atol=1e-6 * np.abs(num).max())
+        h = 1e-5
+        num = (osc(j, k0 * np.exp(h)) - osc(j, k0 * np.exp(-h))) / (2 * h)
+        np.testing.assert_allclose(analytic(3), num, atol=1e-6 * np.abs(num).max())
+
+    def test_torch_backend_matches_numpy(self):
+        try:
+            import torch  # noqa: F401
+        except ImportError:
+            self.skipTest("torch not installed")
+        from zulf_core.physics import exchange
+        system = small_system()
+        before = exchange.get_backend()
+        ref = exchange_transitions(system, {2: 25.0})
+        try:
+            exchange.set_backend("torch", "cpu")
+            tl = exchange_transitions(system, {2: 25.0})
+        finally:
+            exchange.set_backend(before["name"], before["device"])
+        np.testing.assert_allclose(tl.frequencies_hz, ref.frequencies_hz, atol=1e-8)
+        np.testing.assert_allclose(tl.amplitudes, ref.amplitudes, atol=1e-10 * np.abs(ref.amplitudes).max())
+        np.testing.assert_allclose(tl.rates_of_lines(), ref.rates_of_lines(), atol=1e-8)
+
+
+class ExchangeSolverTest(unittest.TestCase):
+    def setUp(self):
+        self.system = small_system()
+        self.f = np.linspace(100.0, 180.0, 1601)
+        tl = exchange_transitions(self.system, {2: 20.0})
+        self.values = ContinuousRenderer().render(tl, 0.8, self.f, gain=np.exp(0.4j))
+        self.obs = ObservedSpectrum.from_spectrum(self.f, self.values, [(100.0, 180.0)])
+
+    def param(self, k):
+        interp = Interpretation((Component(self.system, 1.0, "x"),))
+        p = Parameterization.from_interpretation(interp, ParameterPolicy(fit_phase_delay=False,
+                                                                          initial_rate_per_s=0.8))
+        p.add_exchange(0, 2, k)
+        return p
+
+    def test_true_rate_fits_exactly(self):
+        p = self.param(20.0)
+        fw = MixtureForward(p, self.obs)
+        self.assertLess(np.linalg.norm(fw.predict(p.vector()).residual), 1e-8)
+
+    def test_jacobian_matches_residual_differences(self):
+        p = self.param(35.0)
+        fw = MixtureForward(p, self.obs)
+        x = p.vector()
+        x[0] += 0.7                       # move a coupling off the truth
+        jac = fw.jacobian(x)
+        num = np.zeros_like(jac)
+        for i in range(len(x)):
+            h = 1e-6 * max(1.0, abs(x[i]))
+            e = np.zeros(len(x))
+            e[i] = h
+            num[:, i] = (fw.predict(x + e).residual - fw.predict(x - e).residual) / (2 * h)
+        np.testing.assert_allclose(jac, num, atol=1e-5 * np.abs(num).max())
+
+    def test_refine_recovers_rate(self):
+        from zulf_core.solver import RefineSettings, refine
+        p = self.param(4.0)
+        interp = Interpretation((Component(self.system, 1.0, "x"),))
+        settings = RefineSettings(policy=ParameterPolicy(fit_phase_delay=False, initial_rate_per_s=0.8), starts=1)
+        result = refine(interp, self.obs, settings, parameterization=p)
+        self.assertAlmostEqual(np.exp(result.parameters["c0.log_kex2"]), 20.0, delta=0.2)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -62,6 +62,12 @@ exact zero field. The isotropy argument above no longer holds with a field:
 a longitudinal field shifts lines only at second order, a transverse field
 splits them at first order (for a 13C-1H pair by `(gamma_H + gamma_C) B / 2`).
 
+Chemical exchange (`physics.exchange`, D45): an exchanging spin is replaced
+at rate k (1/s) by a solvent spin with deviation eps I_z (eps = its
+preparation weight by default), linear in polarization. Lines then carry an
+intrinsic decay (`TransitionList.line_rates`) that adds to the fitted
+component rate. k = 0 is the static system; large k decouples the spin.
+
 Phase correction (`render.phasing`): a line of complex amplitude a appears in
 the processed spectrum as a times exp(i (phase0 + 2 pi f delay)) times the
 lineshape, where delay includes the Fourier reference of the crop

@@ -664,6 +664,46 @@ instrument and environment, and must be recalibrated for every dataset
   `zulf_core.diagnose_fid` (546 s per 64k-point FID, unused here); processing
   of one dataset now takes 0.1 s.
 
+## D45. Chemical exchange as a Liouville-space model with a fitted rate (2026-09-29)
+
+Exchangeable protons (N-H, O-H) were modelled only in the two limits (fast:
+dropped; slow: static spins, D43). `zulf_core.physics.exchange` adds the
+intermediate regime: each exchanging spin x is replaced by an uncorrelated
+solvent spin at rate k_x (1/s), d delta/dt = -2 pi i [H, delta] + sum_x k_x
+(Tr_x(delta) (x) 1_x / d_x + eps_x I_z,x - delta), high-temperature and
+linear in polarization; eps_x is the incoming spin's deviation weight
+(default: its preparation weight, the solvent was prepolarized alike and its
+polarization is static at zero field; 0 for an unpolarized pool).
+
+- Restriction: zero-field H and the exchange map commute with rotations and
+  conserve M, and preparation, source and detection are rank-1, q = 0, so
+  the dynamics live in the rank-1 subspace of q = 0 operators (Casimir
+  eigenvalue 2): 1001 dimensions for 7 spin-1/2 (3432 for 8) instead of 4^n.
+  The source term is carried by an augmented generator [[L, s], [0, 0]].
+- Output: a TransitionList whose lines carry their own decay rates
+  (`line_rates`, added to the fitted component rate by both renderers);
+  non-oscillating modes are not rendered (listed in the metadata).
+- Derivatives: analytic, divided differences in the eigenbasis of the
+  augmented generator (X = V^-1 dL V; pairs inside a cluster of equal
+  eigenvalues give t exp(lambda t) terms), for couplings and log k.
+- Solver: parameter kind `log_exchange` (`Parameterization.add_exchange`,
+  tied across isotopologues), MixtureForward switches the component to the
+  exchange model when it has such a parameter; `scripts/fit_staged.py
+  --exchange LABEL`.
+- Tests (tests/test_exchange.py): brute-force propagation in the full
+  Liouville space (explicit partial traces, affine expm) at k = 0 ... 400
+  1/s and for an unpolarized solvent; k = 0 equals compute_transitions;
+  k = 1e5 decouples the spin; line derivatives vs central differences on a
+  system with degenerate modes; solver Jacobian vs residual differences;
+  refinement recovers k.
+- Optional GPU: the dense steps (Casimir basis, eigen-decomposition,
+  derivative products) run in NumPy or PyTorch (`exchange.set_backend`,
+  `ZULF_LINALG_DEVICE=cuda`, `--device cuda`); torch on CPU agrees with
+  NumPy (test). Cost on CPU for 7 spins: about 3 s per evaluation, 65 % in
+  the 1001-dimensional eigen-decomposition.
+- Not covered: pulses and static fields with exchange, exchange between two
+  sites of one molecule, 14N quadrupolar relaxation.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

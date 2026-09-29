@@ -183,3 +183,20 @@ is not evidence.
   scripts assign must be set after the last import, and the run must print
   its effective settings (ranges, signal mask) so mistakes show at once.
 - 8-spin isotopologues with 3 starts take about 10 minutes each on one core.
+
+## Chemical exchange (N-H, O-H) with a fitted rate
+
+- Limits first: fast exchange (protons dropped) and slow exchange (static
+  spins) are fitted by `fit_structure`. For an intermediate regime, fit the
+  exchange rate: `scripts/fit_staged.py ... --protonate --exchange HA1
+  --kex-start 10` (label = the proton group; one rate tied across the
+  isotopologues; extra starts at 1, 100, 3000 1/s are added).
+- The exchange model is a Liouville-space one (D45): about 3 s per
+  evaluation for 7 spins on CPU, 65 % in one eigen-decomposition. On a
+  machine with a GPU use `--device cuda` (or ZULF_LINALG_DEVICE=cuda); torch
+  must be installed. 8 spins are about 10x slower; more are impractical.
+- The incoming solvent spin carries the preparation polarization by default
+  (the solvent was prepolarized too); use solvent_weight=0 in
+  `exchange_transitions` for an unpolarized pool.
+- Linearised uncertainties are not computed for exchange fits yet.
+

@@ -137,6 +137,7 @@ class MixtureForward:
         self.timer = timer or Timer(enabled=False)
         self.phase_grid = phase_grid
         self.cache = TransitionCache(256)
+        self.exchange_cache = None
         sel = observed.selected
         self.f = observed.frequencies_hz[sel]
         self.y = observed.values[sel]
@@ -178,12 +179,24 @@ class MixtureForward:
         self.norm = float(np.linalg.norm(self.y * self.weight)) or 1.0
 
     # -- columns ----------------------------------------------------------------------
+    def transitions(self, values: Dict[str, float], c: int, system) -> "TransitionList":
+        """Transition list of component c: static, or with chemical exchange of its exchanging groups
+        (physics.exchange; the lines then carry their own decay rates)."""
+        ex = self.p.exchange_rates(values, c) if hasattr(self.p, "exchange_rates") else {}
+        if not ex:
+            return self.cache.get(system, self.protocol)
+        if self.exchange_cache is None:
+            from ..physics.exchange import ExchangeCache
+            self.exchange_cache = ExchangeCache(64)
+        spins = {spin: k for g, k in ex.items() for spin in system.groups[g]}
+        return self.exchange_cache.get(system, spins, self.protocol)
+
     def component_columns(self, values: Dict[str, float]) -> List[np.ndarray]:
         cols = []
         delay = self.p.phase_delay(values)
         for c, system in enumerate(self.p.systems(values)):
             with self.timer.section("solver.transitions"):
-                tl = self.cache.get(system, self.protocol)
+                tl = self.transitions(values, c, system)
             edges = self.p.policy.family_edges_hz
             if edges:
                 tl = tl.split_families(edges)
@@ -222,13 +235,13 @@ class MixtureForward:
         offsets = np.arange(-half_width_hz, half_width_hz + step / 2, step)
         delay = self.p.phase_delay(values)
         for c, system in enumerate(self.p.systems(values)):
-            tl = self.cache.get(system, self.protocol)
+            tl = self.transitions(values, c, system)
             edges = self.p.policy.family_edges_hz
             if edges:
                 tl = tl.split_families(edges)
             if not len(tl) or c >= len(gains):
                 continue
-            rates = _per_transition(self.p.rates(values, c), tl, "decay rate")
+            rates = _per_transition(self.p.rates(values, c), tl, "decay rate") + tl.rates_of_lines()
             sigma = self.p.sigma(values, c)
             weight = np.abs(gains[c] * tl.amplitudes)
             for r in np.unique(rates):
@@ -530,6 +543,9 @@ class MixtureForward:
         system = self.p.systems(values)[c]
         coupling_names = [n for n in names if self.p.parameters[n].kind == "coupling"]
         pairs = [self.p.parameters[n].detail for n in coupling_names]
+        ex = self.p.exchange_rates(values, c) if hasattr(self.p, "exchange_rates") else {}
+        if ex:
+            return self._exchange_component_derivatives(values, c, names, system, coupling_names, pairs, ex)
         with self.timer.section("solver.transition_derivatives"):
             d = transition_derivatives(system, pairs, self.protocol)
         edges = self.p.policy.family_edges_hz
@@ -559,6 +575,49 @@ class MixtureForward:
             return {}
         with self.timer.section("solver.render_derivatives"):
             cols = self.renderer.render_pair_directions(d.frequencies_hz, rates, sigma, np.array(rows_b),
+                                                        np.array(rows_c), self.f, delay)
+        if self.correction is not None:
+            cols = cols * self.correction[:, None, None]
+        return {k: cols[:, :, i] for i, k in enumerate(keys)}
+
+    def _exchange_component_derivatives(self, values, c, names, system, coupling_names, pairs, ex):
+        """Analytic pair-column derivatives of a component with chemical exchange (physics.exchange)."""
+        from ..physics.exchange import exchange_transition_derivatives
+        spins = {spin: k for g, k in ex.items() for spin in system.groups[g]}
+        ex_names = [n for n in names if self.p.parameters[n].kind == "log_exchange"]
+        spin_pairs = [[(p, q) for p in system.groups[a] for q in system.groups[b]] for a, b in pairs]
+        ex_spins = [list(system.groups[self.p.parameters[n].detail[0]]) for n in ex_names]
+        with self.timer.section("solver.exchange_derivatives"):
+            d = exchange_transition_derivatives(system, spins, spin_pairs, ex_spins, self.protocol)
+        tl = d.transitions
+        edges = self.p.policy.family_edges_hz
+        families = np.searchsorted(np.asarray(edges, float), tl.frequencies_hz, side="right") if edges else \
+            np.zeros(len(tl), int)
+        comp_rates = self.p.rates(values, c)[families]
+        rates = comp_rates + tl.rates_of_lines()
+        sigma = np.full(len(tl), float(self.p.sigma(values, c)))
+        delay = self.p.phase_delay(values)
+        a = tl.amplitudes
+        rows_b, rows_c, keys = [], [], []
+        for k, n in enumerate(coupling_names + ex_names):
+            rows_b.append(d.d_amplitudes[k] + 2j * np.pi * delay * d.phase_terms[k])
+            rows_c.append(d.t_terms[k])
+            keys.append(n)
+        for n in names:
+            prm = self.p.parameters[n]
+            if prm.kind == "log_rate":
+                mask = families == prm.detail[0]
+                rows_b.append(np.zeros(len(tl), complex))
+                rows_c.append(-comp_rates * a * mask)
+                keys.append(n)
+            elif prm.kind == "phase_delay":
+                rows_b.append(2j * np.pi * tl.frequencies_hz * a)
+                rows_c.append(np.zeros(len(tl), complex))
+                keys.append(n)
+        if not keys or not len(tl):
+            return {}
+        with self.timer.section("solver.render_derivatives"):
+            cols = self.renderer.render_pair_directions(tl.frequencies_hz, rates, sigma, np.array(rows_b),
                                                         np.array(rows_c), self.f, delay)
         if self.correction is not None:
             cols = cols * self.correction[:, None, None]
@@ -612,7 +671,7 @@ class MixtureForward:
         # d(pair columns of component c) / d x_i and d(nuisance columns) / d x_i.
         dpair = np.zeros((n_raw, n_free, n_f, 2), complex)
         dnuis = np.zeros((n_free, n_f, n_nuis), complex)
-        analytic_kinds = ("coupling", "log_rate", "phase_delay")
+        analytic_kinds = ("coupling", "log_rate", "phase_delay", "log_exchange")
         for c in range(n_raw):
             names = [n for n in self.p.order if self.p.parameters[n].kind in analytic_kinds and
                      self.p.parameters[n].component in (c, -1) and any(n in driven[f] for f in free)]
