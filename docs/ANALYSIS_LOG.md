@@ -1085,3 +1085,12 @@ skills under `skills/`; this file keeps the history.
   than 5 Hz from the starting values (x 1.00: J(C2,H3) -2.5 vs 3.0, J(C2,H6)
   17.2 vs 11.2), outside the search box; repeated with +-8 Hz and 100
   generations.
+- DE with +-8 Hz, 100 generations (19190 evaluations, 12 min): x 1.00 score
+  0.104 (truth 0.052), median error 0.93 Hz but J(C2,H3) and J(C2,H6) still
+  6-7 Hz off; x 0.02 0.126 (truth 0.074), median 1.7 Hz. Not a fix.
+  Caveat of these tests: their truth is the real-data best solution, which
+  itself has implausible values (J(C2,H6) 17 Hz vs about 11 Hz accepted).
+  Fairer test running: a plausible truth (small couplings = accepted values
+  + N(0, 1 Hz) offsets with small monotone trends, 1J with the fitted trends),
+  fitted from the accepted values with the standard 24-start joint fit
+  (runs/processed/synthetic_plausible*).
