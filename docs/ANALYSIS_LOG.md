@@ -909,3 +909,31 @@ skills under `skills/`; this file keeps the history.
   only, symmetric), pyridinium as the protonated symmetric fragment
   (exchange auto: N-H decoupled vs coupled). C3/C4 1J of pyridinium from a
   scan: 171 Hz; C2 ambiguous (179 or 190 Hz), both starts to be fitted.
+- Speed: with record=None the Lorentzian route has analytic derivatives
+  (Jacobian 0.66 s); with --record 4000,88457 every direction needs an FFT
+  of 88457 = 53 x 1669 points (5.3 s). Gaussian-width extension dropped for
+  this series (it did not win on x = 0.50). A single known-structure fit:
+  about 10 min.
+- Baseline (symmetric neutral pyridine, 4 starts, spread 0.5 Hz): reduced
+  chi2 4.7 (x 1.00) to 105 (x 0.50); 1J consistent (C2 178-179, C3 161-163,
+  C4 162-164 Hz) but H-H and long-range C-H couplings jump between samples
+  (J(H2,H4) 5.7 vs 3.1 Hz; 3J(C2,H6) 13.9 vs 8.7 Hz): local minima.
+  Pyridinium (protonated, symmetric; best: N-H decoupled): 1J 197 / 172 /
+  175 Hz, other couplings implausible (J(H3,H4) 10.3 Hz, bounds hit).
+- Checks on x = 1.00: (1) delay held at 0: chi2 1.75x worse, so the delay
+  stays a processing parameter; (2) the simulated absorption spectrum at
+  accepted couplings has no negative lines, and correlates better with the
+  data than the magnitude (0.56 vs 0.45): the data are real parts, as
+  given; (3) user: do not hold couplings, they are the result. Residual on
+  the data cores: couplings at the starting (accepted H-H, unverified
+  long-range C-H) values 0.47; H-H held, C-H free 0.25; all free from the
+  accepted values 0.214 (J(H3,H4) 3.7 Hz); staged (H-H held first, then all
+  free) 0.210 with J(H3,H4) 7.24 Hz (accepted 7.7): the direct all-free fit
+  ended in a worse minimum. Multi-start (24 starts, spread 2 Hz) recorded
+  only 3 starts (evaluation cap 20000): relative scores 1.00 / 1.31 / 2.08
+  with very different couplings.
+- Added: zulf_hypothesis.uncertainty (linearised standard errors and
+  correlations by variable projection; Monte Carlo test), every start's
+  solution kept in the refinement summary (start_solutions, both
+  signal-mask passes), scripts/fit_staged.py. Running: staged fits of all
+  seven spectra (12 stage-2 starts, spread 1 Hz), runs/processed/*_staged.
