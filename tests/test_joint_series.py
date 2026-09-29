@@ -33,19 +33,24 @@ class JointSeriesTests(unittest.TestCase):
                 p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model
             obs.append(ObservedSpectrum.from_spectrum(f, np.asarray(sig) + 0.01 * rng.normal(size=len(f)),
                                                       [(100.0, 200.0)], record=acq))
-        joint = JointSeries(model, settings, obs, [0.1, 0.5, 1.0])
-        z = joint.pack([p.vector() for p in joint.params]) + 0.05
-        joint.set_priors([0], [z[0] + 1.0], [0.5], 2.0)
-        # couplings are exactly linear in x (independent check of spectrum_vector)
-        i = joint.coupling.index(model.coupling_names["J(Ca,Ha)"][0])
-        vals = [joint.spectrum_vector(z, s)[joint.col[joint.coupling[i]]] for s in range(3)]
-        self.assertAlmostEqual(vals[2] - vals[1], (vals[1] - vals[0]) * 0.5 / 0.4, places=10)
-        jac = joint.jacobian(z)
-        h = 1e-6
-        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
-                                   for e in np.eye(len(z))])
-        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
-
+        for shape in ("linear", "monotone"):
+            joint = JointSeries(model, settings, obs, [0.1, 0.5, 1.0], shape=shape,
+                                signs=[1.0 if k % 2 else -1.0 for k in range(len(model.coupling_names))])
+            table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])
+            z = joint.pack(table + np.arange(3)[:, None] * 0.2, [p.vector() for p in joint.params]) + 0.05
+            joint.set_priors([0], [1.0 + joint.coupling_values(z, 0).mean()], [0.5], 2.0)
+            i = joint.coupling.index(model.coupling_names["J(Ca,Ha)"][0])
+            vals = np.array([joint.spectrum_vector(z, s)[joint.col[joint.coupling[i]]] for s in range(3)])
+            steps = np.diff(vals)
+            if shape == "linear":      # exactly linear in x
+                self.assertAlmostEqual(steps[1], steps[0] * 0.5 / 0.4, places=10)
+            else:                      # one direction only (independent check of the design matrix)
+                self.assertTrue(np.all(steps >= -1e-12) or np.all(steps <= 1e-12))
+            jac = joint.jacobian(z)
+            h = 1e-6
+            numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                       for e in np.eye(len(z))])
+            self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0), msg=shape)
 
 if __name__ == "__main__":
     unittest.main()
