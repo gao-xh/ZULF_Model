@@ -980,3 +980,15 @@ skills under `skills/`; this file keeps the history.
   J(C2,H3) (-9.7 Hz per mole fraction), J(C3,H5) (-5.4), J(H3,H5) (+4.1):
   suspicious, likely trading off against each other. Output:
   runs/processed/joint_linear.
+- User: not linear, only monotonic. Joint monotone fit (every coupling free at
+  each concentration, one-direction steps; direction from the linear fit's
+  slope; priors on the series average; start from the linear fit; 6 starts,
+  15 min): scores 0.218 / 0.224 / 0.225 / 0.226 / 0.228 / 0.228 (starts
+  within 4 %). Residuals x 0.02 ... 1.00: 0.181, 0.192, 0.177, 0.162, 0.165,
+  0.131, the lowest of every fit so far. Several couplings change in steps
+  (flat segments where the step is 0). Plausible: 1J all decrease with
+  pyridine fraction (C2 178.6 -> 177.8, C3 164.2 -> 162.8, C4 161.1 ->
+  157.8), J(H3,H4) 8.7 -> 8.1, J(H2,H3) 3.3 -> 5.3. Still large changes:
+  J(C2,H3) 7.0 -> -2.4 Hz, J(C3,H5) 10.4 -> 5.7, J(H3,H5) -1.3 -> 3.2,
+  J(C4,H3) and J(C4,H2) at x 1.00 with errors > 1 Hz. Table:
+  runs/processed/joint_monotone/J_table.csv.
