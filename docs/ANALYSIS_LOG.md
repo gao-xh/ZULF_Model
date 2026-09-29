@@ -1078,3 +1078,10 @@ skills under `skills/`; this file keeps the history.
   spectrum (scripts/global_single_spectrum.py; couplings within the starting
   value +- 5 Hz, rates and delay held, gains solved inside; then a local fit),
   tested on synthetic x 1.00 and 0.02.
+- Differential evolution (+-5 Hz, popsize 10, 60 generations, 11590
+  evaluations, 7.5 min on 2 workers) on synthetic x 1.00 / 0.02: scores
+  0.107 / 0.120 vs the truth's 0.052 / 0.074; median error 1.9 Hz. The
+  synthetic truth (the 48-start best on the real data) has couplings more
+  than 5 Hz from the starting values (x 1.00: J(C2,H3) -2.5 vs 3.0, J(C2,H6)
+  17.2 vs 11.2), outside the search box; repeated with +-8 Hz and 100
+  generations.
