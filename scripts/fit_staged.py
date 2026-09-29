@@ -76,7 +76,7 @@ def group_index(model, label: str, component: int) -> int:
     return common.pop()
 
 
-def add_exchange(param, model, labels, start, bounds):
+def add_exchange(param, model, labels, start, bounds, fixed=False):
     """One exchange-rate parameter per label, tied across the components that contain the label."""
     names = []
     for label in labels:
@@ -86,7 +86,7 @@ def add_exchange(param, model, labels, start, bounds):
                 g = group_index(model, label, c)
             except ValueError:
                 continue
-            name = param.add_exchange(c, g, start, bounds, name=f"c{c}.log_kex_{label}")
+            name = param.add_exchange(c, g, start, bounds, free=not fixed, name=f"c{c}.log_kex_{label}")
             if leader is None:
                 leader = name
                 names.append(name)
@@ -118,6 +118,8 @@ def main():
     ap.add_argument("--exchange", default="", help="proton group labels exchanging with the solvent, e.g. HA1")
     ap.add_argument("--kex-start", type=float, default=10.0, help="starting exchange rate (1/s)")
     ap.add_argument("--kex-bounds", default="0.01,1e5", help="exchange rate bounds (1/s)")
+    ap.add_argument("--kex-fixed", action="store_true", help="hold the exchange rate at --kex-start")
+    ap.add_argument("--delay-bounds", default="", help="lo,hi in s for the fitted delay (default -0.01,0.01)")
     ap.add_argument("--device", default="", help="exchange linear algebra: numpy (default), cpu or cuda (torch)")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
@@ -139,7 +141,8 @@ def main():
         fragment = protonated(fragment)
     fragment = override_couplings(fragment, json.loads(args.couplings))
     model = build_model(fragment, ranges=[(lo, hi)])
-    base = dataclasses.replace(default_fit_base(), starts=1, max_evaluations=10 ** 6,
+    delay_bounds = tuple(float(v) for v in args.delay_bounds.split(",")) if args.delay_bounds else None
+    base = dataclasses.replace(default_fit_base(delay_bounds), starts=1, max_evaluations=10 ** 6,
                                max_seconds=600.0 * max(args.starts, 1))
     settings = _settings_for(model, args.variant, base)
     # priors around the starting couplings (e.g. literature values): all couplings stay free
@@ -161,11 +164,11 @@ def main():
     exch_labels = [x for x in args.exchange.split(",") if x]
     kex_bounds = tuple(float(v) for v in args.kex_bounds.split(","))
     p1 = settings.parameterize(model.interpretation)
-    add_exchange(p1, model, exch_labels, args.kex_start, kex_bounds)
+    add_exchange(p1, model, exch_labels, args.kex_start, kex_bounds, args.kex_fixed)
     p1.fix(*[n for n in p1.order if n in held])
     r1 = refine(model.interpretation, obs, settings, parameterization=p1)
     p2 = settings.parameterize(model.interpretation)
-    kex_names = add_exchange(p2, model, exch_labels, args.kex_start, kex_bounds)
+    kex_names = add_exchange(p2, model, exch_labels, args.kex_start, kex_bounds, args.kex_fixed)
     for n, value in r1.parameters.items():
         if n in p2.parameters:
             p2.set(n, value)
@@ -175,7 +178,7 @@ def main():
     rng = np.random.default_rng(args.seed)
     starts = [x0] + [np.clip(x0 + np.where(coupling, rng.normal(0, args.spread, len(x0)), 0.0), lower, upper)
                      for _ in range(max(args.starts - 1, 0))]
-    if kex_names:
+    if kex_names and not args.kex_fixed:
         # exchange-rate starts spread over decades (the rate is not known in advance)
         col = p2.free_names.index(kex_names[0])
         for k in (1.0, 100.0, 3000.0):
