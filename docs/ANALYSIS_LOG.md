@@ -1131,3 +1131,22 @@ skills under `skills/`; this file keeps the history.
   baseline), and the small couplings absorb it. 1J(C2,H2) and 1J(C3,H3)
   agree between all fits (178.5-179.5 -> 177.3-177.9 Hz, 164.1-164.5 ->
   162.5-162.8 Hz). End of the 5 h session; open items in PLAN Phase 3d.
+- Literature read: Wilzewski, Afach, Blanchard, Budker, J. Magn. Reson. 284
+  (2017) 66-72 (density-matrix fit of ZULF spectra, 13C/15N-labelled neat
+  liquids, sub-mHz precision). Points relevant to the Blake series:
+  (1) they fit the magnitude spectrum because finite pulses leave small
+  phase errors; (2) one exponential decay for all coherences; (3) methyl
+  formate showed non-Lorentzian lines that a fitted residual field
+  (transverse 3.1(3) nT, longitudinal 2.8(4) nT) explained, reduced chi^2
+  1.96 -> 0.98; (4) the magnetometer's frequency-dependent amplitude and
+  phase response biased the residuals of distant multiplets in opposite
+  directions (calibration measured 4-400 Hz); (5) 2 Hz cut around every
+  mains harmonic; (6) uncertainties chi^2/(n-p) C^-1 (as ours) with
+  reparametrisation (mean, difference) of strongly correlated pairs.
+  Checked: the Blake spectra have no narrow line at exactly 150 or 180 Hz
+  (maxima within +-1 Hz are molecular lines, at 149.6-151.0 and 180.4-181.0
+  Hz). Our protocol accepts a fixed static field (Protocol.field_ut) but the
+  solver does not fit it; a fitted residual field and a smooth frequency-
+  dependent gain are candidate model extensions for the real-data mismatch
+  of the staged fit (PLAN Phase 3d). Their precision comes from labelled
+  neat samples with high SNR; natural-abundance mixtures are not comparable.
