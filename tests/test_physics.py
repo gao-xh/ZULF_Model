@@ -109,6 +109,22 @@ class PropagationAgreementTests(unittest.TestCase):
         proto_y = Protocol(name="pulse_y", pulses=(Pulse(("13C",), np.pi / 3, "y"),))
         self.check(random_system(("1H", "13C", "1H"), 8), proto_y)
 
+    def test_dc_pulse_only_rescales_two_nucleus_types(self):
+        # CONVENTIONS: with two nucleus types, a DC field pulse (every nucleus rotated by gamma-scaled angles) after
+        # a sudden drop changes the signal by one overall factor only (brute-force propagation as the reference)
+        system = random_system(("1H", "13C", "1H", "1H"), 11)
+        registry = get_registry()
+        theta = np.pi / 2
+        proto = Protocol(name="dc_pulse", pulses=(Pulse(("1H",), theta, "x"),
+                                                  Pulse(("13C",), theta * registry.gamma("13C") / registry.gamma("1H"), "x")))
+        t = np.linspace(0.0, 0.05, 400)
+        a = reference_signal(system, t, Protocol())
+        b = reference_signal(system, t, proto)
+        a, b = a - a.mean(), b - b.mean()
+        scale = float(a @ b / (a @ a))
+        self.assertGreater(abs(scale), 0.1)
+        np.testing.assert_allclose(b, scale * a, atol=1e-9 * np.abs(a).max())
+
     def test_nonuniform_intragroup(self):
         iso = ("1H",) * 7 + ("13C",)
         j = np.zeros((8, 8))

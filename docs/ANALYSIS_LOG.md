@@ -1150,3 +1150,31 @@ skills under `skills/`; this file keeps the history.
   dependent gain are candidate model extensions for the real-data mismatch
   of the staged fit (PLAN Phase 3d). Their precision comes from labelled
   neat samples with high SNR; natural-abundance mixtures are not comparable.
+- Source of the Blake data (web search; arxiv.org, zenodo.org and
+  pith.science are blocked by this environment's network policy, so the
+  full text was not read): B. Andrews et al., "DFT-assisted natural
+  abundance 13C zero-field NMR via optical magnetometry", arXiv:2604.26071
+  (28 Apr 2026), code/data on Zenodo record 21830867. From the search
+  snippets: prepolarisation at 9.4 T (inhomogeneous magnet), shuttling in
+  ~1 s under a 210 uT guide field, switch to zero field, a 90 deg 1H pulse,
+  detection with a commercial QuSpin 87Rb magnetometer ~2 mm from a GC-MS
+  vial; linewidths < 250 mHz; processing: Savitzky-Golay drift removal,
+  edge trim, optional zero fill, exponential apodisation, zeroth- and
+  first-order phase, baseline correction; DFT (vibrationally corrected)
+  predictions of zero-field spectra with few-Hz accuracy.
+  Question: does the pulse invalidate our sudden_drop protocol? Checked
+  numerically on pyridine-2-13C (1 C + 5 H, 62 lines in 140-200 Hz): a DC
+  pulse of 90 deg on 1H (22.6 deg on 13C), or pi on 13C, gives the same
+  frequencies and normalised amplitudes as sudden_drop (overlap 1.0), only
+  a scale (0.31, sign -1; 1.67). This is the CONVENTIONS statement for two
+  nucleus types (F_z commutes with H); new test
+  test_dc_pulse_only_rescales_two_nucleus_types (brute-force propagation;
+  the same check with 15N added fails by 9 %, so it discriminates). Every
+  isotopologue in our model has one 13C, so the ratios are rescaled equally
+  and the fitted gains and shared phase absorb it. Conclusion: the pulse is
+  not the source of the real-data mismatch, provided the guide field is
+  switched off suddenly (an adiabatic switch would give another initial
+  state; not confirmed from the snippets). Remaining candidates: residual
+  field, 14N (spin 1, fast quadrupolar relaxation) broadening the C2 lines,
+  the Savitzky-Golay drift filter and baseline correction of the unknown
+  settings. The Zenodo record may contain the raw FIDs and processing code.
