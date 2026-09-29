@@ -1028,3 +1028,16 @@ skills under `skills/`; this file keeps the history.
   Moderate: J(H2,H5). All other small couplings (and 1J(C4,H4)) differ by
   1-4.6 Hz between near-equal starts: the processed real spectra do not fix
   them; the linearised errors (0.01-0.16 Hz) are not meaningful here.
+- Joint fits with the NMRduino pyridine FID 7ad4aafb (50 % in water; user
+  unsure whether by volume or by mole: both tried; complex data, confirmed-
+  sample processing, 140-179 and 181-200 Hz; 8 starts each):
+  by volume (x 0.183, own node between 0.02 and 0.33): best 0.363,
+  residual 7ad4aafb 0.206, Blake 0.18-0.26 (Blake x 0.50: 0.239);
+  by mole (x 0.50, sharing the Blake x 0.50 node): best 0.433, residual
+  7ad4aafb 0.305 and Blake x 0.50 0.289 (was 0.224 without 7ad4aafb): the
+  two spectra do not fit one set of couplings at x 0.50, so the volume
+  reading is the consistent one (or the instruments differ in line shape).
+  The small couplings moved by several Hz against the Blake-only fit (e.g.
+  J(H3,H4) at x 0.02 13.2 vs 9.5 Hz, J(H2,H4) 6.1 vs 2.8 Hz) with 8 starts:
+  adding the FID did not pin them down; 1J(C2,H2) and 1J(C3,H3) stayed
+  within 0.1-0.8 Hz.
