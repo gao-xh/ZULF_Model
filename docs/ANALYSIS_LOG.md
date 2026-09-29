@@ -1072,3 +1072,9 @@ skills under `skills/`; this file keeps the history.
   coordinate grid scan (each small coupling level on a +-4 Hz grid, others
   held, then a local fit; test: a 3 Hz displaced coupling is recovered);
   running on the synthetic series from the accepted values.
+- Coordinate scan on the synthetic series (8 starts, 2 cycles): best 0.637,
+  worse than plain multi-start (0.497): greedy moves along one coupling at a
+  time drift into poorer regions. Not used. Next: differential evolution per
+  spectrum (scripts/global_single_spectrum.py; couplings within the starting
+  value +- 5 Hz, rates and delay held, gains solved inside; then a local fit),
+  tested on synthetic x 1.00 and 0.02.
