@@ -1223,3 +1223,23 @@ skills under `skills/`; this file keeps the history.
   negative and positive variants), same settings as joint_real_staged
   (hold-small-first, sigma_ch 1.5, weight 10), 12 starts each:
   runs/processed/joint_hj73_neg, joint_hj73_pos.
+- Joint fits from the literature (runs/processed/joint_hj73_neg, _pos;
+  starts and prior centres = Hansen and Jakobsen 1973 / Castellano 1967,
+  1J starts 177.6 / 163.0 / 162.4 Hz, sigma 0.5 Hz H-H / 1.5 Hz C-H, weight
+  10, hold-small-first, 12 starts each, 47-49 min): best score 0.366 (4J
+  negative) and 0.365 (4J positive) vs 0.308 for the earlier 48-start fit
+  (scores include the prior term, whose centres changed, so they are not
+  strictly comparable). Data-core residuals 0.206-0.250 (neg) and
+  0.214-0.279 (pos) vs 0.171-0.254. Even with the priors at the literature,
+  several couplings move far from it on every concentration: J(A3,HA4)
+  5.6-7.9 (neg) vs 0.84, J(A4,HA3) 3.9-6.4 vs 0.70, J(A4,HA2) -2.6..3.9 vs
+  6.34, J(A2,HA6) 14.4-16.8 (neg) vs 11.2; J(A3,HA2) moves towards the
+  literature only to 5.4-6.3 (8.47). 1J(C4) at x = 1.00 is 157.8-158.0 in
+  both (literature 162.2-162.4 in acetone): the low C4 value at high
+  pyridine fraction is not caused by the priors. The sign of 4J(A2,HA5),
+  4J(A3,HA6) is not decided (scores 0.366 vs 0.365). Unfitted literature
+  couplings (runs/processed/literature_start_spectra.png) are far from the
+  data. Conclusion: the processed spectra pull several small couplings
+  several Hz from the literature values whatever the start; with the
+  field-switch hold (4bd904e) and the 1J(C4) anomaly, a missing model term
+  is more likely than a search problem.
