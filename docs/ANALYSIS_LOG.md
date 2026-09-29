@@ -992,3 +992,15 @@ skills under `skills/`; this file keeps the history.
   J(C2,H3) 7.0 -> -2.4 Hz, J(C3,H5) 10.4 -> 5.7, J(H3,H5) -1.3 -> 3.2,
   J(C4,H3) and J(C4,H2) at x 1.00 with errors > 1 Hz. Table:
   runs/processed/joint_monotone/J_table.csv.
+- User: never linear. fit_joint_series rewritten: J_k(x_i) = v_k + A_k c_k,i
+  with c rising 0 -> 1 through softmax step shares (direction = sign of A,
+  shape free); no linear stage anywhere. From the previous monotone result
+  (A): 6 starts, 5 at 0.2181, residuals 0.178, 0.193, 0.178, 0.162, 0.165,
+  0.131 (same solution as before). From the 7ad4aafb couplings (user,
+  symmetrised; B): 0.316-0.519, worse minima.
+- Weights: the signal weighting gave weak peaks (148-152, 175-178 Hz) the
+  outside weight 0.2 at the 4 sigma core threshold. Figures
+  runs/processed/weights_threshold*.png, weights_taper.png. User choice:
+  2.5 sigma threshold and a slower fall-off between peaks: taper 4 Hz
+  (lowest weight between peaks 0.60-0.69, noise regions 0.27-0.31).
+  Running: runs/processed/joint_mono_thr25_taper4 (from A).
