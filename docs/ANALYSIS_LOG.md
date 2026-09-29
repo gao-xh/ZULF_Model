@@ -1255,3 +1255,18 @@ skills under `skills/`; this file keeps the history.
   but the size of the misfit at x = 1.00 (0.41 vs 0.17) also says the
   literature values are not a model of these spectra as processed.
   runs/processed/literature_fixed_spectra.png, literature_fixed_residuals.json.
+- Pyridinium (Blake 6 M HCl) with a fitted N-H exchange rate (D45;
+  fit_staged.py --protonate --exchange HA1; small couplings started at the
+  pyridine literature, sigma 1 Hz H-H / 2 Hz C-H, weight 10; 1J started at
+  187.5 / 169.0 / 171.2; k starts 10, 1, 100, 3000 1/s; 99 min on 4 cores):
+  data-core residual 0.171 (stage 1 with H-H held already 0.172) vs 0.195
+  for the earlier fit with the N-H decoupled (k 27 vs 25). k_ex = 78 1/s.
+  1J 190.7 / 163.7 / 171.3 Hz (C3 moved from 169.0), J(A2,HA1) 4.9,
+  J(HA2,HA1) 4.1 Hz. Caveats: the phase delay sits at its bound (10 ms;
+  earlier 3.7 ms) and the C2 isotopologue's own rate at its lower bound
+  (0.05 1/s, its lines broadened by exchange instead); flags
+  optimizer_not_converged and search_budget_exhausted; the model puts weak
+  lines near 154 and 198 Hz that the data do not show. The exchange model
+  fits better, but the value of k is conditional on these bounds; next:
+  widen the delay bounds, compare with the slow (k = 0) and fast (N-H
+  dropped) limits under the same settings.
