@@ -1050,3 +1050,14 @@ skills under `skills/`; this file keeps the history.
   unique from these spectra. Figure runs/processed/joint_new_ms48/
   near_best_couplings.png. Next: synthetic recovery test with this best
   solution as the truth (information limit vs model mismatch).
+- Synthetic recovery test (scripts/synthetic_recovery_series.py): the 48-start
+  best solution as truth, rendered on the measured grids with the measured
+  noise (robust sigma 19-136), fitted like the data (from the accepted
+  values, 16 perturbed + 16 prior-drawn starts). Best found 0.497 while the
+  truth scores 0.353 (0.318 without priors): the local fits never reached
+  the truth basin. Errors of the best found: 1J(C2,H2) 0.37, 1J(C3,H3)
+  0.52, 1J(C4,H4) 3.6, small couplings 0.7-6.7 Hz. So at least part of the
+  non-uniqueness on the real data is a search failure, not only missing
+  information. Added a coarse-to-fine continuation (Gaussian smoothing of
+  data and model with the same kernel, 1.5 -> 0.8 -> 0.4 Hz -> none; test
+  against finite differences); running it on the synthetic series.
