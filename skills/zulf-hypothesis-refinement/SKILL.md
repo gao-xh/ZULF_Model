@@ -130,6 +130,29 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   an envelope fit with unphysical couplings, not the structure.
 - Save full results (parameters, gains, prediction) for every fit.
 
+## Spectra processed elsewhere and concentration series (Blake pyridine, ANALYSIS_LOG)
+
+- Processed real spectra (frequency and value arrays): `scripts/fit_processed_spectrum.py` (fit_structure) or
+  `scripts/fit_staged.py`; record=None gives ideal Lorentzian lines with analytic derivatives. With
+  `--record fs,points` every derivative needs an FFT of the record length (88457 = 53 x 1669 points: 8x
+  slower); the Gaussian-width move needs the record route, so leave it out for long records.
+- Without a FID there is no global pattern search: the starting couplings decide the minimum. Use accepted
+  values as starts, hold the H-H couplings first and free them afterwards (staged): a direct all-free fit from
+  the same values ended in a worse minimum (pyridine x 1.00: J(H3,H4) 3.7 Hz vs 7.2 Hz staged, lower chi2).
+- The user decides what is held: couplings are the result, so do not fix them; keep them free with Gaussian
+  priors (RefineSettings.priors, weight ~ reduced chi2) when a direction is weakly determined.
+- A concentration series: `scripts/fit_joint_series.py`, every coupling monotonic in the concentration with
+  fitted direction and free shape (softmax steps). Never a linear dependence (user). Spectra at one
+  concentration (two instruments) share a node; raw FIDs can join as complex data.
+- Judge couplings by reproducibility over near-best starts, jackknife over leave-one-out fits, robustness to
+  the weighting and plausibility, not by the residual and not by linearised errors (they understated the
+  spread 5-20x). On the Blake series only 1J(C2,H2) and 1J(C3,H3) passed every test.
+- Weighting of weak peaks: the 4 sigma core threshold left weak lines at the outside weight 0.2; the user chose
+  2.5 sigma and a 4 Hz fall-off (`--signal-threshold`, `--signal-taper`). Plot the weights (figure) before
+  a long run.
+- Protonated forms keep the molecular symmetry (fixed in `protonated`): without it the duplicated
+  isotopomers over-fitted and a neutral pyridine spectrum chose the protonated form.
+
 ## Checks before ranking
 
 Reject or flag fits with parameters at bounds (especially decay rates at the

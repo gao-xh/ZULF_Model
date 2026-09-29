@@ -240,6 +240,18 @@ fixed, so later phases are experiments rather than restructuring.
 - [x] Wire `process_dataset` into the regression:
       `regression_confirmed.py --processing dataset [--window-mode ...]`.
 
+## Phase 3d: processed spectra from other groups (Blake pyridine series)
+
+- [x] Known-structure fits of processed real spectra (fit_processed_spectrum, fit_staged), coupling
+      uncertainties and start agreement (zulf_hypothesis.uncertainty), Gaussian coupling priors in refine.
+- [x] Joint monotone fits of a concentration series (fit_joint_series: direction and shape free, shared
+      nodes, raw FIDs as complex members, leave-one-out prediction, parallel and prior-drawn starts).
+- [x] Robustness (16 starts, leave-one-out, two weightings): 1J(C2,H2), 1J(C3,H3) determined; small
+      couplings not unique from these spectra.
+- [ ] Joint fit with the NMRduino pyridine FID 7ad4aafb (50 % in water: x 0.18 by volume or 0.50 by mole;
+      both running), larger multi-start of the Blake series, pyridinium.
+- [ ] Correct long-range C-H literature values (Shiner and Wyllie 1973) as prior centres.
+
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
 - [ ] Train CNN+Transformer; compare (a) graph search, (b) CNN set, (c)
