@@ -1178,3 +1178,30 @@ skills under `skills/`; this file keeps the history.
   field, 14N (spin 1, fast quadrupolar relaxation) broadening the C2 lines,
   the Savitzky-Golay drift filter and baseline correction of the unknown
   settings. The Zenodo record may contain the raw FIDs and processing code.
+- Instrument paper read: Andrews, Lai, Wang, Kato, Tayler, Druga, Ajoy, PNAS
+  Nexus 4, pgaf187 (2025). Sequence: 9.4 T prepolarisation, shuttle < 1 s
+  in GF1 = 80 uT along x; GF1 turned off adiabatically over 30 ms while GF2
+  = 1 uT along -y (the OPM sensitive axis) is on; GF2 switched off suddenly
+  just before acquisition; pulse-free (no DC pulse). QuSpin OPMs; phase
+  correction and baseline subtraction; linewidth ~0.15 Hz. This is our
+  sudden_drop with preparation along the detection axis, provided the state
+  at 1 uT is sum gamma I_y. (The arXiv:2604.26071 search snippet mentioned a
+  90 deg 1H pulse; not confirmed; either way H/C spectra only rescale.)
+  Concern: at 1 uT the 1H Larmor frequency (43 Hz) exceeds the H-H
+  couplings and the 1H-13C Larmor difference (32 Hz) is below 1J, so time
+  spent at 1 uT can change intensities inside the multiplets.
+  Check (scripts/field_switch_check.py, brute-force 64-dim propagation,
+  pyridine-2-13C 57 lines and pyridine-4-13C 18 lines above 100 Hz; state
+  at 80 uT = dephased sum gamma I_x; GF1 linear ramp 30 ms; hold at 1 uT;
+  sudden off; y detection; relative residual of the line amplitudes vs the
+  ideal sudden drop after a free complex scale and time shift):
+  hold 0 ms: 0.019 (C2), 0.018 (C4); hold 1-30 ms: 0.03-0.15; coherent hold
+  100-300 ms: 0.33-0.59; long hold dephased in the 1 uT eigenbasis: 0.092
+  (C2), 0.076 (C4). Only ~26 % of the magnetisation ends along y (the last
+  part of the rotation is not adiabatic). Conclusion: if the sample waits at
+  1 uT before GF2 is switched off, the relative line intensities differ by
+  several to tens of percent from our model, enough for the small couplings
+  to shift by Hz to compensate. The hold time is not given in the paper.
+  Next: get the sequence timings (GF1 ramp start vs arrival, GF1-off to
+  GF2-off delay, GF2 fall time) or add a fitted preparation (hold at a
+  field along the detection axis for t_hold) to the protocol.
