@@ -170,6 +170,8 @@ def main():
     ap.add_argument("--slope-bound", type=float, default=20.0, help="linear: bound on |dJ/dx| (Hz per x)")
     ap.add_argument("--shape", default="linear", choices=["linear", "monotone"])
     ap.add_argument("--step-bound", type=float, default=10.0, help="monotone: bound on each step between spectra")
+    ap.add_argument("--start-couplings", default="", help="JSON {key: Hz}: starting couplings for every spectrum "
+                    "(overrides the per-spectrum starts; the prior centres stay the --couplings values)")
     ap.add_argument("--from-joint", default="", help="fit.json of an earlier joint fit: starting couplings and, "
                     "for the monotone shape, the direction of every coupling (sign of its linear slope)")
     ap.add_argument("--max-nfev", type=int, default=200)
@@ -220,6 +222,12 @@ def main():
             if "phase_delay" in joint.col and "delay_ms" in fit.get("stage2", {}):
                 x[joint.col["phase_delay"]] = fit["stage2"]["delay_ms"] * 1e-3
         xs0.append(x)
+    if args.start_couplings:
+        for key, value in json.loads(args.start_couplings).items():
+            for n in model.coupling_names.get(key, []):
+                if n in joint.col:
+                    for x in xs0:
+                        x[joint.col[n]] = value
     table = np.array([[x[joint.col[n]] for n in joint.coupling] for x in xs0])
     if previous is not None:
         table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] for n in joint.coupling]
