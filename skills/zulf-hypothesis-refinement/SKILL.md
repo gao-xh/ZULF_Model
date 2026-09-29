@@ -200,3 +200,12 @@ is not evidence.
   `exchange_transitions` for an unpolarized pool.
 - Linearised uncertainties are not computed for exchange fits yet.
 
+
+## Logging an analysis
+
+- Start `docs/analysis/YYYY-MM-DD_<sample>_<topic>.md` from
+  `docs/analysis/TEMPLATE.md` when the analysis starts; fill in commands,
+  numbers, figure paths and the conclusion as results arrive; add its row to
+  `docs/analysis/README.md` and a one-line entry to `docs/ANALYSIS_LOG.md`.
+- The fitting scripts write `RUN_LOG.md` (command, commit, times, results)
+  into their output directory; cite it in the analysis log.
