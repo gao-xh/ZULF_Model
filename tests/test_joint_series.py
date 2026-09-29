@@ -50,6 +50,27 @@ class JointSeriesTests(unittest.TestCase):
                                    for e in np.eye(len(z))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
+    def test_spectra_at_one_concentration_share_their_couplings(self):
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 200.0, 0.25)
+        rng = np.random.default_rng(6)
+        obs = [ObservedSpectrum.from_spectrum(f, rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)),
+                                              [(100.0, 200.0)], record=acq) for _ in range(3)]
+        joint = JointSeries(model, settings, obs, [0.1, 0.5, 0.5])
+        self.assertEqual(joint.nn, 2)
+        table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params[:2]])
+        z = joint.pack(table + np.array([0.0, 0.3])[:, None], [p.vector() for p in joint.params])
+        a, b = joint.spectrum_vector(z, 1), joint.spectrum_vector(z, 2)
+        for n in joint.coupling:
+            self.assertEqual(a[joint.col[n]], b[joint.col[n]])
+        jac = joint.jacobian(z)
+        h = 1e-6
+        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                   for e in np.eye(len(z))])
+        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+
     def test_left_out_prediction_recovers_a_bracketed_spectrum(self):
         # three synthetic spectra, J(Ca,Ha) shifted 0 / 0.4 / 0.9 Hz: leave the middle out, fit the outer two with
         # their true couplings, predict the middle within the bracket; the prediction must reach the noise level

@@ -71,10 +71,16 @@ class JointSeries:
         self.coupling = [n for n in self.free if self.params[0].parameters[n].kind == "coupling"]
         self.local = [n for n in self.free if n not in self.coupling]
         self.xs = np.asarray(xs, float)
-        if len(self.xs) < 2 or np.any(np.diff(self.xs) <= 0):
-            raise ValueError("Give at least two spectra in increasing concentration.")
+        if len(self.xs) < 2 or np.any(np.diff(self.xs) < 0):
+            raise ValueError("Give the spectra in non-decreasing concentration.")
+        # concentration nodes: spectra at the same concentration share one set of couplings
+        self.nodes = np.unique(self.xs)
+        if len(self.nodes) < 2:
+            raise ValueError("Need at least two different concentrations.")
+        self.node_of = [int(np.searchsorted(self.nodes, x)) for x in self.xs]
         self.nc, self.nl, self.ns = len(self.coupling), len(self.local), len(observations)
-        self.m = self.ns + 1                      # v, A, w_1 .. w_{n-1}
+        self.nn = len(self.nodes)
+        self.m = self.nn + 1                      # v, A, w_1 .. w_{nodes-1}
         self.nt = self.nc * self.m
         self.col = {n: i for i, n in enumerate(self.free)}
         self.priors = ([], np.zeros(0), np.zeros(0))
@@ -88,24 +94,24 @@ class JointSeries:
         return th[0] + th[1] * c
 
     def coupling_jacobian(self, z, k):
-        """d J_k(x_i) / d theta_k: (n spectra, m)."""
+        """d J_k(node) / d theta_k: (nodes, m)."""
         th = self.theta(z, k)
         c, dc = monotone_profile(th[2:])
-        return np.column_stack([np.ones(self.ns), c, th[1] * dc])
+        return np.column_stack([np.ones(self.nn), c, th[1] * dc])
 
     # z = [theta_0, ..., theta_{nc-1}, local of spectrum 0 (nl), local of spectrum 1, ...]
     def spectrum_vector(self, z, s, values=None):
         values = values if values is not None else [self.coupling_values(z, k) for k in range(self.nc)]
         x = np.empty(len(self.free))
         for k, n in enumerate(self.coupling):
-            x[self.col[n]] = values[k][s]
+            x[self.col[n]] = values[k][self.node_of[s]]
         loc = z[self.nt + s * self.nl: self.nt + (s + 1) * self.nl]
         for i, n in enumerate(self.local):
             x[self.col[n]] = loc[i]
         return x
 
     def pack(self, table, per_spectrum_x):
-        """Start vector from a (spectra x couplings) table: v = first value, A = last - first, step shares from the
+        """Start vector from a (nodes x couplings) table: v = first value, A = last - first, step shares from the
         table's steps in the direction of A (equal shares where the table is flat or not monotonic)."""
         z = []
         for k in range(self.nc):
@@ -113,7 +119,7 @@ class JointSeries:
             a = col[-1] - col[0]
             steps = np.diff(col) * (1.0 if a >= 0 else -1.0)
             steps = np.maximum(steps, 0.0)
-            w = np.log(steps + 1e-3 * max(steps.max(), 1e-3)) if steps.sum() > 0 else np.zeros(self.ns - 1)
+            w = np.log(steps + 1e-3 * max(steps.max(), 1e-3)) if steps.sum() > 0 else np.zeros(self.nn - 1)
             z.extend([col[0], a] + list(np.clip(w - w.max(), -W_BOUND, W_BOUND)))
         X = np.array(per_spectrum_x)
         z.extend(X[s, self.col[n]] for s in range(self.ns) for n in self.local)
@@ -123,8 +129,8 @@ class JointSeries:
         lo, hi = self.params[0].bounds()
         lz, hz = [], []
         for n in self.coupling:
-            lz += [lo[self.col[n]], -change_bound] + [-W_BOUND] * (self.ns - 1)
-            hz += [hi[self.col[n]], change_bound] + [W_BOUND] * (self.ns - 1)
+            lz += [lo[self.col[n]], -change_bound] + [-W_BOUND] * (self.nn - 1)
+            hz += [hi[self.col[n]], change_bound] + [W_BOUND] * (self.nn - 1)
         lz.extend(lo[self.col[n]] for _ in range(self.ns) for n in self.local)
         hz.extend(hi[self.col[n]] for _ in range(self.ns) for n in self.local)
         return np.array(lz), np.array(hz)
@@ -150,7 +156,7 @@ class JointSeries:
             js = f.jacobian(self.spectrum_vector(z, s, values))
             out = np.zeros((js.shape[0], len(z)))
             for k, n in enumerate(self.coupling):
-                out[:, k * self.m:(k + 1) * self.m] = np.outer(js[:, self.col[n]], dvals[k][s])
+                out[:, k * self.m:(k + 1) * self.m] = np.outer(js[:, self.col[n]], dvals[k][self.node_of[s]])
             for i, n in enumerate(self.local):
                 out[:, self.nt + s * self.nl + i] = js[:, self.col[n]]
             blocks.append(out)
@@ -179,8 +185,8 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
     the data push the coupling to a bracket end). At the ends of the series there is only one neighbour: no
     prediction."""
     x = float(entry["x"])
-    left = [i for i in range(joint.ns) if joint.xs[i] < x]
-    right = [i for i in range(joint.ns) if joint.xs[i] > x]
+    left = [i for i in range(joint.nn) if joint.nodes[i] < x]
+    right = [i for i in range(joint.nn) if joint.nodes[i] > x]
     if not left or not right:
         return {"prediction": "none (end of the series: one neighbour only)"}
     i, j = left[-1], right[0]
@@ -192,8 +198,9 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
     values = [joint.coupling_values(z, k) for k in range(joint.nc)]
     lo_v = np.array([values[k][i] for k in range(joint.nc)])
     hi_v = np.array([values[k][j] for k in range(joint.nc)])
-    local0 = 0.5 * (z[joint.nt + i * joint.nl: joint.nt + (i + 1) * joint.nl] +
-                    z[joint.nt + j * joint.nl: joint.nt + (j + 1) * joint.nl])
+    si, sj = joint.node_of.index(i), joint.node_of.index(j)
+    local0 = 0.5 * (z[joint.nt + si * joint.nl: joint.nt + (si + 1) * joint.nl] +
+                    z[joint.nt + sj * joint.nl: joint.nt + (sj + 1) * joint.nl])
     lo_b, hi_b = param.bounds()
     col = joint.col
 
@@ -226,7 +233,7 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
     pred = fw.predict(vector(sol.x))
     m = fw.data_signal_mask if fw.data_signal_mask is not None else np.ones(len(fw.y), bool)
     rel = float(np.linalg.norm(fw.mismatch(pred.model, m)) / max(np.linalg.norm(fw.mismatch(np.zeros_like(fw.y), m)), 1e-30))
-    return {"relative_residual": rel, "neighbours_x": [float(joint.xs[i]), float(joint.xs[j])],
+    return {"relative_residual": rel, "neighbours_x": [float(joint.nodes[i]), float(joint.nodes[j])],
             "u": {key_of.get(n, n): float(u) for n, u in zip(joint.coupling, sol.x[:joint.nc])},
             "prediction_spectrum": np.asarray(pred.model.real).tolist(),
             "frequencies_hz": obs.frequencies_hz.tolist(), "data": obs.values.real.tolist()}
@@ -320,11 +327,12 @@ def main():
                 if n in joint.col:
                     for x in xs0:
                         x[joint.col[n]] = value
-    table = np.array([[x[joint.col[n]] for n in joint.coupling] for x in xs0])
+    first = [joint.node_of.index(i) for i in range(joint.nn)]          # first spectrum of every node
+    table = np.array([[xs0[s][joint.col[n]] for n in joint.coupling] for s in first])
     if args.from_joint:
         previous = json.load(open(args.from_joint))
-        # the previous fit's row at the same concentration, else the nearest one (a spectrum new to the series)
-        rows = [int(np.argmin(np.abs(np.asarray(previous["x"]) - e["x"]))) for e in series]
+        # the previous fit's row at the same concentration, else the nearest one (a concentration new to the series)
+        rows = [int(np.argmin(np.abs(np.asarray(previous["x"]) - x))) for x in joint.nodes]
         table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] for n in joint.coupling] for s in rows])
     z0 = joint.pack(table, xs0)
     ks, mean, sigma = [], [], []
@@ -362,7 +370,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     start_tables = [{"score": sc, "J_at_x": {key_of.get(n, n): joint.coupling_values(zz, k).tolist()
                                               for k, n in enumerate(joint.coupling)}} for sc, zz in solutions]
-    result = {"shape": "monotone (direction and shape free)", "x": joint.xs.tolist(),
+    result = {"shape": "monotone (direction and shape free)", "x": joint.nodes.tolist(),
+              "spectra": [{"id": e["id"], "x": e["x"]} for e in series],
               "start_solutions": start_tables,
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
@@ -384,8 +393,8 @@ def main():
     json.dump(result, open(out / "fit.json", "w"), indent=1)
     with open(out / "J_table.csv", "w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["coupling", "direction"] + [f"J at x={x:.2f} (Hz)" for x in joint.xs] +
-                   [f"std at x={x:.2f} (Hz)" for x in joint.xs] + ["prior centre (Hz)"])
+        w.writerow(["coupling", "direction"] + [f"J at x={x:.3f} (Hz)" for x in joint.nodes] +
+                   [f"std at x={x:.3f} (Hz)" for x in joint.nodes] + ["prior centre (Hz)"])
         for key, c in result["couplings"].items():
             w.writerow([key, c["direction"]] + [round(v, 3) for v in c["J_at_x"]] +
                        [round(v, 3) for v in c["J_std_at_x"]] + [c["prior_centre"]])
@@ -399,7 +408,7 @@ def main():
         fig, axes = plt.subplots(rows, cols, figsize=(3.2 * cols, 2.4 * rows))
         for ax, key in zip(np.ravel(axes), keys):
             c = result["couplings"][key]
-            ax.errorbar(joint.xs, c["J_at_x"], yerr=c["J_std_at_x"], fmt="o-", color="#d1495b", ms=3, lw=1,
+            ax.errorbar(joint.nodes, c["J_at_x"], yerr=c["J_std_at_x"], fmt="o-", color="#d1495b", ms=3, lw=1,
                         capsize=2)
             if c["prior_centre"] is not None:
                 ax.axhline(c["prior_centre"], color="#999999", ls=":", lw=0.8)
