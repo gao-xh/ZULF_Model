@@ -44,11 +44,17 @@ class JointSeriesTests(unittest.TestCase):
             a = joint.theta(z, k)[1]
             self.assertTrue(np.all(steps * np.sign(a) >= -1e-12))
             self.assertAlmostEqual(joint.coupling_values(z, k)[-1] - joint.coupling_values(z, k)[0], a, places=10)
-        jac = joint.jacobian(z)
-        h = 1e-6
-        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
-                                   for e in np.eye(len(z))])
-        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+        for sigma in (0.0, 1.5):         # unsmoothed, and the coarse-to-fine smoothed objective
+            joint.set_smoothing(sigma)
+            jac = joint.jacobian(z)
+            h = 1e-6
+            numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                       for e in np.eye(len(z))])
+            self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0), msg=str(sigma))
+        # smoothing is the same linear kernel on data and model: a constant offset of the residual is kept
+        joint.set_smoothing(1.5)
+        n_res = len(joint.forwards[0].predict(joint.spectrum_vector(z, 0)).residual)   # 2F for complex data
+        self.assertEqual(joint.smoothing[0].shape, (n_res, n_res))
 
     def test_spectra_at_one_concentration_share_their_couplings(self):
         model = build_model(template("CH-CH3"))

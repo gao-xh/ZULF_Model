@@ -84,6 +84,28 @@ class JointSeries:
         self.nt = self.nc * self.m
         self.col = {n: i for i, n in enumerate(self.free)}
         self.priors = ([], np.zeros(0), np.zeros(0))
+        self.smoothing = None                     # per spectrum: residual transform S = W K W^-1 (or None)
+
+    def set_smoothing(self, sigma_hz):
+        """Coarse-to-fine continuation: compare Gaussian-smoothed spectra. The same kernel K (sigma_hz, over the
+        points' frequencies, rows normalised) acts on data and model, so K (model - data) is compared; in residual
+        units r = W (model - data) / norm this is S r with S = W K W^-1 (block-diagonal for complex data).
+        sigma_hz <= 0 switches smoothing off."""
+        if not sigma_hz or sigma_hz <= 0:
+            self.smoothing = None
+            return
+        mats = []
+        for f in self.forwards:
+            d = f.f[:, None] - f.f[None, :]
+            k = np.exp(-0.5 * (d / sigma_hz) ** 2)
+            k /= k.sum(axis=1, keepdims=True)
+            w = f.weight / f.norm
+            s = (w[:, None] * k) / w[None, :]
+            mats.append(s if f.real_only else np.block([[s, np.zeros_like(s)], [np.zeros_like(s), s]]))
+        self.smoothing = mats
+
+    def _smooth(self, s, vec_or_mat):
+        return vec_or_mat if self.smoothing is None else self.smoothing[s] @ vec_or_mat
 
     def theta(self, z, k):
         return z[k * self.m:(k + 1) * self.m]
@@ -142,7 +164,8 @@ class JointSeries:
 
     def residual(self, z):
         values = [self.coupling_values(z, k) for k in range(self.nc)]
-        parts = [f.predict(self.spectrum_vector(z, s, values)).residual for s, f in enumerate(self.forwards)]
+        parts = [self._smooth(s, f.predict(self.spectrum_vector(z, s, values)).residual)
+                 for s, f in enumerate(self.forwards)]
         ks, mean, scale = self.priors
         if ks:
             parts.append((np.array([values[k].mean() for k in ks]) - mean) * scale)
@@ -159,7 +182,7 @@ class JointSeries:
                 out[:, k * self.m:(k + 1) * self.m] = np.outer(js[:, self.col[n]], dvals[k][self.node_of[s]])
             for i, n in enumerate(self.local):
                 out[:, self.nt + s * self.nl + i] = js[:, self.col[n]]
-            blocks.append(out)
+            blocks.append(self._smooth(s, out))
         ks, _, scale = self.priors
         if ks:
             rows = np.zeros((len(ks), len(z)))
@@ -243,10 +266,15 @@ _JOINT_TASK = None
 
 
 def _solve_start(z):
-    """One least-squares run from start z (module level so worker processes can run it; fork start method)."""
-    joint, lower, upper, max_nfev = _JOINT_TASK
-    sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                        max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+    """One start (module level so worker processes can run it; fork start method): least squares at every level
+    of the smoothing schedule in turn (coarse to fine; the last level is always unsmoothed); returns the score of
+    the unsmoothed objective."""
+    joint, lower, upper, max_nfev, schedule = _JOINT_TASK
+    for sigma in list(schedule) + [0.0]:
+        joint.set_smoothing(sigma)
+        sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
+                            max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+        z = sol.x
     return float(2 * sol.cost), sol.x
 
 
@@ -272,6 +300,8 @@ def main():
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
+    ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
+                    "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
     ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
     ap.add_argument("--max-nfev", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
@@ -386,7 +416,8 @@ def main():
         starts.append(np.clip(z, lower + 1e-9, upper - 1e-9))
     t0 = time.time()
     global _JOINT_TASK
-    _JOINT_TASK = (joint, lower, upper, args.max_nfev)
+    schedule = [float(v) for v in args.smoothing.split(",") if v.strip()] if args.smoothing else []
+    _JOINT_TASK = (joint, lower, upper, args.max_nfev, schedule)
     if args.workers > 1:
         import multiprocessing
         with multiprocessing.get_context("fork").Pool(args.workers) as pool:
@@ -398,6 +429,7 @@ def main():
         solutions.append((score, x))
         print(f"start {k}: score {score:.5f}", flush=True)
     print(f"{len(starts)} starts in {time.time() - t0:.0f} s", flush=True)
+    joint.set_smoothing(0.0)
     solutions.sort(key=lambda s: s[0])
     score, z = solutions[0]
     r = joint.residual(z)
