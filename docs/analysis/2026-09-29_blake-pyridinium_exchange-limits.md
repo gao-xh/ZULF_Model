@@ -20,7 +20,12 @@ widened to -30 ... +30 ms.
 
 ## Results
 
-(running)
+- C (N-H dropped, delay -30 ... +30 ms): data-core residual 0.181
+  (stage 1: 0.235), k 25, delay -1.35 ms, no boundary hits,
+  141 s; 1J 190.1 / 167.5 / 171.1 Hz.
+  Same model as the earlier decoupled fit (0.195, delay 3.7 ms, bounds +-10 ms): the wider delay bounds alone
+  lower the residual. The earlier exchange fit (0.171) had its delay at the +10 ms bound.
+- A (k free) and B (k = 1e4 1/s): restarted 2026-09-29 23:56 UTC after a container restart (first attempt lost).
 
 ## Conclusion
 
