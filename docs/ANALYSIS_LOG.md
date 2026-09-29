@@ -962,3 +962,21 @@ skills under `skills/`; this file keeps the history.
   Shiner and Wyllie 1973 not reachable from here), weight 10 (the fits'
   reduced chi2 is 5-10, so a noise-sigma prior would be too weak);
   runs/processed/*_prior.
+- Single-spectrum fits with priors (sigma 0.5 / 1.5 Hz, weight 10): residual
+  x 1.00 0.155, x 0.50 0.227, x 0.02 0.227 (all lower than without priors),
+  pyridinium 0.207. User: couplings should change monotonically with the
+  concentration.
+- Joint fit of the six pyridine spectra (scripts/fit_joint_series.py): every
+  coupling J(x) = a + b (x - mean x), per spectrum its rates, delay, gains,
+  phase; priors on a as above; 4 starts, 11 min. Scores 0.271 / 0.279 /
+  0.282 / 0.656. Residuals 0.225, 0.231, 0.219, 0.177, 0.176, 0.166 (x 0.02
+  ... 1.00): as good as or better than the single-spectrum fits for five of
+  six spectra with two parameters per coupling, so a monotonic (linear)
+  concentration dependence is consistent with the data.
+  Trends (J at x 0.02 -> 1.00, Hz): 1J(C2,H2) 178.3 -> 177.7, 1J(C3,H3)
+  164.5 -> 162.8, 1J(C4,H4) 161.9 -> 158.2; J(H2,H3) 3.7 -> 4.9 (neat
+  literature 4.9), J(H3,H4) 7.9 -> 7.8 (7.7), J(H2,H4) 2.6 -> 3.5 (1.8),
+  J(H2,H5) 2.4 -> 1.8 (0.9), J(H3,H5) -0.8 -> 3.2 (1.4); large slopes for
+  J(C2,H3) (-9.7 Hz per mole fraction), J(C3,H5) (-5.4), J(H3,H5) (+4.1):
+  suspicious, likely trading off against each other. Output:
+  runs/processed/joint_linear.
