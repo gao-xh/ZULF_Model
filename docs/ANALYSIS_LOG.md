@@ -952,3 +952,13 @@ skills under `skills/`; this file keeps the history.
   Next: joint fit of the six pyridine spectra (couplings shared or
   constrained across concentration), or the raw FIDs (complex data).
   Overview figure: runs/processed/overview_staged.png.
+- User: fit the small couplings around the literature values with a weight.
+  Added Gaussian priors to refine (RefineSettings.priors, prior_weight:
+  residual rows sqrt(w) (x - mean) / sigma / norm, so w = 1 prices a
+  one-sigma deviation like one data point one noise sigma off; test against
+  the linearised closed form). Running: staged fits with priors centred on
+  the starting couplings, sigma 0.5 Hz (H-H, accepted values) and 1.5 Hz
+  (long-range C-H, starting values not verified against the literature:
+  Shiner and Wyllie 1973 not reachable from here), weight 10 (the fits'
+  reduced chi2 is 5-10, so a noise-sigma prior would be too weak);
+  runs/processed/*_prior.
