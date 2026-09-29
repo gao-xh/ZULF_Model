@@ -239,6 +239,17 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
             "frequencies_hz": obs.frequencies_hz.tolist(), "data": obs.values.real.tolist()}
 
 
+_JOINT_TASK = None
+
+
+def _solve_start(z):
+    """One least-squares run from start z (module level so worker processes can run it; fork start method)."""
+    joint, lower, upper, max_nfev = _JOINT_TASK
+    sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
+                        max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+    return float(2 * sol.cost), sol.x
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--series", required=True)
@@ -260,6 +271,8 @@ def main():
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
+    ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
+    ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
     ap.add_argument("--max-nfev", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="runs/processed/joint")
@@ -334,6 +347,12 @@ def main():
         # the previous fit's row at the same concentration, else the nearest one (a concentration new to the series)
         rows = [int(np.argmin(np.abs(np.asarray(previous["x"]) - x))) for x in joint.nodes]
         table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] for n in joint.coupling] for s in rows])
+    if args.from_joint:
+        # decay rates and delays of spectra already in the previous fit (same id)
+        for e, x in zip(series, xs0):
+            for n, v in previous.get("spectrum_parameters", {}).get(e["id"], {}).items():
+                if n in joint.col:
+                    x[joint.col[n]] = v
     z0 = joint.pack(table, xs0)
     ks, mean, sigma = [], [], []
     for k, n in enumerate(joint.coupling):
@@ -353,13 +372,32 @@ def main():
     level[:joint.nt:joint.m] = 1.0                        # perturb the level of every coupling, not its shape
     starts = [z0] + [np.clip(z0 + level * rng.normal(0, args.spread, len(z0)), lower + 1e-9, upper - 1e-9)
                      for _ in range(max(args.starts - 1, 0))]
+    # random starts drawn from the priors: level of every small coupling ~ N(centre, 2 sigma), direction and size
+    # of its change random, shape uniform; 1J levels and the spectrum parameters from the first start
+    for _ in range(args.prior_starts):
+        z = z0.copy()
+        for k, n in enumerate(joint.coupling):
+            base_k = k * joint.m
+            if k in ks:
+                sd = 2.0 * sigma[ks.index(k)]
+                z[base_k] = rng.normal(mean[ks.index(k)], sd)
+                z[base_k + 1] = rng.normal(0.0, sd)
+                z[base_k + 2: base_k + joint.m] = 0.0
+        starts.append(np.clip(z, lower + 1e-9, upper - 1e-9))
     t0 = time.time()
+    global _JOINT_TASK
+    _JOINT_TASK = (joint, lower, upper, args.max_nfev)
+    if args.workers > 1:
+        import multiprocessing
+        with multiprocessing.get_context("fork").Pool(args.workers) as pool:
+            solved = pool.map(_solve_start, starts, chunksize=1)
+    else:
+        solved = [_solve_start(z) for z in starts]
     solutions = []
-    for k, z in enumerate(starts):
-        sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                            max_nfev=args.max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
-        solutions.append((float(2 * sol.cost), sol.x))
-        print(f"start {k}: score {2 * sol.cost:.5f} ({time.time() - t0:.0f} s)", flush=True)
+    for k, (score, x) in enumerate(solved):
+        solutions.append((score, x))
+        print(f"start {k}: score {score:.5f}", flush=True)
+    print(f"{len(starts)} starts in {time.time() - t0:.0f} s", flush=True)
     solutions.sort(key=lambda s: s[0])
     score, z = solutions[0]
     r = joint.residual(z)
@@ -390,6 +428,8 @@ def main():
     if left_out is not None:
         result["left_out"] = {"id": left_out["id"], "x": left_out["x"],
                               **predict_left_out(joint, z, left_out, (lo, hi), key_of, settings)}
+    result["spectrum_parameters"] = {series[si]["id"]: {n: float(z[joint.nt + si * joint.nl + i])
+                                                       for i, n in enumerate(joint.local)} for si in range(joint.ns)}
     json.dump(result, open(out / "fit.json", "w"), indent=1)
     with open(out / "J_table.csv", "w", newline="") as fh:
         w = csv.writer(fh)
