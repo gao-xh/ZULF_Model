@@ -937,3 +937,18 @@ skills under `skills/`; this file keeps the history.
   solution kept in the refinement summary (start_solutions, both
   signal-mask passes), scripts/fit_staged.py. Running: staged fits of all
   seven spectra (12 stage-2 starts, spread 1 Hz), runs/processed/*_staged.
+- Staged fits of all seven (12 stage-2 starts, spread 1 Hz; 36-72 min each,
+  4 in parallel): relative residual on the data cores 0.171 (x 1.00),
+  0.186, 0.206, 0.254, 0.236, 0.260 (x 0.02), pyridinium 0.195; lower than
+  every earlier fit. But in every spectrum the best minimum was reached by
+  one start of twelve (next ones at 1.03-1.41x the score), the fitted delay
+  is 3.7-6.4 ms, and the couplings other than 1J scatter by several Hz
+  between neighbouring concentrations (J(H3,H4) 6.5-10.2 Hz, 3J(C2,H6)
+  6.8-16.3 Hz) while their linearised errors are 0.02-0.4 Hz. 1J also
+  scatters (C2 176.7-179.9, C4 157.8-166.3 Hz). Conclusion: with one
+  spectrum at a time these data do not fix the small couplings (many
+  near-equivalent minima); the linearised errors describe one minimum, not
+  the ambiguity. Pyridinium: 1J 187.5 / 169.0 / 171.2 Hz.
+  Next: joint fit of the six pyridine spectra (couplings shared or
+  constrained across concentration), or the raw FIDs (complex data).
+  Overview figure: runs/processed/overview_staged.png.
