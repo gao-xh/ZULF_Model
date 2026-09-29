@@ -1,0 +1,23 @@
+{
+  "molecule": "pyridine",
+  "units": "Hz",
+  "labels": "ring positions: A2..A6 carbons, HA2..HA6 protons (N at position 1); keys as in the pyridine ring motif",
+  "carbon_proton": {
+    "source": "M. Hansen, H. J. Jakobsen, J. Magn. Reson. 10, 74 (1973), as tabulated (absolute values) in A. Bax, J. Magn. Reson. 52, 330 (1983), Table 1; 70 % v/v in acetone-d6/TMS (2:1)",
+    "absolute_values": {
+      "J(A2,HA2)": 177.63, "J(A2,HA3)": 3.12, "J(A2,HA4)": 6.85, "J(A2,HA5)": 0.92, "J(A2,HA6)": 11.16,
+      "J(A3,HA2)": 8.47, "J(A3,HA3)": 163.04, "J(A3,HA4)": 0.84, "J(A3,HA5)": 6.56, "J(A3,HA6)": 1.65,
+      "J(A4,HA2)": 6.34, "J(A4,HA3)": 0.70, "J(A4,HA4)": 162.41
+    },
+    "bax_1983_measured": {
+      "conditions": "50 % v/v in acetone-d6, semiselective 2D J spectroscopy",
+      "J(A2,HA2)": 177.56, "J(A3,HA2)": 8.42, "J(A3,HA3)": 163.01, "J(A3,HA4)": 1.04, "J(A3,HA5)": 6.51,
+      "J(A3,HA6)": 1.65, "J(A4,HA2)": 6.31, "J(A4,HA3)": 0.88, "J(A4,HA4)": 162.19
+    },
+    "signs": "not given in Bax 1983 (absolute values); relative signs are in Hansen and Jakobsen 1973 (not read). Para-type 4J(A2,HA5) and 4J(A3,HA6) are negative in benzene (-1.3 Hz); both signs are tried."
+  },
+  "proton_proton": {
+    "source": "S. Castellano, C. Sun, R. Kostelnik, J. Chem. Phys. 46, 327 (1967) (full text not read; values as used so far, consistent with |J(HA2,HA6)| = 0.15 Hz quoted by Bax 1983)",
+    "values": {"J(HA2,HA3)": 4.9, "J(HA3,HA4)": 7.7, "J(HA2,HA4)": 1.8, "J(HA3,HA5)": 1.4, "J(HA2,HA5)": 0.9, "J(HA2,HA6)": -0.1}
+  }
+}

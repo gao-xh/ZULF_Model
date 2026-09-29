@@ -1205,3 +1205,21 @@ skills under `skills/`; this file keeps the history.
   Next: get the sequence timings (GF1 ramp start vs arrival, GF1-off to
   GF2-off delay, GF2 fall time) or add a fitted preparation (hold at a
   field along the detection axis for t_hold) to the protocol.
+- Literature 13C-1H couplings of pyridine (uploaded: A. Bax, J. Magn. Reson.
+  52, 330 (1983), Table 1, which also lists Hansen and Jakobsen, J. Magn.
+  Reson. 10, 74 (1973); absolute values; stored in
+  configs/literature/pyridine_couplings.json). Compared with the prior
+  centres used so far (scratchpad pyr_lit.json, never verified): wrong
+  J(A3,HA2) 3.5 vs 8.47 Hz (5 Hz off), J(A2,HA5) -1.5 vs |0.92|,
+  J(A3,HA6) -1.4 vs |1.65|, J(A4,HA2) 6.8 vs 6.34; the others agree within
+  0.2 Hz. Every joint fit so far had a sigma 1.5 Hz, weight 10 prior pulling
+  J(A3,HA2) towards 3.5; the fits reached 4.2-4.5 (48-start) and 6.0-6.9
+  (staged). Other comparisons at x = 1.00 (48-start best / staged vs
+  literature, 50-70 % v/v in acetone): 1J(C2) 177.3/177.9 vs 177.6,
+  1J(C3) 162.8/162.5 vs 163.0, but 1J(C4) 157.0/155.1 vs 162.2-162.4
+  (5-7 Hz low, suspicious); small couplings off by up to 6 Hz (e.g.
+  J(A2,HA6) 17.2/5.9 vs 11.2, J(A4,HA3) 3.5/2.9 vs 0.7).
+  Running: joint fits with the literature centres (4J(A2,HA5), 4J(A3,HA6)
+  negative and positive variants), same settings as joint_real_staged
+  (hold-small-first, sigma_ch 1.5, weight 10), 12 starts each:
+  runs/processed/joint_hj73_neg, joint_hj73_pos.
