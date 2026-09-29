@@ -1061,3 +1061,14 @@ skills under `skills/`; this file keeps the history.
   information. Added a coarse-to-fine continuation (Gaussian smoothing of
   data and model with the same kernel, 1.5 -> 0.8 -> 0.4 Hz -> none; test
   against finite differences); running it on the synthetic series.
+- Smoothing continuation on the synthetic series (16 starts): best 0.452
+  (plain 0.497, truth 0.353) but median coupling error 4.3 Hz (plain 1.8):
+  lower scores without getting closer to the truth. Basin test from the
+  truth: spread 0.3 Hz: 8/8 starts reach 0.3434 (below the truth's 0.353,
+  noise fitted) with max coupling error 0.67 Hz over all couplings and
+  concentrations; spread 1 Hz: 2/8. So the spectra carry the information
+  (errors < 0.7 Hz in the right basin), but the basin is about 1 Hz wide in
+  19 coupling levels: random starts almost never land in it. Added a
+  coordinate grid scan (each small coupling level on a +-4 Hz grid, others
+  held, then a local fit; test: a 3 Hz displaced coupling is recovered);
+  running on the synthetic series from the accepted values.
