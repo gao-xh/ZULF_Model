@@ -48,5 +48,52 @@ class CouplingUncertaintyTests(unittest.TestCase):
         self.assertIn("J(Ca,Ha)", uncertainty_markdown(predicted))
 
 
+class CouplingPriorTests(unittest.TestCase):
+    def test_prior_shift_matches_linearised_closed_form(self):
+        # Gaussian prior on one small coupling, centred 1.5 Hz off the data optimum. Independent reference: the
+        # linearised posterior mode x = x_d - (H + P)^-1 P (x_d - mu), H = J^T J at the prior-free optimum x_d,
+        # P = diag(weight / (sigma norm)^2) on the prior parameter.
+        import dataclasses
+        model = build_model(template("CH-CH3"))
+        base = RefineSettings(starts=1, band_weighting="none", background_order=-1,
+                              continuation_rates_per_s=(0.0,))
+        settings = _settings_for(model, "fixed", base)
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 200.0, 0.25)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 200.0)], record=acq)
+        param = settings.parameterize(model.interpretation)
+        kw = _signal_kwargs(settings)
+        signal = np.asarray(MixtureForward(param, clean, gain_model=settings.gain_model, background=-1,
+                                           band_weighting="none", **kw).predict(
+            param.vector(), fixed_gains=np.asarray(settings.amplitude_map, float)[:, 0].astype(complex)).model)
+        noise = 0.02 * np.abs(signal).max() * (np.array([1.0, 1j]) @ np.random.default_rng(5).normal(size=(2, len(f))))
+        obs = ObservedSpectrum.from_spectrum(f, signal + noise, [(100.0, 200.0)], record=acq)
+        free = refine(model.interpretation, obs, settings)
+        name = model.coupling_names["J(Ca,Hb)"][0]
+        names = settings.parameterize(model.interpretation).free_names
+        i = names.index(name)
+        x_d = np.array([free.parameters[n] for n in names])
+        fw = MixtureForward(settings.parameterize(model.interpretation), obs, gain_model=settings.gain_model,
+                            background=-1, band_weighting="none", **kw)
+        jac = fw.jacobian(x_d)
+        mu, sigma, weight = x_d[i] + 1.5, 0.5, 1.0          # moderate prior: shift of a few 0.1 Hz (linear regime)
+        p = np.zeros((len(x_d), len(x_d)))
+        p[i, i] = weight / (sigma * fw.norm) ** 2
+        m = x_d.copy()
+        m[i] = mu
+        expected = x_d - np.linalg.solve(jac.T @ jac + p, p @ (x_d - m))
+        with_prior = refine(model.interpretation, obs, dataclasses.replace(
+            settings, priors=((name, mu, sigma),), prior_weight=weight))
+        got = np.array([with_prior.parameters[n] for n in names])
+        shift = got[i] - x_d[i]
+        self.assertGreater(abs(shift), 0.05)                              # the prior acts
+        self.assertAlmostEqual(got[i], expected[i], delta=0.1 * abs(expected[i] - x_d[i]))
+
+        def objective(x):                                                 # data chi2 plus the prior row
+            extra = (x[i] - mu) * np.sqrt(weight) / sigma / fw.norm
+            return fw.predict(x).score + extra ** 2
+        self.assertLessEqual(objective(got), objective(expected) + 1e-9)
+
+
 if __name__ == "__main__":
     unittest.main()

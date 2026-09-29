@@ -4,7 +4,9 @@
         --structure '{"motif": "pyridine ring", "one_bond": {...}}' --couplings '{"J(HA2,HA3)": 4.9, ...}' \\
         [--hold-first J(HA] [--starts 12] [--spread 1.0] [--variant ratios] [--range 140,200] [--out DIR]
 
-Stage 1 holds every coupling whose key starts with one of the `--hold-first` prefixes at its starting value (e.g.
+Optional Gaussian priors (`--prior-sigma-hh`, `--prior-sigma-ch`, `--prior-weight`) keep the small couplings
+(|J| < 50 Hz) near their starting values (e.g. literature) with a weight, while every coupling stays free
+(RefineSettings.priors). Stage 1 holds every coupling whose key starts with one of the `--hold-first` prefixes at its starting value (e.g.
 the H-H couplings at accepted values) and fits the rest; stage 2 frees all couplings from the stage-1 optimum, plus
 `--starts - 1` starts perturbed around it (normal, `--spread` Hz on couplings). On pyridine (x = 1.00) this found a
 lower minimum than a direct all-free fit from the same accepted values (ANALYSIS_LOG). Outputs OUT/fit.json (stage
@@ -65,6 +67,12 @@ def main():
     ap.add_argument("--variant", default="ratios")
     ap.add_argument("--range", default="140,200")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--prior-sigma-hh", type=float, default=0.0,
+                    help="Gaussian prior width (Hz) of every H-H coupling around its starting value (0: none)")
+    ap.add_argument("--prior-sigma-ch", type=float, default=0.0,
+                    help="prior width (Hz) of every other small coupling (|J| < 50 Hz) around its starting value")
+    ap.add_argument("--prior-weight", type=float, default=1.0,
+                    help="prior weight: 1 = a one-sigma deviation costs one data point one noise sigma off")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
     import regression_confirmed as reg
@@ -82,6 +90,17 @@ def main():
     base = dataclasses.replace(default_fit_base(), starts=1, max_evaluations=10 ** 6,
                                max_seconds=600.0 * max(args.starts, 1))
     settings = _settings_for(model, args.variant, base)
+    # priors around the starting couplings (e.g. literature values): all couplings stay free
+    start_values = settings.parameterize(model.interpretation).values()
+    priors = []
+    for key, names in model.coupling_names.items():
+        value = start_values[names[0]]
+        if abs(value) >= 50.0:
+            continue
+        sigma = args.prior_sigma_hh if key.startswith("J(H") else args.prior_sigma_ch
+        if sigma > 0:
+            priors += [(n, value, sigma) for n in names]
+    settings = dataclasses.replace(settings, priors=tuple(priors), prior_weight=args.prior_weight)
     out = Path(args.out or f"runs/processed/{args.id}_staged")
     out.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -106,6 +125,9 @@ def main():
     e.couplings = model.named_couplings(r2.parameters)
     row = {"id": args.id, "model": model.name, "variant": args.variant, "seconds": round(time.time() - t0),
            "hold_first": list(prefixes),
+           "priors": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight,
+                      "centres": {k: round(start_values[n[0]], 3) for k, n in model.coupling_names.items()
+                                  if abs(start_values[n[0]]) < 50.0}},
            "stage1": {"data_region_residual": r1.data_region_residual,
                       "couplings": {k: round(x, 3) for k, x in model.named_couplings(r1.parameters).items()}},
            "stage2": {"data_region_residual": r2.data_region_residual, "relative_residual": r2.relative_residual,

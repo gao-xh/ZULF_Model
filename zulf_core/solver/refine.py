@@ -57,6 +57,12 @@ class RefineSettings:
     sign_variants: bool = False     # also refine candidates with large couplings sign-flipped (D25)
     sign_variant_min_hz: Optional[float] = None   # default: |J| whose interval excludes zero
     max_sign_variants: int = 16
+    # Gaussian priors on free parameters: ((name, mean, sigma), ...). Each adds the residual row
+    # sqrt(prior_weight) * (x - mean) / sigma / norm, i.e. with weight 1 a one-sigma deviation costs as much as one
+    # data point one noise sigma off (with noise-weighted residuals, band_weighting "signal"). Names that are not
+    # free are skipped; a tied follower refers to its leader. Scores and start solutions include the prior term.
+    priors: tuple = ()
+    prior_weight: float = 1.0
 
     def parameterize(self, candidate: Interpretation) -> Parameterization:
         param = Parameterization.from_interpretation(candidate, self.policy)
@@ -194,6 +200,19 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         raise ValueError("jacobian must be 'analytic', 'kaufman' or 'finite_difference'.")
     jacobian_calls = {"analytic": 0, "fallback": 0}
 
+    free_index = {n: i for i, n in enumerate(param.free_names)}
+    prior_terms = {}
+    for name, mean, sigma in settings.priors:
+        name = param.ties.get(name, name)
+        if name in free_index and sigma > 0:
+            prior_terms[free_index[name]] = (float(mean), math.sqrt(settings.prior_weight) / float(sigma))
+    prior_idx = np.array(sorted(prior_terms), int)
+    prior_mean = np.array([prior_terms[i][0] for i in prior_idx])
+    prior_scale = np.array([prior_terms[i][1] for i in prior_idx])
+
+    def prior_residual(x):
+        return (np.asarray(x, float)[prior_idx] - prior_mean) * prior_scale / forward.norm
+
     def evaluate(x):
         nonlocal evaluations
         if evaluations >= settings.max_evaluations:
@@ -203,9 +222,11 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         evaluations += 1
         with timer.section("solver.evaluate"):
             pred = forward.predict(x)
-        if forward is base_forward and pred.score < final_best["score"]:
-            final_best.update(score=pred.score, x=np.array(x, float), start=current_start)
-        return pred.residual
+        extra = prior_residual(x)
+        score = pred.score + float(extra @ extra)
+        if forward is base_forward and score < final_best["score"]:
+            final_best.update(score=score, x=np.array(x, float), start=current_start)
+        return np.r_[pred.residual, extra] if len(extra) else pred.residual
 
     def jacobian(x):
         if time.perf_counter() - start_time > settings.max_seconds:
@@ -214,6 +235,10 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
             try:
                 jac = forward.jacobian(x, full=settings.jacobian == "analytic")
                 jacobian_calls["analytic"] += 1
+                if len(prior_idx):
+                    rows = np.zeros((len(prior_idx), len(x)))
+                    rows[np.arange(len(prior_idx)), prior_idx] = prior_scale / forward.norm
+                    jac = np.vstack([jac, rows])
                 return jac
             except NotImplementedError:
                 # No closed form for this renderer (continuous route with Gaussian widths): forward differences.
