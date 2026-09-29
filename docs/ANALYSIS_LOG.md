@@ -1004,3 +1004,15 @@ skills under `skills/`; this file keeps the history.
   2.5 sigma threshold and a slower fall-off between peaks: taper 4 Hz
   (lowest weight between peaks 0.60-0.69, noise regions 0.27-0.31).
   Running: runs/processed/joint_mono_thr25_taper4 (from A).
+- 2.5 sigma / 4 Hz weighting (from A): scores 0.3265, then 0.3335-0.3377 (best
+  reached once). Criterion (user): the residual is not the measure; judge the
+  couplings by reproducibility, robustness to processing choices, errors and
+  correlations, prediction, plausibility. Weighting comparison (max |J diff|
+  over x between the two weightings; formal errors 0.01-0.16 Hz):
+  < 0.3 Hz: 1J(C2,H2) 0.18, 1J(C3,H3) 0.11, J(H3,H4) 0.17;
+  0.5-1 Hz: 1J(C4,H4), J(H2,H3), J(H2,H4), J(H2,H5), J(H2,H6), J(C2,H4),
+  J(C2,H5), J(C3,H2), J(C3,H4), J(C3,H6), J(C4,H3);
+  > 1 Hz (not determined): J(C2,H3) 2.5, J(C4,H2) 2.5, J(H3,H5) 1.3,
+  J(C2,H6) 1.25, J(C3,H5) 1.2. Directions agree for all 19 couplings. The
+  weighting sensitivity is 5-20x the linearised errors: those understate
+  the uncertainty. Figure runs/processed/J_weighting_comparison.png.
