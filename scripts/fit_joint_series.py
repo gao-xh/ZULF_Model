@@ -6,7 +6,8 @@
         [--starts 6] [--spread 0.5] [--out runs/processed/joint]
 
 series.json (increasing x): [{"id": ..., "x": 0.5, "freq": F.npy, "values": V.npy, "start": fit.json of a
-single-spectrum fit (optional)}, ...].
+single-spectrum fit (optional)}, ...]; an entry may instead give "fid": raw averaged FID (.npy; processed with the
+confirmed-sample recipe of configs/confirmed_samples.json and fitted as complex data) and "ranges".
 
 Model (user: monotonic, never linear): for every free coupling k and spectrum i (x_1 < ... < x_n)
 
@@ -264,8 +265,19 @@ def main():
         left_out = series[args.leave_out]
         series = [e for i, e in enumerate(series) if i != args.leave_out]
     lo, hi = (float(v) for v in args.range.split(","))
-    obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), np.load(e["values"]).astype(float),
-                                          [(lo, hi)], record=None, real_only=True, label=e["id"]) for e in series]
+    config = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
+
+    def observation(e):
+        """A processed real spectrum (freq, values), or a raw FID ("fid") processed with the confirmed-sample
+        recipe and compared as complex data (phase and delay fitted), restricted to e["ranges"] or the band."""
+        if "fid" in e:
+            path = Path(e["fid"])
+            o = reg.observed_for({"file": path.name}, config, str(path.parent))
+            return o.restricted([tuple(r) for r in e.get("ranges", [(lo, hi)])])
+        return ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), np.load(e["values"]).astype(float),
+                                              [(lo, hi)], record=None, real_only=True, label=e["id"])
+
+    obs = [observation(e) for e in series]
     spec = json.loads(args.structure)
     spec.setdefault("compound", "series")
     fragment = override_couplings(reg.structure_for(spec), json.loads(args.couplings))
@@ -299,6 +311,8 @@ def main():
                     x[joint.col[n]] = np.log(rate)
             if "phase_delay" in joint.col and "delay_ms" in fit.get("stage2", {}):
                 x[joint.col["phase_delay"]] = fit["stage2"]["delay_ms"] * 1e-3
+        if "delay_ms" in e and "phase_delay" in joint.col:       # starting delay (e.g. the switching edge)
+            x[joint.col["phase_delay"]] = float(e["delay_ms"]) * 1e-3
         xs0.append(x)
     if args.start_couplings:
         for key, value in json.loads(args.start_couplings).items():
@@ -309,7 +323,8 @@ def main():
     table = np.array([[x[joint.col[n]] for n in joint.coupling] for x in xs0])
     if args.from_joint:
         previous = json.load(open(args.from_joint))
-        rows = [i for i, x in enumerate(previous["x"]) if any(abs(x - e["x"]) < 1e-9 for e in series)]
+        # the previous fit's row at the same concentration, else the nearest one (a spectrum new to the series)
+        rows = [int(np.argmin(np.abs(np.asarray(previous["x"]) - e["x"]))) for e in series]
         table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] for n in joint.coupling] for s in rows])
     z0 = joint.pack(table, xs0)
     ks, mean, sigma = [], [], []
@@ -398,8 +413,12 @@ def main():
         plt.close(fig)
         fig, axes = plt.subplots(len(obs), 1, figsize=(12, 2.3 * len(obs)), sharex=True)
         for s, (ax, o, f) in enumerate(zip(np.atleast_1d(axes), obs, joint.forwards)):
-            pred = f.predict(joint.spectrum_vector(z, s)).model.real
-            y = o.values.real
+            pred = f.predict(joint.spectrum_vector(z, s)).model
+            y = o.values
+            if o.real_only:
+                pred, y = pred.real, y.real
+            else:                              # complex data (unphased): compare magnitudes in the figure
+                pred, y = np.abs(pred), np.abs(y)
             m = np.abs(y).max()
             ax.plot(o.frequencies_hz, y / m, color="#222222", lw=0.8, label="experiment")
             ax.plot(o.frequencies_hz, pred / m, color="#d1495b", lw=0.9, label="simulation")
