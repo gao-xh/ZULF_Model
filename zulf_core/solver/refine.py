@@ -339,6 +339,9 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
             inner.evaluations += evaluations
             inner.elapsed_s = time.perf_counter() - start_time
             inner.attempts = attempts + inner.attempts
+            # keep every start of this pass (the next pass starts from the best one only; its scores use other
+            # weights, so the passes are labelled and compared separately)
+            inner.start_solutions = _start_solutions(history, param, _signal_extra_hz) + inner.start_solutions
             inner.flags.append(f"signal_mask_model_pass(+{int(new_cores.sum())} points)")
             return inner
     return RefinementResult(interp, values, final.gains.tolist(), final.background.tolist(), relative, signal_relative,
@@ -348,9 +351,12 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
                             jacobian_evaluations=jacobian_calls["analytic"] + jacobian_calls["fallback"],
                             signal_region_residual=signal_region, data_region_residual=data_region,
                             signal_model_lines_hz=[float(v) for v in _signal_extra_hz],
-                            start_solutions=[{"start": int(st), "converged": bool(ok), "score": float(sc),
-                                              "parameters": {n: float(v) for n, v in zip(param.free_names, xs)}}
-                                             for st, ok, xs, sc in history])
+                            start_solutions=_start_solutions(history, param, _signal_extra_hz))
+
+
+def _start_solutions(history, param: Parameterization, signal_extra_hz) -> List[dict]:
+    return [{"start": int(st), "converged": bool(ok), "score": float(sc), "signal_extra_points": len(signal_extra_hz),
+             "parameters": {n: float(v) for n, v in zip(param.free_names, xs)}} for st, ok, xs, sc in history]
 
 
 def frozen_prediction(result: RefinementResult, candidate_param: Parameterization, held_out: ObservedSpectrum,

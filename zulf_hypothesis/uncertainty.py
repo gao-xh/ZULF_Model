@@ -93,6 +93,12 @@ def start_agreement(e: Evaluated, base: RefineSettings, tolerance: float = 0.01)
     sols = e.summary.get("start_solutions") or []
     if not sols:
         return {"starts": 0}
+    # compare starts of one objective only: the pass with the most starts (later signal-mask passes refine the
+    # best start alone with other weights)
+    groups: Dict[int, list] = {}
+    for s in sols:
+        groups.setdefault(s.get("signal_extra_points", 0), []).append(s)
+    sols = max(groups.values(), key=len)
     settings = _settings_for(e.model, e.variant, base)
     param = settings.parameterize(e.model.interpretation)
     key_of: Dict[str, str] = {}
