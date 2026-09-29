@@ -171,6 +171,66 @@ class JointSeries:
         return out
 
 
+def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
+    """Fit the left-out spectrum with every coupling held between its values at the neighbouring concentrations
+    (monotonicity allows nothing else): J_k = J_k(left) + u_k (J_k(right) - J_k(left)), u_k in [0, 1]; rates, delay,
+    gains, phase and background free. Returns the relative residual on the data cores and the u_k (0 or 1 means
+    the data push the coupling to a bracket end). At the ends of the series there is only one neighbour: no
+    prediction."""
+    x = float(entry["x"])
+    left = [i for i in range(joint.ns) if joint.xs[i] < x]
+    right = [i for i in range(joint.ns) if joint.xs[i] > x]
+    if not left or not right:
+        return {"prediction": "none (end of the series: one neighbour only)"}
+    i, j = left[-1], right[0]
+    obs = ObservedSpectrum.from_spectrum(np.load(entry["freq"]).astype(float), np.load(entry["values"]).astype(float),
+                                         [band], record=None, real_only=True, label=entry["id"])
+    param = joint.settings.parameterize(joint.model.interpretation)
+    fw = MixtureForward(param, obs, SUDDEN_DROP, settings.gain_model, settings.background_order,
+                        settings.band_weighting, **_signal_kwargs(settings))
+    values = [joint.coupling_values(z, k) for k in range(joint.nc)]
+    lo_v = np.array([values[k][i] for k in range(joint.nc)])
+    hi_v = np.array([values[k][j] for k in range(joint.nc)])
+    local0 = 0.5 * (z[joint.nt + i * joint.nl: joint.nt + (i + 1) * joint.nl] +
+                    z[joint.nt + j * joint.nl: joint.nt + (j + 1) * joint.nl])
+    lo_b, hi_b = param.bounds()
+    col = joint.col
+
+    def vector(p):
+        u, loc = p[:joint.nc], p[joint.nc:]
+        xv = np.empty(len(joint.free))
+        for k, n in enumerate(joint.coupling):
+            xv[col[n]] = lo_v[k] + u[k] * (hi_v[k] - lo_v[k])
+        for m, n in enumerate(joint.local):
+            xv[col[n]] = loc[m]
+        return xv
+
+    def residual(p):
+        return fw.predict(vector(p)).residual
+
+    def jacobian(p):
+        js = fw.jacobian(vector(p))
+        out = np.zeros((js.shape[0], len(p)))
+        for k, n in enumerate(joint.coupling):
+            out[:, k] = js[:, col[n]] * (hi_v[k] - lo_v[k])
+        for m, n in enumerate(joint.local):
+            out[:, joint.nc + m] = js[:, col[n]]
+        return out
+
+    lower = np.r_[np.zeros(joint.nc), [lo_b[col[n]] for n in joint.local]]
+    upper = np.r_[np.ones(joint.nc), [hi_b[col[n]] for n in joint.local]]
+    p0 = np.clip(np.r_[np.full(joint.nc, 0.5), local0], lower + 1e-9, upper - 1e-9)
+    sol = least_squares(residual, p0, jac=jacobian, bounds=(lower, upper), x_scale="jac", max_nfev=max_nfev,
+                        ftol=1e-10, xtol=1e-10, gtol=1e-10)
+    pred = fw.predict(vector(sol.x))
+    m = fw.data_signal_mask if fw.data_signal_mask is not None else np.ones(len(fw.y), bool)
+    rel = float(np.linalg.norm(fw.mismatch(pred.model, m)) / max(np.linalg.norm(fw.mismatch(np.zeros_like(fw.y), m)), 1e-30))
+    return {"relative_residual": rel, "neighbours_x": [float(joint.xs[i]), float(joint.xs[j])],
+            "u": {key_of.get(n, n): float(u) for n, u in zip(joint.coupling, sol.x[:joint.nc])},
+            "prediction_spectrum": np.asarray(pred.model.real).tolist(),
+            "frequencies_hz": obs.frequencies_hz.tolist(), "data": obs.values.real.tolist()}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--series", required=True)
@@ -191,6 +251,7 @@ def main():
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--max-nfev", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="runs/processed/joint")
@@ -198,6 +259,10 @@ def main():
     import regression_confirmed as reg
     from fit_processed_spectrum import override_couplings
     series = json.load(open(args.series))
+    left_out = None
+    if args.leave_out >= 0:
+        left_out = series[args.leave_out]
+        series = [e for i, e in enumerate(series) if i != args.leave_out]
     lo, hi = (float(v) for v in args.range.split(","))
     obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), np.load(e["values"]).astype(float),
                                           [(lo, hi)], record=None, real_only=True, label=e["id"]) for e in series]
@@ -244,8 +309,8 @@ def main():
     table = np.array([[x[joint.col[n]] for n in joint.coupling] for x in xs0])
     if args.from_joint:
         previous = json.load(open(args.from_joint))
-        table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] for n in joint.coupling]
-                          for s in range(joint.ns)])
+        rows = [i for i, x in enumerate(previous["x"]) if any(abs(x - e["x"]) < 1e-9 for e in series)]
+        table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] for n in joint.coupling] for s in rows])
     z0 = joint.pack(table, xs0)
     ks, mean, sigma = [], [], []
     for k, n in enumerate(joint.coupling):
@@ -280,7 +345,10 @@ def main():
     cov = float(r @ r) / dof * np.linalg.pinv(jac.T @ jac)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    start_tables = [{"score": sc, "J_at_x": {key_of.get(n, n): joint.coupling_values(zz, k).tolist()
+                                              for k, n in enumerate(joint.coupling)}} for sc, zz in solutions]
     result = {"shape": "monotone (direction and shape free)", "x": joint.xs.tolist(),
+              "start_solutions": start_tables,
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
               "scores": [s for s, _ in solutions],
@@ -295,6 +363,9 @@ def main():
             "J_at_x": values.tolist(), "J_std_at_x": np.sqrt(np.maximum(np.diag(value_cov), 0)).tolist(),
             "direction": "increasing" if z[block][1] > 0 else "decreasing", "change_hz": float(z[block][1]),
             "prior_centre": centre[n] if abs(centre[n]) < 50 else None}
+    if left_out is not None:
+        result["left_out"] = {"id": left_out["id"], "x": left_out["x"],
+                              **predict_left_out(joint, z, left_out, (lo, hi), key_of, settings)}
     json.dump(result, open(out / "fit.json", "w"), indent=1)
     with open(out / "J_table.csv", "w", newline="") as fh:
         w = csv.writer(fh)

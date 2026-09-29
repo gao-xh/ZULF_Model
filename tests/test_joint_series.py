@@ -50,5 +50,52 @@ class JointSeriesTests(unittest.TestCase):
                                    for e in np.eye(len(z))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
+    def test_left_out_prediction_recovers_a_bracketed_spectrum(self):
+        # three synthetic spectra, J(Ca,Ha) shifted 0 / 0.4 / 0.9 Hz: leave the middle out, fit the outer two with
+        # their true couplings, predict the middle within the bracket; the prediction must reach the noise level
+        import tempfile
+        from fit_joint_series import predict_left_out
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 200.0, 0.25)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 200.0)], record=acq)
+        rng = np.random.default_rng(4)
+        tmp = Path(tempfile.mkdtemp())
+        name = model.coupling_names["J(Ca,Ha)"][0]
+        obs, entries, noise = [], [], 0.002
+        for s, shift in enumerate((0.0, 0.4, 0.9)):
+            p = settings.parameterize(model.interpretation)
+            p.set(name, p.parameters[name].value + shift)
+            sig = np.asarray(MixtureForward(p, clean, gain_model=settings.gain_model, background=-1,
+                                            band_weighting="none", **_signal_kwargs(settings)).predict(
+                p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model).real
+            y = sig + noise * rng.normal(size=len(f))
+            np.save(tmp / f"f{s}.npy", f)
+            np.save(tmp / f"y{s}.npy", y)
+            entries.append({"id": f"s{s}", "x": [0.1, 0.5, 1.0][s], "freq": str(tmp / f"f{s}.npy"),
+                            "values": str(tmp / f"y{s}.npy")})
+            obs.append(ObservedSpectrum.from_spectrum(f, y, [(100.0, 200.0)], record=None, real_only=True))
+        joint = JointSeries(model, settings, [obs[0], obs[2]], [0.1, 1.0])
+        truth = [settings.parameterize(model.interpretation).vector() for _ in range(2)]
+        for x, shift in zip(truth, (0.0, 0.9)):
+            x[joint.col[name]] += shift
+        z = joint.pack(np.array([[x[joint.col[n]] for n in joint.coupling] for x in truth]), truth)
+        key_of = {n: k for k, names in model.coupling_names.items() for n in names}
+        out = predict_left_out(joint, z, entries[1], (100.0, 200.0), key_of, settings)
+        # reference: the middle spectrum fitted at its true couplings (the noise level of this measure)
+        p_mid = settings.parameterize(model.interpretation)
+        x_mid = p_mid.vector()
+        x_mid[joint.col[name]] += 0.4
+        fw = MixtureForward(p_mid, obs[1], gain_model=settings.gain_model, background=-1, band_weighting="none",
+                            **_signal_kwargs(settings))
+        pred = fw.predict(x_mid)
+        m = np.ones(len(fw.y), bool)
+        noise_level = float(np.linalg.norm(fw.mismatch(pred.model, m)) / np.linalg.norm(fw.mismatch(0 * fw.y, m)))
+        self.assertLess(out["relative_residual"], 1.05 * noise_level)
+        u = out["u"]["J(Ca,Ha)"]
+        self.assertAlmostEqual(u, 0.4 / 0.9, delta=0.1)               # true position inside the bracket
+
+
 if __name__ == "__main__":
     unittest.main()
