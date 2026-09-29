@@ -11,9 +11,11 @@ with analytic derivatives for every line shape (with record=None ideal Lorentzia
 Gaussian width fall back to finite differences, several times slower). A residual common phase and a delay are fitted with the
 couplings, as for any processed spectrum. Without a FID there is no global pattern search, so the starting
 couplings matter: `--couplings` overrides fragment couplings by key (symmetry partners follow). Writes the
-report of zulf_hypothesis.write_report (OUT/structure.{json,md,png}) and OUT/fit.json.
+report of zulf_hypothesis.write_report (OUT/structure.{json,md,png}), OUT/fit.json and the linearised coupling
+uncertainties of the best fit (OUT/uncertainty.md; zulf_hypothesis.uncertainty).
 """
 import argparse
+import dataclasses
 import json
 import sys
 import time
@@ -29,6 +31,7 @@ from zulf_core.solver import ObservedSpectrum                     # noqa: E402
 from zulf_hypothesis import fit_settings, fit_structure            # noqa: E402
 from zulf_hypothesis.fit import protonated                        # noqa: E402
 from zulf_hypothesis.fragment import pair                          # noqa: E402
+from zulf_hypothesis.uncertainty import coupling_uncertainties, uncertainty_markdown  # noqa: E402
 
 
 def override_couplings(fragment, couplings):
@@ -67,6 +70,10 @@ def main():
     ap.add_argument("--moves", default="", help="comma-separated refining moves (default: fit_settings' "
                     "REFINING_MOVES); e.g. free_remote_couplings to skip the Gaussian width, whose derivatives "
                     "need --record and are slow for long records")
+    ap.add_argument("--starts", type=int, default=0, help="refinement starts per model (default: fit_settings)")
+    ap.add_argument("--spread", type=float, default=0.0, help="coupling spread of the perturbed starts, Hz")
+    ap.add_argument("--delay-bounds", default="", help="lo,hi in s for the fitted delay (e.g. -1e-5,1e-5 for a "
+                    "spectrum already phase-corrected)")
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
@@ -88,12 +95,26 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     t = time.time()
     changes = {"moves": tuple(m for m in args.moves.split(",") if m)} if args.moves else {}
-    fit = fit_structure(fragment, obs, fit_settings(workers=args.workers, **changes), exchange=args.exchange,
+    delay = tuple(float(x) for x in args.delay_bounds.split(",")) if args.delay_bounds else None
+    settings = fit_settings(workers=args.workers, phase_delay_bounds_s=delay, **changes)
+    base = settings.base
+    if args.starts:
+        base = dataclasses.replace(base, starts=args.starts)
+    if args.spread:
+        base = dataclasses.replace(base, start_spread_hz=args.spread)
+    settings = dataclasses.replace(settings, base=base)
+    fit = fit_structure(fragment, obs, settings, exchange=args.exchange,
                         report=str(out / "structure"))
     best = fit.best
     row = {"id": args.id, "best": best.key, "reduced_chi2": round(best.chi2 / max(best.n - best.k, 1), 2),
            "k": best.k, "seconds": round(time.time() - t), "couplings": {k: round(float(x), 3) for k, x in best.couplings.items()},
            "findings": [x.code for x in best.findings], "table": fit.table()[:8]}
+    try:
+        u = coupling_uncertainties(best, obs, settings.base)
+        row["uncertainty"] = u
+        (out / "uncertainty.md").write_text(uncertainty_markdown(u) + "\n")
+    except Exception as exc:                  # errors are a report item, not a reason to lose the fit
+        row["uncertainty_error"] = f"{type(exc).__name__}: {exc}"
     json.dump(row, open(out / "fit.json", "w"), indent=1, default=str)
     print(json.dumps({k: row[k] for k in ("id", "best", "reduced_chi2", "k", "seconds")}), flush=True)
 
