@@ -265,11 +265,40 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
 _JOINT_TASK = None
 
 
+def _coordinate_scan(joint, z, lower, upper, max_nfev, cycles=2, half_width=4.0, step=0.5, seed=0):
+    """Global moves along single couplings: in every cycle each small coupling's level v_k (in random order) is
+    set to the best of a grid (current value +- half_width, `step`) with everything else held (objective:
+    residual norm, priors included), then all parameters are refined by least squares. Crosses barriers along
+    one coordinate that a local fit cannot."""
+    rng = np.random.default_rng(seed)
+    small = [k for k in range(joint.nc) if abs(z[k * joint.m]) < 50.0]
+    for _ in range(cycles):
+        for k in rng.permutation(small):
+            i = k * joint.m
+            grid = np.arange(z[i] - half_width, z[i] + half_width + 1e-9, step)
+            grid = grid[(grid > lower[i]) & (grid < upper[i])]
+            best_v, best_c = z[i], None
+            for v in grid:
+                zz = z.copy()
+                zz[i] = v
+                r = joint.residual(zz)
+                c = float(r @ r)
+                if best_c is None or c < best_c:
+                    best_v, best_c = v, c
+            z = z.copy()
+            z[i] = best_v
+        z = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
+                          max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+    return z
+
+
 def _solve_start(z):
     """One start (module level so worker processes can run it; fork start method): least squares at every level
     of the smoothing schedule in turn (coarse to fine; the last level is always unsmoothed); returns the score of
     the unsmoothed objective."""
-    joint, lower, upper, max_nfev, schedule = _JOINT_TASK
+    joint, lower, upper, max_nfev, schedule, scan = _JOINT_TASK
+    if scan:
+        z = _coordinate_scan(joint, z, lower, upper, max_nfev, **scan)
     for sigma in list(schedule) + [0.0]:
         joint.set_smoothing(sigma)
         sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
@@ -300,6 +329,9 @@ def main():
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
+    ap.add_argument("--scan-cycles", type=int, default=0, help="coordinate grid-scan cycles before each fit")
+    ap.add_argument("--scan-half-width", type=float, default=4.0)
+    ap.add_argument("--scan-step", type=float, default=0.5)
     ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
                     "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
     ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
@@ -417,7 +449,9 @@ def main():
     t0 = time.time()
     global _JOINT_TASK
     schedule = [float(v) for v in args.smoothing.split(",") if v.strip()] if args.smoothing else []
-    _JOINT_TASK = (joint, lower, upper, args.max_nfev, schedule)
+    scan = ({"cycles": args.scan_cycles, "half_width": args.scan_half_width, "step": args.scan_step,
+             "seed": args.seed} if args.scan_cycles else None)
+    _JOINT_TASK = (joint, lower, upper, args.max_nfev, schedule, scan)
     if args.workers > 1:
         import multiprocessing
         with multiprocessing.get_context("fork").Pool(args.workers) as pool:

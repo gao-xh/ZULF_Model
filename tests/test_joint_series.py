@@ -124,5 +124,34 @@ class JointSeriesTests(unittest.TestCase):
         self.assertAlmostEqual(u, 0.4 / 0.9, delta=0.1)               # true position inside the bracket
 
 
+    def test_coordinate_scan_recovers_a_displaced_coupling(self):
+        from fit_joint_series import _coordinate_scan
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 200.0, 0.25)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 200.0)], record=acq)
+        obs = []
+        for shift in (0.0, 0.3):
+            p = settings.parameterize(model.interpretation)
+            p.set(model.coupling_names["J(Ca,Hb)"][0], p.parameters[model.coupling_names["J(Ca,Hb)"][0]].value + shift)
+            sig = MixtureForward(p, clean, gain_model=settings.gain_model, background=-1, band_weighting="none",
+                                 **_signal_kwargs(settings)).predict(
+                p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model
+            obs.append(ObservedSpectrum.from_spectrum(f, np.asarray(sig), [(100.0, 200.0)], record=acq))
+        joint = JointSeries(model, settings, obs, [0.1, 1.0])
+        truth = [p.vector() for p in joint.params]
+        name = model.coupling_names["J(Ca,Hb)"][0]
+        truth[1][joint.col[name]] += 0.3
+        table = np.array([[x[joint.col[n]] for n in joint.coupling] for x in truth])
+        z_true = joint.pack(table, truth)
+        k = joint.coupling.index(name)
+        z0 = z_true.copy()
+        z0[k * joint.m] += 3.0                                   # far outside the local basin of a 1 Hz line
+        lower, upper = joint.bounds(20.0)
+        z = _coordinate_scan(joint, z0, lower, upper, 50, cycles=1, half_width=4.0, step=0.25)
+        self.assertLess(abs(z[k * joint.m] - z_true[k * joint.m]), 0.3)
+
+
 if __name__ == "__main__":
     unittest.main()
