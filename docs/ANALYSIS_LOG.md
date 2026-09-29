@@ -1120,3 +1120,14 @@ skills under `skills/`; this file keeps the history.
   compensating minima. The margin between minima is small (1-3 % of the
   score), hence many starts are still needed. Not an information limit.
   Running: the real series with --hold-small-first from the accepted values.
+- Real Blake series with --hold-small-first from the accepted values (24
+  starts, 21 min): best 0.3358, next 0.364-0.379 (1 start within 3 %); the
+  48-start fit (started from earlier solutions) had reached 0.3084. The small
+  couplings of the staged best differ from the 48-start best by several Hz
+  (e.g. J(H3,H4) 7.6 -> 4.5 vs 8.6 -> 7.9 Hz). On the synthetic series the
+  staged fit reached the truth basin; on the real data it does not reach the
+  best known score: the real spectra contain something the model does not
+  (line shape of the unknown processing, 14N effects on the C2 lines,
+  baseline), and the small couplings absorb it. 1J(C2,H2) and 1J(C3,H3)
+  agree between all fits (178.5-179.5 -> 177.3-177.9 Hz, 164.1-164.5 ->
+  162.5-162.8 Hz). End of the 5 h session; open items in PLAN Phase 3d.

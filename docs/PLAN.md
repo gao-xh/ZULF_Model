@@ -252,6 +252,9 @@ fixed, so later phases are experiments rather than restructuring.
       synthetic recovery tests: the small couplings of these spectra are at an information limit (a
       plausible truth and fits several Hz away score equally); only 1J(C2,H2), 1J(C3,H3) determined.
 - [ ] Pyridinium (single spectrum, same limits expected).
+- [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but
+      not the best known real-data minimum; test line-shape models (Voigt / apodized record) and the C2
+      isotopomer (14N relaxation) on the real spectra; ask for the raw FIDs and processing of the series.
 - [ ] Correct long-range C-H literature values (Shiner and Wyllie 1973) as prior centres.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
