@@ -1243,3 +1243,15 @@ skills under `skills/`; this file keeps the history.
   several Hz from the literature values whatever the start; with the
   field-switch hold (4bd904e) and the 1J(C4) anomaly, a missing model term
   is more likely than a search problem.
+- Literature couplings held fixed (all 19, 1J 177.63 / 163.04 / 162.41 Hz;
+  only line widths, delay, gains and phase fitted; data-core residual):
+  4J negative 0.628, 0.669, 0.674, 0.613, 0.559, 0.414 (x 0.02 ... 1.00);
+  4J positive 0.620, 0.645, 0.577, 0.531, 0.512, 0.468; fitted couplings
+  0.17-0.25. At x = 1.00 (neat, nearest to the literature conditions) the
+  main line positions agree roughly; towards water (x 0.02, 0.33) the
+  literature pattern does not match (the fit broadens the lines instead).
+  So the literature set (acetone solution) describes the neat spectrum best
+  and the aqueous ones poorly: solvent effects on the couplings are real,
+  but the size of the misfit at x = 1.00 (0.41 vs 0.17) also says the
+  literature values are not a model of these spectra as processed.
+  runs/processed/literature_fixed_spectra.png, literature_fixed_residuals.json.
