@@ -248,8 +248,10 @@ fixed, so later phases are experiments rather than restructuring.
       nodes, raw FIDs as complex members, leave-one-out prediction, parallel and prior-drawn starts).
 - [x] Robustness (16 starts, leave-one-out, two weightings): 1J(C2,H2), 1J(C3,H3) determined; small
       couplings not unique from these spectra.
-- [ ] Joint fit with the NMRduino pyridine FID 7ad4aafb (50 % in water: x 0.18 by volume or 0.50 by mole;
-      both running), larger multi-start of the Blake series, pyridinium.
+- [x] Joint fit with 7ad4aafb (volume reading x 0.18 consistent, mole reading not), 48-start fit,
+      synthetic recovery tests: the small couplings of these spectra are at an information limit (a
+      plausible truth and fits several Hz away score equally); only 1J(C2,H2), 1J(C3,H3) determined.
+- [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Correct long-range C-H literature values (Shiner and Wyllie 1973) as prior centres.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)

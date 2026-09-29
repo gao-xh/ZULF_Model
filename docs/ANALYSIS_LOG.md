@@ -1094,3 +1094,18 @@ skills under `skills/`; this file keeps the history.
   + N(0, 1 Hz) offsets with small monotone trends, 1J with the fitted trends),
   fitted from the accepted values with the standard 24-start joint fit
   (runs/processed/synthetic_plausible*).
+- Decisive identifiability test (plausible truth): small couplings = accepted
+  values + N(0, 1 Hz) offsets with small trends, 1J with the fitted trends,
+  measured noise; standard 24-start joint fit from the accepted values.
+  Best found 0.651 (8 starts within 0.651-0.659) with coupling errors up to
+  6.4 Hz (median 1.2-2.5 Hz; 1J(C4,H4) trend wrong); the truth scores 0.666
+  with the priors and 0.6473 data-only vs 0.6460 for the best found. So
+  couplings several Hz apart fit such spectra equally well at this noise
+  level: an information limit, not a search failure. (The earlier synthetic
+  truth, the real-data best solution, was a noise-fitted special case.)
+  Conclusion for the Blake series: only 1J(C2,H2) and 1J(C3,H3) (and their
+  decrease with the pyridine fraction) are determined; the small couplings
+  (H-H and long-range C-H) cannot be determined from these processed
+  spectra, even with a correct global search. Needed for them: more
+  information per spectrum (raw FIDs with known processing, longer records,
+  higher SNR, other isotopologues / fields) or reliable literature values.

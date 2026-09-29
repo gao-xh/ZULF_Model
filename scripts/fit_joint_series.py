@@ -296,7 +296,18 @@ def _solve_start(z):
     """One start (module level so worker processes can run it; fork start method): least squares at every level
     of the smoothing schedule in turn (coarse to fine; the last level is always unsmoothed); returns the score of
     the unsmoothed objective."""
-    joint, lower, upper, max_nfev, schedule, scan = _JOINT_TASK
+    joint, lower, upper, max_nfev, schedule, scan, hold_small = _JOINT_TASK
+    if hold_small:
+        # stage 1: every small coupling (level, change and shape) held at its start; 1J, rates and delays free
+        lo_h, hi_h = lower.copy(), upper.copy()
+        for k in range(joint.nc):
+            if abs(z[k * joint.m]) < 50.0:
+                blk = slice(k * joint.m, (k + 1) * joint.m)
+                lo_h[blk] = z[blk] - 1e-9
+                hi_h[blk] = z[blk] + 1e-9
+        z = least_squares(joint.residual, np.clip(z, lo_h, hi_h), jac=joint.jacobian, bounds=(lo_h, hi_h),
+                          x_scale="jac", max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+        z = np.clip(z, lower + 1e-9, upper - 1e-9)
     if scan:
         z = _coordinate_scan(joint, z, lower, upper, max_nfev, **scan)
     for sigma in list(schedule) + [0.0]:
@@ -329,6 +340,8 @@ def main():
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
+    ap.add_argument("--hold-small-first", action="store_true",
+                    help="stage 1 of every start: small couplings held, 1J, rates and delays fitted; then all free")
     ap.add_argument("--scan-cycles", type=int, default=0, help="coordinate grid-scan cycles before each fit")
     ap.add_argument("--scan-half-width", type=float, default=4.0)
     ap.add_argument("--scan-step", type=float, default=0.5)
@@ -451,7 +464,7 @@ def main():
     schedule = [float(v) for v in args.smoothing.split(",") if v.strip()] if args.smoothing else []
     scan = ({"cycles": args.scan_cycles, "half_width": args.scan_half_width, "step": args.scan_step,
              "seed": args.seed} if args.scan_cycles else None)
-    _JOINT_TASK = (joint, lower, upper, args.max_nfev, schedule, scan)
+    _JOINT_TASK = (joint, lower, upper, args.max_nfev, schedule, scan, args.hold_small_first)
     if args.workers > 1:
         import multiprocessing
         with multiprocessing.get_context("fork").Pool(args.workers) as pool:

@@ -150,6 +150,11 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 - Weighting of weak peaks: the 4 sigma core threshold left weak lines at the outside weight 0.2; the user chose
   2.5 sigma and a 4 Hz fall-off (`--signal-threshold`, `--signal-taper`). Plot the weights (figure) before
   a long run.
+- Before believing a coupling, run a synthetic recovery test (`scripts/synthetic_recovery_series.py`: a
+  plausible truth, the measured grids and noise, the same fit). Compare the truth's score with the best found:
+  best < truth with wrong couplings means an information limit (Blake series: data-only 0.6460 vs 0.6473 with
+  errors up to 6 Hz), best > truth means a search failure. Smoothing continuation, coordinate scans and
+  differential evolution did not beat plain multi-start there.
 - Protonated forms keep the molecular symmetry (fixed in `protonated`): without it the duplicated
   isotopomers over-fitted and a neutral pyridine spectrum chose the protonated form.
 
