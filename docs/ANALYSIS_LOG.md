@@ -1041,3 +1041,12 @@ skills under `skills/`; this file keeps the history.
   J(H3,H4) at x 0.02 13.2 vs 9.5 Hz, J(H2,H4) 6.1 vs 2.8 Hz) with 8 starts:
   adding the FID did not pin them down; 1J(C2,H2) and 1J(C3,H3) stayed
   within 0.1-0.8 Hz.
+- 48-start joint fit (24 perturbed around the 16-start best, 24 drawn from
+  the priors; 4 worker processes, 28 min): best 0.3084 (16 starts: 0.3181),
+  8 starts within 3 %, 1 within 1 %. Spread of the near-best (3 %)
+  solutions, max over x: 1J(C3,H3) 0.14 Hz, 1J(C2,H2) 0.61 Hz, all other
+  couplings 1.2-6.0 Hz (1J(C4,H4) 3.4 Hz). More starts lower the best score
+  slightly but show more near-equivalent minima: the small couplings are not
+  unique from these spectra. Figure runs/processed/joint_new_ms48/
+  near_best_couplings.png. Next: synthetic recovery test with this best
+  solution as the truth (information limit vs model mismatch).
