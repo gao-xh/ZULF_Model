@@ -1016,3 +1016,15 @@ skills under `skills/`; this file keeps the history.
   J(C2,H6) 1.25, J(C3,H5) 1.2. Directions agree for all 19 couplings. The
   weighting sensitivity is 5-20x the linearised errors: those understate
   the uncertainty. Figure runs/processed/J_weighting_comparison.png.
+- Robustness under the 2.5 sigma / 4 Hz weighting: 16 starts (spread 1 Hz):
+  best 0.318, four starts within 3 %; leave-one-out (5-spectrum joint fits,
+  4 starts each; bracketed prediction of the left-out spectrum). Prediction
+  residuals x 0.33 / 0.50 / 0.66 / 0.75: 0.242 / 0.240 / 0.279 / 0.251 vs
+  0.240 / 0.224 / 0.247 / 0.239 inside the full fit: no gross over-fitting
+  of the concentration trend. Per coupling (max over x): spread among the
+  near-best starts, jackknife error, weighting difference, linearised error
+  (runs/processed/robustness_summary.json). Reliable on every measure
+  (< 0.3 Hz): 1J(C2,H2) 178.5 -> 177.6 Hz and 1J(C3,H3) 164.1 -> 162.8 Hz.
+  Moderate: J(H2,H5). All other small couplings (and 1J(C4,H4)) differ by
+  1-4.6 Hz between near-equal starts: the processed real spectra do not fix
+  them; the linearised errors (0.01-0.16 Hz) are not meaningful here.
