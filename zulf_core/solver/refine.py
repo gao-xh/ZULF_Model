@@ -102,6 +102,9 @@ class RefinementResult:
     signal_region_residual: Optional[float] = None   # relative residual on the signal mask (data and model cores)
     data_region_residual: Optional[float] = None     # relative residual on the data cores only (same for every model)
     signal_model_lines_hz: List[float] = field(default_factory=list)   # model-line points added to the cores
+    # final solution of every start (score = 2 x least-squares cost): shows whether the best minimum is found
+    # repeatedly (well determined) or once among many different minima
+    start_solutions: List[dict] = field(default_factory=list)
     note: str = ("Conditional numerical refinement; not an assignment. Inspect boundary hits, residuals, "
                  "component spectra and held-out prediction.")
 
@@ -122,6 +125,7 @@ class RefinementResult:
                 "signal_region_residual": self.signal_region_residual,
                 "data_region_residual": self.data_region_residual,
                 "signal_model_lines_hz": self.signal_model_lines_hz,
+                "start_solutions": self.start_solutions,
                 "elapsed_s": self.elapsed_s, "parameters": self.parameters,
                 "gains": [[g.real, g.imag] for g in self.gains],
                 "background": [[b.real, b.imag] for b in self.background],
@@ -343,7 +347,10 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
                             final.model, final.component_spectra, search=search_summary,
                             jacobian_evaluations=jacobian_calls["analytic"] + jacobian_calls["fallback"],
                             signal_region_residual=signal_region, data_region_residual=data_region,
-                            signal_model_lines_hz=[float(v) for v in _signal_extra_hz])
+                            signal_model_lines_hz=[float(v) for v in _signal_extra_hz],
+                            start_solutions=[{"start": int(st), "converged": bool(ok), "score": float(sc),
+                                              "parameters": {n: float(v) for n, v in zip(param.free_names, xs)}}
+                                             for st, ok, xs, sc in history])
 
 
 def frozen_prediction(result: RefinementResult, candidate_param: Parameterization, held_out: ObservedSpectrum,

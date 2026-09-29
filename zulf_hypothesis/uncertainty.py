@@ -83,3 +83,31 @@ def uncertainty_markdown(u: dict, strong_correlation: float = 0.8) -> str:
         for w in u["weak_directions"]:
             lines.append(f"- {w['relative_singular_value']:.1e}: {w['direction']}")
     return "\n".join(lines)
+
+
+def start_agreement(e: Evaluated, base: RefineSettings, tolerance: float = 0.01) -> dict:
+    """How often the best minimum was found: the starts whose final score is within `tolerance` (relative) of the
+    best, and the range of every free coupling over those starts and over all starts. Many starts in the best
+    minimum with a small range: the fit is reproducible; one start alone, or a wide range among near-best starts:
+    several minima fit about equally well."""
+    sols = e.summary.get("start_solutions") or []
+    if not sols:
+        return {"starts": 0}
+    settings = _settings_for(e.model, e.variant, base)
+    param = settings.parameterize(e.model.interpretation)
+    key_of: Dict[str, str] = {}
+    for key, names in e.model.coupling_names.items():
+        for n in names:
+            leader = param.ties.get(n, n)
+            if leader in sols[0]["parameters"] and leader not in key_of:
+                key_of[leader] = key
+    best = min(s["score"] for s in sols)
+    near = [s for s in sols if s["score"] <= best * (1 + tolerance)]
+    out = {"starts": len(sols), "near_best": len(near), "tolerance": tolerance,
+           "scores_relative": sorted(round(s["score"] / best, 4) for s in sols), "couplings": {}}
+    for name, key in key_of.items():
+        v_near = [s["parameters"][name] for s in near]
+        v_all = [s["parameters"][name] for s in sols]
+        out["couplings"][key] = {"near_best_range_hz": [min(v_near), max(v_near)],
+                                 "all_range_hz": [min(v_all), max(v_all)]}
+    return out

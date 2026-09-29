@@ -31,7 +31,7 @@ from zulf_core.solver import ObservedSpectrum                     # noqa: E402
 from zulf_hypothesis import fit_settings, fit_structure            # noqa: E402
 from zulf_hypothesis.fit import protonated                        # noqa: E402
 from zulf_hypothesis.fragment import pair                          # noqa: E402
-from zulf_hypothesis.uncertainty import coupling_uncertainties, uncertainty_markdown  # noqa: E402
+from zulf_hypothesis.uncertainty import coupling_uncertainties, start_agreement, uncertainty_markdown  # noqa: E402
 
 
 def override_couplings(fragment, couplings):
@@ -74,6 +74,7 @@ def main():
     ap.add_argument("--spread", type=float, default=0.0, help="coupling spread of the perturbed starts, Hz")
     ap.add_argument("--delay-bounds", default="", help="lo,hi in s for the fitted delay (e.g. -1e-5,1e-5 for a "
                     "spectrum already phase-corrected)")
+    ap.add_argument("--variants", default="", help="comma-separated fit variants (default: fit_settings)")
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
@@ -95,11 +96,15 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     t = time.time()
     changes = {"moves": tuple(m for m in args.moves.split(",") if m)} if args.moves else {}
+    if args.variants:
+        changes["variants"] = tuple(v for v in args.variants.split(",") if v)
     delay = tuple(float(x) for x in args.delay_bounds.split(",")) if args.delay_bounds else None
     settings = fit_settings(workers=args.workers, phase_delay_bounds_s=delay, **changes)
     base = settings.base
     if args.starts:
-        base = dataclasses.replace(base, starts=args.starts)
+        # every start gets the time budget one start had (fit_settings: 900 s for 4 starts)
+        base = dataclasses.replace(base, starts=args.starts,
+                                   max_seconds=max(base.max_seconds, base.max_seconds * args.starts / 4))
     if args.spread:
         base = dataclasses.replace(base, start_spread_hz=args.spread)
     settings = dataclasses.replace(settings, base=base)
@@ -112,7 +117,11 @@ def main():
     try:
         u = coupling_uncertainties(best, obs, settings.base)
         row["uncertainty"] = u
-        (out / "uncertainty.md").write_text(uncertainty_markdown(u) + "\n")
+        agreement = start_agreement(best, settings.base)
+        row["start_agreement"] = agreement
+        (out / "uncertainty.md").write_text(
+            uncertainty_markdown(u) + f"\n\nStarts: {agreement.get('starts')}, within 1 % of the best score: "
+            f"{agreement.get('near_best')}\n")
     except Exception as exc:                  # errors are a report item, not a reason to lose the fit
         row["uncertainty_error"] = f"{type(exc).__name__}: {exc}"
     json.dump(row, open(out / "fit.json", "w"), indent=1, default=str)
