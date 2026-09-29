@@ -119,7 +119,7 @@ def main():
     ap.add_argument("--kex-start", type=float, default=10.0, help="starting exchange rate (1/s)")
     ap.add_argument("--kex-bounds", default="0.01,1e5", help="exchange rate bounds (1/s)")
     ap.add_argument("--kex-fixed", action="store_true", help="hold the exchange rate at --kex-start")
-    ap.add_argument("--delay-bounds", default="", help="lo,hi in s for the fitted delay (default -0.01,0.01)")
+    ap.add_argument("--delay-bounds", default="", help="lo,hi in s for the fitted delay (default -0.01,0.01; write --delay-bounds=-0.03,0.03)")
     ap.add_argument("--device", default="", help="exchange linear algebra: numpy (default), cpu or cuda (torch)")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
