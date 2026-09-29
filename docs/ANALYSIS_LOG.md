@@ -1109,3 +1109,14 @@ skills under `skills/`; this file keeps the history.
   spectra, even with a correct global search. Needed for them: more
   information per spectrum (raw FIDs with known processing, longer records,
   higher SNR, other isotopologues / fields) or reliable literature values.
+- CORRECTION of the entry above: with --hold-small-first (stage 1 of every
+  start: small couplings held at the accepted values, 1J trends, rates and
+  delays fitted; stage 2 all free) the same synthetic series gives best
+  0.6418 (below the truth's 0.666 and the plain fit's 0.651) with coupling
+  errors median 0.72 Hz, max 1.46 Hz, 1J errors 0.17-0.60 Hz (1 of 8 starts;
+  the others 0.66). So the near-truth minimum is the best one and reachable;
+  the plain fits failed because constant 1J starts (the 1J change with the
+  concentration, up to 4.5 Hz for C4) pushed the small couplings into
+  compensating minima. The margin between minima is small (1-3 % of the
+  score), hence many starts are still needed. Not an information limit.
+  Running: the real series with --hold-small-first from the accepted values.
