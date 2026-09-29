@@ -121,6 +121,8 @@ def main():
     ap.add_argument("--device", default="", help="exchange linear algebra: numpy (default), cpu or cuda (torch)")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
+    from run_log import RunLog
+    run_log = RunLog(Path(args.out or f"runs/processed/{args.id}_staged"), "fit_staged")
     if args.device:
         from zulf_core.physics import exchange as exchange_backend
         exchange_backend.set_backend("numpy") if args.device == "numpy" else \
@@ -215,6 +217,10 @@ def main():
     np.save(out / "prediction.npy", np.asarray(r2.prediction))
     figure(obs, r2.prediction, f"{args.id}: {model.name} [{args.variant}], staged fit; relative residual on the "
            f"data cores {r2.data_region_residual:.3f}, k {e.k}", out / "fit.png")
+    run_log.finish({"residual_data_cores": r2.data_region_residual, "k": e.k, "model": model.name,
+                    "stage1_residual": r1.data_region_residual, "flags": r2.flags,
+                    "boundary_hits": r2.boundary_hits, "exchange_rates_per_s": row["stage2"]["exchange_rates_per_s"],
+                    "couplings": row["stage2"]["couplings"]}, figures=["fit.png"])
     print(json.dumps({"id": args.id, "residual": round(r2.data_region_residual, 4), "k": e.k,
                       "seconds": row["seconds"], "near_best": row.get("start_agreement", {}).get("near_best"),
                       "starts": row.get("start_agreement", {}).get("starts")}), flush=True)

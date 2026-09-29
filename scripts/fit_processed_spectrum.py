@@ -78,6 +78,8 @@ def main():
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
+    from run_log import RunLog
+    run_log = RunLog(Path(args.out or f"runs/processed/{args.id}"), "fit_processed_spectrum")
     import regression_confirmed as reg
     f, v = np.load(args.freq).astype(float), np.load(args.values).astype(float)
     lo, hi = (float(x) for x in args.range.split(","))
@@ -125,6 +127,7 @@ def main():
     except Exception as exc:                  # errors are a report item, not a reason to lose the fit
         row["uncertainty_error"] = f"{type(exc).__name__}: {exc}"
     json.dump(row, open(out / "fit.json", "w"), indent=1, default=str)
+    run_log.finish({k: row.get(k) for k in ("id", "best", "reduced_chi2", "k", "seconds")})
     print(json.dumps({k: row[k] for k in ("id", "best", "reduced_chi2", "k", "seconds")}), flush=True)
 
 

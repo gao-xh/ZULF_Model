@@ -1270,3 +1270,7 @@ skills under `skills/`; this file keeps the history.
   fits better, but the value of k is conditional on these bounds; next:
   widen the delay bounds, compare with the slow (k = 0) and fast (N-H
   dropped) limits under the same settings.
+- From 2026-09-29 every spectrum analysis has its own log in docs/analysis/
+  (AGENTS.md; index docs/analysis/README.md); this file keeps one-line
+  entries. Written: field-switch check, literature-start joint fits,
+  literature-fixed simulation, pyridinium exchange fit.

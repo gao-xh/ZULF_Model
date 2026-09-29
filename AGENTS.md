@@ -29,6 +29,14 @@ interface and `docs/PLAN.md` before starting new work.
   Failures on a frozen test set are not fed back into training.
 - Keep `docs/PLAN.md` current: mark what is done, what was measured, and what
   remains, with the commit that produced each result.
+- Every analysis of a spectrum (or of one dataset or series) gets its own
+  log file `docs/analysis/YYYY-MM-DD_<sample>_<topic>.md` (template:
+  `docs/analysis/TEMPLATE.md`): data, question, exact commands and settings,
+  results with numbers, figure paths under `runs/`, conclusion, open points
+  and the commit. Write it while the analysis runs and finish it with the
+  result. `docs/ANALYSIS_LOG.md` keeps a one-line entry pointing to it. The
+  fitting scripts also write a machine run log `RUN_LOG.md` into their
+  output directory (`scripts/run_log.py`); link it from the analysis log.
 - Keep a running record while analysing data: append to `docs/ANALYSIS_LOG.md`
   what was done, what was observed, the conclusion and the commit, as the work
   happens (not only at the end). When a step teaches something reusable (a

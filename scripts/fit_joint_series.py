@@ -352,6 +352,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="runs/processed/joint")
     args = ap.parse_args()
+    from run_log import RunLog
+    run_log = RunLog(Path(args.out), "fit_joint_series")
     import regression_confirmed as reg
     from fit_processed_spectrum import override_couplings
     series = json.load(open(args.series))
@@ -561,6 +563,9 @@ def main():
         plt.close(fig)
     except ImportError:
         pass
+    run_log.finish({"score": score, "residuals": result["data_region_residuals"],
+                    "J_at_x": {k: v["J_at_x"] for k, v in result["couplings"].items()}, "x": result["x"]},
+                   figures=["spectra.png", "couplings_vs_x.png", "J_table.csv"])
     print(json.dumps({"score": score, "residuals": result["data_region_residuals"], "seconds": result["seconds"]}))
 
 
