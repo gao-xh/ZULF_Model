@@ -189,6 +189,8 @@ def main():
     ap.add_argument("--change-bound", type=float, default=20.0, help="bound on |total change| of a coupling (Hz)")
     ap.add_argument("--signal-threshold", type=float, default=0.0,
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
+    ap.add_argument("--signal-taper", type=float, default=0.0,
+                    help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
     ap.add_argument("--max-nfev", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="runs/processed/joint")
@@ -206,6 +208,8 @@ def main():
     base = default_fit_base()
     if args.signal_threshold:
         base = dataclasses.replace(base, signal_threshold=args.signal_threshold)
+    if args.signal_taper:
+        base = dataclasses.replace(base, signal_taper_hz=args.signal_taper)
     settings = _settings_for(model, args.variant, base)
     joint = JointSeries(model, settings, obs, [e["x"] for e in series])
     centre = joint.params[0].values()
@@ -277,7 +281,7 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     result = {"shape": "monotone (direction and shape free)", "x": joint.xs.tolist(),
-              "signal_threshold": settings.signal_threshold,
+              "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
