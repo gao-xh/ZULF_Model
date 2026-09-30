@@ -28,6 +28,10 @@ widened to -30 ... +30 ms.
 - A (k free) and B (k = 1e4 1/s): first attempt lost in a container restart, second one stopped with its
   background task after ~30 min (time limit); third attempt started detached (setsid nohup) at
   2026-09-30 00:27 UTC. Lesson: long fits must run detached, and fit_staged writes nothing before the end.
+  The third attempt was lost in another container restart (~01:55 UTC). fit_staged now writes checkpoints
+  (stage 1 and every stage-2 start, commit 1db8de2) and resumes with --resume; tested on fit C (156 s,
+  resumed 39 s, residual 0.180). Fourth attempt started 2026-09-30 02:00 UTC via a relaunch script that
+  resumes after restarts.
 
 ## Conclusion
 
