@@ -188,14 +188,16 @@ def plot(path, x, keys, status, chosen, pool, fits, best_data, args):
         if not any(c["fit"] == s["fit"] for c in chosen):
             if s["fit"] not in outside or s["data_score"] < outside[s["fit"]]["data_score"]:
                 outside[s["fit"]] = s
+    palette = ["#1f5fa8", "#2a9d8f", "#8a5cb8", "#e07b39", "#6b7280"]
+    colour = {label: palette[i % len(palette)] for i, label in enumerate(outside)}
     nc = 5
     nr = int(np.ceil((len(order) + 1) / nc))
     fig, axs = plt.subplots(nr, nc, figsize=(17, 3.2 * nr))
     axs = axs.ravel()
     for ax, k in zip(axs, order):
         st, spread = status[k]
-        for s in outside.values():
-            ax.plot(x, s["J_at_x"][k], color="#bbbbbb", lw=0.8, ls="--", zorder=1)
+        for label, s in outside.items():
+            ax.plot(x, s["J_at_x"][k], color=colour[label], lw=1.1, ls="--", zorder=1)
         for s in chosen[1:]:
             ax.plot(x, s["J_at_x"][k], color="#f2a7b0", lw=0.9, zorder=2)
         ax.plot(x, chosen[0]["J_at_x"][k], "o-", color="#c0182a", lw=2.4, ms=4, zorder=3)
@@ -216,7 +218,7 @@ def plot(path, x, keys, status, chosen, pool, fits, best_data, args):
                Line2D([], [], color="#f2a7b0", lw=0.9,
                       label=f"other solutions within {100 * args.tolerance:.0f} % ({len(chosen) - 1})")]
     for label, s in outside.items():
-        handles.append(Line2D([], [], color="#bbbbbb", lw=0.8, ls="--",
+        handles.append(Line2D([], [], color=colour[label], lw=1.1, ls="--",
                               label=f"{label} best, not in set ({100 * (s['data_score'] / best_data - 1):+.1f} %)"))
     if lit:
         handles.append(Line2D([], [], color="k", ls=":", lw=1, label="literature"))
