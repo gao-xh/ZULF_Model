@@ -54,6 +54,12 @@ Otherwise not determined.
 | 10 small couplings | trend only | 1.7 - 7.2 | | |
 | J(C3,H2), J(H2,H3), J(C2,H4), J(C3,H4) | not determined | 1.9 - 2.9 | | |
 
+Spectra of the best data-score solution (`--spectra`: its couplings held, decay
+rates and delays refitted; refitted data score 0.27884 = stored): relative
+data-core residuals 0.222 / 0.226 / 0.226 / 0.235 / 0.231 / 0.175 (x 0.02 ...
+1.00) vs 0.228 / 0.229 / 0.225 / 0.254 / 0.231 / 0.171 for the lowest-fit-score
+solution; figure runs/processed/reliability_data/best_data_spectra.png.
+
 Figure: runs/processed/reliability_data/J_trends_reliability.png; numbers
 runs/processed/reliability_data/reliability.json; run log RUN_LOG.md there.
 

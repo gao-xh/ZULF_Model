@@ -17,6 +17,11 @@ The near-equivalent set pools the solutions of all fits whose data score is with
 Per coupling: spread = largest (max - min) over the set at any concentration; reliable if spread <= --reliable-hz;
 trend only if every solution in the set changes in the same direction by more than --trend-hz from the first to the
 last concentration; otherwise not determined. Outputs OUT/reliability.json and OUT/J_trends_reliability.png.
+
+--spectra: the stored start solutions keep only their couplings, so for the best data-score solution the spectrum
+parameters (decay rates, delay) are refitted with its couplings held (started from every fit's best spectrum
+parameters, the lowest kept; gains, phase and background are linear as in the fit). The refitted data score must
+not exceed the stored one. Writes OUT/best_data_spectra.png (experiment, simulation, residual per spectrum).
 """
 import argparse
 import dataclasses
@@ -62,7 +67,7 @@ def build_joint(args):
             leader = joint.params[0].ties.get(n, n)
             if leader in joint.coupling and leader not in key_of:
                 key_of[leader] = key
-    return series, joint, settings, key_of
+    return series, obs, joint, settings, key_of
 
 
 def prior_term(fit, keys, norm, J):
@@ -78,17 +83,84 @@ def prior_term(fit, keys, norm, J):
     return float(total)
 
 
+def direct_vector(joint, series, key_of, fit, i):
+    """Parameter vector of spectrum i for a fit's stored best (couplings and spectrum parameters)."""
+    x = joint.params[i].vector().copy()
+    for n in joint.coupling:
+        x[joint.col[n]] = fit["couplings"][key_of[n]]["J_at_x"][joint.node_of[i]]
+    for n, v in fit["spectrum_parameters"][series[i]["id"]].items():
+        x[joint.col[n]] = v
+    return x
+
+
 def direct_data_score(joint, series, key_of, fit):
     total = 0.0
-    for i, (e, f) in enumerate(zip(series, joint.forwards)):
-        x = joint.params[i].vector().copy()
-        for n in joint.coupling:
-            x[joint.col[n]] = fit["couplings"][key_of[n]]["J_at_x"][joint.node_of[i]]
-        for n, v in fit["spectrum_parameters"][e["id"]].items():
-            x[joint.col[n]] = v
-        r = f.predict(x).residual
+    for i, f in enumerate(joint.forwards):
+        r = f.predict(direct_vector(joint, series, key_of, fit, i)).residual
         total += float(r @ r)
     return total
+
+
+def refit_spectrum_parameters(joint, series, key_of, J_at_x, fit_files):
+    """Spectrum parameters of every spectrum for couplings held at J_at_x; returns per-spectrum parameter vectors."""
+    from scipy.optimize import least_squares
+    local = [joint.col[n] for n in joint.local]
+    vectors = []
+    for i, (e, f) in enumerate(zip(series, joint.forwards)):
+        lo, hi = (np.asarray(b)[local] for b in joint.params[i].bounds())
+        best = None
+        for fit in fit_files:
+            x = joint.params[i].vector().copy()
+            for n in joint.coupling:
+                x[joint.col[n]] = J_at_x[key_of[n]][joint.node_of[i]]
+            for n, v in fit["spectrum_parameters"][e["id"]].items():
+                x[joint.col[n]] = v
+
+            def residual(p, x=x):
+                y = x.copy()
+                y[local] = p
+                return f.predict(y).residual
+            sol = least_squares(residual, np.clip(x[local], lo + 1e-9, hi - 1e-9), bounds=(lo, hi), x_scale="jac",
+                                max_nfev=200, ftol=1e-12, xtol=1e-12, gtol=1e-12)
+            if best is None or sol.cost < best[0]:
+                y = x.copy()
+                y[local] = sol.x
+                best = (sol.cost, y)
+        vectors.append(best[1])
+    return vectors
+
+
+def plot_spectra(path, joint, series, obs, vectors, title, reference=None):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    def relative(f, x):
+        m = f.data_signal_mask if f.data_signal_mask is not None else np.ones(len(f.y), bool)
+        return float(np.linalg.norm(f.mismatch(f.predict(x).model, m)) /
+                     max(np.linalg.norm(f.mismatch(np.zeros_like(f.y), m)), 1e-30))
+    fig, axes = plt.subplots(len(obs), 1, figsize=(12, 2.3 * len(obs)), sharex=True)
+    rows = []
+    for s, (ax, o, f) in enumerate(zip(np.atleast_1d(axes), obs, joint.forwards)):
+        pred, y = f.predict(vectors[s]).model.real, o.values.real
+        m = np.abs(y).max()
+        ax.plot(o.frequencies_hz, y / m, color="#222222", lw=0.8, label="experiment")
+        ax.plot(o.frequencies_hz, pred / m, color="#c0182a", lw=0.9, label="simulation")
+        ax.plot(o.frequencies_hz, (y - pred) / m - 0.35, color="#999999", lw=0.6, label="residual (offset)")
+        r = relative(f, vectors[s])
+        ref = relative(f, reference[s]) if reference is not None else None
+        rows.append((series[s]["id"], r, ref))
+        note = f" (lowest fit score solution {ref:.3f})" if ref is not None else ""
+        ax.set_title(f"{series[s]['id']} (x = {joint.xs[s]:.2f}): relative residual {r:.3f}{note}", fontsize=9,
+                     loc="left")
+        ax.set_yticks([])
+    np.atleast_1d(axes)[0].legend(frameon=False, fontsize=8, ncol=3, loc="upper right")
+    np.atleast_1d(axes)[-1].set_xlabel("frequency (Hz)")
+    fig.suptitle(title, fontsize=10)
+    fig.tight_layout()
+    fig.savefig(path, dpi=100)
+    plt.close(fig)
+    return rows
 
 
 def classify(values, reliable_hz, trend_hz):
@@ -116,11 +188,12 @@ def main():
     ap.add_argument("--reliable-hz", type=float, default=1.6)
     ap.add_argument("--trend-hz", type=float, default=1.0)
     ap.add_argument("--literature", default="")
+    ap.add_argument("--spectra", action="store_true", help="refit and plot the spectra of the best data-score solution")
     ap.add_argument("--out", default="runs/processed/reliability")
     args = ap.parse_args()
     from run_log import RunLog
     run_log = RunLog(Path(args.out), "reliability_series")
-    series, joint, settings, key_of = build_joint(args)
+    series, obs, joint, settings, key_of = build_joint(args)
     keys = [key_of[n] for n in joint.coupling]
     norm = float(np.mean([f.norm for f in joint.forwards]))
     fits, pool = {}, []
@@ -164,6 +237,25 @@ def main():
     run_log.finish({"best_data_score": best_data, "set_size": len(chosen),
                     "fits": {k: round(v["relative_to_best_data"], 4) for k, v in fits.items()},
                     "classes": {k: c for k, (c, _) in status.items()}}, figures=[figure])
+    if args.spectra:
+        fit_files = [json.load(open(f["path"])) for f in fits.values()]
+        vectors = refit_spectrum_parameters(joint, series, key_of, chosen[0]["J_at_x"], fit_files)
+        refit = sum(float(r @ r) for r in (f.predict(v).residual for f, v in zip(joint.forwards, vectors)))
+        if refit > chosen[0]["data_score"] * (1 + 1e-6):
+            raise RuntimeError(f"refitted data score {refit} above the stored {chosen[0]['data_score']}")
+        lowest = min((s for s in pool), key=lambda s: s["score"])
+        owner = next(f for f in fit_files if min(s["score"] for s in f["start_solutions"]) == lowest["score"])
+        reference = [direct_vector(joint, series, key_of, owner, i) for i in range(len(series))]
+        rows = plot_spectra(out / "best_data_spectra.png", joint, series, obs, vectors,
+                            f"Best data-score solution ({chosen[0]['fit']}, data score {refit:.4f}); couplings as "
+                            f"stored, decay rates and delays refitted", reference)
+        result["best_data_spectra"] = {"data_score_refitted": refit,
+                                       "relative_residuals": {i: r for i, r, _ in rows},
+                                       "lowest_fit_score_relative_residuals": {i: r for i, _, r in rows}}
+        (out / "reliability.json").write_text(json.dumps(result, indent=1))
+        print(f"best data-score solution: refitted data score {refit:.5f} (stored {chosen[0]['data_score']:.5f})")
+        for i, r, ref in rows:
+            print(f"  {i}: relative residual {r:.3f} (lowest fit score solution {ref:.3f})")
     for label, f in fits.items():
         print(f"{label}: {f['starts']} solutions, best score {f['best_score']:.4f} = data {f['best_data_score']:.4f} "
               f"+ prior {f['best_prior']:.4f}; best data score {f['min_data_score']:.4f} "
