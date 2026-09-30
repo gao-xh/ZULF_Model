@@ -14,3 +14,4 @@ and are not committed.
 | 2026-09-29 | Blake pyridine series | literature couplings held fixed | [2026-09-29_blake-pyridine_literature-fixed-simulation.md](2026-09-29_blake-pyridine_literature-fixed-simulation.md) |
 | 2026-09-29 | Blake pyridinium 6 M HCl | fitted N-H exchange rate | [2026-09-29_blake-pyridinium_exchange-fit.md](2026-09-29_blake-pyridinium_exchange-fit.md) |
 | 2026-09-29 | Blake pyridinium 6 M HCl | exchange rate vs its limits | [2026-09-29_blake-pyridinium_exchange-limits.md](2026-09-29_blake-pyridinium_exchange-limits.md) |
+| 2026-09-30 | Blake pyridine series | reliability of the couplings | [2026-09-30_blake-pyridine_reliability.md](2026-09-30_blake-pyridine_reliability.md) |

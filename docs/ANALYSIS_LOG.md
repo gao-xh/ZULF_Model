@@ -1274,3 +1274,4 @@ skills under `skills/`; this file keeps the history.
   (AGENTS.md; index docs/analysis/README.md); this file keeps one-line
   entries. Written: field-switch check, literature-start joint fits,
   literature-fixed simulation, pyridinium exchange fit.
+- 2026-09-30: coupling reliability of the pyridine series, docs/analysis/2026-09-30_blake-pyridine_reliability.md
