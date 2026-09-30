@@ -147,6 +147,11 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 - Judge couplings by reproducibility over near-best starts, jackknife over leave-one-out fits, robustness to
   the weighting and plausibility, not by the residual and not by linearised errors (they understated the
   spread 5-20x). On the Blake series only 1J(C2,H2) and 1J(C3,H3) passed every test.
+- Compare fits with different prior centres on the data alone: the joint-fit score includes the prior term,
+  so a fit started from other centres can look worse only because of its prior. `scripts/reliability_series.py`
+  removes the prior term from every stored solution (checked against a direct recomputation), pools all fits
+  and takes the solutions within 3 % of the best data score (Blake series: the literature-start fits were
+  +9 % and +26 % on the data, the staged fit +8 %; the set was 5 solutions of the 48-start run).
 - Weighting of weak peaks: the 4 sigma core threshold left weak lines at the outside weight 0.2; the user chose
   2.5 sigma and a 4 Hz fall-off (`--signal-threshold`, `--signal-taper`). Plot the weights (figure) before
   a long run.

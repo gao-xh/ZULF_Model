@@ -251,6 +251,10 @@ fixed, so later phases are experiments rather than restructuring.
 - [x] Joint fit with 7ad4aafb (volume reading x 0.18 consistent, mole reading not), 48-start fit,
       synthetic recovery tests: the small couplings of these spectra are at an information limit (a
       plausible truth and fits several Hz away score equally); only 1J(C2,H2), 1J(C3,H3) determined.
+- [x] Reliability on the data-only score (scripts/reliability_series.py; prior term removed, all fits
+      pooled, 3 % set): 5 solutions of the 48-start run; reliable 1J(C2,H2), 1J(C3,H3), J(H2,H5),
+      J(H2,H4); literature-start fits +9 % / +26 % on the data
+      (docs/analysis/2026-09-30_blake-pyridine_reliability.md).
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but
       not the best known real-data minimum; test line-shape models (Voigt / apodized record) and the C2

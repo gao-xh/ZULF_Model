@@ -1275,3 +1275,6 @@ skills under `skills/`; this file keeps the history.
   entries. Written: field-switch check, literature-start joint fits,
   literature-fixed simulation, pyridinium exchange fit.
 - 2026-09-30: coupling reliability of the pyridine series, docs/analysis/2026-09-30_blake-pyridine_reliability.md
+- 2026-09-30: reliability revised on the data-only score (prior term removed;
+  scripts/reliability_series.py): 5 solutions within 3 %, all 48-start;
+  reliable 1J(C2,H2), 1J(C3,H3), J(H2,H5), J(H2,H4); same log file.
