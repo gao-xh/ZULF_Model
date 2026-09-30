@@ -120,6 +120,8 @@ def main():
     ap.add_argument("--kex-bounds", default="0.01,1e5", help="exchange rate bounds (1/s)")
     ap.add_argument("--kex-fixed", action="store_true", help="hold the exchange rate at --kex-start")
     ap.add_argument("--delay-bounds", default="", help="lo,hi in s for the fitted delay (default -0.01,0.01; write --delay-bounds=-0.03,0.03)")
+    ap.add_argument("--resume", action="store_true",
+                    help="reuse checkpoints in the output directory (stage 1 and every finished stage-2 start)")
     ap.add_argument("--device", default="", help="exchange linear algebra: numpy (default), cpu or cuda (torch)")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
@@ -166,7 +168,14 @@ def main():
     p1 = settings.parameterize(model.interpretation)
     add_exchange(p1, model, exch_labels, args.kex_start, kex_bounds, args.kex_fixed)
     p1.fix(*[n for n in p1.order if n in held])
-    r1 = refine(model.interpretation, obs, settings, parameterization=p1)
+    ck1 = out / "checkpoint_stage1.json"
+    if args.resume and ck1.exists():
+        from types import SimpleNamespace
+        saved = json.load(open(ck1))
+        r1 = SimpleNamespace(parameters=saved["parameters"], data_region_residual=saved["data_region_residual"])
+    else:
+        r1 = refine(model.interpretation, obs, settings, parameterization=p1)
+        json.dump({"parameters": r1.parameters, "data_region_residual": r1.data_region_residual}, open(ck1, "w"))
     p2 = settings.parameterize(model.interpretation)
     kex_names = add_exchange(p2, model, exch_labels, args.kex_start, kex_bounds, args.kex_fixed)
     for n, value in r1.parameters.items():
@@ -185,12 +194,29 @@ def main():
             x = x0.copy()
             x[col] = np.clip(np.log(k), lower[col], upper[col])
             starts.append(x)
-    r2 = refine(model.interpretation, obs, settings, parameterization=p2, initial_points=starts)
+    # Stage 2 start by start with a checkpoint each (a restart loses at most one start), then the best start
+    # (lowest data-core residual, the same yardstick for every start) is refined once more for the final result.
+    per_start = []
+    for i, x in enumerate(starts):
+        ck = out / f"checkpoint_start{i}.json"
+        if args.resume and ck.exists():
+            per_start.append(json.load(open(ck)))
+            continue
+        ri = refine(model.interpretation, obs, settings, parameterization=p2, initial_points=[x])
+        item = {"start": i, "data_region_residual": ri.data_region_residual,
+                "free": {n: float(ri.parameters[n]) for n in p2.free_names}}
+        json.dump(item, open(ck, "w"))
+        per_start.append(item)
+    best = min(per_start, key=lambda it: it["data_region_residual"])
+    x_best = np.array([best["free"][n] for n in p2.free_names])
+    r2 = refine(model.interpretation, obs, settings, parameterization=p2, initial_points=[x_best])
     e = Evaluated(model.name, args.variant, "staged", model, r2.summary(), r2.prediction,
                   k=free_parameter_count(model, settings))
     e.couplings = model.named_couplings(r2.parameters)
     row = {"id": args.id, "model": model.name, "variant": args.variant, "seconds": round(time.time() - t0),
            "hold_first": list(prefixes),
+           "stage2_starts": [{"start": it["start"], "data_region_residual": it["data_region_residual"]}
+                             for it in per_start],
            "priors": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight,
                       "centres": {k: round(start_values[n[0]], 3) for k, n in model.coupling_names.items()
                                   if abs(start_values[n[0]]) < 50.0}},
