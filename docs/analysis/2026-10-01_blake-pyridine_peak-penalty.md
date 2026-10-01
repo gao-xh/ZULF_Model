@@ -119,7 +119,7 @@ couplings still change by several hertz across the series, e.g. J(C4,H3)
 -3.42 -> 6.42 Hz, J(C2,H3) 6.45 -> -4.72 Hz.
 
 Figures: runs/processed/joint_peakpen_smooth_ms48/spectra.png,
-couplings_vs_x.png, compare_zoom.png (x 0.33 / 0.50 / 0.66, three solutions,
+couplings_vs_x.png, J_trends_compare.png (four solutions, literature), compare_zoom.png (x 0.33 / 0.50 / 0.66, three solutions,
 peak tops marked).
 
 ## Conclusion
