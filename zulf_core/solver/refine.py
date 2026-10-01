@@ -42,6 +42,8 @@ class RefineSettings:
     signal_threshold: float = 4.0     # signal weighting: narrow-feature threshold in noise sigma
     signal_taper_hz: float = 2.0      # signal weighting: Gaussian fall-off of the weight around peak cores
     signal_outside_weight: float = 0.2   # signal weighting: relative weight far from any peak core
+    signal_height_power: float = 0.0   # signal weighting: extra weight (local peak height)^-power for small peaks
+    signal_height_floor: float = 0.1   # signal weighting: smallest relative peak height used in that factor
     signal_model_passes: int = 3      # signal weighting: refits with the model's own lines added to the cores
     signal_model_threshold: float = 2.0   # signal weighting: model-line peak height (noise sigma) that joins the cores
     diff_step: float = 1e-6
@@ -141,7 +143,9 @@ class RefinementResult:
 
 def _signal_kwargs(settings: "RefineSettings") -> dict:
     return {"signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
-            "signal_outside_weight": settings.signal_outside_weight, "amplitude_ratios": settings.amplitude_ratios,
+            "signal_outside_weight": settings.signal_outside_weight,
+            "signal_height_power": settings.signal_height_power, "signal_height_floor": settings.signal_height_floor,
+            "amplitude_ratios": settings.amplitude_ratios,
             "amplitude_map": settings.amplitude_map}
 
 

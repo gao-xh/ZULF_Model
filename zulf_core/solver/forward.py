@@ -80,6 +80,34 @@ def signal_weights(frequencies_hz: np.ndarray, band: np.ndarray, cores: np.ndarr
     return outside + (1.0 - outside) * np.exp(-0.5 * (d / max(taper_hz, 1e-12)) ** 2)
 
 
+def height_factor(frequencies_hz: np.ndarray, values: np.ndarray, band: np.ndarray, cores: np.ndarray,
+                  power: float, floor: float = 0.1) -> np.ndarray:
+    """Relative weight h^-power for signal weighting, h = height of the nearest peak core.
+
+    Each contiguous run of core points is one peak; its height is the largest abs(values) in it over the band
+    maximum (at least `floor`). Every point takes the height of the nearest core in its band, so a small
+    peak and its flanks count (h_small)^-power times more than the tallest peak (power 1: equal relative
+    errors), while empty gaps follow their neighbouring peak instead of the noise level. Data only."""
+    f = np.asarray(frequencies_hz, float)
+    a = np.abs(np.asarray(values))
+    out = np.ones(len(f))
+    if not power:
+        return out
+    for b in np.unique(band):
+        m = np.flatnonzero(band == b)
+        c = np.flatnonzero(cores[m])
+        if not len(c):
+            continue
+        top = max(float(a[m].max()), 1e-30)
+        run = np.concatenate([[0], np.cumsum(np.diff(c) > 1)])          # run index of every core point
+        height = np.array([a[m][c[run == r]].max() for r in range(run[-1] + 1)]) / top
+        idx = np.clip(np.searchsorted(f[m][c], f[m]), 1, len(c)) - 1
+        nxt = np.clip(idx + 1, 0, len(c) - 1)
+        near = np.where(np.abs(f[m] - f[m][c][idx]) <= np.abs(f[m][c][nxt] - f[m]), idx, nxt)
+        out[m] = np.maximum(height[run[near]], floor) ** (-power)
+    return out
+
+
 def _mix(pair: np.ndarray, weights: np.ndarray) -> np.ndarray:
     """pair[..., 0] w0 + pair[..., 1] w1 (complex times real; avoids the slow mixed-type matmul path)."""
     return pair[..., 0] * weights[0] + pair[..., 1] * weights[1]
@@ -101,6 +129,7 @@ class MixtureForward:
                  band_weighting: str = "equal", timer: Optional[Timer] = None, phase_grid: int = 72,
                  signal_threshold: float = 4.0, signal_taper_hz: float = 2.0, signal_outside_weight: float = 0.2,
                  signal_baseline_hz: float = 8.0, signal_extra_hz: Sequence[float] = (),
+                 signal_height_power: float = 0.0, signal_height_floor: float = 0.1,
                  amplitude_ratios: Optional[Sequence[float]] = None,
                  amplitude_map: Optional[Sequence[Sequence[float]]] = None):
         if gain_model not in ("complex", "shared_phase"):
@@ -168,10 +197,14 @@ class MixtureForward:
                 cores |= np.abs(self.f - fx) <= 0.5 * spacing + 1e-9
             self.signal_cores, self.noise_sigma = cores, sigma
             self.signal_settings = dict(threshold=signal_threshold, baseline_hz=signal_baseline_hz,
-                                        taper_hz=signal_taper_hz, outside=signal_outside_weight)
+                                        taper_hz=signal_taper_hz, outside=signal_outside_weight,
+                                        height_power=signal_height_power)
             if cores.any():
                 factor = signal_weights(self.f, self.band, cores, signal_outside_weight, signal_taper_hz)
                 self.signal_mask = factor >= 0.6
+                if signal_height_power:
+                    factor = factor * height_factor(self.f, self.y, self.band, cores, signal_height_power,
+                                                    signal_height_floor)
                 scale = sigma / factor
             else:
                 scale = np.full(len(self.y), sigma)

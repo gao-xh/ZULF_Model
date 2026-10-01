@@ -175,6 +175,22 @@ class SignalWeightingTests(unittest.TestCase):
         near = w[(f > 130.0) & (f < 140.0)]
         self.assertTrue(np.all(np.diff(near[np.argmax(near < 1):]) <= 1e-12))   # smooth, monotone fall-off
 
+    def test_height_factor_counts_small_peaks_more(self):
+        from zulf_core.solver.forward import height_factor, signal_regions
+        f = np.arange(100.0, 160.0, 0.05)
+        rng = np.random.default_rng(0)
+        y = 1.0 / (1 + ((f - 120.0) / 0.3) ** 2) + 0.25 / (1 + ((f - 140.0) / 0.3) ** 2) + rng.normal(0, 1e-3, len(f))
+        band = np.zeros(len(f), int)
+        cores, _ = signal_regions(f, y, band)
+        at = lambda x: int(np.argmin(np.abs(f - x)))
+        self.assertTrue(np.all(height_factor(f, y, band, cores, 0.0) == 1.0))
+        h = height_factor(f, y, band, cores, 0.5)
+        self.assertAlmostEqual(h[at(120.0)], 1.0, places=2)
+        self.assertAlmostEqual(h[at(140.0)], 2.0, places=2)                  # (0.25)^-0.5
+        self.assertAlmostEqual(h[at(125.0)], 1.0, places=2)                  # gaps follow the nearest peak
+        self.assertAlmostEqual(h[at(150.0)], 2.0, places=2)
+        self.assertLessEqual(h.max(), 0.1 ** -0.5 + 1e-6)                   # capped by the floor
+
     def test_signal_weighting_recovers_couplings_with_background(self):
         truth = methyl_isotopologue()
         acq = Acquisition(1000.0, 6000, start_sample=30)

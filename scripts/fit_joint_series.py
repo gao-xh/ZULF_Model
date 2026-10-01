@@ -341,6 +341,8 @@ def main():
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--signal-height-power", type=float, default=0.0,
+                    help="extra weight (local peak height / max)^-power: small peaks count more (0 = off)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
     ap.add_argument("--hold-small-first", action="store_true",
@@ -387,6 +389,8 @@ def main():
         base = dataclasses.replace(base, signal_threshold=args.signal_threshold)
     if args.signal_taper:
         base = dataclasses.replace(base, signal_taper_hz=args.signal_taper)
+    if getattr(args, "signal_height_power", 0.0):
+        base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
     settings = _settings_for(model, args.variant, base)
     joint = JointSeries(model, settings, obs, [e["x"] for e in series])
     centre = joint.params[0].values()
@@ -503,6 +507,7 @@ def main():
               "spectra": [{"id": e["id"], "x": e["x"]} for e in series],
               "start_solutions": start_tables,
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
+              "signal_height_power": settings.signal_height_power,
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),

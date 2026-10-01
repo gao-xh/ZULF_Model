@@ -59,6 +59,8 @@ def build_joint(args):
         base = dataclasses.replace(base, signal_threshold=args.signal_threshold)
     if args.signal_taper:
         base = dataclasses.replace(base, signal_taper_hz=args.signal_taper)
+    if getattr(args, "signal_height_power", 0.0):
+        base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
     settings = _settings_for(model, args.variant, base)
     joint = JointSeries(model, settings, obs, [e["x"] for e in series])
     key_of = {}
@@ -183,6 +185,8 @@ def main():
     ap.add_argument("--range", default="140,200")
     ap.add_argument("--signal-threshold", type=float, default=0.0)
     ap.add_argument("--signal-taper", type=float, default=0.0)
+    ap.add_argument("--signal-height-power", type=float, default=0.0,
+                    help="extra weight (local peak height / max)^-power: small peaks count more (0 = off)")
     ap.add_argument("--fit", action="append", required=True, help="LABEL=path/fit.json (repeat)")
     ap.add_argument("--tolerance", type=float, default=0.03)
     ap.add_argument("--reliable-hz", type=float, default=1.6)
@@ -202,7 +206,8 @@ def main():
         fit = json.load(open(path))
         if ([s["id"] for s in fit["spectra"]] != [e["id"] for e in series]
                 or fit["signal_threshold"] != settings.signal_threshold
-                or fit["signal_taper_hz"] != settings.signal_taper_hz):
+                or fit["signal_taper_hz"] != settings.signal_taper_hz
+                or fit.get("signal_height_power", 0.0) != settings.signal_height_power):
             raise ValueError(f"{label}: other spectra or signal weighting than this comparison")
         sols = []
         for i, s in enumerate(fit["start_solutions"]):
