@@ -92,6 +92,52 @@ Seeds (10): the two single-start solutions above, the 48-start best, the
 48-more best (total and data-only) and the 5-solution near-best set of the
 48-start run. Started 2026-10-01 20:06 UTC (one BLAS thread per worker).
 
-Results: pending.
+48 starts in 2096 s (run log runs/processed/joint_peakpen_smooth_ms48/RUN_LOG.md).
+Best: start 11 (a perturbed start around seed 1), hard total 0.2911; next
+0.3248 (+11.6 %), 1 solution within 3 %. Rescored with the same hard rows
+(scratchpad pp_result.py):
 
-Commit: (pending)
+| solution | data | penalty | prior | total |
+|---|---|---|---|---|
+| penalty run best | 0.2557 | 0.0146 | 0.0209 | 0.2911 |
+| 48-start best | 0.2879 | 0.0390 | 0.0205 | 0.3474 |
+| 48 more best | 0.2659 | 0.0643 | 0.0261 | 0.3562 |
+
+The new best is lower on the data alone than every earlier solution (best
+data-only before: 0.2634) and misses fewer peaks. Relative residuals 0.221 /
+0.209 / 0.202 / 0.201 / 0.236 / 0.201 (x 0.02 ... 1.00). Main peak height
+(model, data = 1): 1.02 / 0.96 / 0.98 / 0.99 / 1.02 / 0.95. Small peak (model /
+data): 0.207 / 0.350, 0.203 / 0.309, 0.142 / 0.195 at x 0.33 / 0.50 / 0.66;
+better than the 48-more best (0.158, 0.127, 0.157), below the 48-start best
+(0.285, 0.252, 0.166) and below the single smooth start (0.323, 0.300, 0.172).
+Largest remaining misses: x 0.66 150.5 Hz, x 0.75 164.1 Hz, x 0.33 169.9 Hz,
+x 0.50 169.5 Hz.
+
+1J(C2,H2) 178.79 -> 177.32, 1J(C3,H3) 164.22 -> 162.73, 1J(C4,H4)
+162.09 -> 156.93 Hz (x 0.02 -> 1.00), as in the earlier solutions. Small
+couplings still change by several hertz across the series, e.g. J(C4,H3)
+-3.42 -> 6.42 Hz, J(C2,H3) 6.45 -> -4.72 Hz.
+
+Figures: runs/processed/joint_peakpen_smooth_ms48/spectra.png,
+couplings_vs_x.png, compare_zoom.png (x 0.33 / 0.50 / 0.66, three solutions,
+peak tops marked).
+
+## Conclusion
+
+The smooth missing-peak penalty finds a solution that is better on the data
+alone and on missed peaks than every earlier one, so the penalty does not cost
+the tall peaks. The small peak 1.5 Hz above the strongest line is still only
+about 60 % reproduced: in the data it is narrower than any model line nearby
+(compare_zoom.png), which agrees with test A (own, smaller decay rate for
+those 13C2 lines). The best solution again comes from a perturbed start and
+stands 11.6 % below the next: the search has not converged.
+
+## Open points
+
+- Narrower lines near the small peak: a constrained per-family rate (bounded
+  ratio to the isotopologue rate) in the joint fit, instead of a free width.
+- More starts around the new best (search not converged).
+- Reliability classes on the penalised objective (reliability_series.py does
+  not include the penalty rows yet).
+
+Commit: see git log (this file).

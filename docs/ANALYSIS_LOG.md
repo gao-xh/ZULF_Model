@@ -1282,4 +1282,5 @@ skills under `skills/`; this file keeps the history.
   Result: best data score 0.2634 (5.9 % below the 48-start best); 3 % set 4 solutions; reliable 1J(C2,H2), 1J(C3,H3), J(H2,H5), J(C3,H6).
 - 2026-10-01: unfitted small peak: own line width (fits with the 48-start couplings), peak-height weighting
   (dropped: trades peaks), missing-peak penalty (fit_joint_series --peak-penalty, --peak-smooth),
-  docs/analysis/2026-10-01_blake-pyridine_peak-penalty.md. 48-start run with the smooth penalty: pending.
+  docs/analysis/2026-10-01_blake-pyridine_peak-penalty.md. 48 starts with the smooth penalty: total 0.2911,
+  data 0.2557 (lowest so far), fewer missed peaks; small peak still about 60 % (data narrower than the model lines).
