@@ -15,3 +15,4 @@ and are not committed.
 | 2026-09-29 | Blake pyridinium 6 M HCl | fitted N-H exchange rate | [2026-09-29_blake-pyridinium_exchange-fit.md](2026-09-29_blake-pyridinium_exchange-fit.md) |
 | 2026-09-29 | Blake pyridinium 6 M HCl | exchange rate vs its limits | [2026-09-29_blake-pyridinium_exchange-limits.md](2026-09-29_blake-pyridinium_exchange-limits.md) |
 | 2026-09-30 | Blake pyridine series | reliability of the couplings (revised: data-only score) | [2026-09-30_blake-pyridine_reliability.md](2026-09-30_blake-pyridine_reliability.md) |
+| 2026-10-01 | Blake pyridine series | 48 more starts seeded from the near-best set | [2026-10-01_blake-pyridine_ms48-continuation.md](2026-10-01_blake-pyridine_ms48-continuation.md) |

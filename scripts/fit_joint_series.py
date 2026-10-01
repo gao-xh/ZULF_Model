@@ -326,6 +326,9 @@ def main():
     ap.add_argument("--start-couplings", default="", help="JSON {key: Hz}: common starting couplings for every "
                     "spectrum (the prior centres stay the --couplings values)")
     ap.add_argument("--from-joint", default="", help="fit.json of an earlier joint fit: its J at every x as start")
+    ap.add_argument("--seeds", default="", help="JSON {\"x\": [...], \"solutions\": [{key: [J at every x]}, ...]}: "
+                    "several start tables (e.g. the near-best solutions of earlier fits); each is a start and the "
+                    "perturbed starts are spread over them in turn (spectrum parameters as for --from-joint)")
     ap.add_argument("--prior-sigma-hh", type=float, default=0.0)
     ap.add_argument("--prior-sigma-ch", type=float, default=0.0)
     ap.add_argument("--prior-weight", type=float, default=1.0)
@@ -447,8 +450,15 @@ def main():
     rng = np.random.default_rng(args.seed)
     level = np.zeros(len(z0))
     level[:joint.nt:joint.m] = 1.0                        # perturb the level of every coupling, not its shape
-    starts = [z0] + [np.clip(z0 + level * rng.normal(0, args.spread, len(z0)), lower + 1e-9, upper - 1e-9)
-                     for _ in range(max(args.starts - 1, 0))]
+    centres = [z0]
+    if args.seeds:
+        seeds = json.load(open(args.seeds))
+        rows = [int(np.argmin(np.abs(np.asarray(seeds["x"]) - x))) for x in joint.nodes]
+        centres = [np.clip(joint.pack(np.array([[sol[key_of[n]][s] for n in joint.coupling] for s in rows]), xs0),
+                           lower + 1e-9, upper - 1e-9) for sol in seeds["solutions"]]
+    starts = list(centres) + [
+        np.clip(centres[i % len(centres)] + level * rng.normal(0, args.spread, len(z0)), lower + 1e-9, upper - 1e-9)
+        for i in range(max(args.starts - len(centres), 0))]
     # random starts drawn from the priors: level of every small coupling ~ N(centre, 2 sigma), direction and size
     # of its change random, shape uniform; 1J levels and the spectrum parameters from the first start
     for _ in range(args.prior_starts):
