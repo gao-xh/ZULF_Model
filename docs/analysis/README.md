@@ -17,3 +17,4 @@ and are not committed.
 | 2026-09-30 | Blake pyridine series | reliability of the couplings (revised: data-only score) | [2026-09-30_blake-pyridine_reliability.md](2026-09-30_blake-pyridine_reliability.md) |
 | 2026-10-01 | Blake pyridine series | 48 more starts seeded from the near-best set | [2026-10-01_blake-pyridine_ms48-continuation.md](2026-10-01_blake-pyridine_ms48-continuation.md) |
 | 2026-10-01 | Blake pyridine series | line widths, peak weighting, missing-peak penalty | [2026-10-01_blake-pyridine_peak-penalty.md](2026-10-01_blake-pyridine_peak-penalty.md) |
+| 2026-10-01 | Blake pyridine series | model-free consistency of the spectra (x 0.66 outlier band) | [2026-10-01_blake-pyridine_data-consistency.md](2026-10-01_blake-pyridine_data-consistency.md) |

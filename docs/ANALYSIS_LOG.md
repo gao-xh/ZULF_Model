@@ -1284,3 +1284,6 @@ skills under `skills/`; this file keeps the history.
   (dropped: trades peaks), missing-peak penalty (fit_joint_series --peak-penalty, --peak-smooth),
   docs/analysis/2026-10-01_blake-pyridine_peak-penalty.md. 48 starts with the smooth penalty: total 0.2911,
   data 0.2557 (lowest so far), fewer missed peaks; small peak still about 60 % (data narrower than the model lines).
+- 2026-10-01: model-free check of the six spectra, docs/analysis/2026-10-01_blake-pyridine_data-consistency.md.
+  Peak positions and spacings smooth in x; x 0.66 lacks about 40 % of the broad feature at +10..+14 Hz from the
+  main peak (all other spectra agree): likely cause of the small-coupling jumps between 0.66 and 0.75.
