@@ -82,10 +82,33 @@ step between x 0.66 and 0.75, sometimes through zero (e.g. J(C2,H3) 5.5 ->
 couplings absorbing something the model lacks (line shape, processing,
 field-switch timing).
 
+## Follow-up: unfitted small peaks and the field-switch sequence
+
+The best data-only solution leaves peaks of 10-26 % of the maximum unfitted
+(runs/processed/reliability_data_v2/missing_peaks.png): one about 1.5 Hz above
+the strongest line that moves with it (169.9 / 169.5 / 169.1 Hz at x 0.33 /
+0.50 / 0.66; the model has only a weak 13C2 line there, 0.09 of the maximum,
+0.3 Hz away), one near 151 Hz (model lines 0.04), and features at 163-165 Hz.
+Model lines exist near most of them; their intensities are too low.
+
+Diagnostic (scratchpad hold_diag.py, couplings held at the best data-only
+solution, decay rates and delay refitted per case): initial state from the
+Ajoy-lab sequence (80 uT along x, GF1 ramped to 0 over 30 ms with 1 uT along
+-y, hold, sudden switch-off; brute-force propagation as in
+scripts/field_switch_check.py) instead of the sudden drop. Data score change
+per spectrum (x 0.33 / 0.50 / 0.66): ramp without hold +5 / +10 / +5 %;
+hold 1 ms +42 / +62 / +38 %; 3 ms +4 / +2 / +3 %; 10 ms +18 / +21 / +14 %;
+30 ms +83 / +106 / +77 %; 100 ms +95 / +125 / +69 %; long hold dephased at
+1 uT -2.4 / -3.5 / +1.9 %. No hold time raises the 169.5 Hz peak without
+spoiling the rest. With these couplings the field-switch sequence does not
+explain the missing peaks (caveat: the couplings were fitted with the sudden
+drop; a joint refit with the hold model is not done).
+
 ## Open points
 
 - The set holds 4 solutions of one run; the trend test stays weak.
 - Inspect the x 0.66 / 0.75 spectra for a change in acquisition or processing.
+- Unfitted peak 1.5 Hz above the strongest line: test a free extra line (width, height, x dependence) and per-line widths; 14N effects on 13C2.
 - Further rounds would likely lower the score again; a global search or the
   missing model terms are more useful than more local starts.
 
