@@ -104,6 +104,21 @@ spoiling the rest. With these couplings the field-switch sequence does not
 explain the missing peaks (caveat: the couplings were fitted with the sudden
 drop; a joint refit with the hold model is not done).
 
+Model peak height near 169.5 Hz (fraction of the maximum; scratchpad
+peak_compare.py, each fit's stored best, windows 169.5-170.3 / 169.1-169.9 /
+168.7-169.5 Hz at x 0.33 / 0.50 / 0.66):
+
+| | data | 48-start best (total 0.308) | 48 more best (data-only) | staged | lit 4J<0 | lit 4J>0 |
+|---|---|---|---|---|---|---|
+| x 0.33 | 0.350 | 0.285 | 0.158 | 0.242 | 0.121 | 0.182 |
+| x 0.50 | 0.309 | 0.252 | 0.127 | 0.195 | 0.092 | 0.142 |
+| x 0.66 | 0.195 | 0.166 | 0.157 | 0.162 | 0.070 | 0.152 |
+
+The earlier 48-start best (lowest total score) reproduces this peak much
+better; the lower data score of the new best is bought elsewhere at the cost
+of this peak. The data-only ranking alone is therefore not a safe choice of
+reference solution; the peak should be checked in any candidate.
+
 ## Open points
 
 - The set holds 4 solutions of one run; the trend test stays weak.
