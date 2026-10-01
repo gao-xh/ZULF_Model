@@ -30,6 +30,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+from scipy.special import expit
 from scipy.optimize import least_squares
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,21 +89,25 @@ class JointSeries:
         self.peaks = None                         # per spectrum: index windows around data peak tops (or None)
         self.peak_strength = 0.0
 
-    def set_peak_penalty(self, strength, prominence=0.12, tolerance_hz=0.15, min_sigma=2.0):
+    def set_peak_penalty(self, strength, prominence=0.12, tolerance_hz=0.15, min_sigma=2.0, smooth=0.0):
         """Missing-peak rows: for every data peak top (prominence >= `prominence` times the largest abs value and
-        >= `min_sigma` noise sigma) one extra
-        residual row strength * min(max over +-tolerance_hz of r, 0), r = W (model - data) / norm the ordinary
-        residual. The row is zero while the model reaches the data peak somewhere near the top and grows when
-        the model is too low there (peak missing or too weak); the ordinary residual and its weights are
-        unchanged. Its Jacobian row is strength times the ordinary row at the arg max. Data only (peak tops are
-        fixed). strength 0 switches it off."""
+        >= `min_sigma` noise sigma) one extra residual row strength * min(max over +-tolerance_hz of r, 0),
+        r = W (model - data) / norm the ordinary residual. The row is zero while the model reaches the data peak
+        somewhere near the top and grows when the model is too low there (peak missing or too weak); the
+        ordinary residual and its weights are unchanged. Data only (peak tops are fixed). strength 0 = off.
+
+        smooth > 0 replaces max and min(., 0) by smooth versions for the optimiser (the hard rows have kinks,
+        which keep least squares from converging): soft max tau log sum exp(r / tau) and soft hinge
+        -s log(1 + exp(-m / s)), tau = s = smooth times the peak's own height in residual units. Scores for
+        ranking should use the hard rows (smooth 0)."""
         from scipy.signal import find_peaks
         from zulf_core.solver.forward import signal_regions
         self.peak_strength = float(strength)
+        self.peak_smooth = float(smooth)
         if not strength:
             self.peaks = None
             return
-        self.peaks = []
+        self.peaks, self.peak_heights = [], []
         for f in self.forwards:
             y = f.y.real
             _, sigma = signal_regions(f.f, f.y, f.band, 4.0)
@@ -110,16 +115,27 @@ class JointSeries:
             spacing = float(np.median(np.diff(f.f)))
             half = max(int(round(tolerance_hz / spacing)), 0)
             self.peaks.append([np.arange(max(t - half, 0), min(t + half + 1, len(y))) for t in tops])
+            self.peak_heights.append(np.abs(y[tops]) * f.weight[tops] / f.norm)
 
     def _peak_rows(self, s, r):
-        """(rows, arg max index per row or -1 where the row is zero) of spectrum s from its ordinary residual."""
-        rows, at = [], []
-        for w in self.peaks[s]:
-            j = w[int(np.argmax(r[w]))]
-            v = min(float(r[j]), 0.0)
-            rows.append(self.peak_strength * v)
-            at.append(j if v < 0 else -1)
-        return np.array(rows), at
+        """Rows of spectrum s from its ordinary residual r, and per row (indices, coefficients) of
+        d row / d r (the Jacobian row is the matching combination of ordinary rows)."""
+        rows, grads = [], []
+        for w, h in zip(self.peaks[s], self.peak_heights[s]):
+            if self.peak_smooth > 0:
+                t = self.peak_smooth * h
+                a = r[w] / t
+                p = np.exp(a - a.max())
+                m = t * (a.max() + np.log(p.sum()))
+                p /= p.sum()
+                rows.append(-self.peak_strength * t * np.logaddexp(0.0, -m / t))
+                grads.append((w, self.peak_strength * expit(-m / t) * p))
+            else:
+                j = w[int(np.argmax(r[w]))]
+                v = min(float(r[j]), 0.0)
+                rows.append(self.peak_strength * v)
+                grads.append((np.array([j]), np.array([self.peak_strength])) if v < 0 else (np.zeros(0, int), np.zeros(0)))
+        return np.array(rows), grads
 
     def set_smoothing(self, sigma_hz):
         """Coarse-to-fine continuation: compare Gaussian-smoothed spectra. The same kernel K (sigma_hz, over the
@@ -223,12 +239,8 @@ class JointSeries:
                 out[:, self.nt + s * self.nl + i] = js[:, self.col[n]]
             blocks.append(self._smooth(s, out))
             if self.peaks is not None:
-                _, at = self._peak_rows(s, f.predict(self.spectrum_vector(z, s, values)).residual)
-                rows = np.zeros((len(at), len(z)))
-                for r_, j in enumerate(at):
-                    if j >= 0:
-                        rows[r_] = self.peak_strength * out[j]
-                blocks.append(rows)
+                _, grads = self._peak_rows(s, f.predict(self.spectrum_vector(z, s, values)).residual)
+                blocks.append(np.array([c @ out[idx] for idx, c in grads]).reshape(len(grads), len(z)))
         ks, _, scale = self.priors
         if ks:
             rows = np.zeros((len(ks), len(z)))
@@ -394,6 +406,9 @@ def main():
     ap.add_argument("--peak-prominence", type=float, default=0.12,
                     help="peak tops: prominence as a fraction of the largest value (and at least 2 noise sigma)")
     ap.add_argument("--peak-tolerance", type=float, default=0.15, help="peak tops: position tolerance (Hz)")
+    ap.add_argument("--peak-smooth", type=float, default=0.0,
+                    help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
+                         "solutions are then rescored and ranked with the hard rows")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
     ap.add_argument("--hold-small-first", action="store_true",
@@ -500,7 +515,7 @@ def main():
             mean.append(value)
             sigma.append(s)
     joint.set_priors(ks, mean, sigma, args.prior_weight)
-    joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance)
+    joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance, smooth=args.peak_smooth)
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     rng = np.random.default_rng(args.seed)
@@ -545,6 +560,14 @@ def main():
         print(f"start {k}: score {score:.5f}", flush=True)
     print(f"{len(starts)} starts in {time.time() - t0:.0f} s", flush=True)
     joint.set_smoothing(0.0)
+    smooth_scores = None
+    if joint.peaks is not None and joint.peak_smooth > 0:
+        # rank with the hard missing-peak rows; keep the smooth objective values for the record
+        smooth_scores = [sc for sc, _ in solutions]
+        joint.peak_smooth = 0.0
+        solutions = [(float(np.sum(joint.residual(zz) ** 2)), zz) for _, zz in solutions]
+        order = np.argsort([sc for sc, _ in solutions])
+        smooth_scores = [smooth_scores[i] for i in order]
     solutions.sort(key=lambda s: s[0])
     score, z = solutions[0]
     r = joint.residual(z)
@@ -562,7 +585,8 @@ def main():
               "signal_height_power": settings.signal_height_power,
               "peak_penalty": {"strength": args.peak_penalty, "prominence": args.peak_prominence,
                                "tolerance_hz": args.peak_tolerance,
-                               "tops": [len(t) for t in joint.peaks] if joint.peaks else []},
+                               "tops": [len(t) for t in joint.peaks] if joint.peaks else [],
+                               "smooth": args.peak_smooth, "smooth_scores_sorted_by_hard": smooth_scores},
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
