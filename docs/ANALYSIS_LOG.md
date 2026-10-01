@@ -1280,3 +1280,6 @@ skills under `skills/`; this file keeps the history.
   reliable 1J(C2,H2), 1J(C3,H3), J(H2,H5), J(H2,H4); same log file.
 - 2026-10-01: 48 more starts seeded from the 5 near-best solutions (fit_joint_series --seeds), docs/analysis/2026-10-01_blake-pyridine_ms48-continuation.md
   Result: best data score 0.2634 (5.9 % below the 48-start best); 3 % set 4 solutions; reliable 1J(C2,H2), 1J(C3,H3), J(H2,H5), J(C3,H6).
+- 2026-10-01: unfitted small peak: own line width (fits with the 48-start couplings), peak-height weighting
+  (dropped: trades peaks), missing-peak penalty (fit_joint_series --peak-penalty, --peak-smooth),
+  docs/analysis/2026-10-01_blake-pyridine_peak-penalty.md. 48-start run with the smooth penalty: pending.
