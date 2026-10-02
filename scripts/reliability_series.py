@@ -44,13 +44,19 @@ CLASS_COLOR = {"reliable": "#1b7f3b", "trend": "#b8860b", "undetermined": "#7777
 CLASS_LABEL = {"reliable": "RELIABLE", "trend": "trend only", "undetermined": "not determined"}
 
 
+
+def _values(entry):
+    """Spectrum values of a series entry: real by default; complex when the entry says real_only false."""
+    v = np.load(entry["values"])
+    return v.astype(complex) if entry.get("real_only", True) is False else v.real.astype(float)
+
 def build_joint(args):
     import regression_confirmed as reg
     from fit_processed_spectrum import override_couplings
     series = json.load(open(args.series))
     lo, hi = (float(v) for v in args.range.split(","))
-    obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), np.load(e["values"]).astype(float),
-                                          [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=True,
+    obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e),
+                                          [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=e.get("real_only", True),
                                               label=e["id"]) for e in series]
     spec = json.loads(args.structure)
     spec.setdefault("compound", "series")

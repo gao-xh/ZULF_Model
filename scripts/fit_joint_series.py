@@ -47,6 +47,12 @@ from zulf_hypothesis.search import _settings_for                       # noqa: E
 W_BOUND = 8.0          # |w| bound: the smallest step share is about e^-16 of the largest, i.e. effectively zero
 
 
+
+def _values(entry):
+    """Spectrum values of a series entry: real by default; complex when the entry says real_only false."""
+    v = np.load(entry["values"])
+    return v.astype(complex) if entry.get("real_only", True) is False else v.real.astype(float)
+
 def monotone_profile(w: np.ndarray):
     """c (n,) rising from 0 to 1 and dc/dw (n, n-1) for the softmax step shares e^w / sum e^w."""
     e = np.exp(w - w.max())
@@ -271,8 +277,8 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
     if not left or not right:
         return {"prediction": "none (end of the series: one neighbour only)"}
     i, j = left[-1], right[0]
-    obs = ObservedSpectrum.from_spectrum(np.load(entry["freq"]).astype(float), np.load(entry["values"]).astype(float),
-                                         [band], record=entry.get("record"), phasing=entry.get("phasing"), real_only=True,
+    obs = ObservedSpectrum.from_spectrum(np.load(entry["freq"]).astype(float), _values(entry),
+                                         [band], record=entry.get("record"), phasing=entry.get("phasing"), real_only=entry.get("real_only", True),
                                          label=entry["id"])
     param = joint.settings.parameterize(joint.model.interpretation)
     fw = MixtureForward(param, obs, SUDDEN_DROP, settings.gain_model, settings.background_order,
@@ -444,8 +450,8 @@ def main():
             path = Path(e["fid"])
             o = reg.observed_for({"file": path.name}, config, str(path.parent))
             return o.restricted([tuple(r) for r in e.get("ranges", [(lo, hi)])])
-        return ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), np.load(e["values"]).astype(float),
-                                              [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=True,
+        return ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e),
+                                              [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=e.get("real_only", True),
                                               label=e["id"])
 
     obs = [observation(e) for e in series]
