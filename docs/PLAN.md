@@ -266,7 +266,8 @@ fixed, so later phases are experiments rather than restructuring.
 - [x] Without the monotone constraint (`--shape free`, shared delay): total -20 %, jump stays. Two-branch test:
       every spectrum alone prefers branch A (smooth in x, far from the literature small couplings); the
       series-average priors split the series between branches A and B: the jump is a prior artefact.
-- [ ] Joint fit without series-average priors (or per-spectrum priors); monotone fit started from branch A.
+- [ ] Monotone fit started in branch A for all spectra (running).
+- [ ] Joint fit without series-average priors (or per-spectrum priors).
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but
       not the best known real-data minimum; test line-shape models (Voigt / apodized record) and the C2

@@ -284,6 +284,25 @@ processing of any single spectrum (its place moves between 0.50 -> 0.66 and
 0.66 -> 0.75 with the processing); in the complex fit it coincides with a jump
 of the free model delay.
 
+## Sixth run: monotone, all spectra started in branch A
+
+User choice (option 2 of three): monotone joint fit as the fourth run (shared
+delay, same priors and peak rows), every start in branch A. Seeds
+(seeds_branchA.json): the branch-A couplings of the two-branch test (one per
+spectrum), their isotonic fit (per coupling the better of rising and falling,
+pool-adjacent-violators) and the x 0.50 values at every x; 37 perturbed starts
+around them (spread 1.5 Hz, smaller than the 5-10 Hz between the branches),
+no prior-drawn starts; spectrum parameters from the fifth run.
+
+    python scripts/fit_joint_series.py --series series_fid03_8zf3c.json --real-only false --shared phase_delay \
+      ... (as the fourth run) --from-joint runs/processed/joint_fid_free_ms48/fit.json \
+      --seeds seeds_branchA.json --starts 40 --spread 1.5 --prior-starts 0 --seed 53 --workers 4 \
+      --out runs/processed/joint_fid_branchA_ms48
+
+Question: with the priors unchanged, does the fit stay in branch A (and how
+does its total compare with 0.2965), or does it return to the split? Started
+2026-10-02 15:57 UTC. Results: pending.
+
 ## Conclusion (after runs four and five)
 
 The jump of the small couplings between x 0.50 and 0.75 comes from the Gaussian
