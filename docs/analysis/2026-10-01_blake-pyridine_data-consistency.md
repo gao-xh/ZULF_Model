@@ -358,4 +358,30 @@ the same residuals (0.26-0.38 with the processed-spectrum couplings, not
 refitted). Next fit input: series_fid03_4.json (crop 0.1-4.1 s, 0.3 1/s,
 176.9 deg, zero fill 2, no baseline, record and phasing).
 
+## Restoring an ideal spectrum from the FID (2026-10-02; user's choice of route)
+
+Goal: remove the crop wings on the data side and compare with the ideal
+(Lorentzian) model. Two attempts, both failed on these data:
+
+1. Back-prediction by HSVD (scratchpad restore.py, restore_validate.py): band
+   125-215 Hz, analytic signal, decimated to 400 Hz, Hankel SVD into damped
+   exponentials, extrapolated to the switching edge, analytic Lorentzians.
+   Validated on a simulated FID (penalty-run couplings at x 0.50, rates
+   3 1/s, data-like noise) against its exact spectrum from the edge: relative
+   error 0.25 noise-free (after skipping the 0.25 s the band filter smears at
+   the segment start; 0.33 without the skip), 0.68-0.95 with noise for orders
+   100-220, wings -0.03 to -0.60. About 130 lines within 60 Hz, many closer
+   than 0.3 Hz, are not separable, and the 0.35 s extrapolation multiplies
+   errors by about e^(3 x 0.35).
+2. Early crop after subtracting the switching ringing (ringing_sub.py): HSVD
+   of 4.7-80 ms, components with rate > 40 1/s removed (494 Hz / 192 1/s,
+   437, 396, 385, 302, 261 Hz). Residual transients of about +-50 counts
+   remain at 5-60 ms (as large as the NMR signal) and give a broad sloping
+   background (-0.3 at 140 Hz, +0.35 at 195 Hz); minima -0.41 / -0.49 against
+   -0.39 for the plain 52.5 ms crop. Figure ringing_removed_x50.png.
+
+The 0.25 s skip is a property of the band filter (impulse length about the
+inverse taper width), not of the experiment; the crop start (end of the early
+transients) is per experiment.
+
 Commit: see git log (this file).
