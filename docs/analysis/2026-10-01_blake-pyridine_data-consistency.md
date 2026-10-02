@@ -178,4 +178,54 @@ Blake's processed x 0.10 spectrum (uploaded 2026-10-02, same grid): main peak
 (0.196); x 0.66 (0.120) stays the only outlier among the seven processed
 spectra. Added to full_phased_vs_blake.png.
 
+## Phase from peak symmetry, checked on a simulated spectrum (2026-10-02)
+
+User suggestion: use the symmetry of the peaks. Absorption is symmetric about
+the line centre, dispersion antisymmetric. Centre from the magnitude top
+(parabola, phase independent); asymmetry of the real part over +-0.4 Hz:
+sum (R - L)^2 / sum (R + L)^2; per-peak phase = least asymmetric (absorption
+sign); global phase0 = minimum of the height^2-weighted sum (scratchpad
+sym_phase.py; spectra 52.5 ms to the end, no window, first-order phase from
+each FID's own edge).
+
+Data: global phase0 174.0 deg (extra delay does not help: +0.40 ms gives the
+same mean asymmetry 0.371). Same check on a noise-free model spectrum
+(sym_model.py: couplings of the penalty-run best at that x, all rates 2.3 1/s,
+natural abundance ratios, no phase error, same acquisition and first-order
+step): global 353-357 deg, i.e. the criterion is biased by about -5 deg. So
+the data phase is about 179-180 deg with the delay at the switching edge.
+
+Per-peak phase minus global (deg):
+
+| x | source | ~151 | ~159.5 | main | ~172 | others |
+|---|---|---|---|---|---|---|
+| 0.33 | model | +5 | +21 | +9 | -11 | 178.6: +92 |
+| 0.33 | data | +40 | -12 | +62 | -16 | 164.8: +109, 176.7: -178 |
+| 0.50 | model | +15 | +17 | +10 | -11 | 178.2: +95 |
+| 0.50 | data | +29 | -17 | +42 | -47 | 164.4: +95, 176.9: +147 |
+| 0.75 | model | +8 | -50 | +26 | +5 | |
+| 0.75 | data | +14 | -58 | +54 | -7 | 176.4: +156 |
+| 1.00 | model | -37 | +12 | +8 | -1 | 177.4: +107 |
+| 1.00 | data | | -47 | +44 | -78 | |
+
+Overlap alone shifts per-peak symmetric phases by up to about 25 deg on the
+main lines (and 90-110 deg at a model feature near 178 Hz). The data exceed
+this: the main peak +42 to +62 deg (model +8 to +26), the ~172 Hz peak -47 and
+-78 deg at x 0.50 and 1.00 (model -11, -1); the data features near 164.5 Hz
+(+95 to +109) and 176.5 Hz (about 180 deg, a negative line or a dispersive
+pair) have no counterpart among the model's peak tops.
+
+Complex fits with couplings held (complex_fit.py; one phase vs one phase per
+isotopologue; delay, rates, gains and a linear background free): unstable.
+Delays wander from -3.1 to +3.9 ms, the 13C2 component takes rate 9-13 1/s
+and up to 7 times the 13C3 amplitude (it absorbs a broad component), relative
+residuals 0.27-0.46; per-isotopologue phases improve the residual by 2-10 %
+only. Not usable as a phase reference until the model covers the broad part.
+
+Conclusion: one global phase (about 180 deg at the switching edge) is
+supported by the data and by the simulation check; the remaining per-peak
+departures are partly overlap and partly real model-data differences (line
+phases or line structure the sudden-drop model with these couplings does not
+have).
+
 Commit: see git log (this file).
