@@ -40,6 +40,27 @@ penalty run on the processed spectra and the 48-start best, 48-more best and
 48-more data-only best; x 0.10 takes the seed values of x 0.02 (nearest
 node). Started 2026-10-02 (one BLAS thread per worker).
 
-Results: pending.
+Result (48 starts in 2105 s): best total 0.4490; relative data-core residuals
+0.352 / 0.266 / 0.235 / 0.237 / 0.227 / 0.207 / 0.159 (x 0.02 ... 1.00).
+Superseded before analysis: these spectra start at 52.5 ms, so every line
+carries crop wings (first lobe about -0.12 of its height), and the positive-
+peak AsLS of this input flattened them only partly, while the model had ideal
+lines (record=None). See 2026-10-01_blake-pyridine_data-consistency.md
+(crop wings, baseline). Not used further.
+
+## Second run: crop 0.1 s, re-done baseline
+
+Input (user choice): crop 0.1 s to the end, 0.3 1/s, phase0 176.9 deg at the
+switching edge, AsLS 1.0 Hz p 0.01 (one setting for the series, chosen by a
+scan against Blake's spectra; figure rebaseline_asls10_vs_blake.png), 125-215
+Hz on a 0.0307 Hz grid, ideal-line model (no record). Peak tops for the
+missing-peak rows at 2 sigma: 11, 12, 11, 10, 8, 9, 7.
+
+    python scripts/fit_joint_series.py --series series_rb.json ... (as above) \
+      --peak-penalty 5 --peak-smooth 0.03 --peak-min-sigma 2 \
+      --from-joint runs/processed/joint_peakpen_smooth_ms48/fit.json --seeds seeds_fid.json \
+      --starts 40 --spread 1.5 --prior-starts 8 --seed 37 --workers 4 --out runs/processed/joint_fid_rb_ms48
+
+Started 2026-10-02 03:20 UTC. Results: pending.
 
 Commit: (pending)
