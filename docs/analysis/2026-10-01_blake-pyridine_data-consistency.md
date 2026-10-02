@@ -105,8 +105,9 @@ our calibrated real spectrum (both normalised to the maximum, 140-200 Hz): rms
 is not. Sharp lines agree; Blake's spectra carry no broad negative regions,
 ours do (down to -0.4 at 160-166 and 172-178 Hz). So the processed spectra
 are, to within 0.02-0.04, our phased spectra plus a smooth baseline, and that
-baseline correction differs between spectra: it removed less of the broad
-rising feature at 177-181 Hz in x 0.66 than in the others.
+baseline correction differs between spectra: in this band it raised the
+level by about +0.06 to +0.08 in the other spectra (0.12-0.14 -> 0.19-0.20)
+and by about +0.01 in x 0.66 (0.113 -> 0.120).
 
 Conclusion: the x 0.66 band deficit comes from the baseline correction of the
 processed spectrum, not from the measurement. Every joint fit so far used
