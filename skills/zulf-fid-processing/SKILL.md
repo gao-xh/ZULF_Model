@@ -31,6 +31,41 @@ All processing goes through `zulf_core.render.acquisition` (`Acquisition`,
   (`phase_criterion="calibration"`, config `processing.phase_calibration`);
   see the zulf-phasing skill.
 
+## Tune the parameters for every new FID set (required)
+
+Defaults are starting points, not answers: re-derive crop, window, phase and
+baseline for each new set of FIDs and record the choice and its evidence in
+the analysis log (lesson of the Blake pyridine series, 2026-10-02,
+docs/analysis/2026-10-01_blake-pyridine_data-consistency.md).
+
+1. Sampling rate from the data (CSV time column, ini), not 4000 Hz by habit;
+   check the frequency axis of any supplied processed spectrum against your
+   own (the Blake spectra sat 0.1-0.2 Hz high).
+2. Crop start: after the ringing (diagnostics) is only the lower bound. Scan
+   the start (0.05, 0.1, 0.2, 0.3, 0.5 s) and plot the main-peak FWHM and the
+   depth of a valley between close lines; take the earliest start where both
+   stop changing. Pyridine: 52.5 ms left a fast-decaying broad component
+   (valleys 0.2-0.3 of the maximum, broad negative regions); 0.1-0.2 s gave a
+   plateau (FWHM 1.11 / 1.01 / 0.98 Hz at x 0.33 / 0.50 / 0.75, valleys ~0)
+   and matched the supplied processed spectra. Later starts keep narrowing the
+   lines when the decay is not single-exponential: say so instead of choosing
+   the narrowest.
+3. Do not start right after the switching step: the ringing (497 Hz, 3-50 ms,
+   1e4 counts) swamps the spectrum (magnitude 50x the lines).
+4. SG drift removal runs on the full record before the crop
+   (process_record). Check that the broad features do not depend on the SG
+   window/order or on SG-before-crop vs after; on pyridine they did not.
+5. Window: compare apodization 0, 0.3, 0.6, 1 1/s (noise/max and line
+   width); 0.3 1/s cut the noise 8x for +0.1 Hz width.
+6. Phase: see the zulf-phasing skill (edge delay, data-only zero-order phase
+   by peak symmetry with a model-spectrum bias check, one phase per set unless
+   the per-spectrum values differ beyond their errors).
+7. Baseline: one rule for all spectra of a series (zulf_processing
+   asls_baseline, smooth 1.5 Hz, p 0.01). Per-spectrum hand baselines created
+   the x 0.66 outlier band that drove jumps in the fitted couplings.
+8. Peak-top noise floor for missing-peak rows (`--peak-min-sigma`): raise it
+   for unwindowed or weak spectra (x 0.02 had 49 noise tops at 2 sigma).
+
 ## Acquisition assumptions
 
 - Without an ini, match the array length to earlier datasets of the same

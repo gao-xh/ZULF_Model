@@ -30,6 +30,21 @@ use one without running `scripts/validate_processing.py` (about 7 s) and
 reporting the method next to the phased figure. Without the edge, bands
 near harmonics (J, 2J) make delays about 4 ms apart equivalent.
 
+## Data-only phase by peak symmetry (pyridine series, 2026-10-02)
+
+When no trusted calibration exists or the user asks for a phase from the data
+only: first-order phase from each FID's switching edge; zero-order phase from
+the symmetry of the peak tops (real part over +-0.4 Hz about the magnitude
+top; centre from the magnitude, not the real-part apex, which moves with the
+phase and gave 157-203 deg between spectra against 171-185 deg). Check the
+criterion on a noise-free model spectrum with the same acquisition (bias -15
+to +20 deg depending on overlap) and correct per spectrum; give a jackknife
+error over peaks. Pyridine: 174.8 deg, chi2 0.8 for 6 dof (one phase for the
+set), error of the mean about 9 deg; an extra delay trades off with phase0 on
+a flat surface. Per-peak phases depend on overlap and on the centre choice;
+do not read them as line phases. Fits with the shared_phase gain model refine
+a residual zero-order phase per spectrum anyway.
+
 ## Rules
 
 1. Prefer complex fitting (real and imaginary) with zero-order phase and
