@@ -230,7 +230,50 @@ fourth run's 6 best and the three references), `--from-joint` the fourth run,
 seed 47, out runs/processed/joint_fid_free_ms48 (scratchpad chain_free2.sh);
 started 2026-10-02 11:35 UTC. Smoke test (one start from the third run's
 best, 2 evaluations): total 0.2792 against 0.2956, J(A2,HA3) 6.60, 6.64,
-5.06, 4.82, 5.26, -2.25, -2.86 Hz (x 0.02 ... 1.00). Results: pending.
+5.06, 4.82, 5.26, -2.25, -2.86 Hz (x 0.02 ... 1.00).
+
+Result: 48 starts in 11396 s. Best hard total 0.2361 (-20 % against the
+monotone fit, 0.2965), next 0.2443, 0.2452. Shared delay -2.57 ms. Relative
+data-core residuals 0.217 / 0.194 / 0.198 / 0.190 / 0.179 / 0.205 / 0.135
+(1-19 % below the monotone fit). Figures runs/processed/joint_fid_free_ms48/
+spectra_baselined.png, J_trends_compare.png (free, monotone, Blake spectra).
+15 of 19 couplings go up and down by more than 0.3 Hz (e.g. 1J(C2,H2) 177.91,
+178.58, 177.46 Hz at x 0.66, 0.75, 1.00), but the jump stays: J(A2,HA3)
+6.00 -> -4.00 (0.66 -> 0.75), J(HA3,HA4) 11.56 -> 5.92, J(A4,HA3)
+-3.50 -> 2.85, 1J(C4,H4) 160.10 -> 157.32 Hz (0.50 -> 0.66).
+
+### Two-branch test (scratchpad branch_test.py, branch_test.json)
+
+Every spectrum alone (couplings and rates free, delay held at -2.57 ms, no
+priors, no peak rows), started once from the free fit's couplings at x 0.50
+(branch A) and once from those at x 0.75 (branch B):
+
+| spectrum | A rel. residual | B rel. residual | B cost / A cost - 1 |
+|---|---|---|---|
+| x 0.02 | 0.224 | 0.233 | +6.9 % |
+| x 0.10 | 0.213 | 0.267 | +68 % |
+| x 0.33 | 0.197 | 0.236 | +47 % |
+| x 0.50 | 0.189 | 0.226 | +47 % |
+| x 0.66 | 0.139 | 0.199 | +97 % |
+| x 0.75 | 0.135 | 0.205 | +117 % |
+| x 1.00 | 0.113 | 0.128 | +14 % |
+
+Branch A is lower for every spectrum, the concentrated ones included (x 0.75:
+0.135 against 0.205 in the joint fits). In branch A the couplings change
+smoothly with x, 1J(C4,H4) 162.0 -> 158.7 Hz and 1J(C2,H2) 179.2 -> 176.5 Hz,
+no jump. The joint fits do not reach it because of the priors on the series
+averages: branch A puts J(HA3,HA4) at 11.2-13.3 Hz (prior 7.7 +- 0.5: 9 sigma),
+J(HA2,HA5) 3.4 (prior 0.9: 4.9 sigma), J(HA3,HA5) -0.7 (prior 1.4: -4.1
+sigma); branch B lies on the other side. Splitting the series (dilute in A,
+concentrated in B) brings the averages to the priors (J(HA3,HA4) mean 8.69 Hz)
+at the cost of the concentrated spectra. The jump is made by the series-average
+priors, not by the samples, the processing, the delay or the monotone
+constraint.
+
+Branch A is far from the literature small couplings (J(HA3,HA4) about 12 Hz
+against about 7.7 Hz), so it is not a better assignment either: these spectra
+fix some combinations of the small couplings, not the couplings one by one
+(as found on Blake's spectra, 2026-09-30_blake-pyridine_reliability.md).
 
 ## Conclusion
 
@@ -241,9 +284,20 @@ processing of any single spectrum (its place moves between 0.50 -> 0.66 and
 0.66 -> 0.75 with the processing); in the complex fit it coincides with a jump
 of the free model delay.
 
+## Conclusion (after runs four and five)
+
+The jump of the small couplings between x 0.50 and 0.75 comes from the Gaussian
+priors on the series averages: every spectrum alone prefers one branch (A),
+which lies several sigma from the literature centres, and the joint fit meets
+the priors by moving the concentrated spectra to another branch. Neither the
+per-spectrum delay nor the monotone constraint causes it. 1J values depend on
+the branch by up to 1.5 Hz at high x.
+
 ## Open points
 
 - One shared delay (fourth run): the jump stays; the delay does not cause it.
 - Search not converged (three solutions within 3 %).
+- Joint fit without the series-average priors (or with per-spectrum priors), and the monotone joint fit
+  started from branch A for all spectra.
 
 Commit: see git log (this file).

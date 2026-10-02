@@ -263,7 +263,10 @@ fixed, so later phases are experiments rather than restructuring.
       (docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md).
 - [x] One model delay for the series (`--shared phase_delay`): total +0.3 %, delay -1.86 ms; the
       small-coupling jump at x 0.50-0.75 stays (not caused by the per-spectrum delays).
-- [ ] Refit without the monotone constraint (`--shape free`, shared delay; running).
+- [x] Without the monotone constraint (`--shape free`, shared delay): total -20 %, jump stays. Two-branch test:
+      every spectrum alone prefers branch A (smooth in x, far from the literature small couplings); the
+      series-average priors split the series between branches A and B: the jump is a prior artefact.
+- [ ] Joint fit without series-average priors (or per-spectrum priors); monotone fit started from branch A.
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but
       not the best known real-data minimum; test line-shape models (Voigt / apodized record) and the C2

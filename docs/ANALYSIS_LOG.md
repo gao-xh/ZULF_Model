@@ -1298,3 +1298,6 @@ skills under `skills/`; this file keeps the history.
   0.50 -> 0.75 and coincides with a 3-6 ms jump of the free model delay (dilute spectra sit at the edge).
 - 2026-10-02: same log. One shared model delay (-1.86 ms): total 0.2965 vs 0.2956, couplings as with per-spectrum
   delays; the jump at x 0.50-0.75 stays. Free-shape (no monotone) run started with the shared delay.
+- 2026-10-02: same log. No monotone constraint: total 0.2361 (-20 %), jump stays. Each spectrum alone prefers
+  branch A (x 0.75: 0.135 vs 0.205), smooth in x but several sigma from the literature priors; the series-average
+  priors split the series between two branches, which makes the jump.
