@@ -399,4 +399,23 @@ after the filter and cannot undo it. The gross early transient has to go
 first (blank or template subtraction, or a smooth time window applied to data
 and model alike) before a weighted time-domain fit can work.
 
+Positive line-density deconvolution (scratchpad posdeconv.py,
+posdeconv_validate.py, posdeconv_fixed.py, posdeconv_diag.py): lines on a
+0.1 Hz grid with one rate and one phase, amplitudes >= 0 (all model line
+amplitudes are positive), each column the exact cropped and windowed spectrum
+of one line, linear background projected out, NNLS (BVLS was far too slow).
+On the simulated FID (x 0.50 couplings, rate 3, crop 0.1 s): the cropped data
+are fitted to 1e-13 (noise-free) and the restored spectrum has no wings
+(min/max +0.003), but it differs from the true ideal spectrum by 0.56-0.59
+(complex scale), also with the true phase and rate given; the plain cropped
+spectrum differs by 0.89 and the uncropped spectrum from the edge by 0.06.
+Re-rendering the restored amplitudes through the crop reproduces the data to
+7e-7: many positive amplitude sets fit the cropped data equally and restore
+differently. With free phase and rate the scan picks 15 or 208 deg and
+R 2-4 at residual ~0. The information in the cut 0.1 s is lost for these
+dense lines; positivity does not restore it. Data-side restoration is not
+pursued further (HSVD, ringing subtraction, weighted time-domain fit and
+positive deconvolution all fail); fits use the forward route (model through
+the same processing) or the earliest clean crop.
+
 Commit: see git log (this file).
