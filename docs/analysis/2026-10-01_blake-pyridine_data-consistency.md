@@ -161,4 +161,16 @@ Figure runs/processed/joint_peakpen_smooth_ms48/front1s_phased_vs_blake.png
 (phase0 175.7 deg, delay = own edge; real part without baseline and with AsLS
 1.5 Hz).
 
+Full record, only the switching step removed (user request; no apodization,
+zero fill 1, plan built without the ringing rule): crop from the first sample
+after the edge (14-15) to 65515. The 3-50 ms switching ringing then dominates:
+magnitude 1-2 across 130-210 Hz against about 0.03 for the pyridine lines
+(S/N 25-35, only ringing tops at 145.0 and 180.8 Hz). From 210 (52.5 ms, after
+the ringing in all seven) to 65515: lines clear, S/N 8 (x 0.02) to 59
+(x 0.50); peak-top phase 177.6 deg with the delay at each FID's own edge
+(coherence 0.664; an extra delay does not help); the same residual pattern
+(main peak +37 to +57 deg, ~171-172 Hz peak -26 to -77 deg). Figures
+runs/processed/joint_peakpen_smooth_ms48/crop_ringing_effect.png,
+full_phased_vs_blake.png.
+
 Commit: see git log (this file).
