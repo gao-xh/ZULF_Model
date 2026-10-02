@@ -284,6 +284,32 @@ processing of any single spectrum (its place moves between 0.50 -> 0.66 and
 0.66 -> 0.75 with the processing); in the complex fit it coincides with a jump
 of the free model delay.
 
+## Reliability classes of the complex monotone fits
+
+reliability_series.py now handles fits with missing-peak rows: their stored
+scores contain the hard rows, so the compared score is the data residual plus
+those rows (prior removed); the peak settings must be equal in all fits, and
+the direct check of each fit's best includes the rows. (The `--spectra` refit
+check still compares without them.)
+
+    python scripts/reliability_series.py --series series_fid03_8zf3c.json --real-only false --shared phase_delay \
+      --structure ... --couplings "$(cat pyr_lit.json)" --signal-threshold 2.5 --signal-taper 4.0 \
+      --fit per-spectrum-delay=runs/processed/joint_fid_route2c_ms48/fit.json \
+      --fit shared-delay=runs/processed/joint_fid_shdelay_ms48/fit.json --out runs/processed/reliability_fid_monotone
+
+Best data score 0.2928 (per-spectrum delay) and 0.2929 (shared); 4 solutions
+within 3 % (3 + 1). Reliable (spread <= 1.6 Hz): 1J(C3,H3) 0.5, 1J(C2,H2) 1.0,
+2J(C3,H4) 1.0, 4J(C3,H6) 1.2, 4J(C2,H5) 1.4 Hz. Trend only: 3J(H2,H3),
+3J(C4,H2), 1J(C4,H4) (2.7 Hz), 2J(C2,H3), 4J(H3,H5), 4J(H2,H4), 3J(H3,H4),
+4J(H2,H6), 3J(C2,H6), 2J(C4,H3). Not determined: 5J(H2,H5), 2J(C3,H2),
+3J(C3,H5), 3J(C2,H4). Figure (user: classes instead of the branch-switch
+shading): runs/processed/joint_fid_shdelay_ms48/J_trends_compare_reliability.png
+(panel title: n-bond type and ring positions, N = 1; scratchpad
+jcmp_annot.py). Caveats: only 4 solutions in the set, all in the split
+branches; "reliable" means the near-best solutions agree, not that the value
+is right (4J(C2,H5) changes sign at 0.66 -> 0.75 in all of them). The free fit
+and the branch-A run are not pooled here.
+
 ## Sixth run: monotone, all spectra started in branch A
 
 User choice (option 2 of three): monotone joint fit as the fourth run (shared

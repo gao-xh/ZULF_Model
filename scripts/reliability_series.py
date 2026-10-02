@@ -114,11 +114,22 @@ def direct_vector(joint, series, key_of, fit, i):
 
 
 def direct_data_score(joint, series, key_of, fit):
+    """Data residual sum of squares of a fit's stored best, plus its hard missing-peak rows when the fits use them."""
     total = 0.0
     for i, f in enumerate(joint.forwards):
         r = f.predict(direct_vector(joint, series, key_of, fit, i)).residual
         total += float(r @ r)
+        if joint.peaks is not None:
+            total += float(np.sum(joint._peak_rows(i, r)[0] ** 2))
     return total
+
+
+def peak_settings(fit):
+    """A fit's missing-peak settings (strength 0 = none), without the per-run record fields."""
+    p = fit.get("peak_penalty") or {}
+    if not p.get("strength"):
+        return {"strength": 0.0}
+    return {k: p[k] for k in ("strength", "prominence", "tolerance_hz", "min_sigma")}
 
 
 def refit_spectrum_parameters(joint, series, key_of, J_at_x, fit_files):
@@ -220,6 +231,12 @@ def main():
     series, obs, joint, settings, key_of = build_joint(args)
     keys = [key_of[n] for n in joint.coupling]
     norm = float(np.mean([f.norm for f in joint.forwards]))
+    # fits with missing-peak rows: their stored scores contain the hard rows, so the compared score is data plus
+    # those rows (the same settings in every fit; checked below)
+    peaks = peak_settings(json.load(open(args.fit[0].split("=", 1)[1])))
+    if peaks["strength"]:
+        joint.set_peak_penalty(peaks["strength"], peaks["prominence"], peaks["tolerance_hz"],
+                               min_sigma=peaks["min_sigma"], smooth=0.0)
     fits, pool = {}, []
     for item in args.fit:
         label, path = item.split("=", 1)
@@ -229,6 +246,8 @@ def main():
                 or fit["signal_taper_hz"] != settings.signal_taper_hz
                 or fit.get("signal_height_power", 0.0) != settings.signal_height_power):
             raise ValueError(f"{label}: other spectra or signal weighting than this comparison")
+        if peak_settings(fit) != peaks:
+            raise ValueError(f"{label}: other missing-peak settings than the first fit")
         sols = []
         for i, s in enumerate(fit["start_solutions"]):
             prior = prior_term(fit, keys, norm, s["J_at_x"])
@@ -249,7 +268,9 @@ def main():
         f["in_set"] = sum(1 for s in chosen if fits.get(s["fit"]) is f)
     x = json.load(open(fits[next(iter(fits))]["path"]))["x"]
     status = {k: classify([s["J_at_x"][k] for s in chosen], args.reliable_hz, args.trend_hz) for k in keys}
-    result = {"criterion": {"score": "weighted data residual sum of squares (prior term removed)",
+    result = {"criterion": {"score": "weighted data residual sum of squares (prior term removed)" +
+                            (" plus the hard missing-peak rows" if peaks["strength"] else ""),
+                            "peak_penalty": peaks,
                             "tolerance": args.tolerance, "reliable_hz": args.reliable_hz, "trend_hz": args.trend_hz},
               "x": x, "best_data_score": best_data, "fits": fits,
               "set": [{k: s[k] for k in ("fit", "rank_in_fit", "score", "data_score")} for s in chosen],
