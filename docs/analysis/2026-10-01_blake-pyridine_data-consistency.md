@@ -173,4 +173,9 @@ the ringing in all seven) to 65515: lines clear, S/N 8 (x 0.02) to 59
 runs/processed/joint_peakpen_smooth_ms48/crop_ringing_effect.png,
 full_phased_vs_blake.png.
 
+Blake's processed x 0.10 spectrum (uploaded 2026-10-02, same grid): main peak
+168.62 Hz, band +10 ... +14 Hz 0.213, in line with x 0.02 (0.204) and 0.33
+(0.196); x 0.66 (0.120) stays the only outlier among the seven processed
+spectra. Added to full_phased_vs_blake.png.
+
 Commit: see git log (this file).
