@@ -84,8 +84,9 @@ e^-8 of their start (rates 2-3 1/s), so the longer record adds noise only.
 Chosen by the user: 0.1-8.1 s, zero fill 3: 1440 points, 4.3 s per jacobian.
 
 Complex fit (user question; no AsLS means every processing step is linear and
-the model goes through the same steps): the series entries may now carry
-`real_only: false` (scripts read complex values; commit with this log). Input
+the model goes through the same steps): `--real-only false` on
+fit_joint_series / reliability_series (default true; user: a parameter, not a
+series-file key) reads the values as complex. Input
 series_fid03_8zf3c.json: the same 0.1-8.1 s spectra kept complex after the
 176.9 deg phase (real part = absorption, used for the peak tops); the shared-
 phase gain refines a residual zero-order phase per spectrum, the delay is free
@@ -93,6 +94,7 @@ near the edge. Timing single thread: jacobian 4.6 s (real-only 4.9 s);
 data-core residuals with the processed-spectrum couplings 0.27-0.39 for both.
 Peak tops at 2 sigma: 19 on x 0.02 (noise), so 3 sigma: 11, 14, 12, 12, 11,
 11, 7. The queued third run uses this input (out
-runs/processed/joint_fid_route2c_ms48, chain script chain_route2c.sh).
+runs/processed/joint_fid_route2c_ms48, chain script chain_route2c.sh, with
+`--real-only false --peak-min-sigma 3`).
 
 Commit: (pending)

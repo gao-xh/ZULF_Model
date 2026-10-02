@@ -45,18 +45,28 @@ CLASS_LABEL = {"reliable": "RELIABLE", "trend": "trend only", "undetermined": "n
 
 
 
-def _values(entry):
-    """Spectrum values of a series entry: real by default; complex when the entry says real_only false."""
+def _values(entry, real_only=True):
+    """Spectrum values of a series entry: real (real_only, the default) or complex."""
     v = np.load(entry["values"])
-    return v.astype(complex) if entry.get("real_only", True) is False else v.real.astype(float)
+    return v.real.astype(float) if real_only else v.astype(complex)
+
+
+def _flag(text):
+    """--real-only true|false"""
+    t = str(text).strip().lower()
+    if t in ("true", "1", "yes"):
+        return True
+    if t in ("false", "0", "no"):
+        return False
+    raise ValueError(f"expected true or false, got {text!r}")
 
 def build_joint(args):
     import regression_confirmed as reg
     from fit_processed_spectrum import override_couplings
     series = json.load(open(args.series))
     lo, hi = (float(v) for v in args.range.split(","))
-    obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e),
-                                          [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=e.get("real_only", True),
+    obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e, getattr(args, "real_only", True)),
+                                          [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=getattr(args, "real_only", True),
                                               label=e["id"]) for e in series]
     spec = json.loads(args.structure)
     spec.setdefault("compound", "series")
@@ -186,6 +196,7 @@ def classify(values, reliable_hz, trend_hz):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--series", required=True)
+    ap.add_argument("--real-only", type=_flag, default=True, help="true (default) or false: complex spectra")
     ap.add_argument("--structure", required=True)
     ap.add_argument("--couplings", default="{}")
     ap.add_argument("--variant", default="ratios")

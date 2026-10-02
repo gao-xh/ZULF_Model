@@ -48,10 +48,20 @@ W_BOUND = 8.0          # |w| bound: the smallest step share is about e^-16 of th
 
 
 
-def _values(entry):
-    """Spectrum values of a series entry: real by default; complex when the entry says real_only false."""
+def _values(entry, real_only=True):
+    """Spectrum values of a series entry: real (real_only, the default) or complex."""
     v = np.load(entry["values"])
-    return v.astype(complex) if entry.get("real_only", True) is False else v.real.astype(float)
+    return v.real.astype(float) if real_only else v.astype(complex)
+
+
+def _flag(text):
+    """--real-only true|false"""
+    t = str(text).strip().lower()
+    if t in ("true", "1", "yes"):
+        return True
+    if t in ("false", "0", "no"):
+        return False
+    raise ValueError(f"expected true or false, got {text!r}")
 
 def monotone_profile(w: np.ndarray):
     """c (n,) rising from 0 to 1 and dc/dw (n, n-1) for the softmax step shares e^w / sum e^w."""
@@ -265,7 +275,7 @@ class JointSeries:
         return out
 
 
-def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
+def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200, real_only=True):
     """Fit the left-out spectrum with every coupling held between its values at the neighbouring concentrations
     (monotonicity allows nothing else): J_k = J_k(left) + u_k (J_k(right) - J_k(left)), u_k in [0, 1]; rates, delay,
     gains, phase and background free. Returns the relative residual on the data cores and the u_k (0 or 1 means
@@ -277,8 +287,8 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
     if not left or not right:
         return {"prediction": "none (end of the series: one neighbour only)"}
     i, j = left[-1], right[0]
-    obs = ObservedSpectrum.from_spectrum(np.load(entry["freq"]).astype(float), _values(entry),
-                                         [band], record=entry.get("record"), phasing=entry.get("phasing"), real_only=entry.get("real_only", True),
+    obs = ObservedSpectrum.from_spectrum(np.load(entry["freq"]).astype(float), _values(entry, real_only),
+                                         [band], record=entry.get("record"), phasing=entry.get("phasing"), real_only=real_only,
                                          label=entry["id"])
     param = joint.settings.parameterize(joint.model.interpretation)
     fw = MixtureForward(param, obs, SUDDEN_DROP, settings.gain_model, settings.background_order,
@@ -386,6 +396,9 @@ def _solve_start(z):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--series", required=True)
+    ap.add_argument("--real-only", type=_flag, default=True,
+                    help="true (default): fit the real part of the phased spectra; false: fit complex spectra "
+                         "(values stored complex, model through the same record and phasing)")
     ap.add_argument("--structure", required=True)
     ap.add_argument("--couplings", default="{}", help="JSON {key: Hz}: structure values and prior centres")
     ap.add_argument("--start-couplings", default="", help="JSON {key: Hz}: common starting couplings for every "
@@ -450,8 +463,8 @@ def main():
             path = Path(e["fid"])
             o = reg.observed_for({"file": path.name}, config, str(path.parent))
             return o.restricted([tuple(r) for r in e.get("ranges", [(lo, hi)])])
-        return ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e),
-                                              [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=e.get("real_only", True),
+        return ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e, args.real_only),
+                                              [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=args.real_only,
                                               label=e["id"])
 
     obs = [observation(e) for e in series]
@@ -612,7 +625,7 @@ def main():
             "prior_centre": centre[n] if abs(centre[n]) < 50 else None}
     if left_out is not None:
         result["left_out"] = {"id": left_out["id"], "x": left_out["x"],
-                              **predict_left_out(joint, z, left_out, (lo, hi), key_of, settings)}
+                              **predict_left_out(joint, z, left_out, (lo, hi), key_of, settings, real_only=args.real_only)}
     result["spectrum_parameters"] = {series[si]["id"]: {n: float(z[joint.nt + si * joint.nl + i])
                                                        for i, n in enumerate(joint.local)} for si in range(joint.ns)}
     json.dump(result, open(out / "fit.json", "w"), indent=1)
