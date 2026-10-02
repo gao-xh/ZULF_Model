@@ -164,3 +164,39 @@ class DatasetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AslsBaselineTests(unittest.TestCase):
+    @staticmethod
+    def synthetic(step):
+        f = np.arange(130.0, 210.0, step)
+        base = 0.3 * np.exp(-0.5 * ((f - 165.0) / 8.0) ** 2) - 0.2 * np.exp(-0.5 * ((f - 185.0) / 6.0) ** 2) + 0.001 * (f - 170.0)
+        lines = sum(h / (1 + ((f - c) / 0.4) ** 2) for c, h in ((150.0, 0.5), (160.0, 1.0), (161.0, 0.6), (172.0, 0.8),
+                                                                (180.0, 0.3), (195.0, 0.4)))
+        return f, base, lines
+
+    def test_standard_asls_recovers_a_broad_baseline_under_positive_lines(self):
+        from zulf_processing import asls_baseline
+        f, base, lines = self.synthetic(0.1)
+        z = asls_baseline(base + lines, f, smooth_hz=2.0, p=0.01)
+        inner = (f > 140) & (f < 200)
+        self.assertLess(np.max(np.abs(z - base)[inner]), 0.08)       # vs line heights 0.3-1.0, baseline +-0.3
+        self.assertLess(np.sqrt(np.mean((z - base)[inner] ** 2)), 0.03)
+
+    def test_smoothness_is_grid_independent(self):
+        from zulf_processing import asls_baseline
+        f1, b1, l1 = self.synthetic(0.1)
+        f2, b2, l2 = self.synthetic(0.05)
+        z1 = asls_baseline(b1 + l1, f1, smooth_hz=2.0, p=0.01)
+        z2 = asls_baseline(b2 + l2, f2, smooth_hz=2.0, p=0.01)
+        self.assertLess(np.max(np.abs(np.interp(f1, f2, z2) - z1)[(f1 > 140) & (f1 < 200)]), 0.01)
+
+    def test_two_sided_handles_lines_of_both_signs(self):
+        from zulf_processing import asls_two_sided
+        f, base, lines = self.synthetic(0.1)
+        signed = lines * np.where(f > 175, -1.0, 1.0)
+        noise = 0.005 * np.random.default_rng(0).normal(size=len(f))
+        z, w = asls_two_sided(base + signed + noise, f, sigma=0.005, smooth_hz=1.5)
+        inner = (f > 140) & (f < 200)
+        self.assertLess(np.sqrt(np.mean((z - base)[inner] ** 2)), 0.02)
+        self.assertLess(w[np.argmin(np.abs(f - 172.0))], 0.01)        # a negative line is excluded
