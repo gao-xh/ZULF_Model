@@ -1290,3 +1290,5 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-02: raw FIDs (CSV, 7 incl. x 0.10): same processing + instrument phase calibration for all; x 0.66 band
   is normal in the FID; Blake's processed spectra = phased spectra + a smooth, per-spectrum baseline (rest rms
   0.02-0.04). The 0.66 deficit is a baseline-correction difference. Same log file (data-consistency).
+- 2026-10-02: joint fit of the seven FID-processed spectra (one processing, phase 179 deg at the switching edge,
+  AsLS), docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md; 48 starts with the smooth missing-peak penalty: running.
