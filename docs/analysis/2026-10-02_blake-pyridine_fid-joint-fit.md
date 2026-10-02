@@ -68,8 +68,8 @@ about 4 h for 48 starts; the user chose to let it finish). Results: pending.
 
 User decision: no AsLS; the model is rendered with the same crop, window, SG
 and phase (series entries carry `record` and `phasing`). Input
-series_fid03_4.json: crop 0.1-4.1 s, 0.3 1/s, zero fill 6 (0.0417 Hz grid,
-like Blake's 0.0452 Hz; user asked for Blake's point density),
+series_fid03_4.json (now the 8.1 s set): crop 0.1-8.1 s (user: keep at least 8.1 s),
+0.3 1/s, zero fill 3 (0.0417 Hz grid, like Blake's 0.0452 Hz),
 phase0 176.9 deg at the switching edge, no baseline. Seeds: the 6 best of the
 second run and the three reference solutions; same fit settings, 48 starts,
 seed 41, out runs/processed/joint_fid_route2_ms48 (chain script starts it
@@ -81,5 +81,6 @@ Record length vs points (single-thread timing): 4.1 s with zero fill 6 gives
 1440 points in 140-200 Hz and 2.2 s per jacobian; the full 16.4 s record with
 zero fill 1 gives 976 points and 11.5 s. Line amplitudes after 4 s are below
 e^-8 of their start (rates 2-3 1/s), so the longer record adds noise only.
+Chosen by the user: 0.1-8.1 s, zero fill 3: 1440 points, 4.3 s per jacobian.
 
 Commit: (pending)
