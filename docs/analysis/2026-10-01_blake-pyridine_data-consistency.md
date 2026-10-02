@@ -384,4 +384,19 @@ The 0.25 s skip is a property of the band filter (impulse length about the
 inverse taper width), not of the experiment; the crop start (end of the early
 transients) is per experiment.
 
+Time-domain fit with weights instead of a crop (scratchpad tdfit.py,
+tdfit25.py; x 0.50, couplings held, complex gain per isotopologue, common
+rate): data and model columns through the same SG detrend and FFT band-pass
+(125-215 Hz with 5 Hz edges, or 110-230 Hz with 25 Hz edges), weights from the
+running residual envelope over the misfit floor. Relative residual over
+0.1-4.1 s 0.96-0.99 for the hard crop and for the weights alike: after the
+band-pass only 19 % of the power in 0.1-4.1 s lies at 140-200 Hz, 55 % at
+100-140 Hz (strongest 135 Hz) and 21 % at 200-260 Hz (205 Hz), while before
+the band-pass the NMR lines at 167-172 Hz dominate. The filter turns the
+switching step and ringing (about 5e4 counts, 1e3-1e4 times the NMR signal)
+into band-edge oscillations that reach far into the clean part; weights act
+after the filter and cannot undo it. The gross early transient has to go
+first (blank or template subtraction, or a smooth time window applied to data
+and model alike) before a weighted time-domain fit can work.
+
 Commit: see git log (this file).
