@@ -84,6 +84,32 @@ class JointSeriesTests(unittest.TestCase):
                                    for e in np.eye(len(z))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
+    def test_free_shape_takes_any_values_and_jacobian_matches_finite_differences(self):
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 200.0, 0.25)
+        rng = np.random.default_rng(9)
+        obs = [ObservedSpectrum.from_spectrum(f, rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)),
+                                              [(100.0, 200.0)], record=acq) for _ in range(3)]
+        joint = JointSeries(model, settings, obs, [0.1, 0.5, 1.0], shape="free")
+        table, xs = self._table(joint)
+        table = table + np.array([0.0, 0.6, -0.3])[:, None]                 # up then down: not monotone
+        z = joint.pack(table, xs)
+        for k in range(joint.nc):
+            np.testing.assert_allclose(joint.coupling_values(z, k), table[:, k])
+        lo, hi = joint.bounds(20.0)
+        self.assertEqual(len(lo), len(z))
+        shift = joint.level_shift(np.arange(len(z), dtype=float))
+        for k in range(joint.nc):                                           # one offset per coupling
+            self.assertTrue(np.all(shift[k * joint.m:(k + 1) * joint.m] == k * joint.m))
+        joint.set_priors([0], [1.0 + joint.coupling_values(z, 0).mean()], [0.5], 2.0)
+        jac = joint.jacobian(z)
+        h = 1e-6
+        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                   for e in np.eye(len(z))])
+        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+
     @staticmethod
     def _table(joint):
         table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])

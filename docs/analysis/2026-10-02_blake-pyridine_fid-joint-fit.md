@@ -185,6 +185,22 @@ finite differences in tests/test_joint_series.py).
 Seeds (9): the 6 best solutions of the third run and the three reference
 solutions. Started 2026-10-02 08:20 UTC. Results: pending.
 
+## Fifth run (queued): no monotone constraint
+
+User question: drop the monotone constraint. New option `--shape free`
+(fit_joint_series): every coupling has its own value at every concentration
+(z block = J at the nodes); the spectra are then tied only through the priors
+on the series averages (and `--shared`, not used here). Start perturbations
+shift all nodes of a coupling by one offset; prior-drawn starts are linear
+in x. Test: values = parameters, Jacobian against finite differences.
+Otherwise the third run's settings (complex, free delay per spectrum), so the
+only change against the third run is the constraint. Seeds: seeds_shared.json
+(the third run's 6 best and the three references), seed 47, out
+runs/processed/joint_fid_free_ms48; starts automatically when the fourth run
+ends (scratchpad chain_free.sh). Smoke test (one start from the third run's
+best, 2 evaluations): total 0.2792 against 0.2956, J(A2,HA3) 6.60, 6.64,
+5.06, 4.82, 5.26, -2.25, -2.86 Hz (x 0.02 ... 1.00). Results: pending.
+
 ## Conclusion
 
 The complex fit without AsLS fits all seven spectra with residuals 0.15-0.24

@@ -16,7 +16,8 @@ Model (user: monotonic, never linear): for every free coupling k and spectrum i 
 so c rises from 0 to 1 in steps of any size (shape free), and the sign of A_k (fitted) is the direction: J_k is
 monotonic by construction and the data choose direction, size and shape. Every spectrum keeps its own decay rates
 and delay (nonlinear) and its gains, shared phase and background (solved linearly in its forward model);
---shared phase_delay makes the delay (or any other listed spectrum parameter) one value for the series. Residual:
+--shared phase_delay makes the delay (or any other listed spectrum parameter) one value for the series;
+--shape free drops the monotone constraint (independent J at every concentration). Residual:
 the spectra's weighted residuals, plus optional Gaussian priors on each coupling's series average around the
 --couplings values (weight as RefineSettings.priors, scaled by the mean spectrum norm). Jacobian: each spectrum's
 analytic variable-projection Jacobian, chain rule through J_k(x_i). Outputs OUT/fit.json (J at every x with
@@ -79,7 +80,7 @@ def monotone_profile(w: np.ndarray):
 class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
-    def __init__(self, model, settings, observations, xs, shared=()):
+    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone"):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
         self.forwards = [MixtureForward(p, o, SUDDEN_DROP, settings.gain_model, settings.background_order,
@@ -100,7 +101,11 @@ class JointSeries:
         self.node_of = [int(np.searchsorted(self.nodes, x)) for x in self.xs]
         self.nc, self.nl, self.ns = len(self.coupling), len(self.local), len(observations)
         self.nn = len(self.nodes)
-        self.m = self.nn + 1                      # v, A, w_1 .. w_{nodes-1}
+        if shape not in ("monotone", "free"):
+            raise ValueError(f"shape must be monotone or free, not {shape!r}")
+        self.shape = shape
+        # monotone: v, A, w_1 .. w_{nodes-1}; free: J at every node (no constraint between concentrations)
+        self.m = self.nn + 1 if shape == "monotone" else self.nn
         self.ntheta = self.nc * self.m           # coupling blocks
         self.nt = self.ntheta + len(self.shared)  # then the shared spectrum parameters
         self.col = {n: i for i, n in enumerate(self.free)}
@@ -183,11 +188,15 @@ class JointSeries:
 
     def coupling_values(self, z, k):
         th = self.theta(z, k)
+        if self.shape == "free":
+            return th.copy()
         c, _ = monotone_profile(th[2:])
         return th[0] + th[1] * c
 
     def coupling_jacobian(self, z, k):
         """d J_k(node) / d theta_k: (nodes, m)."""
+        if self.shape == "free":
+            return np.eye(self.nn)
         th = self.theta(z, k)
         c, dc = monotone_profile(th[2:])
         return np.column_stack([np.ones(self.nn), c, th[1] * dc])
@@ -211,6 +220,9 @@ class JointSeries:
         z = []
         for k in range(self.nc):
             col = table[:, k]
+            if self.shape == "free":
+                z.extend(col)
+                continue
             a = col[-1] - col[0]
             steps = np.diff(col) * (1.0 if a >= 0 else -1.0)
             steps = np.maximum(steps, 0.0)
@@ -221,10 +233,25 @@ class JointSeries:
         z.extend(X[s, self.col[n]] for s in range(self.ns) for n in self.local)
         return np.array(z, float)
 
+    def level_shift(self, draws):
+        """Start perturbation from random draws (len(z)): the level of every coupling moves, its shape is kept
+        (monotone: the v entries; free: one offset for all nodes of a coupling)."""
+        out = np.zeros(len(draws))
+        for k in range(self.nc):
+            if self.shape == "free":
+                out[k * self.m:(k + 1) * self.m] = draws[k * self.m]
+            else:
+                out[k * self.m] = draws[k * self.m]
+        return out
+
     def bounds(self, change_bound):
         lo, hi = self.params[0].bounds()
         lz, hz = [], []
         for n in self.coupling:
+            if self.shape == "free":
+                lz += [lo[self.col[n]]] * self.nn
+                hz += [hi[self.col[n]]] * self.nn
+                continue
             lz += [lo[self.col[n]], -change_bound] + [-W_BOUND] * (self.nn - 1)
             hz += [hi[self.col[n]], change_bound] + [W_BOUND] * (self.nn - 1)
         lz.extend(lo[self.col[n]] for n in self.shared)
@@ -366,15 +393,16 @@ def _coordinate_scan(joint, z, lower, upper, max_nfev, cycles=2, half_width=4.0,
             grid = np.arange(z[i] - half_width, z[i] + half_width + 1e-9, step)
             grid = grid[(grid > lower[i]) & (grid < upper[i])]
             best_v, best_c = z[i], None
+            blk = slice(i, i + joint.m) if joint.shape == "free" else slice(i, i + 1)   # free: shift all nodes
             for v in grid:
                 zz = z.copy()
-                zz[i] = v
+                zz[blk] += v - z[i]
                 r = joint.residual(zz)
                 c = float(r @ r)
                 if best_c is None or c < best_c:
                     best_v, best_c = v, c
             z = z.copy()
-            z[i] = best_v
+            z[blk] += best_v - z[i]
         z = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
                           max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
     return z
@@ -443,6 +471,8 @@ def main():
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
+    ap.add_argument("--shape", default="monotone", choices=["monotone", "free"],
+                    help="monotone (default): every coupling monotonic in x; free: independent J at every x")
     ap.add_argument("--shared", default="", help="comma-separated spectrum parameters shared by all spectra "
                     "(e.g. phase_delay: one model delay for the series)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
@@ -496,7 +526,7 @@ def main():
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
     settings = _settings_for(model, args.variant, base)
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
-                        shared=[n.strip() for n in args.shared.split(",") if n.strip()])
+                        shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape)
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
         raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
@@ -561,8 +591,6 @@ def main():
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     rng = np.random.default_rng(args.seed)
-    level = np.zeros(len(z0))
-    level[:joint.ntheta:joint.m] = 1.0                        # perturb the level of every coupling, not its shape
     centres = [z0]
     if args.seeds:
         seeds = json.load(open(args.seeds))
@@ -570,7 +598,7 @@ def main():
         centres = [np.clip(joint.pack(np.array([[sol[key_of[n]][s] for n in joint.coupling] for s in rows]), xs0),
                            lower + 1e-9, upper - 1e-9) for sol in seeds["solutions"]]
     starts = list(centres) + [
-        np.clip(centres[i % len(centres)] + level * rng.normal(0, args.spread, len(z0)), lower + 1e-9, upper - 1e-9)
+        np.clip(centres[i % len(centres)] + joint.level_shift(rng.normal(0, args.spread, len(z0))), lower + 1e-9, upper - 1e-9)
         for i in range(max(args.starts - len(centres), 0))]
     # random starts drawn from the priors: level of every small coupling ~ N(centre, 2 sigma), direction and size
     # of its change random, shape uniform; 1J levels and the spectrum parameters from the first start
@@ -580,9 +608,12 @@ def main():
             base_k = k * joint.m
             if k in ks:
                 sd = 2.0 * sigma[ks.index(k)]
-                z[base_k] = rng.normal(mean[ks.index(k)], sd)
-                z[base_k + 1] = rng.normal(0.0, sd)
-                z[base_k + 2: base_k + joint.m] = 0.0
+                level, change = rng.normal(mean[ks.index(k)], sd), rng.normal(0.0, sd)
+                if joint.shape == "free":
+                    z[base_k: base_k + joint.m] = level + change * np.linspace(0.0, 1.0, joint.nn)
+                else:
+                    z[base_k], z[base_k + 1] = level, change
+                    z[base_k + 2: base_k + joint.m] = 0.0
         starts.append(np.clip(z, lower + 1e-9, upper - 1e-9))
     t0 = time.time()
     global _JOINT_TASK
@@ -620,7 +651,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     start_tables = [{"score": sc, "J_at_x": {key_of.get(n, n): joint.coupling_values(zz, k).tolist()
                                               for k, n in enumerate(joint.coupling)}} for sc, zz in solutions]
-    result = {"shape": "monotone (direction and shape free)", "x": joint.nodes.tolist(),
+    result = {"shape": "monotone (direction and shape free)" if joint.shape == "monotone" else
+              "free (J at every concentration independent)", "x": joint.nodes.tolist(),
               "spectra": [{"id": e["id"], "x": e["x"]} for e in series],
               "start_solutions": start_tables,
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
@@ -640,7 +672,9 @@ def main():
         value_cov = g @ cov[block, block] @ g.T
         result["couplings"][key_of.get(n, n)] = {
             "J_at_x": values.tolist(), "J_std_at_x": np.sqrt(np.maximum(np.diag(value_cov), 0)).tolist(),
-            "direction": "increasing" if z[block][1] > 0 else "decreasing", "change_hz": float(z[block][1]),
+            "direction": ("increasing" if values[-1] > values[0] else "decreasing") if joint.shape == "free" else
+                         ("increasing" if z[block][1] > 0 else "decreasing"),
+            "change_hz": float(values[-1] - values[0]) if joint.shape == "free" else float(z[block][1]),
             "prior_centre": centre[n] if abs(centre[n]) < 50 else None}
     if left_out is not None:
         result["left_out"] = {"id": left_out["id"], "x": left_out["x"],

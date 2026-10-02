@@ -262,6 +262,7 @@ fixed, so later phases are experiments rather than restructuring.
       by -3.5 Hz. Small-coupling jump at x 0.50-0.75 remains, with a jump of the free model delay
       (docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md).
 - [ ] Refit with one model delay for the series (`--shared phase_delay`; running).
+- [ ] Refit without the monotone constraint (`--shape free`; queued).
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but
       not the best known real-data minimum; test line-shape models (Voigt / apodized record) and the C2
