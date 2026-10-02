@@ -246,4 +246,20 @@ centre does not (157-203 deg). Per-peak values depend on the centre choice
 (main peak at x 0.50: +46 vs +14 deg), so only the global phase is robust.
 Kept: magnitude-top centre.
 
+Light apodization (2026-10-02; scratchpad apod_plot.py): exponential 0, 0.3,
+0.6, 1.0 1/s (+0, 0.10, 0.19, 0.32 Hz FWHM) on the 52.5 ms - end crop, phase
+179 deg, AsLS. Noise / maximum at x 0.50: 0.008 without, 0.001 with 0.3 1/s.
+The valley between the main peak and the ~172 Hz peak stays at 0.18-0.29 for
+every apodization (Blake about 0). Figures
+runs/processed/joint_peakpen_smooth_ms48/apod06_phased_vs_blake.png,
+apod_series_x050.png.
+
+Frequency axis: cross-correlation (0.6 1/s spectra against Blake's) needs
+Blake's spectra shifted down by 0.105-0.160 Hz over 145-195 Hz (145-170 Hz:
+0.095-0.155; 170-195 Hz: 0.12-0.235). Our axis uses the sampling rate from the
+CSV time column (3999.939 Hz); a 4000 Hz axis would shift 168 Hz by only
++0.003 Hz. Blake's lines are therefore about 0.1-0.2 Hz higher than in the raw
+data, for reasons not visible in the arrays; absolute line positions (and so
+the large couplings) of fits to the processed spectra carry this offset.
+
 Commit: see git log (this file).
