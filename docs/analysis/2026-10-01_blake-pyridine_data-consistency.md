@@ -228,4 +228,22 @@ departures are partly overlap and partly real model-data differences (line
 phases or line structure the sudden-drop model with these couplings does not
 have).
 
+Centre choice (user question: why not the real-part apex?). scratchpad
+sym_centre.py: per trial phase the apex of the rotated real part (parabola,
+within +-0.3 Hz of the magnitude top) as centre, against the magnitude top.
+
+| x | model error, magnitude top | model error, apex | data, magnitude top (model-corrected) | data, apex (model-corrected) |
+|---|---|---|---|---|
+| 0.33 | -5 | +4 | 185 | 157 |
+| 0.50 | -7 | 0 | 177 | 177 |
+| 0.75 | -6 | -7 | 181 | 203 |
+| 1.00 | -3 | -2 | 171 | 188 |
+
+On the noise-free model both centres find the phase within 7 deg (mean
+per-peak scatter 20-29 deg vs 20-30 deg). On the data the magnitude-top
+centre gives a phase that agrees between spectra (171-185 deg) and the apex
+centre does not (157-203 deg). Per-peak values depend on the centre choice
+(main peak at x 0.50: +46 vs +14 deg), so only the global phase is robust.
+Kept: magnitude-top centre.
+
 Commit: see git log (this file).
