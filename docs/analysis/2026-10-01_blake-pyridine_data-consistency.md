@@ -285,4 +285,38 @@ on a flat surface. The joint fit refines a common phase per spectrum anyway
 input: 0.3 1/s spectra phased at 174.8 deg, AsLS (series_fid03.json in the
 scratchpad).
 
+## Crop start, SG and the broad component (2026-10-02)
+
+Why are our lines wider than Blake's? Crop-start scan (0.3 1/s, 174.8 deg,
+AsLS; scratchpad width_test.py; figure
+runs/processed/joint_peakpen_smooth_ms48/crop_start_test_x050.png):
+
+| x | Blake FWHM / valley | 52.5 ms | 0.1 s | 0.2 s | 0.3 s | 0.5 s |
+|---|---|---|---|---|---|---|
+| 0.33 | 1.10 / 0.00 | 1.22 / 0.23 | 1.11 / -0.02 | 1.11 / -0.04 | 0.98 / -0.07 | 0.65 / -0.05 |
+| 0.50 | 1.01 / 0.00 | 1.12 / 0.20 | 1.01 / -0.02 | 1.01 / -0.05 | 0.86 / -0.09 | 0.78 / -0.10 |
+| 0.75 | 0.96 / 0.00 | 1.15 / 0.29 | 0.98 / 0.03 | 0.96 / -0.02 | 0.81 / -0.08 | 0.73 / -0.07 |
+
+(main-peak FWHM in Hz / minimum between the main peak and the ~172 Hz peak.)
+A crop from 0.1-0.2 s reproduces Blake's widths and valleys. SG is not the
+cause (sg_test.py: SG 101-801, order 2-3, on the full or the cropped record:
+valley and the broad negative region at 160-166 Hz stay). The first 50-100 ms
+after the ringing carry a fast-decaying broad signal; later starts keep
+narrowing the lines (decay not single-exponential), so 0.1 s is taken as the
+earliest start of the plateau. Possible origins (not tested): residual field
+decaying after the switch-off, 14N relaxation.
+
+Phase at crop 0.1 s, 0.3 1/s (phase_opt_start.py 400): per-spectrum symmetry
+phases 179-193 deg, jackknife errors 10-16 deg (halved), model bias -10 to
++20 deg, corrected 160.5-192.5 deg; weighted mean 176.9 deg, chi2 5.3 for
+6 dof. Joint scan: an extra delay runs to the +1.5 ms bound with phase0 96 deg
+(phase0-delay trade-off in the narrow band); the edge delay is kept.
+
+Next fit input (series_fid03.json, scratchpad): crop 0.1 s to the end, 0.3
+1/s, phase0 176.9 deg at the edge, AsLS 1.5 Hz. Widths, valleys and the
+163-166 Hz pair now match Blake's spectra (figure
+input_crop01_apod03_vs_blake.png); the 177-182 Hz hump and the ~186 Hz peak
+remain higher in ours. Blake's lines are still 0.07-0.125 Hz higher in
+frequency (cross-correlation).
+
 Commit: see git log (this file).
