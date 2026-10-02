@@ -76,4 +76,46 @@ told from the arrays.
   move to 0.50 / 0.75?
 - Ask for the acquisition / processing records of the x 0.66 spectrum.
 
+## Follow-up (2026-10-02): raw FIDs
+
+The user supplied the raw FIDs as CSV (row 1 time, row 2 signal; 65515 points,
+dt 2.5000382e-4 s, 16.4 s) for x 0.02, 0.10 (new), 0.33, 0.50, 0.66, 0.75,
+1.00 (uploads, not committed). All seven: first 10 points pinned near 28840
+(saturation), switching edge 3.18-3.25 ms, ringing ends 44-52 ms
+(zulf_processing.diagnose_raw); nothing sets x 0.66 apart in the acquisition.
+
+Same processing for all (zulf_processing.process_dataset; crop 200-16200,
+SG 201/2, apodization 0.6 1/s, zero fill 2) and the instrument phase
+calibration (configs/confirmed_samples.json: phase0 176.3 deg, delay = edge -
+0.033 ms; NMRduino 4000 Hz sequence). Scratchpad fid_load.py, fid_compare.py,
+fid_calphase.py. Figure:
+runs/processed/joint_peakpen_smooth_ms48/fid_calphase_vs_blake.png.
+
+Band +10 ... +14 Hz from the main peak, mean level (data / max):
+
+| x | 0.02 | 0.10 | 0.33 | 0.50 | 0.66 | 0.75 | 1.00 |
+|---|---|---|---|---|---|---|---|
+| from FID, magnitude, 2 s window | 0.404 | 0.373 | 0.302 | 0.267 | 0.266 | 0.279 | 0.309 |
+| from FID, calibrated phase, real | -0.065 | 0.213 | 0.121 | 0.136 | 0.113 | 0.132 | 0.105 |
+| Blake processed (real) | 0.204 | - | 0.196 | 0.203 | 0.120 | 0.192 | 0.188 |
+
+From the FIDs, x 0.66 is not an outlier in this band. Blake processed minus
+our calibrated real spectrum (both normalised to the maximum, 140-200 Hz): rms
+0.17-0.29, of which 0.17-0.28 is smooth on a 2 Hz scale and only 0.020-0.036
+is not. Sharp lines agree; Blake's spectra carry no broad negative regions,
+ours do (down to -0.4 at 160-166 and 172-178 Hz). So the processed spectra
+are, to within 0.02-0.04, our phased spectra plus a smooth baseline, and that
+baseline correction differs between spectra: it removed less of the broad
+rising feature at 177-181 Hz in x 0.66 than in the others.
+
+Conclusion: the x 0.66 band deficit comes from the baseline correction of the
+processed spectrum, not from the measurement. Every joint fit so far used
+these baseline-corrected spectra; the small-coupling jumps between 0.66 and
+0.75 are probably fitted to that processing difference.
+
+Open points: fit the series from the FIDs with one processing for all and the
+solver's own background terms (complex or calibrated real), x 0.10 added;
+check whether the broad negative regions are signal (fast-relaxing component)
+or a processing effect.
+
 Commit: see git log (this file).

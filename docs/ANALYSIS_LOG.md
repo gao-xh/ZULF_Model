@@ -1287,3 +1287,6 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-01: model-free check of the six spectra, docs/analysis/2026-10-01_blake-pyridine_data-consistency.md.
   Peak positions and spacings smooth in x; x 0.66 lacks about 40 % of the broad feature at +10..+14 Hz from the
   main peak (all other spectra agree): likely cause of the small-coupling jumps between 0.66 and 0.75.
+- 2026-10-02: raw FIDs (CSV, 7 incl. x 0.10): same processing + instrument phase calibration for all; x 0.66 band
+  is normal in the FID; Blake's processed spectra = phased spectra + a smooth, per-spectrum baseline (rest rms
+  0.02-0.04). The 0.66 deficit is a baseline-correction difference. Same log file (data-consistency).
