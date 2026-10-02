@@ -418,4 +418,22 @@ pursued further (HSVD, ringing subtraction, weighted time-domain fit and
 positive deconvolution all fail); fits use the forward route (model through
 the same processing) or the earliest clean crop.
 
+## Baseline correction redone (2026-10-02, user request)
+
+Phased real spectra (0.3 1/s; crop 0.1 s at 176.9 deg and crop 52.5 ms at
+174.8 deg; delay at the edge) without baseline correction show the crop wings
+as negative regions down to -0.4 / -0.5 (figure no_baseline_vs_blake.png).
+Scan (scratchpad baseline_scan.py), one parameter set for all seven spectra,
+scored by the rms difference to Blake's spectra (shifted down 0.1 Hz) and the
+mean negative part: AsLS smooth 1.0 / 1.5 / 2.0 / 3.0 Hz with p 0.001 / 0.01
+/ 0.05, arPLS 1.0-3.0 Hz. Best: AsLS 1.0 Hz (p 0.05: rms 0.081 / 0.086 for
+the 52.5 ms / 0.1 s crop, negative part 0.006; p 0.01: rms 0.088 / 0.088,
+negative part 0.0013-0.0014); arPLS not among the best twelve. Chosen: AsLS
+1.0 Hz, p 0.01 (figure rebaseline_asls10_vs_blake.png). With the 0.1 s crop
+the corrected spectra follow Blake's closely from x 0.10 on; ours stay higher
+at 177-182 Hz and at the ~186 Hz peak. Caveat: the effective baseline length
+(about 3 Hz) is close to the width of multiplet groups; the corrected
+spectra remain a processed product that the ideal-line model cannot reproduce
+exactly (the wings are removed only approximately).
+
 Commit: see git log (this file).
