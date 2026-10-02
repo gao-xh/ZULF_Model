@@ -1291,4 +1291,8 @@ skills under `skills/`; this file keeps the history.
   is normal in the FID; Blake's processed spectra = phased spectra + a smooth, per-spectrum baseline (rest rms
   0.02-0.04). The 0.66 deficit is a baseline-correction difference. Same log file (data-consistency).
 - 2026-10-02: joint fit of the seven FID-processed spectra (one processing, phase 179 deg at the switching edge,
-  AsLS), docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md; 48 starts with the smooth missing-peak penalty: running.
+  AsLS), docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md; 48 starts with the smooth missing-peak penalty: done.
+- 2026-10-02: same log. Crop 0.1 s + AsLS fit: 1J(C4,H4) 3.5 Hz low, small couplings differ by up to 8.7 Hz
+  from the complex fit (AsLS route not used). Complex fit, 0.1-8.1 s, no AsLS, model through the same
+  processing: residuals 0.15-0.24, all 1J agree with the Blake-spectra fit; the small-coupling jump remains at
+  0.50 -> 0.75 and coincides with a 3-6 ms jump of the free model delay (dilute spectra sit at the edge).

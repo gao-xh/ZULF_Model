@@ -125,6 +125,62 @@ data-core residuals with the processed-spectrum couplings 0.27-0.39 for both.
 Peak tops at 2 sigma: 19 on x 0.02 (noise), so 3 sigma: 11, 14, 12, 12, 11,
 11, 7. The third run uses this input (out runs/processed/joint_fid_route2c_ms48,
 `--real-only false --peak-min-sigma 3`, seed 41, `--from-joint` the second
-run). Results: pending.
+run).
 
-Commit: (pending)
+Result: 48 starts in 11371 s (started 04:21 UTC). Best hard total 0.2956
+(start 3, the fourth-best solution of the second run as seed), next 0.3006
+(+1.7 %) and 0.3041 (+2.9 %): three solutions within 3 %. Relative data-core
+residuals (complex) 0.236 / 0.238 / 0.213 / 0.210 / 0.207 / 0.207 / 0.151.
+The script's spectra.png shows magnitudes for complex data; the real parts
+with the data-derived AsLS baseline (1.0 Hz, p 0.01) subtracted from data and
+model alike (display only) are in spectra_baselined.png (scratchpad
+replot_route2c.py). The 177-182 Hz region and the small peak are reproduced;
+the largest remaining misfit is 148-152 Hz at x 1.00.
+
+Couplings (figure runs/processed/joint_fid_route2c_ms48/J_trends_compare.png,
+three runs; scratchpad jump_c.py):
+
+| | complex, no AsLS | real, AsLS | Blake spectra |
+|---|---|---|---|
+| largest step > 1 Hz at 0.50 -> 0.66 | 8 | 5 | 0 |
+| at 0.66 -> 0.75 | 3 | 0 | 7 |
+| at 0.75 -> 1.00 | 3 | 9 | 3 |
+| 1J(C2,H2) x 0.02 -> 1.00 | 179.13 -> 177.06 | 178.78 -> 177.03 | 178.79 -> 177.32 |
+| 1J(C3,H3) | 164.22 -> 162.84 | 164.12 -> 162.60 | 164.22 -> 162.73 |
+| 1J(C4,H4) | 162.04 -> 156.88 | 158.84 -> 152.36 | 162.09 -> 156.93 |
+
+1J(C2,H2) and 1J(C3,H3) agree within 0.4 Hz in all three fits. 1J(C4,H4) of
+the complex fit equals the Blake-spectra fit within 0.1 Hz; the AsLS fit is
+3-4.5 Hz lower, so that value (and the small couplings, which differ from the
+complex fit by up to 8.7 Hz, e.g. J(A4,HA2), J(A2,HA3)) depends on the AsLS
+route and is not used. The small-coupling jump is still there, spread over
+the two steps 0.50 -> 0.66 -> 0.75: J(A2,HA3) 5.02 -> 5.02 -> -2.19,
+J(A2,HA5) -3.34 -> -1.94 -> 1.87, J(A4,HA3) -1.61 -> 2.17 -> 2.17,
+J(HA3,HA4) 9.49 -> 6.48 -> 6.08 Hz; 1J(C4,H4) also drops 2.8 Hz at
+0.50 -> 0.66.
+
+Model delay per spectrum (free, +-10 ms): -4.11, -2.18, -3.91, -3.54, -0.85,
++2.58, -0.13 ms (x 0.02 ... 1.00). The phasing put the switching edge at
+-3.22 ms in this convention, which the four dilute spectra match; from x 0.66
+on the delay moves 3-6 ms away, at the same two steps as the coupling jump. With
+the couplings held, the residual is 2-6 % higher per ms away from the fitted
+delay (scratchpad delay_scan.py), so the delay is determined, but it is not
+the same across spectra although every FID was referenced to its own edge: a
+free delay can trade phase slope against line positions.
+
+## Conclusion
+
+The complex fit without AsLS fits all seven spectra with residuals 0.15-0.24
+and agrees with the Blake-spectra fit on all three 1J; the AsLS route biased
+1J(C4,H4) by about -3.5 Hz. The small-coupling jump does not come from the
+processing of any single spectrum (its place moves between 0.50 -> 0.66 and
+0.66 -> 0.75 with the processing); in the complex fit it coincides with a jump
+of the free model delay.
+
+## Open points
+
+- Fix the model delay at each FID's edge (or one shared delay) and refit, to
+  see whether the jump of the small couplings goes with the delay.
+- Search not converged (three solutions within 3 %).
+
+Commit: see git log (this file).

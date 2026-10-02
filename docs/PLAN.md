@@ -255,6 +255,13 @@ fixed, so later phases are experiments rather than restructuring.
       pooled, 3 % set): 5 solutions of the 48-start run; reliable 1J(C2,H2), 1J(C3,H3), J(H2,H5),
       J(H2,H4); literature-start fits +9 % / +26 % on the data
       (docs/analysis/2026-09-30_blake-pyridine_reliability.md).
+- [x] Raw FIDs of the series (7 points incl. x 0.10): one processing for all (crop 0.1-8.1 s, 0.3 1/s,
+      phase 176.9 deg at the switching edge); the x 0.66 anomaly was Blake's baseline correction. Complex
+      joint fit with the model through the same processing (`--real-only false`, no AsLS): residuals
+      0.15-0.24, 1J(C2,H2), 1J(C3,H3), 1J(C4,H4) as on Blake's spectra; the AsLS route biases 1J(C4,H4)
+      by -3.5 Hz. Small-coupling jump at x 0.50-0.75 remains, with a jump of the free model delay
+      (docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md).
+- [ ] Refit with the model delay fixed at each FID's switching edge (or one shared delay).
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but
       not the best known real-data minimum; test line-shape models (Voigt / apodized record) and the C2
