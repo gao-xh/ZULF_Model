@@ -137,4 +137,28 @@ close lines are shallower (e.g. between the main peak and the +3.9 Hz peak
 about 0.3 against 0.05) and our lines slightly wider; x 0.02 keeps a broad
 hump at 143-150 Hz (lowest signal).
 
+## Phase from these data only (2026-10-02)
+
+Requested: no earlier calibration values; FID cropped to its first part, no
+apodization. Crop 200 ... 200 + 1 s (and 2 s), apodization 0, zero fill 4.
+
+- zulf_processing `lines` criterion (complex Lorentzian fits of resolved lines):
+  not usable here; 5-11 lines per spectrum, mostly overlapping, delays ran to
+  the search bounds (+-0.5 ms near the edge, +-6 ms free, -1.5 ms joint).
+- Peak tops (scratchpad apex_phase.py): first-order phase from each FID's own
+  switching edge (3.18-3.25 ms), then the phase of the complex spectrum at every
+  magnitude peak top (prominence >= 15 %, 145-195 Hz, 180 Hz excluded), pooled
+  over the seven spectra (weights height^2). Zero-order phase 175.7 deg (1 s,
+  43 tops) and 169.3 deg (2 s, 55 tops), coherence 0.676 / 0.644. An extra
+  delay on top of the edge does not help (best at the +2 ms search bound,
+  coherence 0.673 / 0.645). This agrees with the instrument calibration
+  (176.3 deg, edge - 0.033 ms) without using it.
+- Systematic residual phases at the same peaks in every spectrum: main peak
+  (166.5-168.5 Hz) +23 to +50 deg, peak near 171-172.7 Hz -38 to -69 deg. One
+  zero- and first-order phase cannot make all lines absorptive.
+
+Figure runs/processed/joint_peakpen_smooth_ms48/front1s_phased_vs_blake.png
+(phase0 175.7 deg, delay = own edge; real part without baseline and with AsLS
+1.5 Hz).
+
 Commit: see git log (this file).
