@@ -406,6 +406,7 @@ def main():
     ap.add_argument("--peak-prominence", type=float, default=0.12,
                     help="peak tops: prominence as a fraction of the largest value (and at least 2 noise sigma)")
     ap.add_argument("--peak-tolerance", type=float, default=0.15, help="peak tops: position tolerance (Hz)")
+    ap.add_argument("--peak-min-sigma", type=float, default=2.0, help="peak tops: prominence at least this many noise sigma")
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
@@ -515,7 +516,8 @@ def main():
             mean.append(value)
             sigma.append(s)
     joint.set_priors(ks, mean, sigma, args.prior_weight)
-    joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance, smooth=args.peak_smooth)
+    joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance, min_sigma=args.peak_min_sigma,
+                           smooth=args.peak_smooth)
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     rng = np.random.default_rng(args.seed)
@@ -584,7 +586,7 @@ def main():
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "signal_height_power": settings.signal_height_power,
               "peak_penalty": {"strength": args.peak_penalty, "prominence": args.peak_prominence,
-                               "tolerance_hz": args.peak_tolerance,
+                               "tolerance_hz": args.peak_tolerance, "min_sigma": args.peak_min_sigma,
                                "tops": [len(t) for t in joint.peaks] if joint.peaks else [],
                                "smooth": args.peak_smooth, "smooth_scores_sorted_by_hard": smooth_scores},
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
