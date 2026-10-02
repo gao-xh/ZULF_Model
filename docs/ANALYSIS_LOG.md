@@ -1296,3 +1296,5 @@ skills under `skills/`; this file keeps the history.
   from the complex fit (AsLS route not used). Complex fit, 0.1-8.1 s, no AsLS, model through the same
   processing: residuals 0.15-0.24, all 1J agree with the Blake-spectra fit; the small-coupling jump remains at
   0.50 -> 0.75 and coincides with a 3-6 ms jump of the free model delay (dilute spectra sit at the edge).
+- 2026-10-02: same log. One shared model delay (-1.86 ms): total 0.2965 vs 0.2956, couplings as with per-spectrum
+  delays; the jump at x 0.50-0.75 stays. Free-shape (no monotone) run started with the shared delay.

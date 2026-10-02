@@ -261,8 +261,9 @@ fixed, so later phases are experiments rather than restructuring.
       0.15-0.24, 1J(C2,H2), 1J(C3,H3), 1J(C4,H4) as on Blake's spectra; the AsLS route biases 1J(C4,H4)
       by -3.5 Hz. Small-coupling jump at x 0.50-0.75 remains, with a jump of the free model delay
       (docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md).
-- [ ] Refit with one model delay for the series (`--shared phase_delay`; running).
-- [ ] Refit without the monotone constraint (`--shape free`; queued).
+- [x] One model delay for the series (`--shared phase_delay`): total +0.3 %, delay -1.86 ms; the
+      small-coupling jump at x 0.50-0.75 stays (not caused by the per-spectrum delays).
+- [ ] Refit without the monotone constraint (`--shape free`, shared delay; running).
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but
       not the best known real-data minimum; test line-shape models (Voigt / apodized record) and the C2

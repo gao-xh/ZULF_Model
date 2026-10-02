@@ -183,9 +183,39 @@ finite differences in tests/test_joint_series.py).
       --starts 40 --spread 1.5 --prior-starts 8 --seed 43 --workers 4 --out runs/processed/joint_fid_shdelay_ms48
 
 Seeds (9): the 6 best solutions of the third run and the three reference
-solutions. Started 2026-10-02 08:20 UTC. Results: pending.
+solutions. Started 2026-10-02 08:20 UTC.
 
-## Fifth run (queued): no monotone constraint
+Result: 48 starts in 11679 s. Best hard total 0.2965 (start 2), next 0.3045
+(+2.7 %), 0.3116. Shared delay -1.86 ms (start -1.71 ms; switching edge
+-3.22 ms). Relative data-core residuals 0.241 / 0.240 / 0.217 / 0.212 /
+0.210 / 0.212 / 0.136: against the per-spectrum delays +0.9 to +2.1 % on
+x 0.02-0.75 and -9.8 % on x 1.00 (a different minimum there). Figures:
+runs/processed/joint_fid_shdelay_ms48/spectra_baselined.png (display
+baseline as above), J_trends_compare.png (shared delay, per-spectrum delay,
+Blake spectra).
+
+| | shared delay | delay per spectrum |
+|---|---|---|
+| largest step > 1 Hz at 0.50 -> 0.66 | 7 | 8 |
+| at 0.66 -> 0.75 | 5 | 3 |
+| at 0.75 -> 1.00 | 0 | 3 |
+| 1J(C2,H2) x 0.02 -> 1.00 | 179.01 -> 177.60 | 179.13 -> 177.06 |
+| 1J(C3,H3) | 164.23 -> 162.76 | 164.22 -> 162.84 |
+| 1J(C4,H4) | 162.06 -> 157.29 | 162.04 -> 156.88 |
+
+Couplings agree with the per-spectrum-delay fit within 1 Hz except J(A2,HA6)
+and J(HA2,HA6) at x 1.00 (5.8 and 5.5 Hz; the other minimum there) and
+J(A4,HA3) (2.8 Hz). The small-coupling jump at 0.50 -> 0.75 stays with one
+delay for all spectra (J(A2,HA3) 4.78 -> -2.99, J(A2,HA5) -2.10 -> 1.96,
+J(HA2,HA4) 2.56 -> 5.01, J(HA3,HA4) 9.45 -> 6.37 Hz): the per-spectrum delay
+jump of the third run was a consequence, not the cause.
+
+Choice for the fifth run (rule stated before the result, scratchpad
+choose_delay.py): shared delay if its total <= 1.05 x the per-spectrum one, no
+spectrum residual up by more than 10 %, delay within 1.5 ms of the edge.
+Ratio 1.003, largest rise 2.1 %, delay 1.36 ms from the edge: shared delay.
+
+## Fifth run: no monotone constraint
 
 User question: drop the monotone constraint. New option `--shape free`
 (fit_joint_series): every coupling has its own value at every concentration
@@ -193,11 +223,12 @@ User question: drop the monotone constraint. New option `--shape free`
 on the series averages (and `--shared`, not used here). Start perturbations
 shift all nodes of a coupling by one offset; prior-drawn starts are linear
 in x. Test: values = parameters, Jacobian against finite differences.
-Otherwise the third run's settings (complex, free delay per spectrum), so the
-only change against the third run is the constraint. Seeds: seeds_shared.json
-(the third run's 6 best and the three references), seed 47, out
-runs/processed/joint_fid_free_ms48; starts automatically when the fourth run
-ends (scratchpad chain_free.sh). Smoke test (one start from the third run's
+Settings as the fourth run (user: take the better delay model of runs three
+and four; chosen automatically by the rule above: shared delay), so the only
+change against the fourth run is the constraint. Seeds: seeds_free.json (the
+fourth run's 6 best and the three references), `--from-joint` the fourth run,
+seed 47, out runs/processed/joint_fid_free_ms48 (scratchpad chain_free2.sh);
+started 2026-10-02 11:35 UTC. Smoke test (one start from the third run's
 best, 2 evaluations): total 0.2792 against 0.2956, J(A2,HA3) 6.60, 6.64,
 5.06, 4.82, 5.26, -2.25, -2.86 Hz (x 0.02 ... 1.00). Results: pending.
 
@@ -212,8 +243,7 @@ of the free model delay.
 
 ## Open points
 
-- Fix the model delay at each FID's edge (or one shared delay) and refit, to
-  see whether the jump of the small couplings goes with the delay.
+- One shared delay (fourth run): the jump stays; the delay does not cause it.
 - Search not converged (three solutions within 3 %).
 
 Commit: see git log (this file).
