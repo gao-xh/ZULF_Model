@@ -319,7 +319,7 @@ input_crop01_apod03_vs_blake.png); the 177-182 Hz hump and the ~186 Hz peak
 remain higher in ours. Blake's lines are still 0.07-0.125 Hz higher in
 frequency (cross-correlation).
 
-## Negative lines (2026-10-02)
+## Negative lines? (2026-10-02; corrected below)
 
 The 175-183 Hz hump (user question). Crop-start scan (hump_check.py): the
 real-part level 175-183 Hz drops from 0.22-0.26 (crop 0.1 s) to 0.11-0.15
@@ -339,5 +339,23 @@ negative lines. Two-sided AsLS hardly changes the raw spectrum. Next fit
 input: no baseline (series_fid03.json regenerated: crop 0.1 s, 0.3 1/s,
 176.9 deg). The hump at 175-183 Hz is mostly real lines; at x 1.00 the data
 (about 0.24 at 178.5 Hz) exceed the model (0.13).
+
+Correction (same day): the model has no negative lines. All 134 transition
+amplitudes of the three isotopologues in 140-200 Hz are positive (sudden drop,
+gamma-weighted preparation and detection: A = 2 rho_ab D_ba with rho and D the
+same operator). No extra delay makes the processed model spectrum positive
+(best min/max -0.41). One-line test (one_line.py): a single positive line,
+processed and corrected to the edge, has wings down to -0.001 (crop 3.5 ms),
+-0.12 (52.5 ms) and -0.21 (0.1 s) of its height, the same with SG on or off.
+The negative regions are these crop wings (period 1/t_c), present identically
+in data and model because both went through the same processing; they are
+not negative J-lines and not a broad component. AsLS and the processed
+spectra flattened them. Consequence for fitting: the model must be rendered
+with the same record and phase (series entries now carry `record` and
+`phasing`; fit_joint_series and reliability_series pass them on). Rendering
+the full 16.4 s record costs 12 s per jacobian; a 0.1-4.1 s record 1.8 s with
+the same residuals (0.26-0.38 with the processed-spectrum couplings, not
+refitted). Next fit input: series_fid03_4.json (crop 0.1-4.1 s, 0.3 1/s,
+176.9 deg, zero fill 2, no baseline, record and phasing).
 
 Commit: see git log (this file).

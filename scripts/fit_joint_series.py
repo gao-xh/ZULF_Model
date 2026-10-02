@@ -272,7 +272,8 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200):
         return {"prediction": "none (end of the series: one neighbour only)"}
     i, j = left[-1], right[0]
     obs = ObservedSpectrum.from_spectrum(np.load(entry["freq"]).astype(float), np.load(entry["values"]).astype(float),
-                                         [band], record=None, real_only=True, label=entry["id"])
+                                         [band], record=entry.get("record"), phasing=entry.get("phasing"), real_only=True,
+                                         label=entry["id"])
     param = joint.settings.parameterize(joint.model.interpretation)
     fw = MixtureForward(param, obs, SUDDEN_DROP, settings.gain_model, settings.background_order,
                         settings.band_weighting, **_signal_kwargs(settings))
@@ -444,7 +445,8 @@ def main():
             o = reg.observed_for({"file": path.name}, config, str(path.parent))
             return o.restricted([tuple(r) for r in e.get("ranges", [(lo, hi)])])
         return ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), np.load(e["values"]).astype(float),
-                                              [(lo, hi)], record=None, real_only=True, label=e["id"])
+                                              [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=True,
+                                              label=e["id"])
 
     obs = [observation(e) for e in series]
     spec = json.loads(args.structure)

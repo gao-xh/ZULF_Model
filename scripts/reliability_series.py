@@ -50,7 +50,8 @@ def build_joint(args):
     series = json.load(open(args.series))
     lo, hi = (float(v) for v in args.range.split(","))
     obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), np.load(e["values"]).astype(float),
-                                          [(lo, hi)], record=None, real_only=True, label=e["id"]) for e in series]
+                                          [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=True,
+                                              label=e["id"]) for e in series]
     spec = json.loads(args.structure)
     spec.setdefault("compound", "series")
     model = build_model(override_couplings(reg.structure_for(spec), json.loads(args.couplings)), ranges=[(lo, hi)])

@@ -60,16 +60,20 @@ docs/analysis/2026-10-01_blake-pyridine_data-consistency.md).
 6. Phase: see the zulf-phasing skill (edge delay, data-only zero-order phase
    by peak symmetry with a model-spectrum bias check, one phase per set unless
    the per-spectrum values differ beyond their errors).
-7. Baseline: compare the phased real part WITHOUT baseline correction with
-   a model spectrum (couplings of any earlier fit, sudden drop, no phase
-   error, same acquisition) before removing anything. ZULF J-spectra have
-   negative lines: on pyridine (crop 0.1 s) the raw real part matched the
-   model including negative lines at 161-166, 170 and 183 Hz (-0.3 to -0.45
-   of the maximum), and standard AsLS (and the supplied processed spectra)
-   had removed them as "baseline". Use no baseline (the solver's linear
-   background takes offsets) or two-sided AsLS (asls_two_sided), never the
-   positive-peak AsLS. Whatever the rule, one rule for all spectra of a
-   series: per-spectrum hand baselines created the x 0.66 outlier band.
+7. Baseline: do not remove what the processing itself creates. A crop that
+   starts at t_c after the switching edge, corrected back to the edge, gives
+   every positive line oscillating wings (period 1/t_c, first lobe about -0.12
+   of the height at 52.5 ms and -0.21 at 0.1 s; one-line test, SG irrelevant).
+   On pyridine these wings looked like broad negative regions or negative
+   lines; with sudden drop and gamma-weighted preparation and detection all
+   line amplitudes are positive. Positive-peak AsLS (and the supplied
+   processed spectra) flattened the wings. Fit such spectra with the model
+   rendered through the same processing: give `record` (the Acquisition dict)
+   and `phasing` ({phase0_rad, delay_s}) per series entry
+   (fit_joint_series / reliability_series pass them to from_spectrum); keep
+   the record short (signal extent, e.g. 4 s: jacobian 1.8 s instead of 12 s
+   for 16 s). One rule for all spectra of a series: per-spectrum hand
+   baselines created the x 0.66 outlier band.
 8. Peak-top noise floor for missing-peak rows (`--peak-min-sigma`): raise it
    for unwindowed or weak spectra (x 0.02 had 49 noise tops at 2 sigma).
 
