@@ -329,6 +329,33 @@ Question: with the priors unchanged, does the fit stay in branch A (and how
 does its total compare with 0.2965), or does it return to the split? Started
 2026-10-02 15:57 UTC. Results: pending.
 
+## Uncertainty budget (queued after the sixth run)
+
+User: the fits look good; the uncertainties must be right. The linearised
+errors of fit.json (0.01 Hz for 1J, 0.02-0.06 Hz otherwise) assume white,
+independent residuals and one minimum. Measured against that: residual
+correlation length 11-20 points (0.45-0.84 Hz; errors x 3.3-4.5); the J of the
+three complex fits differ by 4-34 x their linearised errors; the free-shape
+fit scatters about a quadratic in x by 0.19 (1J(C3,H3)), 0.38 (1J(C2,H2)),
+0.73 (1J(C4,H4)) and 0.2-2 Hz (small couplings). Planned parts, per coupling
+and concentration:
+
+1. noise: linearised error times sqrt(correlation length);
+2. near-equivalent solutions: spread of the pooled 3 % set of all monotone
+   shared-delay fits (reliability_series);
+3. processing: local refits (one start from the reference) of six processing
+   variants (scratchpad make_variants.py): crop start 320 / 480 samples
+   (80 / 120 ms), apodization 0 / 0.6 1/s, record 6 / 10 s; zero-order phase is
+   not varied (the shared-phase gain absorbs it);
+4. bias: four synthetic series (make_synthetic.py), truth = reference + one
+   constant offset per coupling (N(0, 0.3 Hz) 1J, N(0, 0.8 Hz) others),
+   spectrum = model(truth) + the real complex residual of the reference
+   (identity check: zero offsets give the data exactly), refitted from the
+   reference with the same settings and priors.
+
+Reference = lower total of the fourth and sixth runs. Chain
+run_uncertainty.sh (10 refits, 4 at a time) starts when the sixth run ends.
+
 ## Conclusion (after runs four and five)
 
 The jump of the small couplings between x 0.50 and 0.75 comes from the Gaussian
