@@ -270,7 +270,9 @@ fixed, so later phases are experiments rather than restructuring.
       smoothly. Several H-H couplings far from literature (3J(H3,H4) 10-14 Hz): best data description, not an
       assignment of the small couplings.
 - [ ] Fit with the H-H couplings held at the literature values (solvent-independent within a few 0.1 Hz).
-- [ ] Uncertainty budget around the branch-A reference (running).
+- [x] Uncertainty budget around the branch-A reference (noise, near-equivalent set, six processing variants,
+      four synthetic recoveries with the real residual): 1J +-0.1-0.6 Hz, small couplings +-0.3-2.9 Hz, recovery
+      dominates; model error (H-H far from literature) not covered.
 - [ ] Joint fit without series-average priors (or per-spectrum priors).
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but

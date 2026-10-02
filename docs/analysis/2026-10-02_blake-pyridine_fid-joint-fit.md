@@ -385,6 +385,56 @@ and concentration:
 Reference = lower total of the fourth and sixth runs. Chain
 run_uncertainty.sh (10 refits, 4 at a time) starts when the sixth run ends.
 
+Result (reference: the sixth run, branch A; chain 11:24-12:15 PDT; scratchpad
+budget.py; runs/processed/joint_fid_branchA_ms48/uncertainty_budget.json,
+J_uncertainty.png). Residual correlation length 18.1 points. Near-equivalent
+set: 2 solutions. Processing variants, total score after one local refit:
+start 320 0.2174, start 480 0.2382, apodization 0 0.3996 (noisier spectra),
+0.6 1/s 0.1821, record 6 s 0.2348, 10 s 0.2314. Synthetic series: the
+recovered solution scores at or below the true couplings on every series
+(0.441 / 0.458 / 0.411 / 0.269 against 0.443 / 0.650 / 0.566 / 0.315; the data
+weighting is derived from each spectrum, so these totals are not on the data
+scale), so the recovery errors measure what the data cannot separate, not a
+failed search. Recovered minus truth is 0.1-1.5 Hz; the fit moves towards the
+truth but not all the way.
+
+1 sigma, x 0.02 / 0.50 / 1.00 (Hz), and the largest part:
+
+| coupling | x 0.02 | x 0.50 | x 1.00 | largest |
+|---|---|---|---|---|
+| 1J(C2,H2) | 179.22 +- 0.24 | 178.02 +- 0.08 | 176.53 +- 0.46 | recovery |
+| 2J(C2,H3) | 5.24 +- 0.92 | 5.24 +- 1.02 | 7.05 +- 0.50 | recovery |
+| 3J(C2,H4) | 5.65 +- 0.70 | 5.65 +- 0.57 | 5.79 +- 0.56 | recovery |
+| 4J(C2,H5) | -3.31 +- 1.17 | -3.02 +- 0.64 | -2.30 +- 0.78 | recovery |
+| 3J(C2,H6) | 9.90 +- 2.88 | 9.84 +- 0.52 | 8.12 +- 2.16 | recovery |
+| 3J(H2,H3) | 3.97 +- 0.36 | 4.50 +- 0.64 | 5.77 +- 0.65 | recovery |
+| 4J(H2,H4) | 2.94 +- 0.76 | 2.94 +- 0.68 | 2.67 +- 1.02 | recovery |
+| 5J(H2,H5) | 3.19 +- 0.66 | 3.19 +- 0.48 | 3.64 +- 0.94 | recovery |
+| 4J(H2,H6) | 1.18 +- 2.72 | 1.78 +- 0.35 | 2.91 +- 1.57 | recovery |
+| 3J(H3,H4) | 9.82 +- 1.32 | 11.80 +- 0.48 | 13.64 +- 1.17 | recovery |
+| 4J(H3,H5) | 0.67 +- 0.66 | -0.69 +- 0.45 | -1.43 +- 0.70 | recovery |
+| 2J(C3,H2) | 4.77 +- 0.69 | 3.33 +- 0.83 | 1.50 +- 1.37 | recovery |
+| 1J(C3,H3) | 164.23 +- 0.16 | 163.16 +- 0.21 | 161.76 +- 0.28 | recovery |
+| 2J(C3,H4) | -0.24 +- 0.40 | -0.85 +- 0.38 | -2.33 +- 1.83 | recovery |
+| 3J(C3,H5) | 7.45 +- 0.46 | 8.38 +- 0.34 | 8.73 +- 0.59 | recovery |
+| 4J(C3,H6) | 3.17 +- 0.43 | 3.89 +- 1.04 | 3.96 +- 1.34 | recovery |
+| 3J(C4,H2) | 4.68 +- 1.59 | 6.52 +- 0.98 | 6.62 +- 1.01 | recovery |
+| 2J(C4,H3) | -3.33 +- 1.30 | -3.68 +- 0.59 | -4.93 +- 0.66 | recovery |
+| 1J(C4,H4) | 161.96 +- 0.59 | 160.04 +- 0.28 | 158.57 +- 0.53 | recovery |
+
+Median parts over all couplings and x: noise 0.03-0.16, near-equivalent
+0.00-0.23, processing 0.02-0.28, recovery 0.19-1.01 Hz. Recovery dominates for
+every coupling. 1J: +-0.1-0.6 Hz; small couplings +-0.3-2.9 Hz (largest at the
+series ends, x 0.02 and 1.00, which have one neighbour).
+
+Limits: (a) four truths with offsets of 0.3 / 0.8 Hz probe the neighbourhood of
+the reference only; a second branch several hertz away (as branch B) is not
+covered; (b) the synthetic test assumes the model is right up to the real
+residual; it does not cover a model error, and the H-H couplings of branch A
+are 2-5 Hz from the literature values with uncertainties of 0.4-1.2 Hz here,
+which points to such an error (or to an H-H / C-H trade the model allows);
+(c) two solutions in the near-equivalent set.
+
 ## Conclusion (after runs four and five)
 
 The jump of the small couplings between x 0.50 and 0.75 comes from the Gaussian

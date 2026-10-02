@@ -1303,3 +1303,5 @@ skills under `skills/`; this file keeps the history.
   priors split the series between two branches, which makes the jump.
 - 2026-10-02: same log. Monotone fit started in branch A: total 0.2321 vs 0.2965, data -25 %, no jump, 1J smooth;
   H-H couplings far from literature (3J(H3,H4) 10-14 Hz). The jump came from starts that never reached branch A.
+- 2026-10-02: same log. Uncertainty budget (branch A): 1J +-0.1-0.6 Hz, small couplings +-0.3-2.9 Hz (1 sigma),
+  dominated by what the synthetic recoveries cannot separate; does not cover the model error behind the H-H values.
