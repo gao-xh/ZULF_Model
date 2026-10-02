@@ -319,4 +319,25 @@ input_crop01_apod03_vs_blake.png); the 177-182 Hz hump and the ~186 Hz peak
 remain higher in ours. Blake's lines are still 0.07-0.125 Hz higher in
 frequency (cross-correlation).
 
+## Negative lines (2026-10-02)
+
+The 175-183 Hz hump (user question). Crop-start scan (hump_check.py): the
+real-part level 175-183 Hz drops from 0.22-0.26 (crop 0.1 s) to 0.11-0.15
+(0.2 s) and then stays; the model (penalty-run couplings, sudden drop, rates
+3 1/s, no phase error, same acquisition) has lines there too (magnitude
+0.15-0.19, real part about 0 at crop 0.1 s). Figure hump_175_183.png.
+
+Raw real part (crop 0.1 s, 0.3 1/s, 176.9 deg, NO baseline) against that
+model (neg_check.py; figure negative_lines_check.png): the shapes agree
+including negative lines. Minimum data / model: 161-166 Hz -0.32 / -0.33,
+-0.32 / -0.40, -0.41 / -0.37; 169.8-171.2 Hz -0.37 / -0.47, -0.34 / -0.43,
++0.08 / -0.14; 182.5-184 Hz -0.44 / -0.38, -0.39 / -0.35, -0.43 / -0.28
+(x 0.33 / 0.50 / 1.00). The "broad negative regions" are negative J-lines.
+Standard AsLS and the supplied processed spectra (all positive) removed them;
+every fit to the processed spectra so far fitted spectra without their
+negative lines. Two-sided AsLS hardly changes the raw spectrum. Next fit
+input: no baseline (series_fid03.json regenerated: crop 0.1 s, 0.3 1/s,
+176.9 deg). The hump at 175-183 Hz is mostly real lines; at x 1.00 the data
+(about 0.24 at 178.5 Hz) exceed the model (0.13).
+
 Commit: see git log (this file).

@@ -60,9 +60,16 @@ docs/analysis/2026-10-01_blake-pyridine_data-consistency.md).
 6. Phase: see the zulf-phasing skill (edge delay, data-only zero-order phase
    by peak symmetry with a model-spectrum bias check, one phase per set unless
    the per-spectrum values differ beyond their errors).
-7. Baseline: one rule for all spectra of a series (zulf_processing
-   asls_baseline, smooth 1.5 Hz, p 0.01). Per-spectrum hand baselines created
-   the x 0.66 outlier band that drove jumps in the fitted couplings.
+7. Baseline: compare the phased real part WITHOUT baseline correction with
+   a model spectrum (couplings of any earlier fit, sudden drop, no phase
+   error, same acquisition) before removing anything. ZULF J-spectra have
+   negative lines: on pyridine (crop 0.1 s) the raw real part matched the
+   model including negative lines at 161-166, 170 and 183 Hz (-0.3 to -0.45
+   of the maximum), and standard AsLS (and the supplied processed spectra)
+   had removed them as "baseline". Use no baseline (the solver's linear
+   background takes offsets) or two-sided AsLS (asls_two_sided), never the
+   positive-peak AsLS. Whatever the rule, one rule for all spectra of a
+   series: per-spectrum hand baselines created the x 0.66 outlier band.
 8. Peak-top noise floor for missing-peak rows (`--peak-min-sigma`): raise it
    for unwindowed or weak spectra (x 0.02 had 49 noise tops at 2 sigma).
 
