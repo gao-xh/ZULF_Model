@@ -56,6 +56,39 @@ class JointSeriesTests(unittest.TestCase):
         n_res = len(joint.forwards[0].predict(joint.spectrum_vector(z, 0)).residual)   # 2F for complex data
         self.assertEqual(joint.smoothing[0].shape, (n_res, n_res))
 
+    def test_shared_delay_is_one_value_and_jacobian_matches_finite_differences(self):
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 200.0, 0.25)
+        rng = np.random.default_rng(8)
+        obs = [ObservedSpectrum.from_spectrum(f, rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)),
+                                              [(100.0, 200.0)], record=acq) for _ in range(3)]
+        free = JointSeries(model, settings, obs, [0.1, 0.5, 1.0])
+        joint = JointSeries(model, settings, obs, [0.1, 0.5, 1.0], shared=["phase_delay"])
+        self.assertEqual(joint.shared, ["phase_delay"])
+        self.assertNotIn("phase_delay", joint.local)
+        self.assertEqual(len(free.pack(*self._table(free))) - len(joint.pack(*self._table(joint))), 2)
+        table, xs = self._table(joint)
+        for s, d in enumerate((0.001, 0.002, 0.006)):
+            xs[s][joint.col["phase_delay"]] = d
+        z = joint.pack(table + np.array([0.0, 0.3, 0.2])[:, None], xs)
+        self.assertAlmostEqual(z[joint.ntheta], 0.003)          # start: the mean of the per-spectrum delays
+        for s in range(3):
+            self.assertEqual(joint.spectrum_vector(z, s)[joint.col["phase_delay"]], z[joint.ntheta])
+        lo, hi = joint.bounds(20.0)
+        self.assertEqual(len(lo), len(z))
+        jac = joint.jacobian(z)
+        h = 1e-7
+        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                   for e in np.eye(len(z))])
+        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+
+    @staticmethod
+    def _table(joint):
+        table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])
+        return table, [p.vector().copy() for p in joint.params]
+
     def test_spectra_at_one_concentration_share_their_couplings(self):
         model = build_model(template("CH-CH3"))
         settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))

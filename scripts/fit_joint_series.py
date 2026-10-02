@@ -15,7 +15,8 @@ Model (user: monotonic, never linear): for every free coupling k and spectrum i 
 
 so c rises from 0 to 1 in steps of any size (shape free), and the sign of A_k (fitted) is the direction: J_k is
 monotonic by construction and the data choose direction, size and shape. Every spectrum keeps its own decay rates
-and delay (nonlinear) and its gains, shared phase and background (solved linearly in its forward model). Residual:
+and delay (nonlinear) and its gains, shared phase and background (solved linearly in its forward model);
+--shared phase_delay makes the delay (or any other listed spectrum parameter) one value for the series. Residual:
 the spectra's weighted residuals, plus optional Gaussian priors on each coupling's series average around the
 --couplings values (weight as RefineSettings.priors, scaled by the mean spectrum norm). Jacobian: each spectrum's
 analytic variable-projection Jacobian, chain rule through J_k(x_i). Outputs OUT/fit.json (J at every x with
@@ -78,7 +79,7 @@ def monotone_profile(w: np.ndarray):
 class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
-    def __init__(self, model, settings, observations, xs):
+    def __init__(self, model, settings, observations, xs, shared=()):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
         self.forwards = [MixtureForward(p, o, SUDDEN_DROP, settings.gain_model, settings.background_order,
@@ -86,7 +87,9 @@ class JointSeries:
                          for p, o in zip(self.params, observations)]
         self.free = self.params[0].free_names
         self.coupling = [n for n in self.free if self.params[0].parameters[n].kind == "coupling"]
-        self.local = [n for n in self.free if n not in self.coupling]
+        # spectrum parameters shared by all spectra (e.g. one delay for the series); the others are per spectrum
+        self.shared = [n for n in self.free if n in set(shared) and n not in self.coupling]
+        self.local = [n for n in self.free if n not in self.coupling and n not in self.shared]
         self.xs = np.asarray(xs, float)
         if len(self.xs) < 2 or np.any(np.diff(self.xs) < 0):
             raise ValueError("Give the spectra in non-decreasing concentration.")
@@ -98,7 +101,8 @@ class JointSeries:
         self.nc, self.nl, self.ns = len(self.coupling), len(self.local), len(observations)
         self.nn = len(self.nodes)
         self.m = self.nn + 1                      # v, A, w_1 .. w_{nodes-1}
-        self.nt = self.nc * self.m
+        self.ntheta = self.nc * self.m           # coupling blocks
+        self.nt = self.ntheta + len(self.shared)  # then the shared spectrum parameters
         self.col = {n: i for i, n in enumerate(self.free)}
         self.priors = ([], np.zeros(0), np.zeros(0))
         self.smoothing = None                     # per spectrum: residual transform S = W K W^-1 (or None)
@@ -188,12 +192,14 @@ class JointSeries:
         c, dc = monotone_profile(th[2:])
         return np.column_stack([np.ones(self.nn), c, th[1] * dc])
 
-    # z = [theta_0, ..., theta_{nc-1}, local of spectrum 0 (nl), local of spectrum 1, ...]
+    # z = [theta_0, ..., theta_{nc-1}, shared, local of spectrum 0 (nl), local of spectrum 1, ...]
     def spectrum_vector(self, z, s, values=None):
         values = values if values is not None else [self.coupling_values(z, k) for k in range(self.nc)]
         x = np.empty(len(self.free))
         for k, n in enumerate(self.coupling):
             x[self.col[n]] = values[k][self.node_of[s]]
+        for i, n in enumerate(self.shared):
+            x[self.col[n]] = z[self.ntheta + i]
         loc = z[self.nt + s * self.nl: self.nt + (s + 1) * self.nl]
         for i, n in enumerate(self.local):
             x[self.col[n]] = loc[i]
@@ -211,6 +217,7 @@ class JointSeries:
             w = np.log(steps + 1e-3 * max(steps.max(), 1e-3)) if steps.sum() > 0 else np.zeros(self.nn - 1)
             z.extend([col[0], a] + list(np.clip(w - w.max(), -W_BOUND, W_BOUND)))
         X = np.array(per_spectrum_x)
+        z.extend(float(np.mean(X[:, self.col[n]])) for n in self.shared)
         z.extend(X[s, self.col[n]] for s in range(self.ns) for n in self.local)
         return np.array(z, float)
 
@@ -220,6 +227,8 @@ class JointSeries:
         for n in self.coupling:
             lz += [lo[self.col[n]], -change_bound] + [-W_BOUND] * (self.nn - 1)
             hz += [hi[self.col[n]], change_bound] + [W_BOUND] * (self.nn - 1)
+        lz.extend(lo[self.col[n]] for n in self.shared)
+        hz.extend(hi[self.col[n]] for n in self.shared)
         lz.extend(lo[self.col[n]] for _ in range(self.ns) for n in self.local)
         hz.extend(hi[self.col[n]] for _ in range(self.ns) for n in self.local)
         return np.array(lz), np.array(hz)
@@ -251,6 +260,8 @@ class JointSeries:
             out = np.zeros((js.shape[0], len(z)))
             for k, n in enumerate(self.coupling):
                 out[:, k * self.m:(k + 1) * self.m] = np.outer(js[:, self.col[n]], dvals[k][self.node_of[s]])
+            for i, n in enumerate(self.shared):
+                out[:, self.ntheta + i] = js[:, self.col[n]]
             for i, n in enumerate(self.local):
                 out[:, self.nt + s * self.nl + i] = js[:, self.col[n]]
             blocks.append(self._smooth(s, out))
@@ -309,6 +320,8 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200, real
             xv[col[n]] = lo_v[k] + u[k] * (hi_v[k] - lo_v[k])
         for m, n in enumerate(joint.local):
             xv[col[n]] = loc[m]
+        for m, n in enumerate(joint.shared):           # held at the series value
+            xv[col[n]] = z[joint.ntheta + m]
         return xv
 
     def residual(p):
@@ -430,6 +443,8 @@ def main():
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
+    ap.add_argument("--shared", default="", help="comma-separated spectrum parameters shared by all spectra "
+                    "(e.g. phase_delay: one model delay for the series)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
     ap.add_argument("--hold-small-first", action="store_true",
@@ -480,7 +495,11 @@ def main():
     if getattr(args, "signal_height_power", 0.0):
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
     settings = _settings_for(model, args.variant, base)
-    joint = JointSeries(model, settings, obs, [e["x"] for e in series])
+    joint = JointSeries(model, settings, obs, [e["x"] for e in series],
+                        shared=[n.strip() for n in args.shared.split(",") if n.strip()])
+    missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
+    if missing:
+        raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
     centre = joint.params[0].values()
     key_of = {}
     for key, names in model.coupling_names.items():
@@ -543,7 +562,7 @@ def main():
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     rng = np.random.default_rng(args.seed)
     level = np.zeros(len(z0))
-    level[:joint.nt:joint.m] = 1.0                        # perturb the level of every coupling, not its shape
+    level[:joint.ntheta:joint.m] = 1.0                        # perturb the level of every coupling, not its shape
     centres = [z0]
     if args.seeds:
         seeds = json.load(open(args.seeds))
@@ -626,8 +645,12 @@ def main():
     if left_out is not None:
         result["left_out"] = {"id": left_out["id"], "x": left_out["x"],
                               **predict_left_out(joint, z, left_out, (lo, hi), key_of, settings, real_only=args.real_only)}
-    result["spectrum_parameters"] = {series[si]["id"]: {n: float(z[joint.nt + si * joint.nl + i])
-                                                       for i, n in enumerate(joint.local)} for si in range(joint.ns)}
+    result["shared"] = joint.shared
+    shared_values = {n: float(z[joint.ntheta + i]) for i, n in enumerate(joint.shared)}
+    result["spectrum_parameters"] = {series[si]["id"]: {**shared_values,
+                                                       **{n: float(z[joint.nt + si * joint.nl + i])
+                                                          for i, n in enumerate(joint.local)}}
+                                     for si in range(joint.ns)}
     json.dump(result, open(out / "fit.json", "w"), indent=1)
     with open(out / "J_table.csv", "w", newline="") as fh:
         w = csv.writer(fh)

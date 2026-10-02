@@ -168,6 +168,23 @@ delay (scratchpad delay_scan.py), so the delay is determined, but it is not
 the same across spectra although every FID was referenced to its own edge: a
 free delay can trade phase slope against line positions.
 
+## Fourth run: one model delay for the series
+
+User choice: one shared delay instead of a free delay per spectrum. New option
+`--shared phase_delay` (fit_joint_series, reliability_series): the listed
+spectrum parameters are one value for the series, placed after the coupling
+blocks in z; start = mean of the per-spectrum starts (here the third run's
+delays, mean -1.71 ms); Jacobian column = sum over spectra (test against
+finite differences in tests/test_joint_series.py).
+
+    python scripts/fit_joint_series.py --series series_fid03_8zf3c.json --real-only false \
+      --shared phase_delay ... (as the third run) --peak-min-sigma 3 \
+      --from-joint runs/processed/joint_fid_route2c_ms48/fit.json --seeds seeds_shared.json \
+      --starts 40 --spread 1.5 --prior-starts 8 --seed 43 --workers 4 --out runs/processed/joint_fid_shdelay_ms48
+
+Seeds (9): the 6 best solutions of the third run and the three reference
+solutions. Started 2026-10-02 08:20 UTC. Results: pending.
+
 ## Conclusion
 
 The complex fit without AsLS fits all seven spectra with residuals 0.15-0.24

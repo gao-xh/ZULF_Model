@@ -79,7 +79,8 @@ def build_joint(args):
     if getattr(args, "signal_height_power", 0.0):
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
     settings = _settings_for(model, args.variant, base)
-    joint = JointSeries(model, settings, obs, [e["x"] for e in series])
+    shared = [n.strip() for n in getattr(args, "shared", "").split(",") if n.strip()]
+    joint = JointSeries(model, settings, obs, [e["x"] for e in series], shared=shared)   # shared: held per refit
     key_of = {}
     for key, names in model.coupling_names.items():
         for n in names:
@@ -197,6 +198,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--series", required=True)
     ap.add_argument("--real-only", type=_flag, default=True, help="true (default) or false: complex spectra")
+    ap.add_argument("--shared", default="", help="spectrum parameters shared by all spectra, as in fit_joint_series")
     ap.add_argument("--structure", required=True)
     ap.add_argument("--couplings", default="{}")
     ap.add_argument("--variant", default="ratios")
