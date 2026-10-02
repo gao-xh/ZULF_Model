@@ -61,6 +61,19 @@ missing-peak rows at 2 sigma: 11, 12, 11, 10, 8, 9, 7.
       --from-joint runs/processed/joint_peakpen_smooth_ms48/fit.json --seeds seeds_fid.json \
       --starts 40 --spread 1.5 --prior-starts 8 --seed 37 --workers 4 --out runs/processed/joint_fid_rb_ms48
 
-Started 2026-10-02 03:20 UTC. Results: pending.
+Started 2026-10-02 03:20 UTC (about 5.6 s per step on a 2605-point grid:
+about 4 h for 48 starts; the user chose to let it finish). Results: pending.
+
+## Third run (queued): no baseline, model through the same processing
+
+User decision: no AsLS; the model is rendered with the same crop, window, SG
+and phase (series entries carry `record` and `phasing`). Input
+series_fid03_4.json: crop 0.1-4.1 s, 0.3 1/s, zero fill 2 (0.125 Hz grid),
+phase0 176.9 deg at the switching edge, no baseline. Seeds: the 6 best of the
+second run and the three reference solutions; same fit settings, 48 starts,
+seed 41, out runs/processed/joint_fid_route2_ms48 (chain script starts it
+when the second run ends). Figures of this run show data and model after
+subtracting the same data-derived AsLS baseline (display only; the residual
+is unchanged).
 
 Commit: (pending)
