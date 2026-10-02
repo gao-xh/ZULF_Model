@@ -119,4 +119,22 @@ solver's own background terms (complex or calibrated real), x 0.10 added;
 check whether the broad negative regions are signal (fast-relaxing component)
 or a processing effect.
 
+## AsLS baseline, the same for all seven (2026-10-02)
+
+zulf_processing.asls_baseline (new, commit 4da54bb; lam = (smooth_hz / step)^4)
+on the calibrated real spectra above, p 0.01, smooth 1.5 and 2 Hz (scratchpad
+fid_asls.py; figure runs/processed/joint_peakpen_smooth_ms48/fid_asls_1.5_vs_blake.png).
+
+| x | 0.02 | 0.10 | 0.33 | 0.50 | 0.66 | 0.75 | 1.00 |
+|---|---|---|---|---|---|---|---|
+| band +10 ... +14 Hz, smooth 1.5 Hz | 0.287 | 0.368 | 0.306 | 0.291 | 0.278 | 0.289 | 0.282 |
+| band +10 ... +14 Hz, smooth 2 Hz | 0.291 | 0.382 | 0.298 | 0.288 | 0.274 | 0.289 | 0.289 |
+| Blake - ours rms (1.5 Hz) | 0.133 | - | 0.080 | 0.075 | 0.088 | 0.091 | 0.107 |
+
+With one baseline rule for all, the band is smooth in x (0.27-0.31 from
+x 0.33 on). Remaining differences to Blake's spectra: our valleys between
+close lines are shallower (e.g. between the main peak and the +3.9 Hz peak
+about 0.3 against 0.05) and our lines slightly wider; x 0.02 keeps a broad
+hump at 143-150 Hz (lowest signal).
+
 Commit: see git log (this file).
