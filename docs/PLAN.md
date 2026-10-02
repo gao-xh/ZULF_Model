@@ -266,7 +266,11 @@ fixed, so later phases are experiments rather than restructuring.
 - [x] Without the monotone constraint (`--shape free`, shared delay): total -20 %, jump stays. Two-branch test:
       every spectrum alone prefers branch A (smooth in x, far from the literature small couplings); the
       series-average priors split the series between branches A and B: the jump is a prior artefact.
-- [ ] Monotone fit started in branch A for all spectra (running).
+- [x] Monotone fit started in branch A: total 0.2321 (-22 %, data -25 %), smooth in x, no jump; 1J fall
+      smoothly. Several H-H couplings far from literature (3J(H3,H4) 10-14 Hz): best data description, not an
+      assignment of the small couplings.
+- [ ] Fit with the H-H couplings held at the literature values (solvent-independent within a few 0.1 Hz).
+- [ ] Uncertainty budget around the branch-A reference (running).
 - [ ] Joint fit without series-average priors (or per-spectrum priors).
 - [ ] Pyridinium (single spectrum, same limits expected).
 - [ ] Real-data model mismatch: the staged joint fit recovers a synthetic truth (median error 0.7 Hz) but

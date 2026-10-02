@@ -327,7 +327,36 @@ no prior-drawn starts; spectrum parameters from the fifth run.
 
 Question: with the priors unchanged, does the fit stay in branch A (and how
 does its total compare with 0.2965), or does it return to the split? Started
-2026-10-02 15:57 UTC. Results: pending.
+2026-10-02 15:57 UTC.
+
+Result: 40 starts in 9749 s. Best total 0.2321 (start 0, the isotonic seed),
+next 0.2384 (+2.7 %), 0.2496. Data part 0.2210 + prior 0.0110, against 0.2929
++ 0.0036 for the split solution of the fourth run: data -25 %, total -22 %
+(also below the free-shape fit, 0.2361). Shared delay -4.45 ms. Relative
+residuals 0.236 / 0.216 / 0.195 / 0.189 / 0.148 / 0.144 / 0.126 (x 0.66 and
+0.75: 0.148 and 0.144 against 0.21). The fit stays in branch A: no step above
+2 Hz; largest steps J(A2,HA3) 5.24 -> 7.05 and J(HA3,HA4) 11.80 -> 13.28
+(0.50 -> 0.66), J(HA3,HA4) 9.82 -> 11.40 and J(A4,HA2) 4.68 -> 6.35
+(0.02 -> 0.10). 1J fall smoothly: 1J(C2,H2) 179.22 -> 176.53, 1J(C3,H3)
+164.23 -> 161.76, 1J(C4,H4) 161.96 -> 158.57 Hz. The earlier fits never
+reached branch A from their starts; the priors did not keep the fit from it.
+
+Reliability, three complex monotone fits pooled (runs/processed/
+reliability_fid_all_monotone): only the two best branch-A solutions are within
+3 %; 17 couplings reliable (spread 0.1-1.4 Hz), 3J(C2,H6) and 3J(C4,H2) not
+determined (1.6, 1.8 Hz). With two solutions in the set this is a statement
+about those two, not a budget. Figures runs/processed/joint_fid_branchA_ms48/
+spectra_baselined.png, J_trends_compare_reliability.png.
+
+Branch A is the best fit to the data but several proton-proton couplings are
+far from the literature values of pyridine, which hardly depend on the
+solvent: 3J(H3,H4) 9.8-13.6 Hz (7.7), 5J(H2,H5) 3.2-3.6 (0.9), 4J(H2,H6)
+1.2-2.9 (-0.1), 4J(H3,H5) 0.7 to -1.4 (1.4); also 4J(C3,H6) 3.2-4.0 (-1.4).
+These spectra are mostly sensitive to the C-H couplings of each 13C
+isotopologue; the H-H couplings enter only in combination with them, so the
+data can trade H-H against C-H values. Branch A is therefore the best
+description of the data within this model, not an assignment of the
+individual small couplings.
 
 ## Uncertainty budget (queued after the sixth run)
 

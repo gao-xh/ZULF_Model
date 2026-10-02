@@ -1301,3 +1301,5 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-02: same log. No monotone constraint: total 0.2361 (-20 %), jump stays. Each spectrum alone prefers
   branch A (x 0.75: 0.135 vs 0.205), smooth in x but several sigma from the literature priors; the series-average
   priors split the series between two branches, which makes the jump.
+- 2026-10-02: same log. Monotone fit started in branch A: total 0.2321 vs 0.2965, data -25 %, no jump, 1J smooth;
+  H-H couplings far from literature (3J(H3,H4) 10-14 Hz). The jump came from starts that never reached branch A.
