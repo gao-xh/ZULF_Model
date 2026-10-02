@@ -262,4 +262,27 @@ CSV time column (3999.939 Hz); a 4000 Hz axis would shift 168 Hz by only
 data, for reasons not visible in the arrays; absolute line positions (and so
 the large couplings) of fits to the processed spectra carry this offset.
 
+Phase refinement on the 0.3 1/s spectra (2026-10-02; scratchpad phase_opt.py):
+per spectrum the symmetry phase (magnitude-top centre, noise from point
+differences, prominence >= 15 % and >= 8 sigma: 5-12 peaks), a jackknife
+error over peaks, and the criterion bias from a model spectrum at the same x
+(same acquisition and apodization, all rates 3 1/s, no phase error).
+
+| x | 0.02 | 0.10 | 0.33 | 0.50 | 0.66 | 0.75 | 1.00 |
+|---|---|---|---|---|---|---|---|
+| symmetry phase (deg) | 177.5 | 172.5 | 171.5 | 169.5 | 172.5 | 170.0 | 167.0 |
+| jackknife SE (deg) | 17.6 | 39.2 | 19.6 | 20.1 | 25.3 | 29.2 | 34.6 |
+| model bias (deg) | +10.0 | +19.5 | -7.0 | -8.0 | -14.5 | -7.5 | -6.5 |
+| corrected (deg) | 167.5 | 153.0 | 178.5 | 177.5 | 187.0 | 177.5 | 173.5 |
+
+Weighted mean 174.8 deg, chi2 0.8 for 6 dof: the spread between spectra is
+within the errors, no sign of spectrum-specific phases. Error of the mean
+about 9 deg; the per-peak spread (overlap) limits this criterion. Joint scan
+over all spectra: delay at the edge gives phase0 173.5 deg (cost 3.885); an
+extra +0.25 ms gives 158.0 deg at cost 3.882, i.e. phase0 and delay trade off
+on a flat surface. The joint fit refines a common phase per spectrum anyway
+(shared_phase gain model), so a residual of this size is absorbed. Next fit
+input: 0.3 1/s spectra phased at 174.8 deg, AsLS (series_fid03.json in the
+scratchpad).
+
 Commit: see git log (this file).
