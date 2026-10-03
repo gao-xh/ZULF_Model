@@ -96,6 +96,36 @@ runs/processed/ipa_slow_nested/spectrum_fit.png (real part with a display
 AsLS baseline subtracted from data and model, imaginary part, 85-112 Hz);
 run logs runs/processed/ipa_{fast,slow,slow_nested}/RUN_LOG.md.
 
+## Comparison with the 9.22 subgroup slides (user)
+
+User: the earlier result (9_22_subgroup.pptx, slides 4-20) is clearly better.
+That analysis: reference J 1J(CH) 132.79, 1J(CH3) 124.27, 3J(H,H) 7.30,
+2J(C1,H2) -7.96, 2J(C2,H1) -7.28, 3J(C2,H3) 2.03 Hz; 13CH + 13CH3 + 15NH2
+hypothesis; J fixed, then 114 individual in-band decay times (one per
+transition, within-cluster shrinkage beta 0.1), common cluster amplitude and
+phase, frozen prediction of validation groups; real part, no AsLS. Its
+prediction follows the data closely in both bands; several 15N-hypothesis
+transitions sit in 113-129 Hz, and many transitions end at short T2* (about
+0.05-0.1 s, some at the bound).
+
+Same objective as here (fast exchange, one decay rate per isotopologue,
+scratchpad ipa/fixedJ.py, couplings held, rates and delay refitted):
+
+| couplings | score (data + hard peak rows) | decay rates (1/s) |
+|---|---|---|
+| this fit | 0.1457 | 1.85, 3.06 |
+| 9.22 reference J | 0.7519 | 1.10, 20.0 (methyl at the bound) |
+| 9.22 J as start, all free (runs/processed/ipa_fast_from922) | 0.4811 (local minimum) | |
+
+With one width per isotopologue the 9.22 coupling set does not reproduce the
+spectrum (the methyl lines are switched off at the rate bound); the closer
+match on the slides comes from the per-transition decay times and cluster
+amplitudes/phases (and the 15N lines), which reshape the lines at fixed J. A
+free width per line can remove lines (as in test A of
+2026-10-01_blake-pyridine_peak-penalty.md). The two results are therefore not
+comparable by their figures; a fair comparison needs the same line-shape
+freedom on both coupling sets.
+
 ## Conclusion
 
 The carbon-skeleton couplings of isopropylamine are the same in both exchange
