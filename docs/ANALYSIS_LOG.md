@@ -1305,3 +1305,5 @@ skills under `skills/`; this file keeps the history.
   H-H couplings far from literature (3J(H3,H4) 10-14 Hz). The jump came from starts that never reached branch A.
 - 2026-10-02: same log. Uncertainty budget (branch A): 1J +-0.1-0.6 Hz, small couplings +-0.3-2.9 Hz (1 sigma),
   dominated by what the synthetic recoveries cannot separate; does not cover the model error behind the H-H values.
+- 2026-10-03: isopropylamine with the series fitter (one spectrum, complex, model through the processing, missing-peak
+  rows), fast vs slow N-H exchange; docs/analysis/2026-10-03_isopropylamine_complex-fit.md. Running.

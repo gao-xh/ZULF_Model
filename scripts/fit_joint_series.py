@@ -17,7 +17,8 @@ so c rises from 0 to 1 in steps of any size (shape free), and the sign of A_k (f
 monotonic by construction and the data choose direction, size and shape. Every spectrum keeps its own decay rates
 and delay (nonlinear) and its gains, shared phase and background (solved linearly in its forward model);
 --shared phase_delay makes the delay (or any other listed spectrum parameter) one value for the series;
---shape free drops the monotone constraint (independent J at every concentration). Residual:
+--shape free drops the monotone constraint (independent J at every concentration; also the mode for one
+spectrum); a series entry may give its own fit "ranges" (e.g. to leave out mains harmonics). Residual:
 the spectra's weighted residuals, plus optional Gaussian priors on each coupling's series average around the
 --couplings values (weight as RefineSettings.priors, scaled by the mean spectrum norm). Jacobian: each spectrum's
 analytic variable-projection Jacobian, chain rule through J_k(x_i). Outputs OUT/fit.json (J at every x with
@@ -92,12 +93,12 @@ class JointSeries:
         self.shared = [n for n in self.free if n in set(shared) and n not in self.coupling]
         self.local = [n for n in self.free if n not in self.coupling and n not in self.shared]
         self.xs = np.asarray(xs, float)
-        if len(self.xs) < 2 or np.any(np.diff(self.xs) < 0):
+        if len(self.xs) < 1 or np.any(np.diff(self.xs) < 0):
             raise ValueError("Give the spectra in non-decreasing concentration.")
         # concentration nodes: spectra at the same concentration share one set of couplings
         self.nodes = np.unique(self.xs)
-        if len(self.nodes) < 2:
-            raise ValueError("Need at least two different concentrations.")
+        if len(self.nodes) < 2 and shape == "monotone":
+            raise ValueError("A monotone series needs at least two concentrations (one spectrum: shape free).")
         self.node_of = [int(np.searchsorted(self.nodes, x)) for x in self.xs]
         self.nc, self.nl, self.ns = len(self.coupling), len(self.local), len(observations)
         self.nn = len(self.nodes)
@@ -471,6 +472,8 @@ def main():
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
+    ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
+                    help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
     ap.add_argument("--shape", default="monotone", choices=["monotone", "free"],
                     help="monotone (default): every coupling monotonic in x; free: independent J at every x")
     ap.add_argument("--shared", default="", help="comma-separated spectrum parameters shared by all spectra "
@@ -509,13 +512,15 @@ def main():
             o = reg.observed_for({"file": path.name}, config, str(path.parent))
             return o.restricted([tuple(r) for r in e.get("ranges", [(lo, hi)])])
         return ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e, args.real_only),
-                                              [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=args.real_only,
-                                              label=e["id"])
+                                              [tuple(r) for r in e.get("ranges", [(lo, hi)])], record=e.get("record"),
+                                              phasing=e.get("phasing"), real_only=args.real_only, label=e["id"])
 
     obs = [observation(e) for e in series]
     spec = json.loads(args.structure)
     spec.setdefault("compound", "series")
     fragment = override_couplings(reg.structure_for(spec), json.loads(args.couplings))
+    from zulf_hypothesis import exchange_variants
+    fragment = exchange_variants(fragment, args.exchange)[0]     # fast: protons on N/O/S dropped (decoupled)
     model = build_model(fragment, ranges=[(lo, hi)])
     base = default_fit_base()
     if args.signal_threshold:

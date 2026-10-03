@@ -66,11 +66,15 @@ def build_joint(args):
     series = json.load(open(args.series))
     lo, hi = (float(v) for v in args.range.split(","))
     obs = [ObservedSpectrum.from_spectrum(np.load(e["freq"]).astype(float), _values(e, getattr(args, "real_only", True)),
-                                          [(lo, hi)], record=e.get("record"), phasing=e.get("phasing"), real_only=getattr(args, "real_only", True),
+                                          [tuple(r) for r in e.get("ranges", [(lo, hi)])], record=e.get("record"),
+                                          phasing=e.get("phasing"), real_only=getattr(args, "real_only", True),
                                               label=e["id"]) for e in series]
     spec = json.loads(args.structure)
     spec.setdefault("compound", "series")
-    model = build_model(override_couplings(reg.structure_for(spec), json.loads(args.couplings)), ranges=[(lo, hi)])
+    from zulf_hypothesis import exchange_variants
+    fragment = exchange_variants(override_couplings(reg.structure_for(spec), json.loads(args.couplings)),
+                                 getattr(args, "exchange", "slow"))[0]
+    model = build_model(fragment, ranges=[(lo, hi)])
     base = default_fit_base()
     if args.signal_threshold:
         base = dataclasses.replace(base, signal_threshold=args.signal_threshold)
@@ -210,6 +214,7 @@ def main():
     ap.add_argument("--series", required=True)
     ap.add_argument("--real-only", type=_flag, default=True, help="true (default) or false: complex spectra")
     ap.add_argument("--shared", default="", help="spectrum parameters shared by all spectra, as in fit_joint_series")
+    ap.add_argument("--exchange", default="slow", choices=["slow", "fast"], help="as in fit_joint_series")
     ap.add_argument("--structure", required=True)
     ap.add_argument("--couplings", default="{}")
     ap.add_argument("--variant", default="ratios")
