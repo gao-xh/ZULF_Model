@@ -204,6 +204,12 @@ is not evidence.
   (the solvent was prepolarized too); use solvent_weight=0 in
   `exchange_transitions` for an unpolarized pool.
 - Linearised uncertainties are not computed for exchange fits yet.
+- Fast vs slow with the series fitter (`fit_joint_series.py --shape free --exchange fast|slow`, one spectrum):
+  start the slow variant also nested, from the fast solution with every coupling to the exchangeable protons at 0
+  (`--start-couplings`). On isopropylamine 64 generic slow starts (N-H couplings at their motif defaults, e.g.
+  3J(H,N-H) 5.5 Hz) ended 26 % above the fast fit, while the nested start ended 13 % below it. Then check what
+  the extra freedom is used for: N-H couplings below 1 Hz and a broad 15N line without a clear data counterpart are
+  not evidence of a resolved NH group (2026-10-03_isopropylamine_complex-fit.md).
 
 
 ## Logging an analysis

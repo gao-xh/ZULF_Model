@@ -47,4 +47,68 @@
 Fast exchange: the NH2 protons dropped (13C at C1 and at the two equivalent
 methyl carbons; 6 free couplings). Slow exchange: NH2 kept (also the 15N
 isotopologue; 12 free couplings). No priors. Peak tops for the missing-peak
-rows: 16. Started 2026-10-03 04:37 UTC. Results: pending.
+rows: 16. Started 2026-10-03 04:37 UTC.
+
+## Results
+
+| fit | starts | best total | relative residual | next best |
+|---|---|---|---|---|
+| fast exchange | 64 (618 s) | 0.1456 (2 starts) | 0.376 | 0.3178 |
+| slow exchange, generic starts | 64 (1791 s) | 0.1828 | 0.426 | 0.2158 |
+| slow exchange, nested start (the fast solution, N-H couplings 0) | 1 (66 s) | **0.1271** | 0.353 | - |
+
+The slow model contains the fast one (N-H couplings 0 decouple the NH2 protons
+from the 13C isotopologues), so the generic slow starts missed that basin: their
+N-H couplings started at the motif values (3J(H1,N-H) 5.5, 2J/3J(C,N-H)
+-4.5 / 4.5 Hz).
+
+Couplings (Hz):
+
+| coupling | fast | slow (nested) |
+|---|---|---|
+| 1J(C1,H1) (CH) | 133.45 | 133.43 |
+| 1J(C2,H2) (CH3) | 124.44 | 124.42 |
+| 3J(H1,H2) | 6.11 | 6.18 |
+| 2J(C1,H2) | -4.21 | -4.28 |
+| 2J(C2,H1) | -1.69 | -1.76 |
+| 3J(C2,H3) (to the other methyl) | 5.18 | 5.20 |
+| 2J(C1,HN) | - | 0.83 |
+| 3J(H1,HN) | - | -0.71 |
+| 3J(C2,HN) | - | 0.56 |
+| 1J(15N,HN) | - | -64.89 |
+| 2J(15N,H1) / 3J(15N,H2) | - | -6.39 / -2.18 |
+
+Decay rates: fast 1.86 (13C at C1) and 3.08 1/s (methyl 13C); slow 1.53, 1.95
+and 7.3 1/s (15N). Model delay -3.62 / -3.57 ms (edge -3.46 ms).
+
+All couplings of the carbon skeleton agree within 0.1 Hz between the two
+regimes. The slow fit is 13 % lower with 6 more couplings, but uses the freedom
+for couplings of the NH2 protons below 1 Hz (slow exchange would give
+3J(H1,N-H) of about 5-7 Hz) and for a broad 15N line (7.3 1/s) near 98-100 Hz
+that the data do not show clearly (85-112 Hz panel). Remaining misfits are the
+same in both: the lines at 121.6 / 122.3 and 133.3 Hz are sharper and taller
+in the data, 131.8 Hz is too high in the model, the 251 Hz line is narrower in
+the data; one decay rate per isotopologue cannot give lines of different
+width.
+
+Figures: runs/processed/ipa_fast/spectrum_fit.png,
+runs/processed/ipa_slow_nested/spectrum_fit.png (real part with a display
+AsLS baseline subtracted from data and model, imaginary part, 85-112 Hz);
+run logs runs/processed/ipa_{fast,slow,slow_nested}/RUN_LOG.md.
+
+## Conclusion
+
+The carbon-skeleton couplings of isopropylamine are the same in both exchange
+regimes: 1J(CH) 133.4, 1J(CH3) 124.4, 3J(H,H) 6.1-6.2 Hz. No resolved NH2
+structure: no clear 15N line and N-H couplings under 1 Hz, consistent with
+fast (or intermediate) N-H exchange in the neat amine. The 13 % gain of the
+slow model is not evidence of slow exchange; it can absorb line-shape errors.
+
+## Open points
+
+- Line widths: lines of different width within one isotopologue (an intermediate
+  N-H exchange rate would broaden lines unevenly; or a Gaussian/Voigt part).
+- Exchange rate fitted for the NH2 group (Liouville model, D45).
+- Uncertainty budget as for the pyridine series.
+
+Commit: see git log (this file).

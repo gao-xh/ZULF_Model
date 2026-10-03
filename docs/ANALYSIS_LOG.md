@@ -1306,4 +1306,6 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-02: same log. Uncertainty budget (branch A): 1J +-0.1-0.6 Hz, small couplings +-0.3-2.9 Hz (1 sigma),
   dominated by what the synthetic recoveries cannot separate; does not cover the model error behind the H-H values.
 - 2026-10-03: isopropylamine with the series fitter (one spectrum, complex, model through the processing, missing-peak
-  rows), fast vs slow N-H exchange; docs/analysis/2026-10-03_isopropylamine_complex-fit.md. Running.
+  rows), fast vs slow N-H exchange; docs/analysis/2026-10-03_isopropylamine_complex-fit.md. 1J(CH) 133.4, 1J(CH3)
+  124.4, 3J(H,H) 6.1 Hz in both regimes; slow (nested start) 13 % lower but with N-H couplings < 1 Hz and no clear
+  15N line: no resolved NH2. Lesson (skill): start the slow variant nested from the fast fit.
