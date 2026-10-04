@@ -380,6 +380,116 @@ class JointSeries:
             windows.append(np.r_[idx, idx + nf] if len(r) == 2 * nf else idx)
         return windows, report
 
+    def peak_sources(self, z, s, frequency_hz, assign_hz=0.6, bands=None, min_relative_amplitude=0.02):
+        """Where a feature of spectrum s comes from, from the analytic transitions: every transition within assign_hz
+        of frequency_hz (component, frequency, amplitude relative to the component's largest, df/dJ for every free
+        coupling, tied names summed into their leader), and per coupling its local effect (sum over those lines of
+        |A| |df/dJ|) and its selectivity (local effect / the same sum over all lines in `bands`, default the
+        spectrum's fit bands). A coupling with a large local effect and a high selectivity moves this feature and
+        little else: the one to adjust first. `shift` / `split`: weighted mean / spread of df/dJ over the nearby lines
+        (a split-type coupling changes the spacing inside a feature, e.g. a dip between close lines)."""
+        from zulf_core.physics.derivatives import transition_derivatives
+        f = self.forwards[s]
+        P = self.params[s]
+        x = self.spectrum_vector(z, s)
+        values = P.values(x)
+        bands = bands or [(float(f.f.min()), float(f.f.max()))]
+        lines, local, total = [], {n: 0.0 for n in self.coupling}, {n: 0.0 for n in self.coupling}
+        near_cols = {n: [] for n in self.coupling}
+        near_amp = []
+        for c, system in enumerate(P.systems(values)):
+            names = P.coupling_names(c)
+            pairs = [P.parameters[n].detail for n in names]
+            d = transition_derivatives(system, pairs, f.protocol)
+            if not len(d):
+                continue
+            amp = np.abs(d.amplitudes)
+            rel = amp / amp.max()
+            dfdj = {}
+            for j, n in enumerate(names):
+                leader = P.ties.get(n, n)
+                if leader not in self.col or leader not in local:
+                    continue
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    col = np.where(amp > 0, (d.t_weights[j] / d.amplitudes).real, 0.0)
+                dfdj[leader] = dfdj.get(leader, 0.0) + col
+            inband = np.zeros(len(d), bool)
+            for lo, hi in bands:
+                inband |= (d.frequencies_hz >= lo) & (d.frequencies_hz <= hi)
+            near = (np.abs(d.frequencies_hz - frequency_hz) <= assign_hz) & (rel >= min_relative_amplitude)
+            near_amp.extend((amp[near] / amp.max()).tolist())
+            for n in self.coupling:
+                near_cols[n].extend((dfdj[n][near] if n in dfdj else np.zeros(int(near.sum()))).tolist())
+            for n, col in dfdj.items():
+                local[n] += float(np.sum(amp[near] * np.abs(col[near])))
+                total[n] += float(np.sum(amp[inband] * np.abs(col[inband])))
+            for i in np.flatnonzero(near):
+                lines.append({"component": c, "frequency_hz": float(d.frequencies_hz[i]), "relative_amplitude":
+                              float(rel[i]), "df_dJ": {n: float(col[i]) for n, col in dfdj.items()}})
+        w = np.asarray(near_amp)
+        effect = {}
+        for n in self.coupling:
+            col = np.asarray(near_cols[n])
+            # shift: amplitude-weighted mean df/dJ of the nearby lines (moves the feature as a whole);
+            # split: their weighted spread (changes the spacing inside the feature, e.g. opens or fills a dip)
+            shift = float(np.sum(w * col) / w.sum()) if len(w) else 0.0
+            split = float(np.sqrt(np.sum(w * (col - shift) ** 2) / w.sum())) if len(w) > 1 else 0.0
+            effect[n] = {"local": local[n], "selectivity": local[n] / total[n] if total[n] > 0 else 0.0,
+                         "shift": shift, "split": split}
+        return {"frequency_hz": float(frequency_hz), "lines": lines, "couplings": effect}
+
+    def local_fit(self, z, s, window_hz, couplings, locals_=(), lower=None, upper=None, starts=None, max_nfev=100):
+        """Targeted local refinement: fit only the residual of spectrum s inside window_hz = (lo, hi), with only
+        the named couplings (leaders, e.g. the split-type couplings of peak_sources) and spectrum parameters
+        (e.g. the rate family holding those lines) free; everything else held at z. `starts`: list of dicts
+        {name: start value} (default: z itself). Returns [(local cost, z)] sorted, each z a full vector ready for
+        a global refit. Free-shape (one value per node) and monotone layouts: a coupling's level is moved."""
+        f = self.forwards[s]
+        nf = len(f.f)
+        sel_f = np.flatnonzero((f.f >= window_hz[0]) & (f.f <= window_hz[1]))
+        rows = np.r_[sel_f, sel_f + nf] if not f.real_only else sel_f
+        zi, xcols = [], []
+        for n in couplings:
+            k = self.coupling.index(n)
+            zi.append(k * self.m + (self.node_of[s] if self.shape == "free" else 0))
+            xcols.append(self.col[n])
+        for n in locals_:
+            if n in self.shared:
+                zi.append(self.ntheta + self.shared.index(n))
+            else:
+                zi.append(self.nt + s * self.nl + self.local.index(n))
+            xcols.append(self.col[n])
+        zi = np.asarray(zi, int)
+        lo = lower[zi] if lower is not None else np.full(len(zi), -np.inf)
+        hi = upper[zi] if upper is not None else np.full(len(zi), np.inf)
+
+        def full(p):
+            zz = z.copy()
+            zz[zi] = p
+            return zz
+
+        def res(p):
+            return f.predict(self.spectrum_vector(full(p), s)).residual[rows]
+
+        def jac(p):
+            js = f.jacobian(self.spectrum_vector(full(p), s))[rows]
+            out = js[:, xcols].copy()
+            if self.shape == "monotone":     # level v_k moves J_k at every node by the same amount
+                pass
+            return out
+        out = []
+        names = list(couplings) + list(locals_)
+        for st in (starts or [{}]):
+            p0 = z[zi].copy()
+            for n, v in st.items():
+                p0[names.index(n)] = v
+            p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
+            sol = least_squares(res, p0, jac=jac, bounds=(lo, hi), x_scale="jac", max_nfev=max_nfev,
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10)
+            out.append((float(2 * sol.cost), full(sol.x)))
+        out.sort(key=lambda t: t[0])
+        return out
+
     def data_residuals(self, z):
         out = []
         for s, f in enumerate(self.forwards):
