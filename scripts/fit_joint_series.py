@@ -66,6 +66,22 @@ def _flag(text):
         return False
     raise ValueError(f"expected true or false, got {text!r}")
 
+def _rate_policy(base, args):
+    """Decay-rate families and bounds from the command line: --family-edges splits every isotopologue's
+    transitions by frequency (one rate per family, D31 derivatives), --rate-bounds sets the rate range."""
+    policy = base.policy
+    edges = [float(v) for v in getattr(args, "family_edges", "").split(",") if v.strip()]
+    if edges:
+        if np.any(np.diff(edges) <= 0):
+            raise SystemExit("--family-edges must increase")
+        policy = dataclasses.replace(policy, family_edges_hz=tuple(edges))
+    if getattr(args, "rate_bounds", ""):
+        lo, hi = (float(v) for v in args.rate_bounds.split(","))
+        policy = dataclasses.replace(policy, rate_bounds_per_s=(lo, hi),
+                                     initial_rate_per_s=float(np.clip(policy.initial_rate_per_s, lo, hi)))
+    return dataclasses.replace(base, policy=policy)
+
+
 def monotone_profile(w: np.ndarray):
     """c (n,) rising from 0 to 1 and dc/dw (n, n-1) for the softmax step shares e^w / sum e^w."""
     e = np.exp(w - w.max())
@@ -472,6 +488,9 @@ def main():
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
+    ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
+                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue)")
+    ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
                     help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
     ap.add_argument("--shape", default="monotone", choices=["monotone", "free"],
@@ -529,6 +548,7 @@ def main():
         base = dataclasses.replace(base, signal_taper_hz=args.signal_taper)
     if getattr(args, "signal_height_power", 0.0):
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
+    base = _rate_policy(base, args)
     settings = _settings_for(model, args.variant, base)
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
                         shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape)

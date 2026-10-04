@@ -126,6 +126,28 @@ free width per line can remove lines (as in test A of
 comparable by their figures; a fair comparison needs the same line-shape
 freedom on both coupling sets.
 
+## Several decay rates per isotopologue (2026-10-04)
+
+User: release the one-rate-per-isotopologue limit. The solver already splits
+transitions into rate families by frequency (`ParameterPolicy.family_edges_hz`,
+analytic derivatives, D31); fit_joint_series / reliability_series now take
+`--family-edges` and `--rate-bounds` (test: three families per isotopologue,
+Jacobian against finite differences). Fitted transitions of the fast model
+(scratchpad ipa/transitions.py): 13C@C1 at 131.8-138.7 Hz (plus low
+frequencies < 6 Hz), methyl 13C at 117-130 Hz and 235-256 Hz (plus < 17 Hz).
+
+- Level 1, edges 50, 190 Hz: per isotopologue one rate below 50 Hz, one for the
+  J band, one for the 2J band (3 x 2 rates).
+- Level 2, edges 50, 118.5, 121, 123.5, 126, 128.8, 131, 132.7, 134.2, 136,
+  137, 138, 190, 241, 245.5, 249.8, 253.5 Hz: one rate per line cluster (18
+  families per isotopologue; empty families have no effect).
+
+Rate bounds 0.2-15 1/s (T2* >= 67 ms, so a line cannot be switched off by an
+extreme width). Seeds: this fit's J and the 9.22 reference J (same line-shape
+freedom for both), 14 perturbed starts (spread 1 Hz), seed 73, outputs
+runs/processed/ipa_fast_fam1 and ipa_fast_fam2. Started 2026-10-04.
+Results: pending.
+
 ## Conclusion
 
 The carbon-skeleton couplings of isopropylamine are the same in both exchange

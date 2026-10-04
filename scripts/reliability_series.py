@@ -82,6 +82,8 @@ def build_joint(args):
         base = dataclasses.replace(base, signal_taper_hz=args.signal_taper)
     if getattr(args, "signal_height_power", 0.0):
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
+    from fit_joint_series import _rate_policy
+    base = _rate_policy(base, args)
     settings = _settings_for(model, args.variant, base)
     shared = [n.strip() for n in getattr(args, "shared", "").split(",") if n.strip()]
     joint = JointSeries(model, settings, obs, [e["x"] for e in series], shared=shared)   # shared: held per refit
@@ -215,6 +217,8 @@ def main():
     ap.add_argument("--real-only", type=_flag, default=True, help="true (default) or false: complex spectra")
     ap.add_argument("--shared", default="", help="spectrum parameters shared by all spectra, as in fit_joint_series")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"], help="as in fit_joint_series")
+    ap.add_argument("--family-edges", default="", help="as in fit_joint_series")
+    ap.add_argument("--rate-bounds", default="", help="as in fit_joint_series")
     ap.add_argument("--structure", required=True)
     ap.add_argument("--couplings", default="{}")
     ap.add_argument("--variant", default="ratios")

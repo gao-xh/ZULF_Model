@@ -132,6 +132,34 @@ class JointSeriesTests(unittest.TestCase):
                                    for e in np.eye(len(z))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
+    def test_rate_families_from_the_command_line_and_jacobian(self):
+        import argparse
+        from fit_joint_series import _rate_policy
+        base = RefineSettings(band_weighting="none", background_order=-1)
+        out = _rate_policy(base, argparse.Namespace(family_edges="120,160", rate_bounds="0.2,8"))
+        self.assertEqual(out.policy.family_edges_hz, (120.0, 160.0))
+        self.assertEqual(out.policy.rate_bounds_per_s, (0.2, 8.0))
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", out)
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.25)
+        rng = np.random.default_rng(11)
+        obs = [ObservedSpectrum.from_spectrum(f, rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)),
+                                              [(100.0, 300.0)], record=acq)]
+        joint = JointSeries(model, settings, obs, [1.0], shape="free")
+        rates = [n for n in joint.local if "log_rate" in n]
+        self.assertEqual(len(rates), 3 * len(model.component_labels))     # three families per isotopologue
+        table, xs = self._table(joint)
+        z = joint.pack(table, xs)
+        for i, n in enumerate(joint.local):                                # distinct rates per family
+            if "log_rate" in n:
+                z[joint.nt + i] = np.log(0.5 + 0.7 * i)
+        jac = joint.jacobian(z)
+        h = 1e-6
+        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                   for e in np.eye(len(z))])
+        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+
     @staticmethod
     def _table(joint):
         table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])
