@@ -146,7 +146,35 @@ Rate bounds 0.2-15 1/s (T2* >= 67 ms, so a line cannot be switched off by an
 extreme width). Seeds: this fit's J and the 9.22 reference J (same line-shape
 freedom for both), 14 perturbed starts (spread 1 Hz), seed 73, outputs
 runs/processed/ipa_fast_fam1 and ipa_fast_fam2. Started 2026-10-04.
-Results: pending.
+
+| rates | best total | relative residual | from the 9.22 J | next best |
+|---|---|---|---|---|
+| one per isotopologue (above) | 0.1456 | 0.376 | 0.48 (free) | 0.3178 |
+| level 1 (3 per isotopologue), 16 starts, 680 s | 0.1069 | 0.323 | 0.4648 | 0.2908 |
+| level 2 (one per line cluster), 16 starts, 2731 s | **0.0500** | **0.223** | 0.5413 | 0.1402 |
+
+Couplings move by at most 0.16 Hz from the one-rate fit (level 2: 1J(CH)
+133.50, 1J(CH3) 124.41, 3J(H,H) 5.95, 2J(C1,H2) -4.08, 2J(C2,H1) -1.47,
+3J(C2,H3) 5.20 Hz). Started from the 9.22 reference J with the same freedom,
+the fit ends 9-11 x higher, so the better figure on the slides was the line
+shapes, not the couplings.
+
+Level-2 rates of the families that hold lines (1/s): 13C at C1 131.8-132.0 Hz
+3.12, 133.3-133.45 Hz 1.33, 134.8-134.9 Hz 2.05, 136.6 Hz 2.35, 137.2 Hz
+1.67, 138.7 Hz 2.77; methyl 13C J band 117.1 Hz 2.82, 119.6-119.8 Hz 1.78,
+122.0-122.7 Hz 3.10, 124.8 Hz 1.82, 127.2-127.7 Hz 2.78, 129.9 Hz 3.08; 2J
+band 235-240 Hz 7.11, 242-245 Hz 4.77, 246-248.5 Hz 4.81, 251-253 Hz 5.45,
+254-256 Hz 5.28. No rate of a family with lines in the fit ranges is at a
+bound (the methyl family below 50 Hz is at 14.7, outside the fit ranges and
+undetermined; empty families do nothing). The 2J-band lines decay about twice
+as fast as the J-band lines of the same isotopologue (1.8-3.1 against
+4.8-7.1 1/s); within the methine 1.3-3.1 1/s. A transition-dependent
+relaxation is expected physically (rates depend on the eigenstates of each
+coherence; residual-field broadening scales with each line's g factor), so
+the frequency families are an empirical stand-in for a relaxation model.
+Remaining misfits: the 121.6 / 122.3 Hz pair (sharp dip between them in the
+data), a feature at 239.4 Hz and the 117 Hz shoulder. Figures
+runs/processed/ipa_fast_fam{1,2}/spectrum_fit.png.
 
 ## Conclusion
 
@@ -158,8 +186,10 @@ slow model is not evidence of slow exchange; it can absorb line-shape errors.
 
 ## Open points
 
-- Line widths: lines of different width within one isotopologue (an intermediate
-  N-H exchange rate would broaden lines unevenly; or a Gaussian/Voigt part).
+- Line widths: done empirically with frequency families (above); next a
+  physical relaxation model with few parameters (residual-field g-factor
+  broadening, a random-field / dipolar rate, N-H exchange).
+- Slow-exchange variant with rate families (does the 13 % gain survive?).
 - Exchange rate fitted for the NH2 group (Liouville model, D45).
 - Uncertainty budget as for the pyridine series.
 

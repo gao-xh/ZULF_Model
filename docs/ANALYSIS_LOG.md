@@ -1309,3 +1309,6 @@ skills under `skills/`; this file keeps the history.
   rows), fast vs slow N-H exchange; docs/analysis/2026-10-03_isopropylamine_complex-fit.md. 1J(CH) 133.4, 1J(CH3)
   124.4, 3J(H,H) 6.1 Hz in both regimes; slow (nested start) 13 % lower but with N-H couplings < 1 Hz and no clear
   15N line: no resolved NH2. Lesson (skill): start the slow variant nested from the fast fit.
+- 2026-10-04: isopropylamine with decay-rate families (--family-edges): one rate per line cluster lowers the total
+  0.146 -> 0.050 (residual 0.376 -> 0.223), J within 0.16 Hz; the 9.22 reference J with the same freedom ends at
+  0.54. 2J-band lines decay ~2x faster than the J band.
