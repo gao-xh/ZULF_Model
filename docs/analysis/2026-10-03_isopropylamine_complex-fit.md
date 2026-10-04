@@ -176,6 +176,24 @@ Remaining misfits: the 121.6 / 122.3 Hz pair (sharp dip between them in the
 data), a feature at 239.4 Hz and the 117 Hz shoulder. Figures
 runs/processed/ipa_fast_fam{1,2}/spectrum_fit.png.
 
+## The 121.69 / 122.28 Hz pair (2026-10-04)
+
+User: check from the simulation whether the pair exists. Data (crop 0.1 s, real
+part): maxima 121.69 (0.56) and 122.28 Hz (0.99 of the band maximum), dip
+121.97 Hz (0.20 at 0.3 1/s; 0.07 with the full record and no window: two
+separate narrow lines). Fitted model (level 2): methyl-13C transitions at
+121.85 (0.58), 122.00 (0.47) and 122.68 Hz (0.26); with narrow lines (all
+rates 0.3 1/s) they form a strong peak near 122.1 and a weak one near 122.45 Hz
+with a dip between (runs/processed/ipa_fast_fam2/doublet_122.png; scratchpad
+ipa/doublet.py). The model has a doublet there, 0.3 Hz too high and with the
+intensities reversed; line widths cannot fix positions.
+
+df/dJ of the three lines: 2J(C2,H1) -0.26 / -0.11 / +0.07, 3J(C2,H3)
+-0.26 / -0.30 / -0.43, 3J(H1,H2) -0.21 / -0.11 / +0.20, and the methyl-methyl
+4J(H,H) -0.27 / -0.48 / -0.84 Hz per Hz. That coupling is not in the motif and
+was fixed at 0. Running: level-2 fit with 4J(H2,H3) free (starts -0.8, 0,
++0.8 Hz from the level-2 best), runs/processed/ipa_fast_fam2_4j.
+
 ## Conclusion
 
 The carbon-skeleton couplings of isopropylamine are the same in both exchange

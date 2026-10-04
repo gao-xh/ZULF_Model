@@ -280,6 +280,32 @@ fixed, so later phases are experiments rather than restructuring.
       isotopomer (14N relaxation) on the real spectra; ask for the raw FIDs and processing of the series.
 - [ ] Correct long-range C-H literature values (Shiner and Wyllie 1973) as prior centres.
 
+## Phase 3e: fine structure (local refinement, then global; user 2026-10-04)
+
+Motivation: on isopropylamine (docs/analysis/2026-10-03_isopropylamine_complex-fit.md) the global fit with one
+rate per line cluster reproduces both bands, but not the 121.69 / 122.28 Hz pair with its near-baseline dip
+(full record): the fitted transitions 121.85 / 122.00 / 122.68 Hz form a doublet 0.3 Hz too high with the
+intensities reversed. Such fine structure carries the small couplings; a global residual is dominated by the
+tall lines and barely sees it.
+
+- [ ] Residual-driven region finder: windows where the residual is structured (sharp peaks or dips the model
+      misses, e.g. a data valley the model fills), with the transitions that fall there and their df/dJ
+      (zulf_core.physics.derivatives) to name the couplings that can move them.
+- [ ] Local refinement: fit a narrow window (1-3 Hz around the feature) on the highest-resolution data (full
+      record, no window, more zero fill), free only the sensitive couplings plus local widths / phase, everything
+      else held; multi-start inside the local window (local minima are cheap to enumerate there).
+- [ ] Propagate: each local candidate becomes a global start; accept it only if the global objective (all
+      bands) improves, else report the conflict (the feature wants J that the rest of the spectrum rejects:
+      a model error such as a missing coupling or species).
+- [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
+      a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
+- [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them
+      where the global fit alone does not?), and frozen prediction of independent scan groups (as in the 9.22
+      analysis).
+- [ ] Fixed-by-default couplings: list every coupling the template leaves unspecified (fixed at 0, e.g. the
+      methyl-methyl 4J(H,H) of isopropyl) with its largest |df/dJ| in the fit bands; free the ones that move
+      lines by more than a line width.
+
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
 - [ ] Train CNN+Transformer; compare (a) graph search, (b) CNN set, (c)
