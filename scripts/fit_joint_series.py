@@ -132,6 +132,8 @@ class JointSeries:
         self.peak_strength = 0.0
         self.res_windows = None                   # per spectrum: residual-vector indices of residual-peak windows
         self.res_strength = 0.0
+        self.trace = None                         # list collecting (stage, cost, z) at every residual evaluation
+        self.trace_label = ""
 
     def set_peak_penalty(self, strength, prominence=0.12, tolerance_hz=0.15, min_sigma=2.0, smooth=0.0):
         """Missing-peak rows: for every data peak top (prominence >= `prominence` times the largest abs value and
@@ -297,7 +299,10 @@ class JointSeries:
         ks, mean, scale = self.priors
         if ks:
             parts.append((np.array([values[k].mean() for k in ks]) - mean) * scale)
-        return np.concatenate(parts)
+        out = np.concatenate(parts)
+        if self.trace is not None:
+            self.trace.append((self.trace_label, float(out @ out), np.array(z, float)))
+        return out
 
     def jacobian(self, z):
         values = [self.coupling_values(z, k) for k in range(self.nc)]
@@ -569,6 +574,33 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200, real
 _JOINT_TASK = None
 
 
+def _write_trace(out, joint, series, trace, z_final, frames, key_of, origin):
+    """Fit trace for a viewer (scripts/trace_view.py): up to `frames` evaluations of the recorded path (evenly
+    spread, first and last included, plus the final solution), each with the model spectra, the couplings and the
+    objective. Saved as OUT/trace.npz (arrays) and OUT/trace.json (labels, couplings, objective)."""
+    if not trace:
+        return
+    out.mkdir(parents=True, exist_ok=True)
+    picks = sorted(set(np.linspace(0, len(trace) - 1, min(frames, len(trace))).round().astype(int).tolist()))
+    entries = [trace[i] for i in picks] + [("final", float(np.sum(joint.residual(z_final) ** 2)), z_final)]
+    data, meta = {}, {"origin": origin, "evaluations": len(trace), "frames": []}
+    for s, (e, f) in enumerate(zip(series, joint.forwards)):
+        data[f"f{s}"] = f.f
+        data[f"y{s}"] = f.y
+    models = [[] for _ in joint.forwards]
+    for i, (label, cost, zz) in zip(picks + [len(trace)], entries):
+        values = [joint.coupling_values(zz, k) for k in range(joint.nc)]
+        for s, f in enumerate(joint.forwards):
+            models[s].append(f.predict(joint.spectrum_vector(zz, s, values)).model)
+        meta["frames"].append({"evaluation": int(i), "stage": label, "objective": cost,
+                               "J": {key_of.get(n, n): values[k].tolist() for k, n in enumerate(joint.coupling)}})
+    for s, m in enumerate(models):
+        data[f"model{s}"] = np.array(m)
+    meta["spectra"] = [{"id": e["id"], "x": e["x"]} for e in series]
+    np.savez_compressed(out / "trace.npz", **data)
+    (out / "trace.json").write_text(json.dumps(meta, indent=1))
+
+
 def _residual_peak_stage(joint, solutions, lower, upper, args):
     """Outer loop on the best candidates: find localized, assignable residual peaks, refit with those windows
     weighted (rows res_strength * r there; windows fixed within a refit), repeat. A broad residual hardly affects
@@ -655,6 +687,10 @@ def _solve_start(z):
     of the smoothing schedule in turn (coarse to fine; the last level is always unsmoothed); returns the score of
     the unsmoothed objective."""
     joint, lower, upper, max_nfev, schedule, scan, hold_small = _JOINT_TASK
+    tracing = joint.trace is not None
+    if tracing:
+        joint.trace = []
+        joint.trace_label = "hold small couplings" if hold_small else "start"
     if hold_small:
         # stage 1: every small coupling (level, change and shape) held at its start; 1J, rates and delays free
         lo_h, hi_h = lower.copy(), upper.copy()
@@ -670,9 +706,13 @@ def _solve_start(z):
         z = _coordinate_scan(joint, z, lower, upper, max_nfev, **scan)
     for sigma in list(schedule) + [0.0]:
         joint.set_smoothing(sigma)
+        if tracing:
+            joint.trace_label = f"smoothing {sigma:g} Hz" if sigma else "fit"
         sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
                             max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
         z = sol.x
+    if tracing:
+        return float(2 * sol.cost), sol.x, joint.trace
     return float(2 * sol.cost), sol.x
 
 
@@ -732,6 +772,9 @@ def main():
                     help="residual peaks: a model transition within this distance (Hz) makes a peak assignable")
     ap.add_argument("--residual-peak-rounds", type=int, default=3)
     ap.add_argument("--residual-peak-candidates", type=int, default=3)
+    ap.add_argument("--trace", type=int, default=0,
+                    help="record the fit path of the best start (and the residual-peak stage) as up to this many "
+                         "frames: OUT/trace.npz + trace.json for scripts/trace_view.py (0 = off)")
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
     ap.add_argument("--hold-small-first", action="store_true",
@@ -881,12 +924,16 @@ def main():
     scan = ({"cycles": args.scan_cycles, "half_width": args.scan_half_width, "step": args.scan_step,
              "seed": args.seed} if args.scan_cycles else None)
     _JOINT_TASK = (joint, lower, upper, args.max_nfev, schedule, scan, args.hold_small_first)
+    if args.trace:
+        joint.trace = []                          # each start collects its own (worker processes fork this)
     if args.workers > 1:
         import multiprocessing
         with multiprocessing.get_context("fork").Pool(args.workers) as pool:
             solved = pool.map(_solve_start, starts, chunksize=1)
     else:
         solved = [_solve_start(z) for z in starts]
+    traces = [t[2] for t in solved] if args.trace else None
+    solved = [(t[0], t[1]) for t in solved]
     solutions = []
     for k, (score, x) in enumerate(solved):
         solutions.append((score, x))
@@ -904,9 +951,20 @@ def main():
     solutions.sort(key=lambda s: s[0])
     score, z = solutions[0]
     residual_peak_record = None
+    stage_trace = []
     if args.residual_peaks > 0:
+        if args.trace:
+            joint.trace = stage_trace
         solutions, residual_peak_record = _residual_peak_stage(joint, solutions, lower, upper, args)
         score, z = solutions[0]
+        joint.trace = None
+    if args.trace:
+        best_start = next((k for k, (_, x) in enumerate(solved)
+                           if any(np.array_equal(x, zz) for _, zz in solutions[:1])), None)
+        if best_start is None:          # chosen in the residual-peak stage: show its refit after the best start
+            best_start = int(np.argmin([sc for sc, _ in solved]))
+        _write_trace(Path(args.out), joint, series, traces[best_start] + stage_trace, z, args.trace, key_of,
+                     f"start {best_start}")
     r = joint.residual(z)
     jac = joint.jacobian(z)
     dof = max(len(r) - len(z), 1)
