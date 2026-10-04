@@ -55,11 +55,14 @@ docs (`physics.transitions`, `render.phasing`, `solver.search`) refer to
 
 ## Package map
 
+The fitting workflow and its algorithms, step by step: docs/WORKFLOW.md.
+
+
 | Module | Responsibility | Depends on |
 | --- | --- | --- |
 | `zulf_core.nuclei` | Extensible nucleus registry: symbol, spin quantum number, gamma. | - |
 | `zulf_core.spinsystem` | `SpinSystem`, `Component`, `Interpretation`; validation, equivalence groups, permutations, matching, JSON. | nuclei |
-| `zulf_core.physics` | Spin operators, collective-spin sectors, zero-field Hamiltonian, transition lists (frequency, complex amplitude), their derivatives with respect to group couplings, observation protocol; chemical exchange with a solvent pool in the rank-1 Liouville subspace (`physics.exchange`, lines with intrinsic decay, analytic derivatives, optional torch/GPU backend, D45). | spinsystem |
+| `zulf_core.physics` | Spin operators, collective-spin sectors, zero-field Hamiltonian, transition lists (frequency, complex amplitude), their derivatives with respect to group couplings, observation protocol; chemical exchange with a solvent pool in the rank-1 Liouville subspace (`physics.exchange`, lines with intrinsic decay, analytic derivatives, optional torch/GPU backend, D45); line tables (`physics.lines`: per line df/dJ, the exact split f = sum J df/dJ, second-order and cross terms). | spinsystem |
 | `zulf_core.render` | Acquisition and the single preprocessing operator; exact analytic and NUFFT rendering of transition lists through that operator; grids; phasing. | physics |
 | `zulf_model.render` | Training-data synthesis: perturbations, sample pipeline, model input features (re-exports `zulf_core.render`). | zulf_core |
 | `zulf_model.generator` | Molecule-like heavy-atom graphs, rule-based J assignment, isotopologue enumeration, random-J mode, sample specification, family-based splits, shard storage. | spinsystem, physics, render |

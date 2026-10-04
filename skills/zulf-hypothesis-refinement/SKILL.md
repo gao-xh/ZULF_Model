@@ -220,3 +220,21 @@ is not evidence.
   `docs/analysis/README.md` and a one-line entry to `docs/ANALYSIS_LOG.md`.
 - The fitting scripts write `RUN_LOG.md` (command, commit, times, results)
   into their output directory; cite it in the analysis log.
+
+## Fine structure: from a misfit to the couplings (docs/WORKFLOW.md, section 8)
+
+Use occasionally or as the last step, not inside every fit.
+
+- `scripts/line_table.py --structure ... --fit RUN/fit.json --band lo,hi [--second-order]`: every line with df/dJ
+  and the exact split f = sum J df/dJ (zero and tied couplings included). Couplings fixed at 0 by the template
+  show up here with their df/dJ: free them when they move lines by more than a line width.
+- Second-order terms are for the report; near-degenerate lines (another line within 0.1 Hz) need an exact
+  recomputation, not a Taylor step (isopropylamine 122.13 / 122.15 Hz: 1 Hz step off by 0.15 Hz at 2nd order).
+- `JointSeries.find_residual_peaks` (both signs, prominence over a robust local noise, narrow, assignable only
+  with a model line within 0.6 Hz), `peak_sources` (rank couplings by `split` for a dip or a doublet, by `shift`
+  for a displaced line; a one-bond coupling only shifts), `local_fit` (window-only forward, few free parameters,
+  fast), then a global refit that must improve the global objective.
+- The residual-peak stage (`--residual-peaks`) still lets assignability flip between rounds and may accept a
+  large plain-objective loss; check `fit.json["residual_peaks"]` (rounds, scores) before using its choice.
+- `--trace N` and `scripts/trace_view.py RUN` to watch a fit step by step (slider).
+

@@ -288,23 +288,26 @@ rate per line cluster reproduces both bands, but not the 121.69 / 122.28 Hz pair
 intensities reversed. Such fine structure carries the small couplings; a global residual is dominated by the
 tall lines and barely sees it.
 
-- [ ] Residual-driven region finder: windows where the residual is structured (sharp peaks or dips the model
+- [x] Residual-driven region finder (JointSeries.find_residual_peaks; peak_sources with shift / split / selectivity; commits 8430327, 7b6417b, 737265a): windows where the residual is structured (sharp peaks or dips the model
       misses, e.g. a data valley the model fills), with the transitions that fall there and their df/dJ
       (zulf_core.physics.derivatives) to name the couplings that can move them.
-- [ ] Local refinement: fit a narrow window (1-3 Hz around the feature) on the highest-resolution data (full
+- [x] Local refinement (JointSeries.local_fit, window forward with line_band_hz and jacobian_only: 26 x faster Jacobian; commits 109cf89, 1e7894b): fit a narrow window (1-3 Hz around the feature) on the highest-resolution data (full
       record, no window, more zero fill), free only the sensitive couplings plus local widths / phase, everything
       else held; multi-start inside the local window (local minima are cheap to enumerate there).
-- [ ] Propagate: each local candidate becomes a global start; accept it only if the global objective (all
+- [~] Propagate (residual-peak stage in fit_joint_series; to fix: sticky windows judged on the starting transitions, cap on the plain-objective loss; local-candidate -> global refit as an option): each local candidate becomes a global start; accept it only if the global objective (all
       bands) improves, else report the conflict (the feature wants J that the rest of the spectrum rejects:
       a model error such as a missing coupling or species).
+- [x] Line table (zulf_core.physics.lines, scripts/line_table.py; commits 2dc4c16, 5de437e): exact split of every
+      line into coupling contributions (Euler), df/dJ, second-order and cross terms, near-degenerate flag.
+- [x] Fit trace and slider viewer (fit_joint_series --trace, scripts/trace_view.py; commit b5ef7fa).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
       a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
 - [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them
       where the global fit alone does not?), and frozen prediction of independent scan groups (as in the 9.22
       analysis).
-- [ ] Fixed-by-default couplings: list every coupling the template leaves unspecified (fixed at 0, e.g. the
-      methyl-methyl 4J(H,H) of isopropyl) with its largest |df/dJ| in the fit bands; free the ones that move
-      lines by more than a line width.
+- [x] Fixed-by-default couplings: list every coupling the template leaves unspecified (fixed at 0) with its
+      |df/dJ| (line_table reports zero couplings); free those that move lines by more than a line width
+      (isopropylamine methyl-methyl 4J(H,H) freed: +0.19 Hz, total -5 %).
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
