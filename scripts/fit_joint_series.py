@@ -328,7 +328,8 @@ class JointSeries:
 
     def find_residual_peaks(self, z, k_sigma=4.0, half_width_hz=0.3, assign_hz=0.6, noise_window_hz=5.0,
                             max_width_hz=1.5, min_relative_amplitude=0.02):
-        """Localized residual peaks: |model - data| (complex magnitude of the weighted residual) standing out by
+        """Localized residual peaks of either sign: |model - data| (complex magnitude of the weighted residual, so a
+        model line too tall or a filled data dip counts as much as a missing line) standing out by
         k_sigma (prominence) above its surroundings, in units of a robust local noise level (1.4826 MAD of the real and imaginary residual within +-noise_window_hz), narrower
         than max_width_hz at half height. Broad, spread-out residual is not a peak. A peak is assignable when a
         model transition (|amplitude| >= min_relative_amplitude of its component's largest) lies within assign_hz:
@@ -367,7 +368,10 @@ class JointSeries:
             for t, h in zip(tops, props["prominences"]):
                 fp = float(f.f[t])
                 near = lines[np.abs(lines - fp) <= assign_hz] if len(lines) else lines
+                # sign of the real (absorption) residual at the top: model above the data (+, e.g. a dip the model
+                # fills, a line too tall) or below it (-, e.g. a data line the model misses); both are peaks of |r|
                 report.append({"spectrum": s, "frequency_hz": round(fp, 3), "height_sigma": round(float(h), 1),
+                               "sign": "model above data" if rc[t].real > 0 else "model below data",
                                "assignable": bool(len(near)), "nearest_transition_hz":
                                round(float(near[np.argmin(np.abs(near - fp))]), 3) if len(near) else None})
                 if len(near):

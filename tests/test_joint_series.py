@@ -180,6 +180,8 @@ class JointSeriesTests(unittest.TestCase):
         far = float(np.clip(lines.max() + 15.0, 110, 295))  # one far from every model line: reported only
         rng = np.random.default_rng(12)
         extra = sum(0.3 * np.abs(sig).max() / (1 + ((f - c) / 0.05) ** 2) for c in (near, far))
+        dip = float(lines[-1]) - 0.2                    # a negative feature (data below the model) next to a line
+        extra = extra - 0.3 * np.abs(sig).max() / (1 + ((f - dip) / 0.05) ** 2)
         broad = 0.05 * np.abs(sig).max() * np.exp(-((f - 200.0) / 15.0) ** 2)     # spread-out misfit
         y = sig + extra + broad + 1e-4 * np.abs(sig).max() * (rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)))
         obs = [ObservedSpectrum.from_spectrum(f, y, [(100.0, 300.0)], record=acq)]
@@ -191,6 +193,9 @@ class JointSeriesTests(unittest.TestCase):
         self.assertTrue(any(abs(k - near) < 0.1 and v for k, v in found.items()), msg=str(report))
         self.assertTrue(any(abs(k - far) < 0.1 and not v for k, v in found.items()), msg=str(report))
         self.assertFalse(any(abs(k - 200.0) < 5.0 for k in found), msg=str(report))       # the broad bump: no peak
+        signs = {round(r["frequency_hz"], 1): r["sign"] for r in report}
+        self.assertTrue(any(abs(k - dip) < 0.1 and v == "model above data" for k, v in signs.items()), msg=str(report))
+        self.assertTrue(any(abs(k - near) < 0.1 and v == "model below data" for k, v in signs.items()), msg=str(report))
         self.assertGreater(len(windows[0]), 0)
         joint.res_windows, joint.res_strength = windows, 3.0
         jac = joint.jacobian(z)
