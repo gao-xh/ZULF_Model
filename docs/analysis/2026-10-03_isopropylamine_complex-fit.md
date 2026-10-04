@@ -266,6 +266,100 @@ Speed (isopropylamine, one thread): full model 0.08 s, full Jacobian 5.4 s
 isotopologues); window forward 0.006 s, Jacobian 0.86 s with the line band
 and 0.21 s with only the free columns.
 
+## NH2 protons and the 15N isotopologue (2026-10-04)
+
+User: add the NH2 protons (slow or intermediate N-H exchange: they couple to
+the methyl-13C cluster and can split it) and the 15N isotopologue. Slow model:
+NH2 protons kept, 15N@N1 added at natural abundance (gain ratio 0.34 to
+13C@C1, fixed by the "ratios" gain model), new couplings J(C2,HN1) (3J
+C2-C1-N-H), J(HC1,HN1) (3J H-C-N-H), J(HC2,HN1) (4J), J(C1,HN1) (2J; acts
+only on the 13C@C1 lines near 133 Hz, since C1 is 12C in the methyl-13C
+isotopologue), J(N1,HN1) start -65, J(N1,HC1) -1, J(N1,HC2) +1 Hz; the rest
+from the fast best (ipa_fast_fam2_4j, 0.0475); level-2 rate families.
+
+Line table first (scripts/line_table.py): with the NH couplings at 0 the 122 Hz
+lines are unchanged; with J(C2,HN1) 3, J(HC1,HN1) 6, J(C1,HN1) -3,
+J(HC2,HN1) 0.5 Hz the methyl lines split into many lines over 120.7-123.2 Hz.
+The 15N lines lie at 94-99 Hz (1J(N,H) x 3/2), none near 122 Hz.
+
+Nested baseline (NH couplings 0): total 0.0743 against 0.0475. The 122 Hz
+window is unchanged (0.0264 / 0.0260); the whole loss lies at 95-100 Hz
+(cost per 5 Hz bin 0.018 against 0.000; scratchpad ipa/slow_where.py), where
+the 15N isotopologue puts sharp lines at natural abundance and the data have
+none. So the 1J(15N,H) of about 65 Hz is averaged (or broadened away) by N-H
+exchange, and couplings of a few Hz to the NH protons would be averaged even
+more.
+
+Test 1 (with 15N; scratchpad ipa/local122_slow.py): local fit of 120.9-123.4
+Hz with the three NH couplings and the split-type couplings 4J(H2,H3),
+3J(H1,H2), 2J(C2,H1), 3J(C2,H3) and the two methyl rate families free, 24
+starts (527 s). Window cost 0.0021 against 0.0264 (-92 %) with J(C2,HN1)
+-1.33, J(HC1,HN1) 4.41, J(HC2,HN1) -0.56, 3J(H1,H2) 5.07, 3J(C2,H3) 5.43 Hz:
+the pair and the dip are reproduced (ipa/local122_slow_best.png). In the full
+model (one set of gains for the whole spectrum) the same values give 0.98: the
+pair keeps its shape but not its height, the methine lines at 126-140 Hz break
+(J(HC1,HN1) and 3J(H1,H2) also act on 13C@C1). Global refits, all free:
+
+| global total | window | J(C2,HN1) | J(HC1,HN1) | J(HC2,HN1) | 3J(H1,H2) | 2J(C2,H1) |
+|---|---|---|---|---|---|---|
+| 0.0475 (fast best) | 0.0260 | - | - | - | 5.94 | -1.57 |
+| 0.0743 (slow, NH = 0) | 0.0264 | 0 | 0 | 0 | 5.94 | -1.57 |
+| 0.2857 | 0.0203 | 4.00 | -0.39 | 0.93 | 5.53 | -5.65 |
+| 0.3182 | 0.0546 | -3.55 | 4.19 | 0.26 | 6.04 | -4.43 |
+| 0.3968 | 0.0319 | -3.36 | 1.84 | -0.29 | 7.56 | -1.24 |
+| 0.6645 | 0.0219 | -1.06 | 4.36 | -0.59 | 4.94 | -0.81 |
+
+Test 2 (15N left out with min_ratio 0.3, only the three NH couplings and the
+two methyl rate families free in the window, the C-H / H-H couplings held at
+the fast best; scratchpad ipa/nh_only.py). The nested start equals the fast
+best exactly (0.0475 / 0.0260). Local fit, 24 starts (301 s): best window cost
+0.0198 (window forward) with J(C2,HN1) -3.38, J(HC1,HN1) 9.50, J(HC2,HN1)
+-1.12 Hz: the NH couplings alone do not open the pair. Global refits:
+
+| start | start total | global total | window | J(C2,HN1) | J(HC1,HN1) | J(HC2,HN1) | J(C1,HN1) |
+|---|---|---|---|---|---|---|---|
+| NH = 0 | 0.0475 | 0.0475 | 0.0260 | 0.00 | 0.00 | 0.00 | 0.00 |
+| local 0.0198 | 0.8500 | 0.1573 | 0.0359 | -3.29 | 9.46 | -1.26 | -0.36 |
+| local 0.0274 | 0.9020 | 0.1690 | 0.0194 | -0.82 | 4.62 | -0.95 | -0.68 |
+| local 0.0542 | 0.6194 | 0.1994 | 0.0352 | -3.72 | -2.40 | 0.58 | 0.04 |
+
+Every refit with nonzero NH couplings ends 3.3-4.2 x above the fast best.
+From NH = 0 the optimizer does not move: a coupling between an otherwise
+uncoupled proton and the rest splits every line symmetrically, so the spectrum
+is stationary in it at 0 (zero gradient) and a fit started there stays there;
+nonzero starts are needed (they were given here and also lose).
+
+Line width (user: narrow the lines of this peak; scratchpad ipa/narrow122.py,
+ipa/narrow122.png). Fast best, only the 121-123.5 Hz rate family of 13C@C2
+changed, gains / phase / background re-solved:
+
+| R (1/s) | FWHM (Hz) | window | total |
+|---|---|---|---|
+| 3.16 (fitted) | 1.01 | 0.0260 | 0.0475 |
+| 1.58 | 0.50 | 0.0806 | 0.1218 |
+| 0.79 | 0.25 | 0.1535 | 0.2912 |
+| 0.25 | 0.08 | 0.2017 | 0.5556 |
+
+Narrow lines give one sharp peak at 122.1 Hz (lines 122.127 / 122.153 /
+122.364 Hz), never the pair: the model has no line within 121.5-121.9 Hz, and
+the fitted 1 Hz width is the compromise that covers both data peaks. The pair
+needs a line near 121.7 Hz with the others at 122.2-122.3 Hz, i.e. a position
+change of about 0.6 Hz, not a width change.
+
+Two lessons for the local stage. (1) The window forward solves gains, phase
+and background again on the window; its cost is not the full-model window cost
+(test 2: local 0.0198, the same values in the full model 0.122 in the window),
+so local gains overstate what survives globally. Hold the gains and phase at
+the global values in the local fit (or fit only one scale). (2) Couplings
+starting at 0 to an uncoupled group need nonzero starts (stationary point).
+
+Result: neither the NH2 protons nor the 15N isotopologue explain the 121.69 /
+122.28 Hz pair. 15N: lines at 94-99 Hz, absent from the data (evidence for
+exchange averaging of the N-H couplings). NH2: they can reproduce the window
+only together with changes of the C-H / H-H couplings that the rest of the
+spectrum rejects (best global 0.157 against 0.0475), and they are physically
+unlikely when the 65 Hz 15N-H coupling is averaged.
+
 ## Conclusion
 
 The carbon-skeleton couplings of isopropylamine are the same in both exchange
@@ -274,13 +368,23 @@ structure: no clear 15N line and N-H couplings under 1 Hz, consistent with
 fast (or intermediate) N-H exchange in the neat amine. The 13 % gain of the
 slow model is not evidence of slow exchange; it can absorb line-shape errors.
 
+The 121.69 / 122.28 Hz pair stays unexplained: not the couplings of the fast
+model, not 4J(H2,H3), not the NH2 protons, not the 15N isotopologue (absent
+lines at 94-99 Hz), not the line width (narrow lines give one peak at 122.1
+Hz). Left: line-shape physics beyond one rate per family, a second species or
+an impurity line.
+
 ## Open points
 
 - Line widths: done empirically with frequency families (above); next a
   physical relaxation model with few parameters (residual-field g-factor
   broadening, a random-field / dipolar rate, N-H exchange).
-- Slow-exchange variant with rate families (does the 13 % gain survive?).
+- Slow-exchange variant with rate families: done (2026-10-04); with the 15N
+  isotopologue it loses (0.0743), without it the NH couplings stay at 0.
 - Exchange rate fitted for the NH2 group (Liouville model, D45).
 - Uncertainty budget as for the pyridine series.
+- Local fit with the gains and phase held at the global values (lesson above).
+- 122 Hz pair: impurity / second species check (other amine spectra, a
+  spectrum of the same sample at another time).
 
 Commit: see git log (this file).

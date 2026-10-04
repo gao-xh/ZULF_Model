@@ -159,6 +159,13 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
    free, everything else held; a forward model of the window points alone that renders only transitions within
    the window +- 2 Hz and computes only the needed Jacobian columns (isopropylamine window: Jacobian 0.21 s
    against 5.4 s for the full model). Multi-start inside the window is cheap.
+   Caveats (isopropylamine NH2 test): the window forward solves gains, phase and background again on the window,
+   so its cost overstates what survives in the full model (local 0.0198, the same couplings 0.122 in the full
+   model window); to do: hold gains and phase at the global values. A coupling started at 0 between an
+   otherwise uncoupled group and the rest (NH2 protons added to a fast-exchange solution) is a stationary
+   point (symmetric splitting, zero gradient): give it nonzero starts.
+   Width before position: if narrowing the lines of the feature (one rate family) gives one peak where the data
+   have two, the misfit is a line position, not a width.
 5. Back to global. Every local candidate becomes a global start; it is accepted only if the global objective
    improves (and, with residual-peak rows, on one common window set). A feature whose local optimum the rest of
    the spectrum rejects points to a model error (missing coupling, species or line-shape physics), to be reported.

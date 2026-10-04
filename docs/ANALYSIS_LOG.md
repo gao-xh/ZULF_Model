@@ -1319,4 +1319,7 @@ skills under `skills/`; this file keeps the history.
   fit trace viewer; workflow record docs/WORKFLOW.md.
 - 2026-10-04: isopropylamine 122 Hz pair: global refits from the local candidates end 3.4-9 x higher (the window
   optimum, 3J(H1,H2) ~9, 2J(C2,H1) ~-6 Hz, is rejected by the other lines): a model error, not a search failure.
-
+- 2026-10-04: isopropylamine 122 Hz pair, NH2 + 15N test: 15N lines (94-99 Hz) absent from the data (slow model
+  0.0743 against 0.0475); NH couplings fit the window only with C-H / H-H changes the rest rejects (best global
+  0.157); narrowing the lines gives one peak at 122.1 Hz. Lessons: local fit re-solves gains (overstates the
+  gain), couplings started at 0 to an uncoupled group sit at a stationary point.

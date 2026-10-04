@@ -294,6 +294,9 @@ tall lines and barely sees it.
 - [x] Local refinement (JointSeries.local_fit, window forward with line_band_hz and jacobian_only: 26 x faster Jacobian; commits 109cf89, 1e7894b): fit a narrow window (1-3 Hz around the feature) on the highest-resolution data (full
       record, no window, more zero fill), free only the sensitive couplings plus local widths / phase, everything
       else held; multi-start inside the local window (local minima are cheap to enumerate there).
+- [ ] Local fit with gains, phase and background held at the global values (or one free scale): the window
+      forward re-solves them and overstates the local gain (isopropylamine NH2 test: 0.0198 local, 0.122 in
+      the full-model window).
 - [~] Propagate (residual-peak stage in fit_joint_series; to fix: sticky windows judged on the starting transitions, cap on the plain-objective loss; local-candidate -> global refit as an option): each local candidate becomes a global start; accept it only if the global objective (all
       bands) improves, else report the conflict (the feature wants J that the rest of the spectrum rejects:
       a model error such as a missing coupling or species).

@@ -234,6 +234,12 @@ Use occasionally or as the last step, not inside every fit.
   with a model line within 0.6 Hz), `peak_sources` (rank couplings by `split` for a dip or a doublet, by `shift`
   for a displaced line; a one-bond coupling only shifts), `local_fit` (window-only forward, few free parameters,
   fast), then a global refit that must improve the global objective.
+- `local_fit` re-solves gains, phase and background on the window: compare candidates by the full-model window
+  cost, not the local cost. Couplings that start at 0 between an uncoupled group and the rest (protons added
+  when switching fast -> slow exchange) sit at a stationary point: give them nonzero starts.
+- Before blaming couplings for a doublet, narrow the rate family of the feature: one peak where the data have
+  two means a position problem. A species added for a test (e.g. 15N at natural abundance) must not create
+  lines the data do not show; check the cost per frequency bin against the baseline.
 - The residual-peak stage (`--residual-peaks`) still lets assignability flip between rounds and may accept a
   large plain-objective loss; check `fit.json["residual_peaks"]` (rounds, scores) before using its choice.
 - `--trace N` and `scripts/trace_view.py RUN` to watch a fit step by step (slider).

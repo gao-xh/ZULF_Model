@@ -19,4 +19,4 @@ and are not committed.
 | 2026-10-01 | Blake pyridine series | line widths, peak weighting, missing-peak penalty | [2026-10-01_blake-pyridine_peak-penalty.md](2026-10-01_blake-pyridine_peak-penalty.md) |
 | 2026-10-01 | Blake pyridine series | model-free consistency of the spectra (x 0.66 outlier band) | [2026-10-01_blake-pyridine_data-consistency.md](2026-10-01_blake-pyridine_data-consistency.md) |
 | 2026-10-02 | Blake pyridine series | joint fit of the FID-processed spectra (7 points) | [2026-10-02_blake-pyridine_fid-joint-fit.md](2026-10-02_blake-pyridine_fid-joint-fit.md) |
-| 2026-10-03 | isopropylamine (10000-scan average) | complex known-structure fit, fast vs slow N-H exchange | [2026-10-03_isopropylamine_complex-fit.md](2026-10-03_isopropylamine_complex-fit.md) |
+| 2026-10-03 | isopropylamine (10000-scan average) | complex known-structure fit, fast vs slow N-H exchange, rate families, 122 Hz pair (local fit, NH2, 15N, line width) | [2026-10-03_isopropylamine_complex-fit.md](2026-10-03_isopropylamine_complex-fit.md) |
