@@ -1323,3 +1323,6 @@ skills under `skills/`; this file keeps the history.
   0.0743 against 0.0475); NH couplings fit the window only with C-H / H-H changes the rest rejects (best global
   0.157); narrowing the lines gives one peak at 122.1 Hz. Lessons: local fit re-solves gains (overstates the
   gain), couplings started at 0 to an uncoupled group sit at a stationary point.
+- 2026-10-04: other amines (ethylenediamine, triethylamine, N-ethylmethylamine), complex fits with the
+  isopropylamine settings: stage 1 (one rate per isotopologue) 0.101 / 0.312 / 0.313; rate families running.
+  docs/analysis/2026-10-04_amines_complex-fit.md
