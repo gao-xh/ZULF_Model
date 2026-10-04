@@ -1317,4 +1317,6 @@ skills under `skills/`; this file keeps the history.
   fit (window forward, 26 x faster Jacobian) fits the window 79 % better with 3J(H1,H2) 8.2, 2J(C2,H1) -4.4 Hz,
   rejected by the rest of the spectrum before refit. Tools: line table (exact J contributions, 2nd order),
   fit trace viewer; workflow record docs/WORKFLOW.md.
+- 2026-10-04: isopropylamine 122 Hz pair: global refits from the local candidates end 3.4-9 x higher (the window
+  optimum, 3J(H1,H2) ~9, 2J(C2,H1) ~-6 Hz, is rejected by the other lines): a model error, not a search failure.
 

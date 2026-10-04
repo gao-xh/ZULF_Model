@@ -241,7 +241,25 @@ window-only forward with line band +-2 Hz and Jacobian of the free columns:
 scratchpad ipa/local122.py): window cost 0.0054 against 0.0260 (-79 %) with
 4J(H2,H3) 1.43, 3J(H1,H2) 8.18, 2J(C2,H1) -4.41, 3J(C2,H3) 6.18 Hz; held at
 these values the whole spectrum scores 0.92-1.09 (baseline 0.0475): the other
-lines reject them. Global refits from the local candidates: running.
+lines reject them. Global refits (all parameters free) from the four best
+distinct local candidates:
+
+| global total | 122 Hz window cost | 3J(H1,H2) | 2J(C2,H1) | 3J(C2,H3) | 4J(H2,H3) |
+|---|---|---|---|---|---|
+| 0.0475 (baseline) | 0.0260 | 5.94 | -1.57 | 5.07 | 0.19 |
+| 0.1639 | 0.0228 | 9.30 | -6.13 | 5.24 | 2.24 |
+| 0.4198 | 0.0248 | 9.40 | -5.23 | 12.49 | 2.13 |
+| 0.4255 | 0.0260 | 9.41 | -5.25 | 12.49 | 2.15 |
+| 0.4392 | 0.0420 | 8.41 | -4.97 | 5.88 | 1.93 |
+
+Every refit ends 3.4-9 x higher and gives back most of the window gain; the
+window optimum lies in another basin (3J(H1,H2) about 9, 2J(C2,H1) about -6
+Hz, near the 9.22 reference values 7.30 / -7.28) that the rest of the
+spectrum rejects. Within this model (fast exchange, 13C isotopologues, rate
+families) the 121.69 / 122.28 Hz pair cannot be produced by the couplings
+without breaking the other lines: a model error. Candidates: NH2 protons
+(slow or intermediate exchange) coupled to the methyl-13C cluster, the 15N
+isotopologue, a line-shape effect beyond one rate per family, an impurity.
 
 Speed (isopropylamine, one thread): full model 0.08 s, full Jacobian 5.4 s
 (one NUFFT pass per rate family: 40 passes with 18 families x 2
