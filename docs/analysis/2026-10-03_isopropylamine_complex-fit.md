@@ -211,6 +211,43 @@ a far line reported only, a broad misfit ignored, Jacobian). Running on the
 4J-free level-2 solution: strength 3, 1 candidate, 3 rounds,
 runs/processed/ipa_fast_fam2_rp.
 
+Result of the residual-peak run (2684 s): peaks per round 0: 122.13 (9.7 sigma,
+model above data), 133.25, 116.88, 242.58 Hz; 1: 121.67 (model below, not
+assignable: the lines had moved away), 133.67, 116.83; 2: 122.13, 133.25,
+116.88; final: 121.67 (not assignable), 116.83, 124.79. Chosen: the refitted
+solution, plain objective 0.0689 (+45 % against 0.0475), weighted 0.2425
+(-9 %); couplings within 0.15 Hz (1J(CH3) 124.55). The pair is not resolved:
+emptying the dip at 122.1 Hz leaves the data line at 121.69 Hz unmatched. Two
+weaknesses of the stage: assignability flips when lines move (keep windows,
+judged on the starting transitions) and the ranking accepted a large plain
+loss (cap it).
+
+Source attribution (JointSeries.peak_sources; scratchpad ipa/sources.py) of the
+four peaks of the 4J-free solution: 122.12 Hz: methyl-13C lines 122.13 /
+122.15 / 122.36 Hz, split-type couplings 4J(H2,H3) 0.25, 3J(H1,H2) 0.20,
+2J(C2,H1) 0.17, 3J(C2,H3) 0.11 Hz/Hz (1J(CH3) only shifts); 133.25 Hz:
+methine lines 133.32 / 133.50 Hz, 2J(C1,H2) 0.31, 3J(H1,H2) 0.16; 116.88 and
+242.58 Hz: single methyl lines (shift only). Line table of the three 122 Hz
+lines (scripts/line_table.py --second-order): contributions e.g. 122.153 Hz =
+124.33 (1J(CH3)) - 1.77 (3J(H1,H2)) - 0.91 (3J(C2,H3)) + 0.54 (2J(C2,H1)) Hz;
+the two lower lines are 0.026 Hz apart (near-degenerate), second-order and
+cross terms up to 0.1 1/Hz, and a 1 Hz Taylor step is off by 0.15 Hz even at
+second order.
+
+Targeted local fit of the 122 Hz window (120.9-123.4 Hz; free 4J(H2,H3),
+3J(H1,H2), 2J(C2,H1), 3J(C2,H3) and the two methyl rate families; 27 starts;
+window-only forward with line band +-2 Hz and Jacobian of the free columns:
+257 s, where the full-spectrum version had not finished after 50 min;
+scratchpad ipa/local122.py): window cost 0.0054 against 0.0260 (-79 %) with
+4J(H2,H3) 1.43, 3J(H1,H2) 8.18, 2J(C2,H1) -4.41, 3J(C2,H3) 6.18 Hz; held at
+these values the whole spectrum scores 0.92-1.09 (baseline 0.0475): the other
+lines reject them. Global refits from the local candidates: running.
+
+Speed (isopropylamine, one thread): full model 0.08 s, full Jacobian 5.4 s
+(one NUFFT pass per rate family: 40 passes with 18 families x 2
+isotopologues); window forward 0.006 s, Jacobian 0.86 s with the line band
+and 0.21 s with only the free columns.
+
 ## Conclusion
 
 The carbon-skeleton couplings of isopropylamine are the same in both exchange

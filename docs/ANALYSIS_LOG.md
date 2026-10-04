@@ -1312,3 +1312,9 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-04: isopropylamine with decay-rate families (--family-edges): one rate per line cluster lowers the total
   0.146 -> 0.050 (residual 0.376 -> 0.223), J within 0.16 Hz; the 9.22 reference J with the same freedom ends at
   0.54. 2J-band lines decay ~2x faster than the J band.
+- 2026-10-04: isopropylamine fine structure (same log): residual-peak stage does not resolve the 121.7 / 122.3 Hz
+  pair (+45 % plain objective, assignability flips); peak sources name the split-type couplings; the fast local
+  fit (window forward, 26 x faster Jacobian) fits the window 79 % better with 3J(H1,H2) 8.2, 2J(C2,H1) -4.4 Hz,
+  rejected by the rest of the spectrum before refit. Tools: line table (exact J contributions, 2nd order),
+  fit trace viewer; workflow record docs/WORKFLOW.md.
+
