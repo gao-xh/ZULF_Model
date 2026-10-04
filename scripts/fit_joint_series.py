@@ -68,7 +68,9 @@ def _flag(text):
 
 def _rate_policy(base, args):
     """Decay-rate families and bounds from the command line: --family-edges splits every isotopologue's
-    transitions by frequency (one rate per family, D31 derivatives), --rate-bounds sets the rate range."""
+    transitions by frequency (one rate per family, D31 derivatives), --rate-bounds sets the rate range,
+    --phase-delay-bounds the range of the fitted delay (ms; an instrument prior, e.g. -4.6,-2.6 for the NMRduino
+    setup: near 200 Hz a delay is ambiguous by about 1 / f within one band)."""
     policy = base.policy
     edges = [float(v) for v in getattr(args, "family_edges", "").split(",") if v.strip()]
     if edges:
@@ -79,6 +81,11 @@ def _rate_policy(base, args):
         lo, hi = (float(v) for v in args.rate_bounds.split(","))
         policy = dataclasses.replace(policy, rate_bounds_per_s=(lo, hi),
                                      initial_rate_per_s=float(np.clip(policy.initial_rate_per_s, lo, hi)))
+    if getattr(args, "phase_delay_bounds", ""):
+        lo, hi = (1e-3 * float(v) for v in args.phase_delay_bounds.split(","))
+        if not lo < hi:
+            raise SystemExit("--phase-delay-bounds: lo < hi (ms)")
+        policy = dataclasses.replace(policy, phase_delay_bounds_s=(lo, hi))
     return dataclasses.replace(base, policy=policy)
 
 
@@ -755,6 +762,7 @@ def main():
                          "solutions are then rescored and ranked with the hard rows")
     ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
                     "every isotopologue's lines into decay-rate families (default: one rate per isotopologue)")
+    ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
                     help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")

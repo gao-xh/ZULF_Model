@@ -139,7 +139,12 @@ class JointSeriesTests(unittest.TestCase):
         out = _rate_policy(base, argparse.Namespace(family_edges="120,160", rate_bounds="0.2,8"))
         self.assertEqual(out.policy.family_edges_hz, (120.0, 160.0))
         self.assertEqual(out.policy.rate_bounds_per_s, (0.2, 8.0))
+        delayed = _rate_policy(base, argparse.Namespace(family_edges="", rate_bounds="", phase_delay_bounds="-4.6,-2.6"))
+        np.testing.assert_allclose(delayed.policy.phase_delay_bounds_s, (-0.0046, -0.0026), rtol=1e-12)
         model = build_model(template("CH-CH3"))
+        p = _settings_for(model, "ratios", delayed).parameterize(model.interpretation).parameters["phase_delay"]
+        np.testing.assert_allclose((p.lower, p.upper), (-0.0046, -0.0026), rtol=1e-12)
+        self.assertAlmostEqual(p.value, -0.0036)                       # the prior excludes 0: start in its middle
         settings = _settings_for(model, "ratios", out)
         acq = Acquisition.pure(1000.0, 4000)
         f = np.arange(100.0, 300.0, 0.25)

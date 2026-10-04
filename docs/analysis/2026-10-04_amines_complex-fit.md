@@ -67,3 +67,18 @@ relative amplitude >= 0.05 clustered at gaps > 0.5 Hz, at most 18 families),
 remote couplings at 0 in the motif freed (triethylamine J(H1,HX), J(H2,HX),
 J(C2,HX); N-ethylmethylamine J(C1,HC3), J(HC1,HC3), J(HC2,HC3), J(C3,HC1);
 seeds 0 and +-0.8 Hz), rate bounds 0.2-15 1/s, 4 starts.
+
+Ethylenediamine stage 2 (eda_fast_fam, 4 families 195.3 / 199.5 / 202.4 Hz,
+123 s): objective 0.0719, relative residual 0.253; 1J 132.06, 2J -2.86, 3J(H,H)
+6.35 Hz. The data show sharp pairs (190.6 / 192.1, 197.8 / 198.8, 200.2 Hz,
+widths 0.3-0.5 Hz); the model has five lines (190.6, 198.09, 198.55, 199.5,
+204.6 Hz) and covers the pairs with broad lines (rates 7.9 / 5.2 / 11.0 / 2.5
+1/s, FWHM 2.5 / 1.6 / 3.5 / 0.8 Hz): broadening is too cheap where positions
+are missing. The fitted delay is off: +2.3 ms (stage 1) and the -10 ms bound
+(stage 2), against -3.6 ms for isopropylamine, triethylamine and
+N-ethylmethylamine (near 200 Hz a delay is ambiguous by about 1 / f inside one
+band). New option `--phase-delay-bounds lo,hi` (ms) in fit_joint_series
+(instrument prior -4.6,-2.6); rerun eda_fast_d / eda_fast_fam_d running.
+Structural candidates next: two vicinal couplings J, J' of the AA'BB' CH2-CH2
+unit (line table: J 3 / J' 9.7 Hz moves the 199.5 Hz line to 200.14 Hz, the
+data line is at 200.2 Hz; no line at 192.1 Hz yet) and slow NH2 exchange.
