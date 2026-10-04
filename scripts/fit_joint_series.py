@@ -438,16 +438,21 @@ class JointSeries:
                          "shift": shift, "split": split}
         return {"frequency_hz": float(frequency_hz), "lines": lines, "couplings": effect}
 
-    def local_fit(self, z, s, window_hz, couplings, locals_=(), lower=None, upper=None, starts=None, max_nfev=100):
-        """Targeted local refinement: fit only the residual of spectrum s inside window_hz = (lo, hi), with only
-        the named couplings (leaders, e.g. the split-type couplings of peak_sources) and spectrum parameters
-        (e.g. the rate family holding those lines) free; everything else held at z. `starts`: list of dicts
-        {name: start value} (default: z itself). Returns [(local cost, z)] sorted, each z a full vector ready for
-        a global refit. Free-shape (one value per node) and monotone layouts: a coupling's level is moved."""
+    def local_fit(self, z, s, window_hz, couplings, locals_=(), lower=None, upper=None, starts=None, max_nfev=100,
+                  margin_hz=2.0):
+        """Targeted local refinement: fit only spectrum s inside window_hz = (lo, hi), with only the named couplings
+        (leaders, e.g. the split-type couplings of peak_sources) and spectrum parameters (e.g. the rate family holding
+        those lines) free; everything else held at z. Fast: a forward model of the window points alone that renders
+        and differentiates only the transitions within window +- margin_hz (farther lines add only their tails;
+        gains, phase and background are solved again on the window). `starts`: list of dicts {name: start value}
+        (default: z itself). Returns [(local cost, z)] sorted, each z a full vector for a global refit."""
         f = self.forwards[s]
-        nf = len(f.f)
-        sel_f = np.flatnonzero((f.f >= window_hz[0]) & (f.f <= window_hz[1]))
-        rows = np.r_[sel_f, sel_f + nf] if not f.real_only else sel_f
+        lo_w, hi_w = float(window_hz[0]), float(window_hz[1])
+        obs_w = f.obs.restricted([(lo_w, hi_w)])
+        fw = MixtureForward(self.params[s], obs_w, f.protocol, self.settings.gain_model,
+                            self.settings.background_order, self.settings.band_weighting,
+                            **_signal_kwargs(self.settings))
+        fw.line_band_hz = (lo_w - margin_hz, hi_w + margin_hz)
         zi, xcols = [], []
         for n in couplings:
             k = self.coupling.index(n)
@@ -469,14 +474,10 @@ class JointSeries:
             return zz
 
         def res(p):
-            return f.predict(self.spectrum_vector(full(p), s)).residual[rows]
+            return fw.predict(self.spectrum_vector(full(p), s)).residual
 
         def jac(p):
-            js = f.jacobian(self.spectrum_vector(full(p), s))[rows]
-            out = js[:, xcols].copy()
-            if self.shape == "monotone":     # level v_k moves J_k at every node by the same amount
-                pass
-            return out
+            return fw.jacobian(self.spectrum_vector(full(p), s))[:, xcols]
         out = []
         names = list(couplings) + list(locals_)
         for st in (starts or [{}]):

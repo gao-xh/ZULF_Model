@@ -167,6 +167,9 @@ class MixtureForward:
         self.phase_grid = phase_grid
         self.cache = TransitionCache(256)
         self.exchange_cache = None
+        # Optional (lo, hi) in Hz: only transitions inside are rendered and differentiated (local refinement of a
+        # window: lines farther away contribute only their tails there; None = every transition)
+        self.line_band_hz = None
         sel = observed.selected
         self.f = observed.frequencies_hz[sel]
         self.y = observed.values[sel]
@@ -217,7 +220,8 @@ class MixtureForward:
         (physics.exchange; the lines then carry their own decay rates)."""
         ex = self.p.exchange_rates(values, c) if hasattr(self.p, "exchange_rates") else {}
         if not ex:
-            return self.cache.get(system, self.protocol)
+            tl = self.cache.get(system, self.protocol)
+            return tl.within(*self.line_band_hz) if self.line_band_hz is not None else tl
         if self.exchange_cache is None:
             from ..physics.exchange import ExchangeCache
             self.exchange_cache = ExchangeCache(64)
@@ -581,6 +585,11 @@ class MixtureForward:
             return self._exchange_component_derivatives(values, c, names, system, coupling_names, pairs, ex)
         with self.timer.section("solver.transition_derivatives"):
             d = transition_derivatives(system, pairs, self.protocol)
+        if self.line_band_hz is not None:
+            from ..physics.derivatives import TransitionDerivatives
+            keep = (d.frequencies_hz >= self.line_band_hz[0]) & (d.frequencies_hz <= self.line_band_hz[1])
+            d = TransitionDerivatives(d.frequencies_hz[keep], d.amplitudes[keep], d.d_amplitudes[:, keep],
+                                      d.t_weights[:, keep], d.pairs)
         edges = self.p.policy.family_edges_hz
         families = np.searchsorted(np.asarray(edges, float), d.frequencies_hz, side="right") if edges else \
             np.zeros(len(d), int)

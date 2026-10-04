@@ -204,6 +204,53 @@ class JointSeriesTests(unittest.TestCase):
                                    for e in np.eye(len(z))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
+    def test_line_band_and_local_fit(self):
+        # a line band that holds every line changes nothing; a narrow one keeps the Jacobian exact (finite
+        # differences); the local fit recovers a coupling shift from one window
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.05)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 300.0)], record=acq)
+        p = settings.parameterize(model.interpretation)
+        name = model.coupling_names["J(Ca,Ha)"][0]
+        p.set(name, p.parameters[name].value + 0.3)
+        fw = MixtureForward(p, clean, gain_model=settings.gain_model, background=-1, band_weighting="none",
+                            **_signal_kwargs(settings))
+        sig = np.asarray(fw.predict(p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model)
+        obs = ObservedSpectrum.from_spectrum(f, sig, [(100.0, 300.0)], record=acq)
+        q = settings.parameterize(model.interpretation)
+        full = MixtureForward(q, obs, gain_model=settings.gain_model, background=-1, band_weighting="none",
+                              **_signal_kwargs(settings))
+        wide = MixtureForward(q, obs, gain_model=settings.gain_model, background=-1, band_weighting="none",
+                              **_signal_kwargs(settings))
+        wide.line_band_hz = (0.0, 1e6)
+        x = q.vector()
+        np.testing.assert_allclose(wide.predict(x).residual, full.predict(x).residual, atol=1e-12)
+        joint = JointSeries(model, settings, [obs], [1.0], shape="free")
+        values = q.values(x)
+        lines = np.concatenate([np.asarray(full.transitions(values, c, sy).frequencies_hz)
+                                for c, sy in enumerate(q.systems(values))])
+        target = float(lines[(lines > 110) & (lines < 290)][0])
+        window = (target - 1.5, target + 1.5)
+        narrow = MixtureForward(q, obs.restricted([window]), gain_model=settings.gain_model, background=-1,
+                                band_weighting="none", **_signal_kwargs(settings))
+        narrow.line_band_hz = (window[0] - 2.0, window[1] + 2.0)
+        jac = narrow.jacobian(x)
+        h = 1e-6
+        numeric = np.column_stack([(narrow.predict(x + h * e).residual - narrow.predict(x - h * e).residual) / (2 * h)
+                                   for e in np.eye(len(x))])
+        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+        table, xs = self._table(joint)
+        z = joint.pack(table, xs)
+        lower, upper = joint.bounds(20.0)
+        leader = joint.params[0].ties.get(name, name)
+        before = float(np.sum(narrow.predict(joint.spectrum_vector(z, 0)).residual ** 2))
+        cost, zz = joint.local_fit(z, 0, window, [leader], lower=lower, upper=upper)[0]
+        self.assertLess(cost, 0.1 * before)
+        self.assertAlmostEqual(zz[joint.coupling.index(leader) * joint.m] - z[joint.coupling.index(leader) * joint.m],
+                               0.3, delta=0.05)
+
     @staticmethod
     def _table(joint):
         table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])
