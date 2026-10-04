@@ -194,6 +194,23 @@ df/dJ of the three lines: 2J(C2,H1) -0.26 / -0.11 / +0.07, 3J(C2,H3)
 was fixed at 0. Running: level-2 fit with 4J(H2,H3) free (starts -0.8, 0,
 +0.8 Hz from the level-2 best), runs/processed/ipa_fast_fam2_4j.
 
+Result (1125 s): all three starts end at 4J(H2,H3) = +0.19 Hz, total 0.0475
+(-5 % against 0.0500), residual 0.217; the other couplings move by at most
+0.13 Hz (3J(C2,H3) 5.07). The methyl-methyl coupling is small and does not
+make the pair.
+
+Residual-peak rows (user: penalise peaks in the residual, both signs; a
+spread-out residual hardly matters, a localized one marks a structural
+mismatch). New in fit_joint_series: `--residual-peaks STRENGTH` with
+`--residual-peak-sigma/-halfwidth/-assign/-rounds/-candidates`
+(JointSeries.find_residual_peaks: prominence of |model - data| over a robust
+local noise level, narrower than 1.5 Hz, assignable when a model transition
+lies within 0.6 Hz; outer refit loop with the windows weighted; candidates
+ranked on one common window set; tests for a missing line, a negative feature,
+a far line reported only, a broad misfit ignored, Jacobian). Running on the
+4J-free level-2 solution: strength 3, 1 candidate, 3 rounds,
+runs/processed/ipa_fast_fam2_rp.
+
 ## Conclusion
 
 The carbon-skeleton couplings of isopropylamine are the same in both exchange
