@@ -160,6 +160,45 @@ class JointSeriesTests(unittest.TestCase):
                                    for e in np.eye(len(z))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
+    def test_residual_peaks_found_where_a_line_is_missing_and_rows_have_the_right_jacobian(self):
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.05)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 300.0)], record=acq)
+        p = settings.parameterize(model.interpretation)
+        sig = np.asarray(MixtureForward(p, clean, gain_model=settings.gain_model, background=-1,
+                                        band_weighting="none", **_signal_kwargs(settings)).predict(
+            p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model)
+        tl = MixtureForward(p, clean, gain_model=settings.gain_model, background=-1, band_weighting="none",
+                            **_signal_kwargs(settings))
+        values = p.values(p.vector())
+        lines = np.concatenate([np.asarray(tl.transitions(values, c, system).frequencies_hz)
+                                for c, system in enumerate(p.systems(values))])
+        lines = lines[(lines > 110) & (lines < 290)]
+        near = float(lines[0]) + 0.2                    # an extra narrow line next to a model line: assignable
+        far = float(np.clip(lines.max() + 15.0, 110, 295))  # one far from every model line: reported only
+        rng = np.random.default_rng(12)
+        extra = sum(0.3 * np.abs(sig).max() / (1 + ((f - c) / 0.05) ** 2) for c in (near, far))
+        broad = 0.05 * np.abs(sig).max() * np.exp(-((f - 200.0) / 15.0) ** 2)     # spread-out misfit
+        y = sig + extra + broad + 1e-4 * np.abs(sig).max() * (rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)))
+        obs = [ObservedSpectrum.from_spectrum(f, y, [(100.0, 300.0)], record=acq)]
+        joint = JointSeries(model, settings, obs, [1.0], shape="free")
+        table, xs = self._table(joint)
+        z = joint.pack(table, xs)
+        windows, report = joint.find_residual_peaks(z, k_sigma=6.0)
+        found = {round(r["frequency_hz"], 1): r["assignable"] for r in report}
+        self.assertTrue(any(abs(k - near) < 0.1 and v for k, v in found.items()), msg=str(report))
+        self.assertTrue(any(abs(k - far) < 0.1 and not v for k, v in found.items()), msg=str(report))
+        self.assertFalse(any(abs(k - 200.0) < 5.0 for k in found), msg=str(report))       # the broad bump: no peak
+        self.assertGreater(len(windows[0]), 0)
+        joint.res_windows, joint.res_strength = windows, 3.0
+        jac = joint.jacobian(z)
+        h = 1e-6
+        numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e)) / (2 * h)
+                                   for e in np.eye(len(z))])
+        self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+
     @staticmethod
     def _table(joint):
         table = np.array([[p.vector()[joint.col[n]] for n in joint.coupling] for p in joint.params])

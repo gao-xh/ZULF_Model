@@ -130,6 +130,8 @@ class JointSeries:
         self.smoothing = None                     # per spectrum: residual transform S = W K W^-1 (or None)
         self.peaks = None                         # per spectrum: index windows around data peak tops (or None)
         self.peak_strength = 0.0
+        self.res_windows = None                   # per spectrum: residual-vector indices of residual-peak windows
+        self.res_strength = 0.0
 
     def set_peak_penalty(self, strength, prominence=0.12, tolerance_hz=0.15, min_sigma=2.0, smooth=0.0):
         """Missing-peak rows: for every data peak top (prominence >= `prominence` times the largest abs value and
@@ -290,6 +292,8 @@ class JointSeries:
             parts.append(self._smooth(s, r))
             if self.peaks is not None:
                 parts.append(self._peak_rows(s, r)[0])
+            if self.res_windows is not None and len(self.res_windows[s]):
+                parts.append(self.res_strength * r[self.res_windows[s]])
         ks, mean, scale = self.priors
         if ks:
             parts.append((np.array([values[k].mean() for k in ks]) - mean) * scale)
@@ -312,6 +316,8 @@ class JointSeries:
             if self.peaks is not None:
                 _, grads = self._peak_rows(s, f.predict(self.spectrum_vector(z, s, values)).residual)
                 blocks.append(np.array([c @ out[idx] for idx, c in grads]).reshape(len(grads), len(z)))
+            if self.res_windows is not None and len(self.res_windows[s]):
+                blocks.append(self.res_strength * out[self.res_windows[s]])
         ks, _, scale = self.priors
         if ks:
             rows = np.zeros((len(ks), len(z)))
@@ -319,6 +325,56 @@ class JointSeries:
                 rows[r, k * self.m:(k + 1) * self.m] = dvals[k].mean(axis=0) * scale[r]
             blocks.append(rows)
         return np.vstack(blocks)
+
+    def find_residual_peaks(self, z, k_sigma=4.0, half_width_hz=0.3, assign_hz=0.6, noise_window_hz=5.0,
+                            max_width_hz=1.5, min_relative_amplitude=0.02):
+        """Localized residual peaks: |model - data| (complex magnitude of the weighted residual) standing out by
+        k_sigma (prominence) above its surroundings, in units of a robust local noise level (1.4826 MAD of the real and imaginary residual within +-noise_window_hz), narrower
+        than max_width_hz at half height. Broad, spread-out residual is not a peak. A peak is assignable when a
+        model transition (|amplitude| >= min_relative_amplitude of its component's largest) lies within assign_hz:
+        then a coupling can move a line onto it; otherwise (an unexplained feature: impurity, instrument line,
+        missing species) it is reported only. Returns per spectrum the residual-vector indices of the windows
+        (+-half_width_hz) around assignable peaks, and the report."""
+        from scipy.signal import find_peaks
+        windows, report = [], []
+        for s, f in enumerate(self.forwards):
+            x = self.spectrum_vector(z, s)
+            r = f.predict(x).residual
+            nf = len(f.f)
+            rc = r[:nf] + 1j * r[nf:] if len(r) == 2 * nf else r.astype(complex)
+            step = float(np.median(np.diff(f.f)))
+            half = max(int(noise_window_hz / step), 5)
+            centres = np.arange(0, nf, max(half // 10, 1))
+            parts = np.c_[rc.real, rc.imag]
+            sig = []
+            for c in centres:
+                block = parts[max(c - half, 0):c + half + 1]
+                sig.append(1.4826 * np.median(np.abs(block - np.median(block, axis=0))))
+            sigma = np.maximum(np.interp(np.arange(nf), centres, sig), 1e-30)
+            snr = np.abs(rc) / sigma
+            # prominence (height above the surrounding residual), not height: ripples on a broad misfit are not peaks,
+            # and the broad misfit itself is wider than max_width_hz at half its prominence
+            tops, props = find_peaks(snr, prominence=k_sigma, width=(None, max_width_hz / step), rel_height=0.5)
+            values = self.params[s].values(x)
+            lines = []
+            for c, system in enumerate(self.params[s].systems(values)):
+                tl = f.transitions(values, c, system)
+                a = np.abs(np.asarray(tl.amplitudes))
+                if len(a):
+                    lines.extend(np.asarray(tl.frequencies_hz)[a >= min_relative_amplitude * a.max()])
+            lines = np.asarray(lines)
+            idx = []
+            for t, h in zip(tops, props["prominences"]):
+                fp = float(f.f[t])
+                near = lines[np.abs(lines - fp) <= assign_hz] if len(lines) else lines
+                report.append({"spectrum": s, "frequency_hz": round(fp, 3), "height_sigma": round(float(h), 1),
+                               "assignable": bool(len(near)), "nearest_transition_hz":
+                               round(float(near[np.argmin(np.abs(near - fp))]), 3) if len(near) else None})
+                if len(near):
+                    idx.append(np.flatnonzero(np.abs(f.f - fp) <= half_width_hz))
+            idx = np.unique(np.concatenate(idx)) if idx else np.zeros(0, int)
+            windows.append(np.r_[idx, idx + nf] if len(r) == 2 * nf else idx)
+        return windows, report
 
     def data_residuals(self, z):
         out = []
@@ -395,6 +451,59 @@ def predict_left_out(joint, z, entry, band, key_of, settings, max_nfev=200, real
 
 
 _JOINT_TASK = None
+
+
+def _residual_peak_stage(joint, solutions, lower, upper, args):
+    """Outer loop on the best candidates: find localized, assignable residual peaks, refit with those windows
+    weighted (rows res_strength * r there; windows fixed within a refit), repeat. A broad residual hardly affects
+    the couplings, a localized one marks a structure the model does not match. All candidates, before and after,
+    are then scored on one common window set (the union of every detection), so the ranking does not depend on
+    which windows a candidate happened to see; the plain objective is kept for the record."""
+    opts = dict(k_sigma=args.residual_peak_sigma, half_width_hz=args.residual_peak_halfwidth,
+                assign_hz=args.residual_peak_assign)
+    joint.res_strength = float(args.residual_peaks)
+    hard_smooth = joint.peak_smooth if joint.peaks is not None else 0.0
+    candidates = [zz for _, zz in solutions[:max(args.residual_peak_candidates, 1)]]
+    union = [set() for _ in joint.forwards]
+    rounds, refined = [], []
+    for ci, zz in enumerate(candidates):
+        for rnd in range(args.residual_peak_rounds):
+            windows, report = joint.find_residual_peaks(zz, **opts)
+            for s, w in enumerate(windows):
+                union[s].update(w.tolist())
+            rounds.append({"candidate": ci, "round": rnd, "peaks": report})
+            if not any(len(w) for w in windows):
+                break
+            joint.res_windows = windows
+            joint.peak_smooth = args.peak_smooth if joint.peaks is not None else 0.0
+            zz = least_squares(joint.residual, zz, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
+                               max_nfev=args.max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+            print(f"residual peaks: candidate {ci} round {rnd}: {sum(p['assignable'] for p in report)} assignable "
+                  f"of {len(report)}", flush=True)
+        windows, report = joint.find_residual_peaks(zz, **opts)
+        for s, w in enumerate(windows):
+            union[s].update(w.tolist())
+        rounds.append({"candidate": ci, "round": "final", "peaks": report})
+        refined.append(zz)
+    joint.peak_smooth = 0.0 if joint.peaks is not None else hard_smooth
+    common = [np.array(sorted(u), int) for u in union]
+    scored = []
+    for kind, pool in (("before", candidates), ("after", refined)):
+        for ci, zz in enumerate(pool):
+            joint.res_windows = common
+            penalized = float(np.sum(joint.residual(zz) ** 2))
+            joint.res_windows = None
+            plain = float(np.sum(joint.residual(zz) ** 2))
+            scored.append({"candidate": ci, "stage": kind, "penalized": penalized, "plain": plain, "z": zz})
+    scored.sort(key=lambda d: d["penalized"])
+    best = scored[0]
+    rest = [(sc, zz) for sc, zz in solutions if not np.array_equal(zz, best["z"])]
+    record = {"strength": args.residual_peaks, "sigma": args.residual_peak_sigma,
+              "half_width_hz": args.residual_peak_halfwidth, "assign_hz": args.residual_peak_assign,
+              "common_window_points": [int(len(c)) for c in common], "rounds": rounds,
+              "scores": [{k: v for k, v in d.items() if k != "z"} for d in scored],
+              "chosen": {"candidate": best["candidate"], "stage": best["stage"]}}
+    return [(best["plain"], best["z"])] + rest, record
 
 
 def _coordinate_scan(joint, z, lower, upper, max_nfev, cycles=2, half_width=4.0, step=0.5, seed=0):
@@ -497,6 +606,16 @@ def main():
                     help="monotone (default): every coupling monotonic in x; free: independent J at every x")
     ap.add_argument("--shared", default="", help="comma-separated spectrum parameters shared by all spectra "
                     "(e.g. phase_delay: one model delay for the series)")
+    ap.add_argument("--residual-peaks", type=float, default=0.0,
+                    help="strength of the residual-peak rows (0 = off): after the starts, the best candidates are "
+                         "refitted with localized, assignable residual peaks weighted, then ranked on one common "
+                         "window set")
+    ap.add_argument("--residual-peak-sigma", type=float, default=4.0, help="residual peaks: height in local noise sigma")
+    ap.add_argument("--residual-peak-halfwidth", type=float, default=0.3, help="residual peaks: window half width (Hz)")
+    ap.add_argument("--residual-peak-assign", type=float, default=0.6,
+                    help="residual peaks: a model transition within this distance (Hz) makes a peak assignable")
+    ap.add_argument("--residual-peak-rounds", type=int, default=3)
+    ap.add_argument("--residual-peak-candidates", type=int, default=3)
     ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
     ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
     ap.add_argument("--hold-small-first", action="store_true",
@@ -668,6 +787,10 @@ def main():
         smooth_scores = [smooth_scores[i] for i in order]
     solutions.sort(key=lambda s: s[0])
     score, z = solutions[0]
+    residual_peak_record = None
+    if args.residual_peaks > 0:
+        solutions, residual_peak_record = _residual_peak_stage(joint, solutions, lower, upper, args)
+        score, z = solutions[0]
     r = joint.residual(z)
     jac = joint.jacobian(z)
     dof = max(len(r) - len(z), 1)
@@ -689,7 +812,7 @@ def main():
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
-              "seconds": round(time.time() - t0), "couplings": {}}
+              "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record}
     for k, n in enumerate(joint.coupling):
         block = slice(k * joint.m, (k + 1) * joint.m)
         values = joint.coupling_values(z, k)
