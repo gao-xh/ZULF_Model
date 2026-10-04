@@ -453,6 +453,7 @@ class JointSeries:
                             self.settings.background_order, self.settings.band_weighting,
                             **_signal_kwargs(self.settings))
         fw.line_band_hz = (lo_w - margin_hz, hi_w + margin_hz)
+        fw.jacobian_only = set(couplings) | set(locals_)
         zi, xcols = [], []
         for n in couplings:
             k = self.coupling.index(n)

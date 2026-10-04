@@ -241,10 +241,14 @@ class JointSeriesTests(unittest.TestCase):
         numeric = np.column_stack([(narrow.predict(x + h * e).residual - narrow.predict(x - h * e).residual) / (2 * h)
                                    for e in np.eye(len(x))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
+        leader = joint.params[0].ties.get(name, name)
+        narrow.jacobian_only = {leader}                  # only that column, the same values
+        part = narrow.jacobian(x)
+        i = q.free_names.index(leader)
+        np.testing.assert_allclose(part[:, i], jac[:, i], atol=1e-12)
         table, xs = self._table(joint)
         z = joint.pack(table, xs)
         lower, upper = joint.bounds(20.0)
-        leader = joint.params[0].ties.get(name, name)
         before = float(np.sum(narrow.predict(joint.spectrum_vector(z, 0)).residual ** 2))
         cost, zz = joint.local_fit(z, 0, window, [leader], lower=lower, upper=upper)[0]
         self.assertLess(cost, 0.1 * before)

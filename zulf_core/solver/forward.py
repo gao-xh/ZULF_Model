@@ -170,6 +170,9 @@ class MixtureForward:
         # Optional (lo, hi) in Hz: only transitions inside are rendered and differentiated (local refinement of a
         # window: lines farther away contribute only their tails there; None = every transition)
         self.line_band_hz = None
+        # Optional set of free parameter names: jacobian() computes only these columns (the others are zero), e.g.
+        # for a local fit that frees a few couplings and rates
+        self.jacobian_only = None
         sel = observed.selected
         self.f = observed.frequencies_hz[sel]
         self.y = observed.values[sel]
@@ -704,6 +707,7 @@ class MixtureForward:
             state = self._last
         free = self.p.free_names
         driven = {n: [n] + [f for f, leader in self.p.ties.items() if leader == n] for n in free}
+        wanted = [f for f in free if self.jacobian_only is None or f in self.jacobian_only]
         cols, gains, bg_cols = state["cols"], state["gains"], state["bg_cols"]
         n_comp, n_free, n_f = len(cols), len(free), len(self.f)
         n_raw = self.amp_map.shape[0] if self.amp_map is not None else n_comp
@@ -716,7 +720,7 @@ class MixtureForward:
         analytic_kinds = ("coupling", "log_rate", "phase_delay", "log_exchange")
         for c in range(n_raw):
             names = [n for n in self.p.order if self.p.parameters[n].kind in analytic_kinds and
-                     self.p.parameters[n].component in (c, -1) and any(n in driven[f] for f in free)]
+                     self.p.parameters[n].component in (c, -1) and any(n in driven[f] for f in wanted)]
             if not names:
                 continue
             for n, col in self._component_derivatives(values, c, names).items():
@@ -724,7 +728,7 @@ class MixtureForward:
                     if n in driven[f]:
                         dpair[c, i] += col
         for i, f in enumerate(free):
-            if self.p.parameters[f].kind not in analytic_kinds:
+            if self.p.parameters[f].kind not in analytic_kinds and f in wanted:
                 pairs, nuis = self._numeric_column_derivatives(values, driven[f])
                 if pairs is not None:
                     for c in range(n_raw):
