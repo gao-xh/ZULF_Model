@@ -349,3 +349,53 @@ Left over:
 Figures:
 - runs/processed/amine_overview/triethylamine_fam121.png
 - runs/processed/tea_fam121/paper_figure.png
+
+### N-ethylmethylamine result (nema_fam121_final)
+
+- The container restarted at 13:47. The best monitor vector (0.04579) was refit for one start, 80 evaluations,
+  into runs/processed/nema_fam121_final.
+- Objective **0.0458** (against 0.0501, -9 %); data-region residual 0.215 (was 0.224).
+- Every coupling moves by less than 0.05 Hz.
+- The 121.3 Hz data peak is still not fitted. As in isopropylamine, the model has no line there: a position
+  problem, not a rate problem.
+
+Figures:
+- runs/processed/amine_overview/N-ethylmethylamine_fam121.png
+- runs/processed/nema_fam121_final/paper_figure.png
+
+## Morning summary (2026-10-05, about 14:00 UTC)
+
+| Sample | Best run | Objective, start of night -> now | Data residual | What changed |
+|---|---|---|---|---|
+| ethylenediamine | eda_2sp_fam198 | 0.0449 -> **0.0051** | 0.189 -> 0.072 | second AA'BB' unit (ratio 0.26); rate edges 185 / 198.3 Hz |
+| triethylamine | tea_fam121 | 0.0490 -> **0.0383** | 0.215 -> 0.196 | narrow rate families at the 121.08 Hz line |
+| N-ethylmethylamine | nema_fam121_final | 0.0501 -> **0.0458** | 0.224 -> 0.215 | narrow rate families at 121.33 Hz |
+| isopropylamine | ipa_fast_fam2_4j | 0.0475 -> 0.0475 | 0.217 | none (all tests negative) |
+
+The ethylenediamine objective is under the original weights; the fit.json score after the model-line pass is
+0.0055.
+
+Overview figure: runs/processed/amine_overview/all_amines_2026-10-05_morning.png.
+
+Paper figures:
+- runs/processed/eda_2sp_fam198/paper_figure.png
+- runs/processed/tea_fam121/paper_figure.png
+- runs/processed/nema_fam121_final/paper_figure.png
+- runs/processed/ipa_fast_fam2_4j/paper_figure.png
+
+Negative results:
+- No 15N isotopologue in ethylenediamine.
+- No asymmetric (ABCD) second species in ethylenediamine.
+- Isopropylamine has no second same-molecule species, no slow N-H exchange, and narrow families do not help.
+- The NEMA N-H exchange rate test (earlier) found k -> fast.
+
+Conditional points to keep in view:
+- **Ethylenediamine species 2.** The second unit (1J 126.7 Hz, geminal -18.0 Hz, J 5.85, J' 15.5) is a numerical
+  result, not an identified compound. The geminal is outside the usual range. Two of its decay-rate families sit
+  at the 15/s bound, a sign that it has more line intensity at 195-199.5 Hz than the data allow.
+- **Rate-family edges are nuisance parameters chosen by hand.** They lowered the objectives without moving the
+  couplings by more than 0.07 Hz (1J) or 0.4 Hz (small couplings).
+- **Common open misfit.** After these fixes, the largest misfit of three amines is a methyl 13C band near 1J with a
+  data line the model does not have: isopropylamine 121.67 Hz, N-ethylmethylamine 121.33 Hz (plus the N-CH3 band),
+  and the triethylamine 235 / 237.5 Hz small lines. Next candidates are 14N (spin 1, quadrupolar relaxation)
+  for the N-bonded carbons and a common minor species (for example the CO2 carbamate) for all samples.

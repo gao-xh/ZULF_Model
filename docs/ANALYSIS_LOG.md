@@ -1356,3 +1356,7 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-05: ethylenediamine two AA'BB' units, refit: 0.0095 -> 0.0068 (residual 0.081). Species-2 geminal -18.3 Hz
   (suspicious) and a model-only line at 177.5 Hz; joint fitter gains model-line passes (commit 0ecce84).
   docs/analysis/2026-10-05_amines_overnight.md
+- 2026-10-05: overnight amines. Ethylenediamine 0.0449 -> 0.0051 (second AA'BB' unit, rate edges 185 / 198.3 Hz;
+  the ABCD and 15N alternatives fail). Triethylamine 0.049 -> 0.038 and N-ethylmethylamine 0.050 -> 0.046 (narrow
+  rate families at the sharp 121 Hz lines). Isopropylamine unchanged at 0.0475 (no second species, no slow N-H).
+  Open: missing methyl lines near 121-122 Hz. docs/analysis/2026-10-05_amines_overnight.md

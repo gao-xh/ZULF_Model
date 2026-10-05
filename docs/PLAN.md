@@ -332,7 +332,11 @@ tall lines and barely sees it.
       177.5 Hz line), eda_2sp_mlp.
 - [ ] 14N (spin 1) in spin systems, with quadrupolar relaxation: the worst bands of the amines are the
       N-bonded carbons (N-ethylmethylamine CH2, ethylenediamine CH2); test partially resolved 1J(13C,14N) and
-      2J(14N,H).
+      2J(14N,H). Update 2026-10-05 overnight: after a second species (ethylenediamine) and narrow rate families
+      (triethylamine, N-ethylmethylamine), the open misfits are methyl 13C lines near 121-122 Hz with no model
+      line (isopropylamine 121.67, N-ethylmethylamine 121.33).
+- [ ] Amines: test a common minor species (CO2 carbamate / ammonium) as a second component for all four samples;
+      ethylenediamine needs one (eda_2sp_fam198, ratio 0.26), isopropylamine rejects a same-molecule copy.
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
       a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
 - [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them
