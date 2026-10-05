@@ -175,3 +175,53 @@ Setup:
 - `--from-joint` now accepts models with couplings the previous fit lacks.
 
 Running.
+
+### Step 5 result: eda_2sp_mlp (model-line passes only)
+
+- Pass 1 adds 1226 core points; pass 2 adds none.
+- Objective (new weights) 0.01103 -> 0.01073. Under the original weights: 0.00694 (against 0.00676).
+- The couplings barely move (species-2 geminal -18.07).
+- **The 177.5 Hz line stays at full weight**, so the fit "needs" it in this model.
+
+Line list: it is species 2's line at 177.54 Hz, relative amplitude 0.38 of that species' strongest line.
+
+Diagnosis: this line shares the lowest rate family (below 195.3 Hz) with the sharp 190.6 / 192.1 Hz pair, so it has
+to be as sharp as they are.
+
+Figure: runs/processed/amine_overview/ethylenediamine_2sp_mlp.png.
+
+### Step 7: rate-family edge at 185 Hz (eda_2sp_fam185)
+
+Setup:
+- Edges 185, 195.3, 199.5, 202.4.
+- Started from the refit2 optimum, with the old rate of the lowest family copied into both new families.
+- 4 starts, spread 0.15, component search at the end, 2 model-line passes.
+
+Result:
+- Best start 0.00663, then 0.00661 after the end pass.
+- After the model-line pass: 0.00709 (new weights), **0.00662 under the original weights**. This is the new best
+  for ethylenediamine; the data-region residual is 0.082.
+- The 177.5 Hz line is gone: species 2 below 185 Hz now decays at 9.0/s, against 2.0/s for its 185-195 Hz lines.
+- Couplings as in refit2:
+
+| Coupling (Hz) | Species 1 | Species 2 |
+|---|---|---|
+| 1J(C,H) | 131.34 | 126.68 |
+| 2J(C,H) | -1.99 | -3.22 |
+| geminal | -11.84 | -18.00 |
+| J | 1.91 | 5.85 |
+| J' | 14.70 | 15.46 |
+
+Boundary hits: species 1 185-195 Hz and species 2 195.3-199.5 Hz decay rates sit at the 15/s upper bound.
+
+Figure: runs/processed/amine_overview/ethylenediamine_2sp_fam185.png.
+
+**Band diagnosis of 196.5-200.8 Hz** (scripts/band_diagnosis.py; figure runs/processed/eda_2sp_fam185/band_197_200.png):
+- The band holds 58.8 % of the cost; relative residual 0.077.
+- Every lever is weak (largest band gain 1.7 %), so no free parameter acts on this misfit and the model lacks
+  something there.
+- Candidates:
+  - separate rates for the 197.8 and 198.7 Hz lines of species 1, which share one family; queued as eda_2sp_fam198
+    with an edge at 198.3 Hz;
+  - a line-shape effect of the strongest lines;
+  - an asymmetric main species (eda_abcd tests an asymmetric second species).
