@@ -211,3 +211,26 @@ running for comparison.
 
 Overview figures of the current fits: runs/processed/amine_overview/{ethylenediamine,triethylamine,
 N-ethylmethylamine}.png (scratchpad amines/plot_runs.py).
+
+## Publication-style figures (2026-10-05)
+
+Figures of the fast-exchange family fits, made with scripts/paper_figure.py and the isopropylamine display
+processing: whole record, window 0.1 1/s, display baseline.
+
+| Sample | Figure | Segments (Hz) | Gains |
+|---|---|---|---|
+| ethylenediamine | runs/processed/eda_fast_fam/paper_figure.png | 176-216 | 1 |
+| triethylamine | runs/processed/tea_fast_fam/paper_figure.png | 116-136; 182-214; 232-262 | 1, 6, 1.5 |
+| N-ethylmethylamine | runs/processed/nema_fast_fam/paper_figure.png | 102-156; 176-216; 234-278 | 1, 3, 1.5 |
+
+How they were made: the fit options are read from each RUN_LOG by scratchpad amines/paper_amine.py. Insets are in
+scratchpad amines/insets_{eda,tea,nema}.json. Triethylamine's coupling keys are J(C1,H1) and J(C2,H2), not
+J(C1,HC1).
+
+What the figures show:
+
+- **Ethylenediamine.** The sharp pairs at 190.6 / 192.1 Hz and the line at 200.2 Hz are still covered by broad
+  lines, as noted in stage 2.
+- **Triethylamine.** The 121 Hz line is still missed.
+- **N-ethylmethylamine.** The CH2 band at 186-206 Hz is the worst region.
+- **All three.** The low-frequency features at 20-35 Hz and at 45 Hz are not in the fit ranges.
