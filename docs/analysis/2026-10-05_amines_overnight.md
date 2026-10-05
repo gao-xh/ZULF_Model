@@ -275,3 +275,24 @@ against 0.049 before. The same is queued for:
 
 Both start from their best fits with remapped rates (scratchpad amines/remap_families.py), 4 starts, component
 search at the end and 2 model-line passes.
+
+### Step 9: isopropylamine, the 118.5-126 Hz band
+
+ipa_fam122 (narrow rate families at 121.4 / 121.95 / 122.6 Hz):
+- Start 0 converged in 2 evaluations at the old objective 0.04753, so the run was stopped.
+- Reason, from the line list: the model has **no line at 121.67 Hz**. Its 13C@C2 lines are at 122.13, 122.15 and
+  122.36 Hz; the data peaks are at 121.67 (0.020) and 122.29 (0.036). Rates cannot fix a missing line.
+
+Band diagnosis of 118.5-126 Hz (figure runs/processed/ipa_fast_fam2_4j/band_118_126.png):
+- The band holds 60.6 % of the IPA cost; relative residual 0.367.
+- Only conflicts: J(C2,HC1) wants -0.18 Hz and J(HC1,HC2) -0.12 Hz, but the rest of the spectrum resists.
+- The whole-objective refit of the two levers gains nothing.
+
+Second species (same motif, free ratio):
+- The fit from 12 seeds stays at 0.04753. A copy of species 1 has zero gain and no gradient.
+- Direct grid (scratchpad amines/scan_ipa_p2.py): species-2 1J(C2,H) 122-127 Hz, 3J(C2,HC3) 3.5 / 5.07 / 6.5 and
+  J(HC1,HC2) 5 / 5.94 / 7, with the gains solved.
+- Best 0.04685 (-1.4 %) at 1J 125.25, 3J 6.5.
+
+A second isopropylamine-like species does not supply the 121.67 Hz line. Open: an N-H coupled (slow-exchange)
+methyl band, or a different impurity.
