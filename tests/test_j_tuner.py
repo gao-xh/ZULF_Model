@@ -279,3 +279,24 @@ class ComponentSearchTests(unittest.TestCase):
         k = prob.joint.coupling.index(next(n for n in prob.joint.coupling if prob.key_of.get(n, n) == "J(C1,HC2)"))
         self.assertAlmostEqual(float(prob.joint.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.1)
         self.assertTrue(any(w["accepted"] for w in rec["windows"]))
+
+
+class GroupIndexTests(unittest.TestCase):
+    def test_exchanging_groups_found_in_a_symmetric_component(self):
+        # AA'BB' ethylenediamine with the N-H protons kept: J(HC1a,HN1) also maps to the mirror pairs (HC2a-HN2),
+        # which made the old intersection empty. Reference: give J(C1,HN1) and J(N1,HN1) unique values and read
+        # which group carries them in each component's coupling matrix.
+        import regression_confirmed as reg
+        from fit_processed_spectrum import override_couplings
+        from fit_staged import group_index
+        from zulf_hypothesis import exchange_variants
+        from zulf_hypothesis.builder import build_model
+        spec = {"compound": "eda", "motif": "H2N-CH2-CH2-NH2 (AA'BB')", "one_bond": {"C1": 131.0, "N1": 65.0}}
+        frag = override_couplings(reg.structure_for(spec), {"J(C1,HN1)": 3.217, "J(N1,HN1)": -71.93})
+        model = build_model(exchange_variants(frag, "slow")[0], ranges=[(85, 240)])
+        for c, (heavy, value) in enumerate(((0, 3.217), (0, -71.93))):
+            label = model.component_labels[c]
+            j = np.asarray(model.interpretation.components[c].system.group_couplings())
+            expected = int(np.flatnonzero(np.isclose(j[heavy], value))[0])
+            self.assertEqual(group_index(model, "HN1", c), expected, label)
+            self.assertNotEqual(group_index(model, "HN2", c), expected, label)

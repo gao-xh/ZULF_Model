@@ -61,15 +61,23 @@ def figure(obs, prediction, title, path):
 
 def group_index(model, label: str, component: int) -> int:
     """Group index of a proton-group label in one component, from the coupling parameter names."""
-    sets = []
+    # In a symmetric component one coupling key can map to several pairs (J(HC1a,HN1) also covers the mirror
+    # image HC2a-HN2), so those pairs do not all contain the group. Use the keys that map to one pair in this
+    # component; fall back to every key when fewer than two such keys exist.
+    unique, every = [], []
     for key, names in model.coupling_names.items():
         members = key[2:-1].split(",")
         if label not in members:
             continue
+        pairs = []
         for n in names:
             if n.startswith(f"c{component}.J"):
                 a, b = n.split(".J")[1].split("-")
-                sets.append({int(a), int(b)})
+                pairs.append({int(a), int(b)})
+        every += pairs
+        if len(pairs) == 1:
+            unique += pairs
+    sets = unique if len(unique) >= 2 else every
     common = set.intersection(*sets) if len(sets) >= 2 else set()
     if len(common) != 1:
         raise ValueError(f"Cannot locate group {label} in component {component}.")
