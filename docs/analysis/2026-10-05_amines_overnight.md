@@ -399,3 +399,21 @@ Conditional points to keep in view:
   data line the model does not have: isopropylamine 121.67 Hz, N-ethylmethylamine 121.33 Hz (plus the N-CH3 band),
   and the triethylamine 235 / 237.5 Hz small lines. Next candidates are 14N (spin 1, quadrupolar relaxation)
   for the N-bonded carbons and a common minor species (for example the CO2 carbamate) for all samples.
+
+## Sign test of 2J(C,H) (user question: can 2J(C,H) be negative?)
+
+Script: scratchpad amines/flip_2j.py.
+- From the best fit, the sign of the two-bond C-H couplings is flipped and everything is refit (least squares,
+  analytic Jacobian, the problem's bounds, 40 evaluations, one start). No prior on the couplings.
+
+| Sample | 2J in the fit (Hz) | Fit | Flipped start | Flipped refit |
+|---|---|---|---|---|
+| triethylamine (tea_fam121) | J(C1,H2) -4.86, J(C2,H1) -3.07 | 0.0383 | 1.12 | 0.527 (2J +2.8 / +3.2, 3J(H,H) runs to 12.1) |
+| ethylenediamine (eda_2sp_fam198) | species 1 J(C1,HC2a) -1.99 | 0.0051 | 1.03 | 0.198 (2J at the +3.7 bound, vicinal J distorted) |
+
+Negative 2J (relative to positive 1J) is strongly favoured: the flipped fits are 14x and 40x worse, and the rest of
+the network distorts to compensate.
+
+Limits:
+- the positive side is bounded at +3.7 Hz by the template bounds;
+- one start and 40 evaluations, so the positive region is not searched exhaustively.
