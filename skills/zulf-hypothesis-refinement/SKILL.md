@@ -244,9 +244,29 @@ Use occasionally or as the last step, not inside every fit.
   coupling, a line, another nucleus. Do not tune further; change the model.
 - **Slow N-H exchange check.** Slow exchange implies a natural-abundance 15N-H line: at |1J(N,H)| for NH, and
   near 1.5 |1J| for NH2. Check that the data show it before taking a slow-exchange gain. The joint fitter weights
-  a model line where the data show none at only 0.2. Amines, 2026-10-05: N-ethylmethylamine has no line at
+  a model line where the data show none at only 0.2 unless `--model-line-passes` is set. Isopropylamine slow
+  (2026-10-05): 0.074 at every N-H coupling 0, against 0.0475 fast; any 3J(C,HN) is worse. Amines, 2026-10-05: N-ethylmethylamine has no line at
   65 or 83 Hz, and ethylenediamine slow fits at 65 and 83 Hz score alike (1J not determined).
 
+- **"Model lacks something" checklist** (amines overnight, 2026-10-05, docs/analysis/2026-10-05_amines_overnight.md).
+  Work through these cheapest first:
+  1. **Line list against data peaks.** Run `TuningSession.lines` and compare with the data peaks.
+     - No model line at a data peak means a position problem. Rate families cannot fix it (isopropylamine
+       121.67 Hz).
+     - A model line where the data show none, sharp because it shares a rate family with sharp lines, needs a
+       family edge between them. Ethylenediamine: a false 177.5 Hz line sat in the family of the 190 / 192 Hz
+       pair; an edge at 185 Hz removed it.
+  2. **Narrow rate families** around a sharp line that shares a family with broad ones. Remap the old rates
+     onto the new edges (each new family takes the rate of the old family containing it).
+     - Triethylamine, edges 120.8 / 121.2 / 121.6 Hz: 0.049 -> 0.038.
+     - Ethylenediamine, edge 198.3 Hz: 0.0066 -> 0.0051.
+     - The couplings barely move. Report the edges; they are nuisance parameters.
+  3. **Second species** with a free ratio: a `--structure` list of two copies of the motif.
+     - Seed it away from species 1. A copy of species 1 has zero gain and no gradient (a saddle). When seeds stay
+       at the old objective, grid the second species' couplings directly with the gains solved.
+     - Ethylenediamine: 0.045 -> 0.0068 with ratio 0.26. Isopropylamine: no gain (-1.4 %).
+  4. **Model-line passes** (`--model-line-passes 2`): model lines at full weight. Compare runs by
+     fit.json["model_line_passes"]["objective_original_weights"]; the scores use the new weights.
 - `scripts/line_table.py --structure ... --fit RUN/fit.json --band lo,hi [--second-order]`: every line with df/dJ
   and the exact split f = sum J df/dJ (zero and tied couplings included). Couplings fixed at 0 by the template
   show up here with their df/dJ: free them when they move lines by more than a line width.
