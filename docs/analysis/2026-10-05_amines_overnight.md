@@ -465,3 +465,39 @@ amines/eda_species_split.py).
   species 2's; the data-minus-species-1 trace matches it.
 - Correction to step 3: in the final fit, species 2 has no line at the 197.8 Hz shoulder.
 - What species 1 leaves at 197-200 Hz is an oscillating residual that species 2 does not explain.
+
+Why so few lines (user: "ethylenediamine has 9 spins, why only three peaks?"); scratchpad amines/eda_sp2_lines.py.
+
+**Effective spin system.** Each component is 5 spins: one 13C (the other carbon is 12C at natural abundance) and
+the four CH2 protons.
+- The four N-H protons are removed by fast exchange, which the 15N-H line tests support.
+- 14N is not in the model.
+
+**Line count.** In zero field the 13CH2 group gives lines near 1.5 x 1J, split by the small couplings, so the
+13C band sits at 186-205 Hz (species 1) or 175-200 Hz (species 2). Exact transitions with nonzero amplitude: 16 per
+species, of which 7 (species 1) and 8 (species 2) fall in 150-260 Hz; 6 lie in 0-50 Hz and 2-3 in 50-150 Hz.
+
+Species 2 lines in 150-260 Hz (relative amplitude; fitted decay rate):
+
+| Line (Hz) | Amplitude | Rate (/s) |
+|---|---|---|
+| 177.56 | 0.38 | 9.05 |
+| 190.55 | 0.70 | 2.00 |
+| 192.02 | 1.00 | 2.00 |
+| 193.70 | 0.27 | 2.00 |
+| 200.24 | 0.35 | 0.60 |
+
+Small lines: 171.0 (0.05), 175.6 (0.06), 152.9 (0.01).
+
+The figure shows three peaks because 193.7 is small and 177.56 is broadened by its own rate family (9.05/s).
+
+**Rate spread.** Rates within species 2 range from 0.6 to 9/s; species 1 has its 186.9 Hz line at the 15/s bound.
+
+| Test, everything else held | Objective |
+|---|---|
+| as fitted | 0.00509 |
+| species-2 177.6 Hz line at 2.0/s | 0.00526 |
+| all species-2 lines at 2.0/s | 0.0103 |
+
+With one shared rate (no refit), species 2 is still far better than one species alone (0.0449). Open: a refit with
+the species-2 rates tied.
