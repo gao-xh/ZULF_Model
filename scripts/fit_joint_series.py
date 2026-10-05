@@ -974,6 +974,10 @@ def build_problem(args):
 
     obs = [observation(e) for e in series]
     spec = json.loads(args.structure)
+    if isinstance(spec, list):
+        model = _combined_model(spec, args, lo, hi)
+        fragment, fixed_keys = model.fragment, []
+        return _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_keys)
     spec.setdefault("compound", "series")
     overrides = json.loads(args.couplings)
     fixed_keys = []
@@ -992,6 +996,29 @@ def build_problem(args):
     from zulf_hypothesis import exchange_variants
     fragment = exchange_variants(fragment, args.exchange)[0]     # fast: protons on N/O/S dropped (decoupled)
     model = build_model(fragment, ranges=[(lo, hi)])
+    return _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_keys)
+
+
+def _combined_model(specs, args, lo, hi):
+    """Several molecules (a JSON list of structure specs) as one model: combine_models keeps the ratios fixed only
+    within each molecule (free between them) and prefixes the coupling keys P1:, P2:, ... (--couplings takes the
+    prefixed keys)."""
+    import regression_confirmed as reg
+    from fit_processed_spectrum import override_couplings
+    from zulf_hypothesis import exchange_variants
+    from zulf_hypothesis.builder import combine_models
+    overrides = json.loads(args.couplings)
+    models = []
+    for k, sp in enumerate(specs):
+        sp = dict(sp)
+        sp.setdefault("compound", f"part {k + 1}")
+        own = {key.split(":", 1)[1]: v for key, v in overrides.items() if key.startswith(f"P{k + 1}:")}
+        frag = exchange_variants(override_couplings(reg.structure_for(sp), own), args.exchange)[0]
+        models.append(build_model(frag, ranges=[(lo, hi)]))
+    return combine_models(models)
+
+
+def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_keys):
     base = default_fit_base()
     if args.signal_threshold:
         base = dataclasses.replace(base, signal_threshold=args.signal_threshold)
