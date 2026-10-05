@@ -458,3 +458,10 @@ Decisive checks:
 - high-field 1H / 13C NMR of the same sample (a species at about 25 % would be obvious);
 - a fresh sample kept under inert gas against an air-exposed one;
 - deliberately adding CO2 (or a known carbamate) to see whether the 190.6 / 192.1 Hz lines grow.
+
+Figure of the two species separately: runs/processed/amine_overview/ethylenediamine_two_species.png (scratchpad
+amines/eda_species_split.py).
+- In eda_2sp_fam198, species 2 has lines at 190.54, 192.00, 193.71 and 200.25 Hz. The 200.25 Hz sharp line is
+  species 2's; the data-minus-species-1 trace matches it.
+- Correction to step 3: in the final fit, species 2 has no line at the 197.8 Hz shoulder.
+- What species 1 leaves at 197-200 Hz is an oscillating residual that species 2 does not explain.
