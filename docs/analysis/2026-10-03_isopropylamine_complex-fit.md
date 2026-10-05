@@ -431,3 +431,18 @@ runs/processed/ipa_fast_fam2_4j/fit.json --fid <isopropylamine average FID>
 0.26, 15.5, 1.0]}]. Structure insets drawn with RDKit (user: the hand-drawn
 ones were ugly). Figure runs/processed/ipa_fast_fam2_4j/paper_figure.png.
 
+
+## Slow exchange with 1J(15N,H) = 83 Hz (2026-10-05, user)
+
+The 119.91 Hz line (17 sigma, full record) is not a power-line line: only
+isopropylamine shows it (ethylenediamine, triethylamine, N-ethylmethylamine on
+the same instrument do not), the 120.12 Hz harmonic is invisible in all four,
+and the model has a methyl-13C line at 119.93 Hz although 119.6-120.4 Hz was
+left out of the fit. The missing branch of the pair is the 121.60 Hz line.
+
+Run (scratchpad ipa/run_ipa_slow83.sh, runs/processed/ipa_slow83): --exchange
+slow (NH2 kept, 15N isotopologue included), structure one_bond N1 83
+(J(N1,HN1) starts at -83 Hz; 15NH2 lines near 124.5 Hz), 4J(H2,H3) and
+J(HC2,HN1) free, seeds from ipa_fast_fam2_4j with (J(C1,HN1), J(HC1,HN1),
+J(HC2,HN1), J(C2,HN1)) = (-4.5, 5.5, 0.3, 4.5), (0, 4.4, -0.6, -1.3),
+(-3, 3, 0.5, 2), (2, 7, -0.5, -3); level-2 families; 8 starts, max_nfev 150.
