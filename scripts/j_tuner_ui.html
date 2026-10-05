@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J Tuner</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e2e0;
+  --data: #1d1d1f; --model: #d1495b; --resid: #8a8a8f; --good: #2a8a52; --bad: #c0392b; --accent: #3b6fb6;
+  --c0: #d1495b; --c1: #3b6fb6; --c2: #2a9d5c; --c3: #e08a2c; --c4: #8e5ac8; --c5: #7a7a7a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161618; --panel: #1f1f22; --ink: #ececee; --muted: #9a9aa0; --line: #33333a;
+    --data: #ececee; --model: #ff6b7d; --resid: #8a8a92; --good: #4cc27e; --bad: #ff6b5e; --accent: #6ea2ec;
+    --c0: #ff6b7d; --c1: #6ea2ec; --c2: #4cc27e; --c3: #f0a050; --c4: #b38ae6; --c5: #a0a0a0;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161618; --panel: #1f1f22; --ink: #ececee; --muted: #9a9aa0; --line: #33333a;
+  --data: #ececee; --model: #ff6b7d; --resid: #8a8a92; --good: #4cc27e; --bad: #ff6b5e; --accent: #6ea2ec;
+  --c0: #ff6b7d; --c1: #6ea2ec; --c2: #4cc27e; --c3: #f0a050; --c4: #b38ae6; --c5: #a0a0a0;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+header .sub { color: var(--muted); }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-width: 128px; }
+.tile .k { color: var(--muted); font-size: 11px; }
+.tile .v { font-size: 17px; font-variant-numeric: tabular-nums; }
+.tile .d { font-size: 11px; font-variant-numeric: tabular-nums; }
+.good { color: var(--good); } .bad { color: var(--bad); }
+main { display: grid; grid-template-columns: minmax(330px, 430px) 1fr; gap: 12px; padding: 0 16px 16px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
+section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.jrow { border-top: 1px solid var(--line); padding: 6px 0; }
+.jrow:first-of-type { border-top: 0; }
+.jhead { display: flex; align-items: center; gap: 6px; }
+.jhead .name { font-weight: 600; flex: 1; font-family: ui-monospace, monospace; font-size: 12px; }
+.jhead input[type=number] { width: 86px; font: inherit; font-variant-numeric: tabular-nums; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+.jhead .delta { width: 64px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11px; }
+.sl { display: grid; grid-template-columns: 38px 1fr; align-items: center; gap: 6px; margin-top: 2px; }
+.sl span { color: var(--muted); font-size: 11px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.hint { font-size: 11px; color: var(--muted); }
+button { font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; padding: 3px 9px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.small { padding: 0 6px; font-size: 11px; }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar label { color: var(--muted); }
+.bar input[type=number] { width: 78px; font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+select { font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; }
+canvas { width: 100%; display: block; border-radius: 6px; cursor: crosshair; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 2px 6px; border-bottom: 1px solid var(--line); font-size: 12px; }
+th { color: var(--muted); font-weight: 500; }
+.right { display: grid; gap: 12px; min-width: 0; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 1200px) { .cols { grid-template-columns: 1fr; } }
+#status { color: var(--muted); }
+#err { color: var(--bad); }
+.spark { width: 100%; height: 60px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>J Tuner</h1><span class="sub" id="specname"></span>
+  <span class="sub" id="status">loading</span><span id="err"></span>
+  <span style="flex:1"></span>
+  <label class="sub"><input type="checkbox" id="live" checked> live analysis</label>
+  <button id="theme" title="theme">theme</button>
+</header>
+<div class="tiles">
+  <div class="tile"><div class="k">objective (fitter ranking)</div><div class="v" id="t-obj">-</div><div class="d" id="d-obj"></div></div>
+  <div class="tile"><div class="k">view cost</div><div class="v" id="t-win">-</div><div class="d" id="d-win"></div></div>
+  <div class="tile"><div class="k">plain residual</div><div class="v" id="t-plain">-</div><div class="d" id="d-plain"></div></div>
+  <div class="tile"><div class="k">relative residual</div><div class="v" id="t-rel">-</div><div class="d" id="d-rel"></div></div>
+  <div class="tile"><div class="k">residual peaks in view</div><div class="v" id="t-peaks">-</div><div class="d" id="d-peaks"></div></div>
+  <div class="tile"><div class="k">evaluation</div><div class="v" id="t-ms">-</div><div class="d">per update</div></div>
+</div>
+<main>
+  <section>
+    <h2>Couplings (Hz)</h2>
+    <div class="bar">
+      <button id="accept" title="make the current state the baseline">Accept</button>
+      <button id="undo">Undo</button>
+      <button id="reset-b">Reset to baseline</button>
+      <button id="reset-i">Reset to loaded fit</button>
+      <button id="grad" title="gradient of the objective and a one-coupling Gauss-Newton step">Suggest steps</button>
+      <button id="save">Save</button>
+    </div>
+    <div class="hint">coarse: +-6 Hz (1J: +-3 Hz) around the baseline; fine: +-0.3 Hz around the value when the drag starts. Arrow keys on a slider move by one step.</div>
+    <div id="jlist"></div>
+  </section>
+  <div class="right">
+    <section>
+      <div class="bar">
+        <label>part</label>
+        <select id="part"><option value="re">real</option><option value="im">imaginary</option><option value="abs">magnitude</option></select>
+        <label>view</label><input type="number" id="vlo" step="0.5"> - <input type="number" id="vhi" step="0.5"> Hz
+        <span id="presets"></span>
+        <span class="hint">drag on the plot to zoom, double-click for all; click a residual-peak marker for its sources</span>
+      </div>
+      <canvas id="plot" height="440"></canvas>
+    </section>
+    <div class="cols">
+      <section>
+        <h2>Residual peaks in view</h2>
+        <table id="peaks"><thead><tr><th>Hz</th><th>sigma</th><th>sign</th><th>nearest line</th><th></th></tr></thead><tbody></tbody></table>
+        <h2 style="margin-top:10px">Sources</h2>
+        <div id="sources" class="hint">choose a residual peak (or click on the plot with Alt) to see which couplings move the lines under it</div>
+      </section>
+      <section>
+        <h2>Automatic refinement</h2>
+        <div class="bar">
+          <label>also free</label>
+          <select id="spfree">
+            <option value="rates_in_view">decay rates of the families in view</option>
+            <option value="none">no spectrum parameters</option>
+            <option value="all">every spectrum parameter</option>
+          </select>
+          <label>max evaluations</label><input type="number" id="nfev" value="40" min="1" step="10">
+        </div>
+        <div class="bar">
+          <button class="small" id="all-on">all couplings</button>
+          <button class="small" id="small-on">small couplings</button>
+          <button class="small" id="none-on">none</button>
+          <span class="hint">the "refine" boxes of the coupling list choose the free couplings</span>
+        </div>
+        <div class="bar">
+          <button class="primary" id="start">Start refinement</button>
+          <button id="stop">Stop</button>
+          <span id="rstatus" class="hint"></span>
+        </div>
+        <canvas id="spark" class="spark" height="60"></canvas>
+      </section>
+    </div>
+  </div>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let state = null, last = null, view = null, pending = null, inflight = false, refining = false;
+const rows = {};
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (v, d = 5) => (v === undefined || v === null || !isFinite(v)) ? "-" : (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toPrecision(d));
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function setErr(e) { $("err").textContent = e ? " " + e : ""; }
+
+function delta(el, now, base, lowerIsBetter = true) {
+  if (base === undefined || base === null || !isFinite(base) || base === 0) { el.textContent = ""; return; }
+  const d = now - base, pct = 100 * d / Math.abs(base);
+  el.textContent = (d >= 0 ? "+" : "") + fmt(d, 3) + " (" + (pct >= 0 ? "+" : "") + pct.toFixed(1) + " %) vs baseline";
+  el.className = "d " + (Math.abs(pct) < 0.05 ? "" : ((d < 0) === lowerIsBetter ? "good" : "bad"));
+}
+
+function buildRows() {
+  const list = $("jlist"); list.innerHTML = "";
+  for (const c of state.couplings) {
+    const big = Math.abs(c.baseline) >= 50, span = big ? 3 : 6;
+    const div = document.createElement("div"); div.className = "jrow";
+    div.innerHTML = `<div class="jhead"><input type="checkbox" class="free" title="refine" ${big ? "" : "checked"}>
+      <span class="name">${c.key}</span><input type="number" step="0.01" class="num"><span class="delta"></span>
+      <button class="small rst" title="back to baseline">reset</button></div>
+      <div class="sl"><span>coarse</span><input type="range" class="coarse"></div>
+      <div class="sl"><span>fine</span><input type="range" class="fine" min="-0.3" max="0.3" step="0.002" value="0"></div>
+      <div class="hint sug"></div>`;
+    list.appendChild(div);
+    const r = { div, c, num: div.querySelector(".num"), coarse: div.querySelector(".coarse"), fine: div.querySelector(".fine"),
+                delta: div.querySelector(".delta"), free: div.querySelector(".free"), sug: div.querySelector(".sug"), anchor: c.value };
+    const lo = Math.max(c.lower, c.baseline - span), hi = Math.min(c.upper, c.baseline + span);
+    Object.assign(r.coarse, { min: lo, max: hi, step: 0.01 });
+    rows[c.key] = r;
+    r.coarse.addEventListener("input", () => { r.anchor = +r.coarse.value; r.fine.value = 0; change(c.key, +r.coarse.value); });
+    r.coarse.addEventListener("change", () => commit());
+    r.fine.addEventListener("pointerdown", () => { r.anchor = value(c.key); });
+    r.fine.addEventListener("input", () => change(c.key, r.anchor + +r.fine.value));
+    r.fine.addEventListener("change", () => { r.anchor = value(c.key); r.fine.value = 0; commit(); });
+    r.num.addEventListener("change", () => { r.anchor = +r.num.value; change(c.key, +r.num.value, true); });
+    div.querySelector(".rst").addEventListener("click", () => change(c.key, c.baseline, true));
+  }
+}
+
+function value(key) { return +rows[key].num.value; }
+
+function showCouplings(cs) {
+  for (const c of cs) {
+    const r = rows[c.key]; if (!r) continue;
+    r.c = c;
+    if (document.activeElement !== r.num) r.num.value = c.value.toFixed(3);
+    if (document.activeElement !== r.coarse) r.coarse.value = c.value;
+    if (r.sugAt !== undefined && Math.abs(r.sugAt - c.value) > 1e-9) { r.sug.innerHTML = ""; r.sugAt = undefined; }
+    const d = c.value - c.baseline;
+    r.delta.textContent = (d >= 0 ? "+" : "") + d.toFixed(3);
+    r.delta.style.color = Math.abs(d) > 1e-6 ? css("--accent") : "";
+  }
+}
+
+function change(key, v, isCommit = false) {
+  rows[key].num.value = (+v).toFixed(3);
+  pending = Object.assign(pending || {}, { [key]: +v });
+  send(isCommit);
+}
+
+function commit() { send(true); }
+
+async function send(isCommit = false, extra = {}) {
+  if (refining) return;
+  if (inflight) { if (isCommit) send.commitLater = true; return; }
+  inflight = true;
+  const values = pending; pending = null;
+  const doCommit = isCommit || send.commitLater; send.commitLater = false;
+  try {
+    const res = await api("/api/evaluate", Object.assign({ values, view, commit: doCommit, analysis: $("live").checked }, extra));
+    render(res); setErr("");
+  } catch (e) { setErr(e.message); }
+  inflight = false;
+  if (pending) send();
+}
+
+function render(res) {
+  last = res;
+  const s = res.scores, b = res.baseline;
+  $("t-obj").textContent = fmt(s.objective); delta($("d-obj"), s.objective, b.objective);
+  $("t-win").textContent = fmt(s.window); delta($("d-win"), s.window, res.baseline_window);
+  $("t-plain").textContent = fmt(s.plain); delta($("d-plain"), s.plain, b.plain);
+  $("t-rel").textContent = s.relative.toFixed(4); delta($("d-rel"), s.relative, b.relative);
+  $("t-ms").textContent = (1000 * res.seconds).toFixed(0) + " ms";
+  showCouplings(res.couplings);
+  const pk = (res.residual_peaks || []).filter(p => p.frequency_hz >= view[0] && p.frequency_hz <= view[1]);
+  $("t-peaks").textContent = res.residual_peaks ? pk.length : "off";
+  $("d-peaks").textContent = res.residual_peaks ? pk.filter(p => p.assignable).length + " assignable" : "";
+  const tb = $("peaks").querySelector("tbody"); tb.innerHTML = "";
+  for (const p of pk.sort((a, c) => c.height_sigma - a.height_sigma)) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${p.frequency_hz.toFixed(2)}</td><td>${p.height_sigma}</td><td>${p.sign}</td>
+      <td>${p.nearest_transition_hz === null ? "none (not assignable)" : p.nearest_transition_hz.toFixed(2)}</td>
+      <td><button class="small">sources</button></td>`;
+    tr.querySelector("button").addEventListener("click", () => sources(p.frequency_hz));
+    tb.appendChild(tr);
+  }
+  draw();
+}
+
+// ---------- plot ----------
+let drag = null, peakMarks = [];
+function draw() {
+  const cv = $("plot"), dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = 440;
+  cv.width = w * dpr; cv.height = h * dpr; cv.style.height = h + "px";
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (!last) return;
+  const sp = last.spectrum, part = $("part").value;
+  const pick = (re, im) => re.map((v, i) => part === "re" ? v : part === "im" ? im[i] : Math.hypot(v, im[i]));
+  const y = pick(sp.data_re, sp.data_im), m = pick(sp.model_re, sp.model_im);
+  const rr = sp.data_re.map((v, i) => part === "abs" ? Math.hypot(sp.model_re[i] - v, sp.model_im[i] - sp.data_im[i]) :
+                                    (part === "re" ? sp.model_re[i] - v : sp.model_im[i] - sp.data_im[i]));
+  const L = 50, R = 10, T = 10, stick = 60, gap = 18;
+  const plotH = h - T - stick - gap - 22;
+  const mainH = plotH * 0.72, resH = plotH - mainH;
+  const x0 = view[0], x1 = view[1];
+  const X = (f) => L + (f - x0) / (x1 - x0) * (w - L - R);
+  let lo = Math.min(...y, ...m), hi = Math.max(...y, ...m); if (hi - lo < 1e-12) { hi = lo + 1; }
+  const pad = 0.05 * (hi - lo); lo -= pad; hi += pad;
+  const Y = (v) => T + (hi - v) / (hi - lo) * mainH;
+  const rmax = Math.max(1e-12, ...rr.map(Math.abs)) * 1.1;
+  const Yr = (v) => T + mainH + resH / 2 - v / rmax * (resH / 2);
+  g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.strokeRect(L, T, w - L - R, plotH);
+  g.beginPath(); g.moveTo(L, T + mainH); g.lineTo(w - R, T + mainH); g.stroke();
+  // fit ranges outside are shaded
+  g.fillStyle = css("--line"); g.globalAlpha = 0.6;
+  const inRange = (f) => state.ranges.some(r => f >= r[0] && f <= r[1]);
+  for (let i = 0; i + 1 < sp.f.length; i++) if (!inRange(sp.f[i])) g.fillRect(X(sp.f[i]), T, X(sp.f[i + 1]) - X(sp.f[i]) + 0.5, plotH);
+  g.globalAlpha = 1;
+  // ticks
+  g.fillStyle = css("--muted"); g.font = "11px system-ui"; g.textAlign = "center";
+  const span = x1 - x0, stp = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50].find(s => span / s <= 12) || 100;
+  for (let t = Math.ceil(x0 / stp) * stp; t <= x1; t += stp) {
+    const px = X(t); g.fillText(+t.toFixed(2), px, h - 6);
+    g.strokeStyle = css("--line"); g.beginPath(); g.moveTo(px, T + plotH); g.lineTo(px, T + plotH + 4); g.stroke();
+  }
+  g.textAlign = "left"; g.fillText("data / model", 4, T + 12); g.fillText("residual", 4, T + mainH + 14);
+  g.fillText("lines", 4, T + plotH + gap + 14);
+  const path = (arr, Yf, color, lw) => {
+    g.strokeStyle = color; g.lineWidth = lw; g.beginPath();
+    arr.forEach((v, i) => { const px = X(sp.f[i]), py = Yf(v); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+    g.stroke();
+  };
+  path(y, Y, css("--data"), 1.2); path(m, Y, css("--model"), 1.2);
+  g.strokeStyle = css("--line"); g.beginPath(); g.moveTo(L, Yr(0)); g.lineTo(w - R, Yr(0)); g.stroke();
+  path(rr, Yr, css("--resid"), 1);
+  // model lines
+  const top = T + plotH + gap, comps = state.components;
+  for (const l of last.lines) {
+    const px = X(l.frequency_hz);
+    g.strokeStyle = css("--c" + Math.min(l.component, 5)); g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(px, top + stick - 4); g.lineTo(px, top + stick - 4 - l.relative_amplitude * (stick - 10)); g.stroke();
+  }
+  let lx = L + 6; g.font = "11px system-ui";
+  comps.forEach((c, i) => { g.fillStyle = css("--c" + Math.min(i, 5)); g.fillText(c, lx, top + 10); lx += g.measureText(c).width + 14; });
+  // residual peak markers
+  peakMarks = [];
+  for (const p of (last.residual_peaks || [])) {
+    if (p.frequency_hz < x0 || p.frequency_hz > x1) continue;
+    const px = X(p.frequency_hz), py = T + mainH + 4;
+    g.fillStyle = p.sign === "model above data" ? css("--bad") : css("--accent");
+    g.globalAlpha = p.assignable ? 1 : 0.45;
+    g.beginPath(); g.moveTo(px, py); g.lineTo(px - 5, py + 8); g.lineTo(px + 5, py + 8); g.fill();
+    g.globalAlpha = 1;
+    peakMarks.push({ px, py, f: p.frequency_hz });
+  }
+  if (drag && drag.x1 !== undefined) {
+    g.fillStyle = css("--accent"); g.globalAlpha = 0.15;
+    g.fillRect(Math.min(drag.x0, drag.x1), T, Math.abs(drag.x1 - drag.x0), plotH); g.globalAlpha = 1;
+  }
+  draw.X = X; draw.L = L; draw.R = R; draw.w = w;
+}
+
+function fAt(px) { return view[0] + (px - draw.L) / (draw.w - draw.L - draw.R) * (view[1] - view[0]); }
+
+function setView(lo, hi, refresh = true) {
+  lo = Math.max(state.extent[0], lo); hi = Math.min(state.extent[1], hi);
+  if (hi - lo < 0.2) return;
+  view = [lo, hi]; $("vlo").value = lo.toFixed(2); $("vhi").value = hi.toFixed(2);
+  try { localStorage.setItem("jtuner.view." + state.spectrum, JSON.stringify(view)); } catch (e) {}
+  if (refresh) send();
+}
+
+function wirePlot() {
+  const cv = $("plot");
+  cv.addEventListener("mousedown", (e) => {
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, yy = e.clientY - r.top;
+    const hit = peakMarks.find(p => Math.abs(p.px - x) < 7 && Math.abs(p.py + 4 - yy) < 9);
+    if (hit) { sources(hit.f); return; }
+    if (e.altKey) { sources(fAt(x)); return; }
+    drag = { x0: x };
+  });
+  cv.addEventListener("mousemove", (e) => { if (!drag) return; drag.x1 = e.clientX - cv.getBoundingClientRect().left; draw(); });
+  window.addEventListener("mouseup", () => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (d.x1 !== undefined && Math.abs(d.x1 - d.x0) > 6) setView(fAt(Math.min(d.x0, d.x1)), fAt(Math.max(d.x0, d.x1)));
+    else draw();
+  });
+  cv.addEventListener("dblclick", () => setView(state.extent[0], state.extent[1]));
+  window.addEventListener("resize", draw);
+  $("part").addEventListener("change", draw);
+  $("vlo").addEventListener("change", () => setView(+$("vlo").value, +$("vhi").value));
+  $("vhi").addEventListener("change", () => setView(+$("vlo").value, +$("vhi").value));
+}
+
+// ---------- analysis ----------
+async function sources(freq) {
+  $("sources").textContent = "computing sources at " + freq.toFixed(2) + " Hz ...";
+  try {
+    const s = await api("/api/sources", { frequency_hz: freq });
+    if (!s.lines.length) { $("sources").textContent = "no model line within 0.6 Hz of " + freq.toFixed(2) + " Hz: not assignable (impurity, instrument line or missing species)"; return; }
+    const linesTxt = s.lines.map(l => `${state.components[l.component]} ${l.frequency_hz.toFixed(3)} Hz (amp ${l.relative_amplitude.toFixed(2)})`).join("; ");
+    let html = `<div class="hint">lines within 0.6 Hz of ${freq.toFixed(2)} Hz: ${linesTxt}</div>
+      <table><thead><tr><th>coupling</th><th>local effect</th><th>selectivity</th><th>shift (Hz/Hz)</th><th>split</th><th></th></tr></thead><tbody>`;
+    for (const c of s.couplings.filter(c => c.local > 1e-6).slice(0, 8))
+      html += `<tr><td>${c.key}</td><td>${c.local.toPrecision(3)}</td><td>${c.selectivity.toFixed(2)}</td>
+        <td>${c.shift.toFixed(3)}</td><td>${c.split.toFixed(3)}</td><td><button class="small" data-k="${c.key}">free only</button></td></tr>`;
+    html += `</tbody></table><div class="hint">shift moves the feature, split changes the spacing inside it (opens or fills a dip); a one-bond coupling only shifts. "free only" ticks just the couplings of this table up to that row for the refinement.</div>`;
+    $("sources").innerHTML = html;
+    const keys = s.couplings.filter(c => c.local > 1e-6).slice(0, 8).map(c => c.key);
+    $("sources").querySelectorAll("button[data-k]").forEach((b) => b.addEventListener("click", () => {
+      const upto = keys.indexOf(b.dataset.k);
+      for (const k in rows) rows[k].free.checked = keys.slice(0, upto + 1).includes(k);
+      setView(freq - 1.5, freq + 1.5);
+    }));
+  } catch (e) { $("sources").textContent = e.message; }
+}
+
+async function suggest() {
+  $("status").textContent = "computing gradient ...";
+  try {
+    const g = await api("/api/gradient", {});
+    for (const c of g.couplings) {
+      const r = rows[c.key]; if (!r) continue;
+      const step = c.step_hz, big = Math.abs(step) > 2 ? " (large: nonlinear, try a smaller move)" : "";
+      r.sugAt = value(c.key);
+      r.sug.innerHTML = `suggested step ${step >= 0 ? "+" : ""}${step.toFixed(3)} Hz${big} <button class="small">apply</button>`;
+      r.sug.querySelector("button").addEventListener("click", () => change(c.key, value(c.key) + step, true));
+    }
+    $("status").textContent = "ready";
+  } catch (e) { setErr(e.message); }
+}
+
+// ---------- refinement ----------
+async function startRefine() {
+  const keys = Object.keys(rows).filter(k => rows[k].free.checked);
+  try {
+    const r = await api("/api/refine", { couplings: keys, spectrum: $("spfree").value, view, max_nfev: +$("nfev").value });
+    refining = true; $("rstatus").textContent = "running: " + r.free.join(", "); poll();
+  } catch (e) { setErr(e.message); }
+}
+
+async function poll() {
+  try {
+    const p = await api("/api/progress");
+    if (p.couplings) showCouplings(state.couplings.map(c => Object.assign({}, rows[c.key].c, { value: p.couplings[c.key] })));
+    $("rstatus").textContent = `${p.running ? "running" : p.message}: ${p.evaluations} evaluations, best objective ${fmt(p.best)}, ${p.seconds} s`;
+    spark(p.history || []);
+    if (p.running) { setTimeout(poll, 400); return; }
+    refining = false; send();
+  } catch (e) { setErr(e.message); refining = false; }
+}
+
+function spark(hist) {
+  const cv = $("spark"), dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = 60;
+  cv.width = w * dpr; cv.height = h * dpr; const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h); if (hist.length < 2) return;
+  const best = []; hist.reduce((b, v, i) => (best[i] = Math.min(b, v)), Infinity);
+  const lo = Math.min(...best), hi = Math.max(...hist.slice(0, Math.max(3, hist.length)));
+  const X = (i) => 4 + i / (hist.length - 1) * (w - 8), Y = (v) => 4 + (hi - v) / Math.max(hi - lo, 1e-12) * (h - 8);
+  g.strokeStyle = css("--resid"); g.beginPath(); hist.forEach((v, i) => i ? g.lineTo(X(i), Y(Math.min(v, hi))) : g.moveTo(X(i), Y(Math.min(v, hi)))); g.stroke();
+  g.strokeStyle = css("--accent"); g.lineWidth = 2; g.beginPath(); best.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v))); g.stroke();
+}
+
+// ---------- startup ----------
+async function action(path, body = {}) {
+  try { render(await api(path, Object.assign({ view, analysis: $("live").checked }, body))); setErr(""); } catch (e) { setErr(e.message); }
+}
+
+async function init() {
+  state = await api("/api/state");
+  $("specname").textContent = state.spectrum + " (" + state.components.join(", ") + ")";
+  buildRows();
+  let v = [Math.max(state.extent[0], state.ranges[0][0]), Math.min(state.extent[1], state.ranges[state.ranges.length - 1][1])];
+  try { const s = JSON.parse(localStorage.getItem("jtuner.view." + state.spectrum)); if (s) v = s; } catch (e) {}
+  const pre = $("presets");
+  state.ranges.forEach((r) => { const b = document.createElement("button"); b.className = "small"; b.textContent = r[0] + "-" + r[1];
+    b.addEventListener("click", () => setView(r[0], r[1])); pre.appendChild(b); });
+  wirePlot();
+  $("accept").addEventListener("click", () => action("/api/accept"));
+  $("undo").addEventListener("click", () => action("/api/undo"));
+  $("reset-b").addEventListener("click", () => action("/api/reset", { to: "baseline" }));
+  $("reset-i").addEventListener("click", () => action("/api/reset", { to: "initial" }));
+  $("grad").addEventListener("click", suggest);
+  $("save").addEventListener("click", async () => { try { const r = await api("/api/save", {}); $("status").textContent = "saved " + r.path; } catch (e) { setErr(e.message); } });
+  $("start").addEventListener("click", startRefine);
+  $("stop").addEventListener("click", () => api("/api/stop", {}));
+  $("all-on").addEventListener("click", () => { for (const k in rows) rows[k].free.checked = true; });
+  $("small-on").addEventListener("click", () => { for (const k in rows) rows[k].free.checked = Math.abs(rows[k].c.baseline) < 50; });
+  $("none-on").addEventListener("click", () => { for (const k in rows) rows[k].free.checked = false; });
+  $("live").addEventListener("change", () => send());
+  $("theme").addEventListener("click", () => {
+    const d = document.documentElement, cur = d.getAttribute("data-theme");
+    const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    d.setAttribute("data-theme", dark ? "light" : "dark"); draw();
+  });
+  $("status").textContent = "ready";
+  setView(v[0], v[1]);
+  const p = await api("/api/progress");
+  if (p.running) { refining = true; poll(); }
+}
+init().catch((e) => setErr(e.message));
+</script>
+</body>
+</html>

@@ -240,6 +240,9 @@ Use occasionally or as the last step, not inside every fit.
 - Before blaming couplings for a doublet, narrow the rate family of the feature: one peak where the data have
   two means a position problem. A species added for a test (e.g. 15N at natural abundance) must not create
   lines the data do not show; check the cost per frequency bin against the baseline.
+- Hand tests: `scripts/j_tuner.py` (the fit's command line + `--fit RUN/fit.json`) shows the fitter's objective,
+  the view cost and the residual peaks live while a coupling slider moves; refine the ticked couplings from
+  there and save tuned.json as a --from-joint start. Judge a move by the objective, not the view alone.
 - The residual-peak stage (`--residual-peaks`) still lets assignability flip between rounds and may accept a
   large plain-objective loss; check `fit.json["residual_peaks"]` (rounds, scores) before using its choice.
 - `--trace N` and `scripts/trace_view.py RUN` to watch a fit step by step (slider).

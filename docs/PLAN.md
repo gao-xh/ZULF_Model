@@ -303,6 +303,10 @@ tall lines and barely sees it.
 - [x] Line table (zulf_core.physics.lines, scripts/line_table.py; commits 2dc4c16, 5de437e): exact split of every
       line into coupling contributions (Euler), df/dJ, second-order and cross terms, near-degenerate flag.
 - [x] Fit trace and slider viewer (fit_joint_series --trace, scripts/trace_view.py; commit b5ef7fa).
+- [x] Interactive J tuner (scripts/j_tuner.py, tests/test_j_tuner.py; user request 2026-10-05): coarse / fine
+      sliders with the live objective, view cost, residual, lines and residual peaks; peak sources; suggested
+      steps; stoppable refinement of chosen parameters; tuned.json readable by --from-joint.
+      To do: show several spectra of a series at once; a rate / delay panel.
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
       a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
 - [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them

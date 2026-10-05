@@ -31,6 +31,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 from scipy.special import expit
@@ -723,82 +724,9 @@ def _solve_start(z):
     return float(2 * sol.cost), sol.x
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--series", required=True)
-    ap.add_argument("--real-only", type=_flag, default=True,
-                    help="true (default): fit the real part of the phased spectra; false: fit complex spectra "
-                         "(values stored complex, model through the same record and phasing)")
-    ap.add_argument("--structure", required=True)
-    ap.add_argument("--couplings", default="{}", help="JSON {key: Hz}: structure values and prior centres")
-    ap.add_argument("--start-couplings", default="", help="JSON {key: Hz}: common starting couplings for every "
-                    "spectrum (the prior centres stay the --couplings values)")
-    ap.add_argument("--from-joint", default="", help="fit.json of an earlier joint fit: its J at every x as start")
-    ap.add_argument("--seeds", default="", help="JSON {\"x\": [...], \"solutions\": [{key: [J at every x]}, ...]}: "
-                    "several start tables (e.g. the near-best solutions of earlier fits); each is a start and the "
-                    "perturbed starts are spread over them in turn (spectrum parameters as for --from-joint)")
-    ap.add_argument("--prior-sigma-hh", type=float, default=0.0)
-    ap.add_argument("--prior-sigma-ch", type=float, default=0.0)
-    ap.add_argument("--prior-weight", type=float, default=1.0)
-    ap.add_argument("--variant", default="ratios")
-    ap.add_argument("--range", default="140,200")
-    ap.add_argument("--starts", type=int, default=6)
-    ap.add_argument("--spread", type=float, default=0.5, help="perturbation of every coupling level (Hz)")
-    ap.add_argument("--change-bound", type=float, default=20.0, help="bound on |total change| of a coupling (Hz)")
-    ap.add_argument("--signal-threshold", type=float, default=0.0,
-                    help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
-    ap.add_argument("--signal-taper", type=float, default=0.0,
-                    help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
-    ap.add_argument("--signal-height-power", type=float, default=0.0,
-                    help="extra weight (local peak height / max)^-power: small peaks count more (0 = off)")
-    ap.add_argument("--peak-penalty", type=float, default=0.0,
-                    help="missing-peak rows: strength per data peak top whose model stays below the data (0 = off)")
-    ap.add_argument("--peak-prominence", type=float, default=0.12,
-                    help="peak tops: prominence as a fraction of the largest value (and at least 2 noise sigma)")
-    ap.add_argument("--peak-tolerance", type=float, default=0.15, help="peak tops: position tolerance (Hz)")
-    ap.add_argument("--peak-min-sigma", type=float, default=2.0, help="peak tops: prominence at least this many noise sigma")
-    ap.add_argument("--peak-smooth", type=float, default=0.0,
-                    help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
-                         "solutions are then rescored and ranked with the hard rows")
-    ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
-                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue)")
-    ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
-    ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
-    ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
-                    help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
-    ap.add_argument("--shape", default="monotone", choices=["monotone", "free"],
-                    help="monotone (default): every coupling monotonic in x; free: independent J at every x")
-    ap.add_argument("--shared", default="", help="comma-separated spectrum parameters shared by all spectra "
-                    "(e.g. phase_delay: one model delay for the series)")
-    ap.add_argument("--residual-peaks", type=float, default=0.0,
-                    help="strength of the residual-peak rows (0 = off): after the starts, the best candidates are "
-                         "refitted with localized, assignable residual peaks weighted, then ranked on one common "
-                         "window set")
-    ap.add_argument("--residual-peak-sigma", type=float, default=4.0, help="residual peaks: height in local noise sigma")
-    ap.add_argument("--residual-peak-halfwidth", type=float, default=0.3, help="residual peaks: window half width (Hz)")
-    ap.add_argument("--residual-peak-assign", type=float, default=0.6,
-                    help="residual peaks: a model transition within this distance (Hz) makes a peak assignable")
-    ap.add_argument("--residual-peak-rounds", type=int, default=3)
-    ap.add_argument("--residual-peak-candidates", type=int, default=3)
-    ap.add_argument("--trace", type=int, default=0,
-                    help="record the fit path of the best start (and the residual-peak stage) as up to this many "
-                         "frames: OUT/trace.npz + trace.json for scripts/trace_view.py (0 = off)")
-    ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
-    ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
-    ap.add_argument("--hold-small-first", action="store_true",
-                    help="stage 1 of every start: small couplings held, 1J, rates and delays fitted; then all free")
-    ap.add_argument("--scan-cycles", type=int, default=0, help="coordinate grid-scan cycles before each fit")
-    ap.add_argument("--scan-half-width", type=float, default=4.0)
-    ap.add_argument("--scan-step", type=float, default=0.5)
-    ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
-                    "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
-    ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
-    ap.add_argument("--max-nfev", type=int, default=200)
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--out", default="runs/processed/joint")
-    args = ap.parse_args()
-    from run_log import RunLog
-    run_log = RunLog(Path(args.out), "fit_joint_series")
+def build_problem(args):
+    """The fitting problem of a command line: observations, model, JointSeries (weights, priors, missing-peak
+    rows), the start vector z0 and the bounds. Shared by main and scripts/j_tuner.py."""
     import regression_confirmed as reg
     from fit_processed_spectrum import override_couplings
     series = json.load(open(args.series))
@@ -901,6 +829,98 @@ def main():
                            smooth=args.peak_smooth)
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
+    return SimpleNamespace(series=series, left_out=left_out, lo=lo, hi=hi, obs=obs, model=model,
+                           settings=settings, joint=joint, key_of=key_of, centre=centre, xs0=xs0, z0=z0,
+                           prior=(ks, mean, sigma), lower=lower, upper=upper)
+
+
+def make_parser():
+    """Command line of the series fitter (also used by scripts/j_tuner.py)."""
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--series", required=True)
+    ap.add_argument("--real-only", type=_flag, default=True,
+                    help="true (default): fit the real part of the phased spectra; false: fit complex spectra "
+                         "(values stored complex, model through the same record and phasing)")
+    ap.add_argument("--structure", required=True)
+    ap.add_argument("--couplings", default="{}", help="JSON {key: Hz}: structure values and prior centres")
+    ap.add_argument("--start-couplings", default="", help="JSON {key: Hz}: common starting couplings for every "
+                    "spectrum (the prior centres stay the --couplings values)")
+    ap.add_argument("--from-joint", default="", help="fit.json of an earlier joint fit: its J at every x as start")
+    ap.add_argument("--seeds", default="", help="JSON {\"x\": [...], \"solutions\": [{key: [J at every x]}, ...]}: "
+                    "several start tables (e.g. the near-best solutions of earlier fits); each is a start and the "
+                    "perturbed starts are spread over them in turn (spectrum parameters as for --from-joint)")
+    ap.add_argument("--prior-sigma-hh", type=float, default=0.0)
+    ap.add_argument("--prior-sigma-ch", type=float, default=0.0)
+    ap.add_argument("--prior-weight", type=float, default=1.0)
+    ap.add_argument("--variant", default="ratios")
+    ap.add_argument("--range", default="140,200")
+    ap.add_argument("--starts", type=int, default=6)
+    ap.add_argument("--spread", type=float, default=0.5, help="perturbation of every coupling level (Hz)")
+    ap.add_argument("--change-bound", type=float, default=20.0, help="bound on |total change| of a coupling (Hz)")
+    ap.add_argument("--signal-threshold", type=float, default=0.0,
+                    help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
+    ap.add_argument("--signal-taper", type=float, default=0.0,
+                    help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--signal-height-power", type=float, default=0.0,
+                    help="extra weight (local peak height / max)^-power: small peaks count more (0 = off)")
+    ap.add_argument("--peak-penalty", type=float, default=0.0,
+                    help="missing-peak rows: strength per data peak top whose model stays below the data (0 = off)")
+    ap.add_argument("--peak-prominence", type=float, default=0.12,
+                    help="peak tops: prominence as a fraction of the largest value (and at least 2 noise sigma)")
+    ap.add_argument("--peak-tolerance", type=float, default=0.15, help="peak tops: position tolerance (Hz)")
+    ap.add_argument("--peak-min-sigma", type=float, default=2.0, help="peak tops: prominence at least this many noise sigma")
+    ap.add_argument("--peak-smooth", type=float, default=0.0,
+                    help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
+                         "solutions are then rescored and ranked with the hard rows")
+    ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
+                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue)")
+    ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
+    ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
+    ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
+                    help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
+    ap.add_argument("--shape", default="monotone", choices=["monotone", "free"],
+                    help="monotone (default): every coupling monotonic in x; free: independent J at every x")
+    ap.add_argument("--shared", default="", help="comma-separated spectrum parameters shared by all spectra "
+                    "(e.g. phase_delay: one model delay for the series)")
+    ap.add_argument("--residual-peaks", type=float, default=0.0,
+                    help="strength of the residual-peak rows (0 = off): after the starts, the best candidates are "
+                         "refitted with localized, assignable residual peaks weighted, then ranked on one common "
+                         "window set")
+    ap.add_argument("--residual-peak-sigma", type=float, default=4.0, help="residual peaks: height in local noise sigma")
+    ap.add_argument("--residual-peak-halfwidth", type=float, default=0.3, help="residual peaks: window half width (Hz)")
+    ap.add_argument("--residual-peak-assign", type=float, default=0.6,
+                    help="residual peaks: a model transition within this distance (Hz) makes a peak assignable")
+    ap.add_argument("--residual-peak-rounds", type=int, default=3)
+    ap.add_argument("--residual-peak-candidates", type=int, default=3)
+    ap.add_argument("--trace", type=int, default=0,
+                    help="record the fit path of the best start (and the residual-peak stage) as up to this many "
+                         "frames: OUT/trace.npz + trace.json for scripts/trace_view.py (0 = off)")
+    ap.add_argument("--leave-out", type=int, default=-1, help="index of a spectrum to leave out (leave-one-out)")
+    ap.add_argument("--prior-starts", type=int, default=0, help="extra starts drawn from the priors")
+    ap.add_argument("--hold-small-first", action="store_true",
+                    help="stage 1 of every start: small couplings held, 1J, rates and delays fitted; then all free")
+    ap.add_argument("--scan-cycles", type=int, default=0, help="coordinate grid-scan cycles before each fit")
+    ap.add_argument("--scan-half-width", type=float, default=4.0)
+    ap.add_argument("--scan-step", type=float, default=0.5)
+    ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
+                    "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
+    ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
+    ap.add_argument("--max-nfev", type=int, default=200)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--out", default="runs/processed/joint")
+    return ap
+
+
+def main():
+    ap = make_parser()
+    args = ap.parse_args()
+    from run_log import RunLog
+    run_log = RunLog(Path(args.out), "fit_joint_series")
+    prob = build_problem(args)
+    series, left_out, lo, hi, obs, model = prob.series, prob.left_out, prob.lo, prob.hi, prob.obs, prob.model
+    settings, joint, key_of, centre, xs0, z0 = (prob.settings, prob.joint, prob.key_of, prob.centre, prob.xs0,
+                                                prob.z0)
+    (ks, mean, sigma), lower, upper = prob.prior, prob.lower, prob.upper
     rng = np.random.default_rng(args.seed)
     centres = [z0]
     if args.seeds:

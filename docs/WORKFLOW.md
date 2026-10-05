@@ -173,6 +173,20 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
    detect -> weight windows -> refit. Known issues (isopropylamine, to fix): assignability can flip between rounds
    when the lines move away (keep a window once found, judged on the starting transitions), and the ranking chose
    a solution 45 % worse on the plain objective for a 9 % better weighted one (cap the plain loss).
+7. Interactive tuning (`scripts/j_tuner.py`, the fit's own command line plus `--fit RUN/fit.json`; open
+   http://127.0.0.1:8765). The problem is built by `fit_joint_series.build_problem`, so every number is the
+   fitter's objective. Per coupling a coarse slider (+-6 Hz, 1J +-3 Hz around the baseline), a fine slider
+   (+-0.3 Hz around the value at the start of the drag) and a number field; on every change (about 0.3 s for
+   isopropylamine) the objective with the missing-peak rows, the cost in the view, the plain and relative
+   residuals and their change against the baseline, data / model / residual of the view, the model lines and the
+   residual peaks (both signs, assignable or not). On demand: the sources of a residual peak (couplings ranked
+   by local effect with shift / split, "free only" ticks them for the refinement) and suggested steps (gradient
+   and the one-coupling Gauss-Newton step of every coupling; 2 s). "Start refinement": least squares on the full
+   objective with the ticked couplings (plus the rate families in view, or every spectrum parameter) free and
+   everything else held, streamed to the page, stoppable (the best point is kept), undoable. "Accept" makes the
+   state the baseline; "Save" writes OUT/tuned.json, which fit_joint_series reads with --from-joint (a manual
+   point as the start of a full multi-start fit). Use it to test a hypothesis by hand (move one coupling, watch
+   the window and the global cost together) before writing a scripted local fit.
 
 ## 9. Reliability and uncertainty budget
 
@@ -214,3 +228,5 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
     python scripts/line_table.py --structure '...' --exchange fast --fit runs/processed/NAME/fit.json \
       --band 120,124 --second-order
     python scripts/trace_view.py runs/processed/NAME --band 112,140
+    python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME
+    python scripts/j_tuner.py <the fit_joint_series options of the fit> --fit runs/processed/NAME/fit.json

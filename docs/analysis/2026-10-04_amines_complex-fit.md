@@ -121,3 +121,16 @@ N-ethylmethylamine 13C@C1 121.22-121.87 Hz) but spread over 0.5-0.7 Hz, and
 the fit covers the sharp data line with a broad family. So the isopropylamine
 pair is one case of a systematic misfit of this cluster; NH2 protons are not
 needed for it (triethylamine has none).
+
+## Tools added during this analysis (2026-10-05)
+
+User: an interface to adjust J by hand (coarse and fine), start an automatic
+refinement, and see the residual and the score live while dragging. Added
+scripts/j_tuner.py + j_tuner_ui.html (docs/WORKFLOW.md section 8, item 7),
+fit_joint_series.make_parser / build_problem (the tuner builds the fitter's own
+problem), scripts/make_series_entry.py (FID -> series entry with this recipe;
+reproduces the triethylamine series exactly). Checked on isopropylamine
+(ipa_fast_fam2_4j): the page shows objective 0.047526 as the fit; 3J(H1,H2)
++0.25 Hz by the fine slider gives 0.1432 (+201 %); a refinement of the small
+couplings and the rate families in view returns to 0.047526 in 11 evaluations
+(20 s). Update time about 0.3 s per change (residual peaks included).
