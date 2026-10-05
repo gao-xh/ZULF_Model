@@ -1345,3 +1345,6 @@ skills under `skills/`; this file keeps the history.
   basin with whole objective 0.0535 against 0.0752 (1J 131.6, 2J -4.5, 3J(C2,H3) 5.8 Hz instead of
   138.4 / -6.2 / 12.1). The global refit is running. The N-H exchange fit gives k -> 100+ /s and does not change
   the CH2 band. docs/analysis/2026-10-04_amines_complex-fit.md
+- 2026-10-05: ethylenediamine with the AA'BB' motif (J != J'): 0.0714 -> 0.0449 (J 1.5, J' 16.0, geminal -13.8 Hz).
+  The 190.6 / 192.1 Hz pair is still open. N-ethylmethylamine new basin final at 0.0501.
+  docs/analysis/2026-10-04_amines_complex-fit.md

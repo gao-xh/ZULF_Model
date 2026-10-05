@@ -326,3 +326,33 @@ Component search in the fitter (aaa352c and the merge rule after it). In the fir
 of a single component split at 3 Hz gaps (e.g. 189.6-191.6 Hz) were too narrow to constrain a refit. Clusters of a
 component are now merged whenever the merged window stays dominated by it. Reruns with the search:
 tea_fast_fam_cs (range from 181 Hz) and eda_fast_fam_cs.
+
+## Ethylenediamine: AA'BB' ethylene unit (2026-10-05)
+
+The component search on eda_fast_fam_cs found no better basin: window cost 0.0502 unchanged, whole objective
+0.0714. The misfit is therefore a model limit, not a wrong basin. The CH2-CH2 template has one vicinal J, which
+makes the CH2 protons magnetically equivalent. In X-CH2-CH2-X the same-side J and the cross J' differ, and then
+the geminal coupling also matters.
+
+New motif "X-CH2-CH2-X (AA'BB')" (a5f8959; test: J = J' gives the equivalent-group lines). Fit eda_aabb: fast
+exchange, families, 18 seeds over J / J' / geminal, component search start and end.
+
+| Run | Objective | Data residual |
+|---|---|---|
+| eda_fast_fam (one vicinal J) | 0.0714 | 0.253 |
+| eda_aabb (J != J') | **0.0449** (-37 %) | 0.189 |
+
+Couplings of eda_aabb (Hz): 1J(C,H) 131.16, 2J(C,H) -1.77, geminal -13.79, J 1.48, J' 16.04. This is the pattern
+of an anti-dominated ethylene unit (anti about 13-16 Hz, gauche about 2-4 Hz). J' = 16 is at the high end and
+should be checked.
+
+The 197-201 Hz structure is now fitted (the 198 / 199 Hz doublet and the dip at 200 Hz). The sharp pair at
+190.6 / 192.1 Hz is still not explained: the model puts only a weak broad bump there, and the processed data show
+a dispersive-looking feature. Candidates: N-H couplings (the static slow-exchange fits did put lines there, but
+the 15N-H lines are missing from the data); a second species (ethylenediamine takes up CO2 as a carbamate); an
+instrument feature.
+
+Figures: runs/processed/amine_overview/ethylenediamine_aabb.png, runs/processed/eda_aabb/paper_figure.png.
+
+N-ethylmethylamine final refit from the 13CH2 basin (nema_fast_fam_ch2basin): 0.0501, data residual 0.224
+(old fit 0.0752 / 0.276). The four starts end at 0.0501-0.0527.
