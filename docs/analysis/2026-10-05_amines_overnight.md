@@ -225,3 +225,53 @@ Figure: runs/processed/amine_overview/ethylenediamine_2sp_fam185.png.
     with an edge at 198.3 Hz;
   - a line-shape effect of the strongest lines;
   - an asymmetric main species (eda_abcd tests an asymmetric second species).
+
+### Step 8: rate-family edge at 198.3 Hz (eda_2sp_fam198)
+
+Setup:
+- Edges 185, 195.3, 198.3, 199.5, 202.4, from eda_2sp_fam185; rates were remapped (each new family takes the rate
+  of the old family containing it).
+- 3 starts, spread 0.1, 2 model-line passes.
+
+Result:
+- Starts 0.00520, 0.00521. After the model-line pass: 0.00554 (new weights), **0.00509 under the original weights**.
+- Data-region residual 0.072.
+- **The couplings do not move** (all within 0.06 Hz of fam185); only the decay rates of the 197.8 and 198.7 Hz
+  lines separate.
+
+Boundary hits: species 2's two families between 195.3 and 199.5 Hz are at the 15/s bound. Species 2 broadens its
+lines there out of the way, which suggests its model has more line intensity in that band than the data allow.
+
+Figure: runs/processed/amine_overview/ethylenediamine_2sp_fam198.png. The legends of these figures give the
+fit.json score, which is under the final (model-line) weights.
+
+### Step 6 result: AA'BB' plus ABCD (eda_abcd)
+
+- Best 0.00691, against 0.00676 for the symmetric second unit with the same family edges. The extra freedom gives
+  no gain, so there is no evidence for an asymmetric species 2.
+- Species 2 couplings:
+  - 1J(C1,H) 126.93 and 1J(C2,H) 140.15;
+  - geminals -17.9 and -15.9;
+  - vicinal 12.0 and 7.2;
+  - 2J(C2,H) +0.75.
+- The symmetric model is kept.
+
+### Ethylenediamine summary so far
+
+| Run | Model | Objective (original weights) | Residual |
+|---|---|---|---|
+| eda_aabb | one AA'BB' unit | 0.0449 | 0.189 |
+| eda_2sp_refit2 | two units | 0.0068 | 0.081 |
+| eda_abcd | AA'BB' + ABCD | 0.0069 | 0.081 |
+| eda_2sp_fam185 | two units, edge 185 | 0.0066 | 0.082 |
+| eda_2sp_fam198 | two units, edges 185 + 198.3 | **0.0051** | 0.072 |
+
+### Narrow rate families for the other amines
+
+tea_fam121 (edges at 120.8, 121.2 and 121.6 Hz around the sharp 121.08 Hz CH3 line) is at 0.0383 mid-fit,
+against 0.049 before. The same is queued for:
+- isopropylamine: ipa_fam122, edges 121.4, 121.95 and 122.6 around the 121.67 / 122.29 Hz lines;
+- N-ethylmethylamine: nema_fam121, edges 121.0 and 121.65 around 121.33 Hz.
+
+Both start from their best fits with remapped rates (scratchpad amines/remap_families.py), 4 starts, component
+search at the end and 2 model-line passes.
