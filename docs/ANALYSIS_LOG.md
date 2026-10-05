@@ -1360,3 +1360,6 @@ skills under `skills/`; this file keeps the history.
   the ABCD and 15N alternatives fail). Triethylamine 0.049 -> 0.038 and N-ethylmethylamine 0.050 -> 0.046 (narrow
   rate families at the sharp 121 Hz lines). Isopropylamine unchanged at 0.0475 (no second species, no slow N-H).
   Open: missing methyl lines near 121-122 Hz. docs/analysis/2026-10-05_amines_overnight.md
+- 2026-10-05: ethylenediamine with the N-H protons kept (static, 9 spins): one species 0.049, two species 0.0090,
+  against 0.0051 with N-H decoupled; the N-H couplings fit to within 1.3 Hz of zero. Fast exchange favoured; exact
+  intermediate exchange too large (35 GiB). docs/analysis/2026-10-05_amines_overnight.md

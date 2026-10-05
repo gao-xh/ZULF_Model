@@ -501,3 +501,47 @@ The figure shows three peaks because 193.7 is small and 177.56 is broadened by i
 
 With one shared rate (no refit), species 2 is still far better than one species alone (0.0449). Open: a refit with
 the species-2 rates tied.
+
+## Ethylenediamine with the N-H protons kept (user: "try not ignoring the N-H protons")
+
+**Exact exchange model.** It does not fit in memory for this system:
+- 13C + 4 CH + 4 NH protons, with no non-exchanging equivalence group that the reduction can use;
+- the coherence block is 48620 x 48620 (35 GiB).
+
+So the N-H protons were kept **static** (`--exchange slow`, no exchange rate):
+- motif "H2N-CH2-CH2-NH2 (AA'BB')";
+- every N-H coupling free;
+- the 15N isotopologue at natural abundance included;
+- rate edges as in eda_2sp_fam198;
+- 12 random N-H coupling seeds, the rest from eda_2sp_fam198;
+- component search at the end and 1 model-line pass.
+
+Fix needed first (commit after 479f6ea): `fit_staged.group_index` failed on symmetric components;
+GroupIndexTests added.
+
+| Run | Model | Objective (original weights) | Data residual |
+|---|---|---|---|
+| eda_2sp_fam198 | two species, N-H decoupled (fast) | 0.0051 | 0.072 |
+| eda_nh_B | two species, species 1 with static N-H | 0.0090 | 0.096 |
+| eda_nh_A | one species with static N-H | 0.0491 | 0.213 |
+| eda_aabb (reference) | one species, N-H decoupled | 0.0449 | 0.189 |
+
+**N-H couplings at the optimum go to the decoupled limit:**
+
+| Coupling (Hz) | eda_nh_A | eda_nh_B |
+|---|---|---|
+| J(C1,HN1) | -1.29 | -0.49 |
+| J(C1,HN2) | +0.89 | -0.72 |
+| J(HC1a,HN1) | +0.21 | +0.27 |
+| J(HC1a,HN2) | -0.16 | +0.02 |
+
+The fits push the 13C-HN and CH-HN couplings to within 1.3 Hz of zero. With the protons static, the remaining small
+values still cost, through the extra lines and the 15N isotopologue. In A, the species-1 geminal also drifts to
+-4.8 Hz (B: -3.4 Hz), an unphysical compensation.
+
+Conclusion: keeping the N-H protons does not replace species 2 (A against two species: 0.049 against 0.0051).
+Adding them to species 1 makes the two-species fit worse (0.0090). This is consistent with fast N-H exchange.
+
+Intermediate exchange (a finite rate) could not be tested with the exact model at this size.
+
+Figure: runs/processed/amine_overview/ethylenediamine_nh_kept.png.
