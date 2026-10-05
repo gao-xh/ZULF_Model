@@ -296,3 +296,26 @@ Second species (same motif, free ratio):
 
 A second isopropylamine-like species does not supply the 121.67 Hz line. Open: an N-H coupled (slow-exchange)
 methyl band, or a different impurity.
+
+Slow-exchange N-H test for isopropylamine (user's hypothesis that the N-H protons couple):
+- Model: `--exchange slow` with the fast-fit couplings and rates.
+- Grid: J(C2,HN1) -1..4.5, J(HC1,HN1) 0 / 3 / 6, J(C1,HN1) -3 / 0 / 3, with the gains solved.
+- Best 0.0743, at all N-H couplings 0, against 0.0475 for fast exchange. The natural-abundance 15N-H lines are not
+  in the data, and any 3J(C2,HN) splitting of the methyl lines makes the fit worse (0.5 Hz: 0.086; 1 Hz: 0.155).
+- As for N-ethylmethylamine, the data favour fast N-H exchange.
+
+### Step 10: N-ethylmethylamine and triethylamine with narrow rate families (running)
+
+- nema_fam121 (edges 121.0 and 121.65 Hz added): best start 0.0467 mid-fit, against 0.0501.
+- tea_fam121: four starts finished, best 0.03834 (previous best 0.049); the end pass is running.
+
+Band diagnosis of the nema_fam121 snapshot (0.0467):
+
+| Band | Share of the cost | Relative residual | Verdict |
+|---|---|---|---|
+| 13C@C3 (N-CH3) 127.6-134.8 Hz | 32 % | 0.215 | all levers weak: the model lacks something |
+| 13C@C1 (C-CH3) 120.2-126.0 Hz | 28 % | 0.237 | conflicts with other bands (rate families) |
+
+A pattern across the amines: after the fixes above, the largest remaining misfits are the methyl 13C bands near
+1J (120-135 Hz). In isopropylamine this is the missing 121.67 Hz line; in N-ethylmethylamine, the N-CH3 band.
+For the N-bonded carbons this points to the 14N item in the PLAN (spin-1 14N with quadrupolar relaxation).
