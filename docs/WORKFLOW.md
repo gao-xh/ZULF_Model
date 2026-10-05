@@ -224,7 +224,8 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
 - Publication figure: `scripts/paper_figure.py` (skills/zulf-figures): whole range and detail bands, experiment and
   simulation overlaid, isotopologue bars, RDKit structure insets, display processing of the whole record and the
   two-step display baseline (anchor spline, then AsLS under the line clusters only); caption file with every
-  setting.
+  setting. Couplings on the molecule: `scripts/coupling_diagram.py` (width ~ sqrt|J|, sign colour, reliability
+  line style, J +- sigma from the noise term and the spread over model variants).
 - J-trend figures annotated with the n-bond type and ring positions, literature values and reliability classes;
   error bars from the budget.
 - Fit trace: `fit_joint_series --trace N` writes N frames of the best start's path (and the residual-peak

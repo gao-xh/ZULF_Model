@@ -446,3 +446,23 @@ slow (NH2 kept, 15N isotopologue included), structure one_bond N1 83
 J(HC2,HN1) free, seeds from ipa_fast_fam2_4j with (J(C1,HN1), J(HC1,HN1),
 J(HC2,HN1), J(C2,HN1)) = (-4.5, 5.5, 0.3, 4.5), (0, 4.4, -0.6, -1.3),
 (-3, 3, 0.5, 2), (2, 7, -0.5, -3); level-2 families; 8 starts, max_nfev 150.
+
+Coupling diagram (colleague: draw the structure and join groups with lines
+whose weight follows J; user: mark 1J and the size of the uncertainty):
+scripts/coupling_diagram.py on ipa_fast_fam2_4j, variants ipa_fast_fam1,
+ipa_fast_fam2, ipa_fast_fam2_rp, ipa_slow_nested, noise scale sqrt(6.6) = 2.56
+(integrated residual correlation length 6.6 points on the 0.042 Hz grid):
+
+| coupling | J (Hz) | sigma (Hz) | noise part | variant part | class |
+|---|---|---|---|---|---|
+| 1J(C1,H1) | +133.50 | 0.06 | 0.008 | 0.061 | reliable |
+| 1J(C2,H2) | +124.43 | 0.07 | 0.009 | 0.068 | reliable |
+| 2J(C1,H2) | -4.07 | 0.12 | 0.019 | 0.123 | reliable |
+| 2J(C2,H1) | -1.57 | 0.15 | 0.034 | 0.145 | trend |
+| 3J(C2,H3) | +5.07 | 0.10 | 0.028 | 0.091 | reliable |
+| 3J(H1,H2) | +5.94 | 0.15 | 0.017 | 0.148 | reliable |
+| 4J(H2,H3) | +0.19 | 0.03 | 0.033 | 0.004 (2 fits) | trend |
+
+Figure runs/processed/ipa_fast_fam2_4j/coupling_diagram.png. The variant spread
+dominates; the 122 Hz misfit is not in these numbers (all variants share it).
+

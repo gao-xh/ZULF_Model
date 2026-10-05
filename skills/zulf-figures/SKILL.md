@@ -47,3 +47,15 @@ a spline with 6 Hz knots leaves 2-5 Hz ripples; a spline through anchors inside 
 pulls the peaks down (negative valleys); a cubic piece across a wide cluster overshoots (bridge it); protecting
 every narrow data peak keeps the low-frequency wiggles. Write "display baseline corrected" in the caption
 (`OUT.caption.txt` is written with every setting); the fit is never affected.
+
+## Couplings on the molecule
+
+`scripts/coupling_diagram.py --fit RUN/fit.json --smiles SMILES --atoms '{"C1": 1, "HC1": "H@1", ...}'
+--variants OTHER/fit.json ... --noise-scale sqrt(L)`: one curve per coupling between its two groups (heavy atoms at
+their RDKit positions, each proton group one node in the widest gap between its carbon's bonds), width ~ sqrt|J|,
+blue J > 0, orange J < 0, solid / dashed / dotted for reliable / trend / not determined, labels J +- sigma with
+sigma = sqrt((sqrt(L) x linearised)^2 + (half range over the model variants)^2) (L: integrated residual
+correlation length in points; 6.6 for isopropylamine). The linearised error alone is 10-30 x too small; the spread
+over refits with other model settings (rate families, extra couplings, exchange) dominates. Writes OUT.png and
+OUT.json (J, sigma, parts, class).
+
