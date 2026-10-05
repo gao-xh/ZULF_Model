@@ -233,11 +233,13 @@ class _Modes:
     """Eigen-decomposition of the augmented Liouvillian [[L, source], [0, 0]] (state [delta; 1])."""
 
     def __init__(self, system: SpinSystem, rates_per_s: Mapping[int, float], protocol: Protocol,
-                 solvent_weight, inverse: bool):
+                 solvent_weight, inverse: bool, spins: Optional[Tuple[Fraction, ...]] = None,
+                 norm: Optional[float] = None):
         if protocol.pulses or protocol.has_field:
             raise NotImplementedError("Exchange spectra support the sudden-drop protocol without pulses or field.")
         registry = get_registry()
-        spins = tuple(Fraction(registry.spin(s)) for s in system.isotopes)
+        # spins: site spin quantum numbers (default: the isotopes' spins; a reduced group site has its total spin)
+        spins = spins or tuple(Fraction(registry.spin(s)) for s in system.isotopes)
         st = _structure(spins)
         self.st, self.system, self.protocol = st, system, protocol
         m = st.m
@@ -269,7 +271,10 @@ class _Modes:
         state = np.concatenate([v0, [1.0]]).astype(complex)
         self.g = self.inv @ state if inverse else np.linalg.solve(self.vec, state)
         self.w = np.concatenate([d, [0.0]]).conj() @ self.vec
-        self.norm = 1.0 / st.n if protocol.normalize_by_dimension else 1.0
+        if norm is not None:
+            self.norm = float(norm)
+        else:
+            self.norm = 1.0 / st.n if protocol.normalize_by_dimension else 1.0
         self.coef = self.norm * self.w * self.g          # signal = sum_j coef_j exp(lam_j t)
 
     def lines(self, tolerance_hz: float):
@@ -288,17 +293,109 @@ class _Modes:
         return f, rate, groups
 
 
+def _total_spin_multiplicities(n: int):
+    """[(S, number of irreducible copies)] of n coupled spin-1/2 (S = n/2, n/2 - 1, ..., S >= 0)."""
+    from math import comb
+    out = []
+    for k in range(n // 2 + 1):
+        mult = comb(n, k) - (comb(n, k - 1) if k else 0)
+        out.append((Fraction(n, 2) - k, mult))
+    return out
+
+
+class _Block:
+    """One block of the group-reduced system: sites (each an original spin or the total spin of a
+    non-exchanging equivalence group of spin-1/2), its SpinSystem over the sites, and its weight."""
+
+    def __init__(self, system, sites, multiplicity):
+        self.sites = sites                       # [(spin, members tuple)]
+        self.multiplicity = multiplicity
+        self.spins = tuple(sp_ for sp_, _ in sites)
+        self.site_of = {m: i for i, (_, members) in enumerate(sites) for m in members}
+        reps = [members[0] for _, members in sites]
+        j = np.zeros((len(sites), len(sites)))
+        for a in range(len(sites)):
+            for b in range(a + 1, len(sites)):
+                j[a, b] = j[b, a] = system.couplings_hz[reps[a], reps[b]]
+        self.system = SpinSystem(tuple(system.isotopes[r] for r in reps), j, groups=[(i,) for i in range(len(sites))])
+
+
+def _blocks(system: SpinSystem, exchanging) -> Optional[list]:
+    """Group-reduced blocks, or None when no group can be reduced. A group is reduced when it has two or more
+    spin-1/2 members and none of them exchanges: H, preparation and detection only see its total spin, so
+    every total spin S (multiplicity from the coupling of n spin-1/2; S = 0 sites carry nothing) is one
+    site. Exchanging spins stay individual (they exchange independently)."""
+    registry = get_registry()
+    options, reducible = [], False
+    for g in system.groups:
+        g = tuple(int(i) for i in g)
+        half = all(Fraction(registry.spin(system.isotopes[i])) == Fraction(1, 2) for i in g)
+        if len(g) >= 2 and half and not any(i in exchanging for i in g):
+            reducible = True
+            options.append([([(S, g)] if S > 0 else [], mult) for S, mult in _total_spin_multiplicities(len(g))])
+        else:
+            options.append([([(Fraction(registry.spin(system.isotopes[i])), (i,)) for i in g], 1)])
+    if not reducible:
+        return None
+    import itertools
+    blocks = []
+    for combo in itertools.product(*options):
+        sites = [site for part, _ in combo for site in part]
+        mult = int(np.prod([m for _, m in combo]))
+        if sites:
+            blocks.append(_Block(system, sites, mult))
+    return blocks
+
+
+def _block_modes(system, rates_per_s, protocol, solvent_weight, inverse, reduce):
+    """[(block or None, _Modes)] for the full system (one entry) or for every group-reduced block."""
+    exchanging = {int(x) for x in rates_per_s}
+    blocks = _blocks(system, exchanging) if reduce else None
+    if blocks is None:
+        return [(None, _Modes(system, rates_per_s, protocol, solvent_weight, inverse=inverse))]
+    registry = get_registry()
+    n_full = int(np.prod([int(2 * Fraction(registry.spin(s)) + 1) for s in system.isotopes]))
+    out = []
+    for b in blocks:
+        rates = {b.site_of[int(x)]: k for x, k in rates_per_s.items()}
+        weight = ({b.site_of[int(x)]: w for x, w in solvent_weight.items()} if isinstance(solvent_weight, Mapping)
+                  else solvent_weight)
+        norm = b.multiplicity / n_full if protocol.normalize_by_dimension else float(b.multiplicity)
+        out.append((b, _Modes(b.system, rates, protocol, weight, inverse=inverse, spins=b.spins, norm=norm)))
+    return out
+
+
+def _concatenate(parts):
+    """One TransitionList from the per-block lists (frequency order) and the permutation used."""
+    ff = np.concatenate([t.frequencies_hz for t in parts])
+    aa = np.concatenate([t.amplitudes for t in parts])
+    rr = np.concatenate([t.rates_of_lines() for t in parts])
+    order = np.argsort(ff, kind="stable")
+    meta = dict(parts[0].metadata)
+    meta.update({"method": "exchange (group-reduced)", "blocks": len(parts),
+                 "subspace_dimension": [t.metadata["subspace_dimension"] for t in parts],
+                 "nonoscillating_weight": float(sum(t.metadata["nonoscillating_weight"] for t in parts)),
+                 "nonoscillating_rates": [r for t in parts for r in t.metadata["nonoscillating_rates"]],
+                 "nonoscillating_amplitudes": [a for t in parts for a in t.metadata["nonoscillating_amplitudes"]]})
+    return TransitionList(ff[order], aa[order], complex(sum(t.dc for t in parts)), metadata=meta,
+                          line_rates=rr[order]), order
+
+
 def exchange_transitions(system: SpinSystem, rates_per_s: Mapping[int, float], protocol: Protocol = SUDDEN_DROP,
                          solvent_weight: Union[Weight, Mapping[int, Weight]] = "preparation",
-                         tolerance_hz: float = MERGE_TOLERANCE_HZ, relative_zero: float = 1e-12) -> TransitionList:
+                         tolerance_hz: float = MERGE_TOLERANCE_HZ, relative_zero: float = 1e-12,
+                         reduce: bool = True) -> TransitionList:
     """Transition list (with line_rates) of `system` whose spins `rates_per_s` keys exchange at those rates.
 
     rates_per_s: {spin index: k (1/s)}; spins not listed do not exchange. solvent_weight: the incoming spin's
     deviation weight eps ('preparation': the protocol's preparation weight of that nucleus; 0: unpolarized
     solvent), one value or one per exchanging spin. Longitudinal preparation and detection only (no pulses,
-    no field)."""
-    md = _Modes(system, rates_per_s, protocol, solvent_weight, inverse=False)
-    return _transition_list(md, tolerance_hz, relative_zero)[0]
+    no field). reduce: replace every non-exchanging equivalence group of spin-1/2 by its total spins (exact;
+    lines of different blocks are not merged)."""
+    modes = _block_modes(system, rates_per_s, protocol, solvent_weight, False, reduce)
+    if modes[0][0] is None:
+        return _transition_list(modes[0][1], tolerance_hz, relative_zero)[0]
+    return _concatenate([_transition_list(md, tolerance_hz, relative_zero)[0] for _, md in modes])[0]
 
 
 def _transition_list(md: _Modes, tolerance_hz: float, relative_zero: float):
@@ -340,7 +437,7 @@ def exchange_transition_derivatives(system: SpinSystem, rates_per_s: Mapping[int
                                     exchange_spins: Sequence[Sequence[int]] = (),
                                     protocol: Protocol = SUDDEN_DROP, solvent_weight="preparation",
                                     tolerance_hz: float = MERGE_TOLERANCE_HZ,
-                                    relative_zero: float = 1e-12) -> ExchangeDerivatives:
+                                    relative_zero: float = 1e-12, reduce: bool = True) -> ExchangeDerivatives:
     """Transition list and its derivatives with respect to (a) couplings: each direction is a list of spin
     pairs whose coupling moves together by one Hz (a group coupling), (b) log exchange rates: each direction is
     a list of spins whose log k moves together.
@@ -348,8 +445,41 @@ def exchange_transition_derivatives(system: SpinSystem, rates_per_s: Mapping[int
     With the augmented generator La = V diag(lambda) V^-1, X = V^-1 dLa V and M_ij = w_i X_ij g_j, the signal
     derivative is sum_ij M_ij F_ij(t) with F the divided difference of exp(lambda t) (Daleckii-Krein): the
     coefficient of exp(lambda_k t) moves by sum_{j not in cluster(k)} (M_kj + M_jk) / (lambda_k - lambda_j), and
-    pairs inside one cluster of (numerically) equal eigenvalues give t exp(lambda t) terms."""
-    md = _Modes(system, rates_per_s, protocol, solvent_weight, inverse=True)
+    pairs inside one cluster of (numerically) equal eigenvalues give t exp(lambda t) terms.
+
+    With reduce (group-reduced blocks, see exchange_transitions) a coupling direction must move every member
+    pair of the groups it touches (a group coupling); pairs inside one reduced group have no effect."""
+    modes = _block_modes(system, rates_per_s, protocol, solvent_weight, True, reduce)
+    parts = []
+    for block, md in modes:
+        if block is None:
+            parts.append(_mode_derivatives(md, coupling_pairs, exchange_spins, tolerance_hz, relative_zero))
+            continue
+        pairs_b = []
+        for pairs in coupling_pairs:
+            count: Dict[Tuple[int, int], int] = {}
+            for p, q in pairs:
+                a, b = block.site_of.get(int(p)), block.site_of.get(int(q))
+                if a is None or b is None or a == b:
+                    continue                       # an S = 0 site, or inside one reduced group
+                key = (min(a, b), max(a, b))
+                count[key] = count.get(key, 0) + 1
+            for (a, b), c in count.items():
+                need = len(block.sites[a][1]) * len(block.sites[b][1])
+                if c != need:
+                    raise ValueError("A coupling direction must move every member pair of a reduced group "
+                                     "(reduce=False for partial directions).")
+            pairs_b.append(list(count))
+        spins_b = [[block.site_of[int(x)] for x in spins_] for spins_ in exchange_spins]
+        parts.append(_mode_derivatives(md, pairs_b, spins_b, tolerance_hz, relative_zero))
+    if len(parts) == 1:
+        return parts[0]
+    tl, order = _concatenate([p.transitions for p in parts])
+    cat = lambda name: np.concatenate([getattr(p, name) for p in parts], axis=1)[:, order]
+    return ExchangeDerivatives(tl, cat("d_amplitudes"), cat("t_terms"), cat("phase_terms"))
+
+
+def _mode_derivatives(md: "_Modes", coupling_pairs, exchange_spins, tolerance_hz, relative_zero):
     tl, groups = _transition_list(md, tolerance_hz, relative_zero)
     st, m = md.st, md.st.m
     directions = []

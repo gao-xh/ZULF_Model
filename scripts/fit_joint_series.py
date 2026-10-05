@@ -102,12 +102,43 @@ def monotone_profile(w: np.ndarray):
     return c, dc
 
 
+def add_nh_exchange(param, model, labels, start, bounds):
+    """One exchange rate k (1/s, log parameter "log_kex") for every listed proton group in every component that
+    contains it, all tied to one leader: the N-H / O-H protons exchange with the solvent at one rate
+    (physics.exchange; slow exchange model, the 15N isotopologue included). Returns the leader name."""
+    from fit_staged import group_index
+    leader = None
+    for label in labels:
+        for c in range(len(model.component_labels)):
+            try:
+                g = group_index(model, label, c)
+            except ValueError:
+                continue
+            name = param.add_exchange(c, g, start, bounds, name=f"c{c}.log_kex_{label}")
+            if leader is None:
+                leader = name
+            else:
+                param.tie(leader, name)
+    if leader is None:
+        raise ValueError(f"No component contains the exchanging groups {labels}.")
+    return leader
+
+
+def exchangeable_labels(fragment):
+    """Proton groups on N or O sites (candidates for --nh-exchange)."""
+    element = {site.label: site.element for site in fragment.sites}
+    return [g.label for g in fragment.protons if element.get(g.site) in ("N", "O")]
+
+
 class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
-    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone"):
+    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
+        if exchange:
+            for p in self.params:
+                add_nh_exchange(p, model, exchange["labels"], exchange["start"], exchange["bounds"])
         self.forwards = [MixtureForward(p, o, SUDDEN_DROP, settings.gain_model, settings.background_order,
                                         settings.band_weighting, **_signal_kwargs(settings))
                          for p, o in zip(self.params, observations)]
@@ -816,8 +847,17 @@ def build_problem(args):
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
     base = _rate_policy(base, args)
     settings = _settings_for(model, args.variant, base)
+    exchange = None
+    if getattr(args, "nh_exchange", 0.0) > 0:
+        if args.exchange != "slow":
+            raise SystemExit("--nh-exchange needs --exchange slow (the N-H protons kept in the spin system).")
+        lo_k, hi_k = (float(v) for v in args.nh_exchange_bounds.split(","))
+        labels = ([v.strip() for v in args.nh_exchange_labels.split(",") if v.strip()] if args.nh_exchange_labels
+                  else exchangeable_labels(fragment))
+        exchange = {"labels": labels, "start": args.nh_exchange, "bounds": (lo_k, hi_k)}
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
-                        shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape)
+                        shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape,
+                        exchange=exchange)
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
         raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
@@ -935,6 +975,11 @@ def make_parser():
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
                     help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
+    ap.add_argument("--nh-exchange", type=float, default=0.0,
+                    help="start value (1/s) of one fitted exchange rate k of the N-H / O-H protons with the solvent "
+                         "(exact Liouville model, physics.exchange; needs --exchange slow; 0 = static, off)")
+    ap.add_argument("--nh-exchange-bounds", default="0.05,5000", help="bounds of k (1/s)")
+    ap.add_argument("--nh-exchange-labels", default="", help="exchanging proton groups (default: all on N / O)")
     ap.add_argument("--shape", default="monotone", choices=["monotone", "free"],
                     help="monotone (default): every coupling monotonic in x; free: independent J at every x")
     ap.add_argument("--shared", default="", help="comma-separated spectrum parameters shared by all spectra "

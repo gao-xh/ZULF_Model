@@ -173,3 +173,87 @@ class ExchangeSolverTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GroupReductionTest(unittest.TestCase):
+    """Non-exchanging equivalence groups replaced by their total spins (exchange_transitions(reduce=True))."""
+
+    @staticmethod
+    def methyl_nh():
+        # 13C-H3 (one equivalent group) next to an exchanging N-H proton
+        iso = ("13C", "1H", "1H", "1H", "1H")
+        j = np.zeros((5, 5))
+        for h in (1, 2, 3):
+            j[0, h] = j[h, 0] = 128.0
+            j[h, 4] = j[4, h] = 6.0
+        j[0, 4] = j[4, 0] = -2.5
+        return SpinSystem(iso, j, groups=[(0,), (1, 2, 3), (4,)])
+
+    def test_matches_brute_force(self):
+        system = self.methyl_nh()
+        t = np.linspace(0.0, 0.12, 97)
+        for k in (0.0, 3.0, 40.0):
+            tl = exchange_transitions(system, {4: k})
+            self.assertEqual(tl.metadata["method"], "exchange (group-reduced)")
+            ref = reference_exchange_signal(system, {4: k}, t)
+            np.testing.assert_allclose(full_signal(tl, t), ref, atol=1e-9 * np.abs(ref).max())
+
+    def test_matches_unreduced(self):
+        # 13C, CH2, CH3 and one exchanging N-H proton (7 spins)
+        iso = ("13C",) + ("1H",) * 6
+        j = np.zeros((7, 7))
+        for h in (1, 2):
+            j[0, h] = 135.0
+        for h in (3, 4, 5):
+            j[0, h] = -4.5
+            for g in (1, 2):
+                j[g, h] = 7.1
+        j[0, 6] = 1.5
+        for g in (1, 2):
+            j[g, 6] = 5.8
+        for h in (3, 4, 5):
+            j[h, 6] = 0.4
+        j = j + j.T
+        system = SpinSystem(iso, j, groups=[(0,), (1, 2), (3, 4, 5), (6,)])
+        t = np.linspace(0.0, 0.2, 161)
+        rates = {6: 8.0}
+        reduced = exchange_transitions(system, rates)
+        full = exchange_transitions(system, rates, reduce=False)
+        self.assertLess(max(reduced.metadata["subspace_dimension"]), full.metadata["subspace_dimension"])
+        ref = full_signal(full, t)
+        np.testing.assert_allclose(full_signal(reduced, t), ref, atol=1e-9 * np.abs(ref).max())
+
+    def test_derivatives_of_reduced_blocks(self):
+        system = self.methyl_nh()
+        j = system.couplings_hz.copy()
+        groups = system.groups
+        t = np.linspace(0.0, 0.3, 300)
+        k0 = 12.0
+
+        def osc(jm, k):
+            tl = exchange_transitions(SpinSystem(system.isotopes, jm, groups=groups), {4: k})
+            return tl.signal(t) - np.real(tl.dc)
+
+        directions = [[(0, 1), (0, 2), (0, 3)], [(1, 4), (2, 4), (3, 4)], [(0, 4)]]
+        d = exchange_transition_derivatives(system, {4: k0}, directions, [[4]])
+        tl = d.transitions
+        lam = -tl.rates_of_lines() + 2j * np.pi * tl.frequencies_hz
+
+        def analytic(k):
+            return np.real(((d.d_amplitudes[k][None, :] + d.t_terms[k][None, :] * t[:, None])
+                            * np.exp(lam[None, :] * t[:, None])).sum(axis=1))
+        for k, pairs in enumerate(directions):
+            h = 1e-4
+            jp, jm = j.copy(), j.copy()
+            for p, q in pairs:
+                jp[p, q] += h
+                jp[q, p] += h
+                jm[p, q] -= h
+                jm[q, p] -= h
+            num = (osc(jp, k0) - osc(jm, k0)) / (2 * h)
+            np.testing.assert_allclose(analytic(k), num, atol=1e-6 * np.abs(num).max())
+        h = 1e-5
+        num = (osc(j, k0 * np.exp(h)) - osc(j, k0 * np.exp(-h))) / (2 * h)
+        np.testing.assert_allclose(analytic(3), num, atol=1e-6 * np.abs(num).max())
+        with self.assertRaises(ValueError):          # a direction moving only part of a reduced group
+            exchange_transition_derivatives(system, {4: k0}, [[(0, 1)]], [])
