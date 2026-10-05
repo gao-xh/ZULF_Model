@@ -317,3 +317,28 @@ class LocalRecordTests(unittest.TestCase):
         short = Renderer(loc).render_pair_directions(*args)
         self.assertLess(np.abs(full - short).max() / np.abs(full).max(), 1e-9)
 
+
+
+class DirectSumDirectionsTest(unittest.TestCase):
+    def test_direct_sum_matches_grouped_nufft(self):
+        # every line its own decay rate (as with chemical exchange): the direct time-domain sum must equal the
+        # per-rate-group NUFFT route
+        import zulf_core.render.renderer as rmod
+        acq = Acquisition(4000.0, 6000, start_sample=200, sg_window=101, sg_order=2, remove_mean=True,
+                          apodization_rate_per_s=0.3)
+        rng = np.random.default_rng(3)
+        k = 120
+        f = rng.uniform(80.0, 260.0, k)
+        rates = rng.uniform(0.3, 12.0, k)
+        sigma = np.where(rng.random(k) < 0.3, 0.2, 0.0)
+        b = rng.normal(size=(3, k)) + 1j * rng.normal(size=(3, k))
+        c = rng.normal(size=(3, k)) + 1j * rng.normal(size=(3, k))
+        grid = np.arange(70.0, 270.0, 0.1)
+        direct = rmod.Renderer(acq).render_pair_directions(f, rates, sigma, b, c, grid, -0.003)
+        saved = rmod.DIRECT_SUM_GROUPS
+        try:
+            rmod.DIRECT_SUM_GROUPS = 10 ** 9
+            grouped = rmod.Renderer(acq).render_pair_directions(f, rates, sigma, b, c, grid, -0.003)
+        finally:
+            rmod.DIRECT_SUM_GROUPS = saved
+        self.assertLess(np.abs(direct - grouped).max() / np.abs(grouped).max(), 1e-9)

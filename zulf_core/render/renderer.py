@@ -69,6 +69,10 @@ def _geometric(L: np.ndarray, n: int) -> np.ndarray:
     return np.where(small, n + (n * (n - 1) / 2) * L, value)
 
 
+
+DIRECT_SUM_GROUPS = 48       # render_pair_directions: above this many (rate, sigma) groups, sum modes directly
+DIRECT_SUM_CHUNK = 2048      # time samples per chunk of the direct sum
+
 class Renderer:
     """Analytic renderer bound to one acquisition. NumPy backend, float64.
 
@@ -340,6 +344,22 @@ class Renderer:
         unique, inverse = np.unique(keys, axis=0, return_inverse=True)
         inverse = np.asarray(inverse).ravel()
         z = np.zeros((acq.points, n_dir), complex)
+        if len(unique) > DIRECT_SUM_GROUPS:
+            # Lines with their own decay rates (chemical exchange): one NUFFT per rate group would cost
+            # len(unique) transforms; sum the modes directly instead, in time chunks (exact).
+            wb = (b * phase[None, :]).T
+            wc = (c * phase[None, :]).T
+            rates_k = np.asarray(rates, float)
+            sig_k = np.asarray(sigma_hz, float)
+            m_all = np.arange(acq.points)
+            with self.timer.section("render.direct_sum"):
+                for start in range(0, acq.points, DIRECT_SUM_CHUNK):
+                    m = m_all[start:start + DIRECT_SUM_CHUNK]
+                    tt = times[start:start + DIRECT_SUM_CHUNK]
+                    e = np.exp(1j * np.outer(m, omega) - np.outer(tt, rates_k)
+                               - 0.5 * np.outer(tt, 2 * np.pi * sig_k) ** 2)
+                    z[start:start + DIRECT_SUM_CHUNK] = e @ wb + tt[:, None] * (e @ wc)
+            unique = ()
         for g, (rate, sig) in enumerate(unique):
             members = inverse == g
             weights = np.concatenate([(b[:, members] * phase[members]).T, (c[:, members] * phase[members]).T], axis=1)
