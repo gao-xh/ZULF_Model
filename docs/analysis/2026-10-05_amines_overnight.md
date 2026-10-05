@@ -99,3 +99,79 @@ Figures:
 - runs/processed/amine_overview/ethylenediamine_2sp_components.png
 
 Restarted: eda_2sp_refit (from this start, 6 starts, component search) and tea_fam121.
+
+## 10:45-11:25 UTC
+
+The container restarted again at 10:44 (uptime 0). The queue was restarted from the monitor snapshots.
+
+### Step 4: ethylenediamine, two AA'BB' units, refit (eda_2sp_refit2)
+
+Setup: from the 0.0095 snapshot of eda_2sp_refit; 6 starts, spread 0.3, max_nfev 300, component search start and
+end. RUN_LOG: runs/processed/eda_2sp_refit2/RUN_LOG.md.
+
+| Start | Objective |
+|---|---|
+| 0 (centre) | 0.00949 |
+| **2** | **0.00676** (stopped at max_nfev 300) |
+| 5 | 0.00798 |
+| 3 | 0.00942 |
+| 1 | 0.01004 |
+| 4 | 0.04388 |
+
+The component search (start and end) found no better basin. The data-region residual went from 0.189 (one unit) to
+0.081.
+
+| Coupling (Hz) | Species 1 | Species 2 |
+|---|---|---|
+| 1J(C,H) | 131.33 | 126.68 |
+| 2J(C,H) | -1.98 | -3.22 |
+| geminal | -11.74 | **-18.33** |
+| J (same side) | 1.88 | 5.88 |
+| J' (across) | 14.79 | 15.45 |
+
+Gain ratio species 2 / species 1: 0.26.
+
+Caveats (this is a conditional result):
+- **Geminal of species 2.** -18.3 Hz is outside the usual sp3 CH2 range (about -10 to -15 Hz). It is probably
+  compensating for something the model lacks, such as an asymmetric species.
+- **Model-only line at 177.5 Hz.** The model puts a line there where the data show none (see the paper figure). The
+  joint fitter weights model-only lines at only 0.2 (signal weighting from data peaks alone). This motivated
+  step 5.
+
+What remains: the 197.5-200.5 Hz structure (residual about +-0.01 on 0.1).
+
+Figures:
+- runs/processed/amine_overview/ethylenediamine_2sp_refit2.png (one unit vs two)
+- runs/processed/amine_overview/ethylenediamine_2sp_refit2_components.png
+- runs/processed/eda_2sp_refit2/paper_figure.png
+
+### Step 5: model-line passes in the joint fitter (commit 0ecce84)
+
+Change: `fit_joint_series --model-line-passes N`, which mirrors refine's `signal_model_passes`.
+- After the fit, the best model's incoherent line envelope above 2 noise sigma joins the signal-weighting cores
+  (`MixtureForward.add_signal_cores`).
+- The best solution is then refit. This repeats until no point is added.
+- Every solution is rescored under the final weights. The record keeps the objective under the original weights
+  for comparison with older runs.
+- Test: `SignalWeightingTests.test_added_signal_cores_match_a_forward_built_with_them`. The weights match a forward
+  built with `signal_extra_hz` at the same points.
+
+At the eda_2sp_refit2 optimum, pass 1 adds 1226 core points:
+- the 164-180 and 180.5-189 Hz wings;
+- small regions inside 190-204 Hz;
+- 205-224.5 Hz.
+
+The objective under the new weights at that same vector is 0.0110. Run: eda_2sp_mlp (one start, from the
+eda_2sp_refit2 optimum, 3 passes).
+
+### Step 6: ethylenediamine, AA'BB' plus an asymmetric X-CH2-CH2-Y (ABCD) unit (eda_abcd)
+
+Motivation: a carbamate (H2N-CH2-CH2-NH-COO-) or a mono-protonated ethylenediamine has two inequivalent CH2 groups.
+
+Setup:
+- New motif "X-CH2-CH2-Y (ABCD)" (commit 518d2c8): one 1J per carbon, one geminal per CH2, only the a/b mirror.
+- 15 seeds: 1J(C2,H) in 126.8-143 Hz times three (J, J') pairs. Species 1 and the rates come from the 0.0095
+  snapshot.
+- `--from-joint` now accepts models with couplings the previous fit lacks.
+
+Running.

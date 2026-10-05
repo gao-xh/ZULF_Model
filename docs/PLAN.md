@@ -325,9 +325,11 @@ tall lines and barely sees it.
       the best solution and refits globally, keeping the result only if it wins. Test: tests/test_j_tuner.py
       ComponentSearchTests (+6 Hz wrong basin found back). Motivated by N-ethylmethylamine 13CH2 (whole
       objective -29 % from a basin the multi-start never reached).
-- [ ] Joint fitter: model-line weighting pass (the single-spectrum solver's signal_model_passes), so a model
+- [x] Joint fitter: model-line weighting pass (the single-spectrum solver's signal_model_passes), so a model
       line where the data show none is fully penalised (eda_slow83 / eda_slow65: unobserved 15N lines at
-      weight 0.2).
+      weight 0.2). Done: `--model-line-passes N`, MixtureForward.add_signal_cores (tested against a forward
+      built with signal_extra_hz), commit 0ecce84. First use: ethylenediamine two-species (model-only
+      177.5 Hz line), eda_2sp_mlp.
 - [ ] 14N (spin 1) in spin systems, with quadrupolar relaxation: the worst bands of the amines are the
       N-bonded carbons (N-ethylmethylamine CH2, ethylenediamine CH2); test partially resolved 1J(13C,14N) and
       2J(14N,H).

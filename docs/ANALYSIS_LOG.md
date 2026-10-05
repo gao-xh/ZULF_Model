@@ -1353,3 +1353,6 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-05: ethylenediamine with a second AA'BB' ethylene unit (free ratio 0.17): 0.0449 -> 0.0099. It explains the
   190.6 / 192.1 Hz pair and the 208-238 Hz undulation. The species is open (carbamate, protonated form, conformer).
   docs/analysis/2026-10-05_amines_overnight.md
+- 2026-10-05: ethylenediamine two AA'BB' units, refit: 0.0095 -> 0.0068 (residual 0.081). Species-2 geminal -18.3 Hz
+  (suspicious) and a model-only line at 177.5 Hz; joint fitter gains model-line passes (commit 0ecce84).
+  docs/analysis/2026-10-05_amines_overnight.md
