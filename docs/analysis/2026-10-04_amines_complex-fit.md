@@ -82,3 +82,42 @@ band). New option `--phase-delay-bounds lo,hi` (ms) in fit_joint_series
 Structural candidates next: two vicinal couplings J, J' of the AA'BB' CH2-CH2
 unit (line table: J 3 / J' 9.7 Hz moves the 199.5 Hz line to 200.14 Hz, the
 data line is at 200.2 Hz; no line at 192.1 Hz yet) and slow NH2 exchange.
+
+Ethylenediamine with the delay prior (`--phase-delay-bounds=-4.6,-2.6`; note
+the `=`: argparse reads "-4.6,..." as an option otherwise): stage 1
+(eda_fast_d) 0.1020, delay at the -2.6 ms bound; stage 2 (eda_fast_fam_d)
+0.0736 (against 0.0719 free), delay at the -4.6 ms bound, rates 7.2 / 5.6 /
+9.7 / 2.7 1/s, 1J 132.24, 2J -2.97, 3J(H,H) 5.86 Hz. The delay is not the cause
+of the broad lines; it drifts because the model cannot place the pairs.
+
+## Stage 2 results (rate families)
+
+| sample | families | objective | relative residual | delay (ms) | time |
+|---|---|---|---|---|---|
+| ethylenediamine (eda_fast_fam) | 4 | 0.0719 | 0.253 | -10 (bound) | 123 s |
+| triethylamine (tea_fast_fam) | 18 | 0.0490 | 0.215 | -3.54 | 1003 s |
+| N-ethylmethylamine (nema_fast_fam) | 19 | 0.0752 | 0.276 | -3.55 | 2099 s |
+
+(isopropylamine best 0.0475 / 0.217.) Couplings (Hz):
+
+- triethylamine: 1J(CH2) 130.75, 1J(CH3) 125.00, 2J(C1,H2) -4.66, 2J(C2,H1)
+  -3.06, 3J(H1,H2) 7.20, 3J(C1,HX) -2.15, J(H1,HX) -0.20, J(H2,HX) 0.43,
+  J(C2,HX) -0.50.
+- N-ethylmethylamine: 1J(CH3) 124.93, 1J(CH2) 138.37, 1J(N-CH3) 131.74,
+  2J(C1,H2) -3.37, 2J(C2,H1) -6.20, 3J(H1,H2) 7.20, 3J(C2,H3) 12.08 (through
+  N; implausible, the 190-200 Hz CH2 lines are poorly fitted), 3J(C3,H2) 4.24,
+  remote couplings within 0.3 Hz of 0.
+
+Figures: runs/processed/{eda_fast_fam,tea_fast_fam,nema_fast_fam}/spectrum_fit.png
+(scratchpad amines/plot_fit.py).
+
+A common misfit near 121 Hz. Real-part peaks in 120.4-123 Hz: isopropylamine
+121.67 / 122.29 Hz, triethylamine 121.08 Hz (31 sigma), N-ethylmethylamine
+121.33 Hz (55 sigma), ethylenediamine (no CH3) nothing above 3 sigma: not an
+instrument line, and present in triethylamine, which has no N-H. It belongs to
+the methyl-13C isotopologue of a CH3-CHn unit: the models put lines there
+(triethylamine 13C@C2 121.01-121.73 Hz, amplitudes 0.08-0.34;
+N-ethylmethylamine 13C@C1 121.22-121.87 Hz) but spread over 0.5-0.7 Hz, and
+the fit covers the sharp data line with a broad family. So the isopropylamine
+pair is one case of a systematic misfit of this cluster; NH2 protons are not
+needed for it (triethylamine has none).
