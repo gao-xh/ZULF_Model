@@ -378,3 +378,20 @@ So no single set of 13C@C1 couplings explains the pair together with the main ba
 to something else: a second species (e.g. the carbamate formed with CO2, or protonated ethylenediamine) or another
 isotopologue. Next: a mixture model with a second ethylene unit with its own couplings and a free ratio.
 Figure: runs/processed/eda_aabb/isolate_190/isolate_window.png.
+
+## Overnight plan (2026-10-05, user: keep optimizing all night, review in the morning)
+
+Hourly self check-ins (send_later). Each one runs these steps in order, as CPU allows:
+
+1. **Ethylenediamine, 15N scan.** Scan 1J(15N,H) over 55-135 Hz on the slow AA'BB' model, with the N-H couplings
+   to C and CH protons at 0, so that only the 15N isotopologue changes. Question: does any value place 15N lines
+   on the 190.6 / 192.1 Hz pair without hurting the rest?
+2. **Ethylenediamine, delay prior.** Compare eda_aabb_d (delay limited to -4.6..-2.6 ms) with eda_aabb (delay
+   drifted to +0.58 ms). The 208-238 Hz undulation decides which to keep.
+3. **Ethylenediamine, second species.** Add a second ethylene unit with free 1J, J, J' and geminal, and a free
+   ratio (fit_joint_series --structure as a list).
+4. **The 121 Hz line of the CH3 cluster** (isopropylamine 121.67 / 122.29, triethylamine 121.08,
+   N-ethylmethylamine 121.33 Hz). Isolate the window, take the line table of the methyl 13C isotopologue, and test
+   a missing coupling or tie.
+5. **Polish runs.** For every amine, start from its best fit with 8 starts, the component search, and max_nfev 300.
+6. **Morning.** Overview, comparison and processed figures for all four; a summary table; commit.
