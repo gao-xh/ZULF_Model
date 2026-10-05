@@ -319,3 +319,33 @@ Band diagnosis of the nema_fam121 snapshot (0.0467):
 A pattern across the amines: after the fixes above, the largest remaining misfits are the methyl 13C bands near
 1J (120-135 Hz). In isopropylamine this is the missing 121.67 Hz line; in N-ethylmethylamine, the N-CH3 band.
 For the N-bonded carbons this points to the 14N item in the PLAN (spin-1 14N with quadrupolar relaxation).
+
+### Step 10 result: triethylamine (tea_fam121)
+
+- Edges 120.8, 121.2 and 121.6 Hz were added. The rates restarted, and the start component search brought the
+  objective from 0.471 back to 0.070.
+- Four starts, best **0.03834** (against 0.04897 for tea_fast_fam_cs, -22 %). The end component search found no
+  better basin.
+- Data-region residual 0.196 (was 0.215). The 121.08 Hz sharp CH3 line is now fitted with its own decay rate.
+
+| Coupling (Hz) | tea_fast_fam_cs | tea_fam121 |
+|---|---|---|
+| 1J(C1,H1) (CH2) | 130.754 | 130.685 |
+| 2J(C1,H2) | -4.659 | -4.864 |
+| J(C1,HX) | -2.147 | -1.722 |
+| 3J(H1,H2) | 7.200 | 7.168 |
+| 1J(C2,H2) (CH3) | 125.003 | 125.004 |
+| 2J(C2,H1) | -3.059 | -3.072 |
+| J(C2,HX) | -0.499 | -0.459 |
+
+The 1J values move by less than 0.07 Hz. The small couplings move by up to 0.4 Hz (J(C1,HX)), which is more than
+their formal std (0.05). That formal std understates the model-dependence.
+
+Left over:
+- the 235 / 237.5 Hz small data peaks, which have no model line;
+- the 124 Hz peak height;
+- the 245-247 Hz shoulder.
+
+Figures:
+- runs/processed/amine_overview/triethylamine_fam121.png
+- runs/processed/tea_fam121/paper_figure.png
