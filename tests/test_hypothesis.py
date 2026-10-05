@@ -576,3 +576,19 @@ class AABBSlowMotifTest(unittest.TestCase):
         a = SpinSystem(s13.isotopes, j, groups=s13.groups)
         b = fast.interpretation.components[0].system
         self.assertTrue(same_lines(a, b, tol=1e-6))
+
+
+class ABCDMotifTest(unittest.TestCase):
+    def test_equal_halves_reduce_to_aabb(self):
+        # independent reference: with both CH2 groups given the same couplings, each 13C isotopologue of the ABCD unit
+        # has the lines of the symmetric AA'BB' unit
+        from zulf_hypothesis.motifs import MOTIFS
+        from zulf_hypothesis import exchange_variants
+        abcd = build_model(exchange_variants(MOTIFS["X-CH2-CH2-Y (ABCD)"].fragment({"C1": 131.0, "C2": 131.0}),
+                                             "fast")[0], ranges=[(150.0, 230.0)])
+        aabb = build_model(exchange_variants(MOTIFS["X-CH2-CH2-X (AA'BB')"].fragment({"C1": 131.0}), "fast")[0],
+                           ranges=[(150.0, 230.0)])
+        self.assertEqual(len(abcd.component_labels), 2)
+        ref = aabb.interpretation.components[0].system
+        for comp in abcd.interpretation.components:
+            self.assertTrue(same_lines(comp.system, ref, tol=1e-6))

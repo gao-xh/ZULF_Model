@@ -265,6 +265,28 @@ def _h2nch2ch2nh2_aabb(one_bond):
 register_motif(Motif("H2N-CH2-CH2-NH2 (AA'BB')", _h2nch2ch2nh2_aabb,
                      (OneBondSite("C1", "13C", 2, (125, 150)), OneBondSite("N1", "15N", 2, (55, 90))),
                      "ethylenediamine, AA'BB' ethylene unit, slow N-H exchange (fast: use X-CH2-CH2-X (AA'BB'))"))
+def _xch2ch2y(one_bond):
+    """X-CH2-CH2-Y with two inequivalent CH2 groups (ABCD with the a <-> b mirror only): separate 1J, 2J and geminal
+    couplings for each CH2, vicinal J (same side) and J' (across); the 13C isotopologues of C1 and C2 differ (e.g. a
+    carbamate H2N-CH2-CH2-NH-COO- or a singly protonated diamine). X-H exchange fast."""
+    sites = (Site("C1", "C"), Site("C2", "C"), Site("N1", "N"), Site("N2", "N"))
+    protons = tuple(ProtonGroup(f"HC{i}{x}", 1, f"C{i}") for i in (1, 2) for x in "ab")
+    c = {}
+    for i, k in ((1, 2), (2, 1)):
+        for x in "ab":
+            c[pair(f"C{i}", f"HC{i}{x}")] = one_bond.get(f"C{i}", 132.0)
+            c[pair(f"C{i}", f"HC{k}{x}")] = SP3["2JCH"]
+        c[pair(f"HC{i}a", f"HC{i}b")] = -12.0
+    c[pair("HC1a", "HC2a")] = c[pair("HC1b", "HC2b")] = 4.0
+    c[pair("HC1a", "HC2b")] = c[pair("HC1b", "HC2a")] = 8.7
+    sym = ({"HC1a": "HC1b", "HC1b": "HC1a", "HC2a": "HC2b", "HC2b": "HC2a"},)
+    return Fragment("X-CH2-CH2-Y (ABCD)", sites, protons, c, sym, (("C1", "C2"), ("C1", "N1"), ("C2", "N2")),
+                    "inequivalent ethylene unit, fast X-H exchange")
+
+
+register_motif(Motif("X-CH2-CH2-Y (ABCD)", _xch2ch2y,
+                     (OneBondSite("C1", "13C", 2, (120, 150)), OneBondSite("C2", "13C", 2, (120, 150))),
+                     "1,2-disubstituted ethane with different substituents (carbamate, mono-protonated diamine)"))
 register_motif(Motif("X-CH2-CH2-X (AA'BB')", _xch2ch2x, (OneBondSite("C1", "13C", 2, (125, 150)),),
                      "1,2-disubstituted ethane with fast X-H exchange (ethylenediamine): J and J' separate"))
 register_motif(Motif("(CH3)2CH-NH2", _chain("(CH3)2CH-NH2", [("C1", "C", 1), ("C2", "C", 3), ("C3", "C", 3),
