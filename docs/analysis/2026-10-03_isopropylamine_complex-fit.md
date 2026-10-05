@@ -466,3 +466,5 @@ ipa_fast_fam2, ipa_fast_fam2_rp, ipa_slow_nested, noise scale sqrt(6.6) = 2.56
 Figure runs/processed/ipa_fast_fam2_4j/coupling_diagram.png. The variant spread
 dominates; the 122 Hz misfit is not in these numbers (all variants share it).
 
+1J marked on the structure insets of the paper figure (user): 1J(C2,H2) 124.43 +- 0.07 Hz,
+1J(C1,H1) 133.50 +- 0.06 Hz (sigma from coupling_diagram.json).

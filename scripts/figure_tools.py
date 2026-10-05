@@ -22,9 +22,13 @@ def _rgba(hex_color: str, alpha: float = 1.0):
 
 
 def isotopologue_png(smiles: str, labelled_atom: int, color: str, size: Sequence[int] = (520, 440),
-                     exchanged: bool = True, coupled_alpha: float = 0.22, label_alpha: float = 0.32) -> Optional[bytes]:
+                     exchanged: bool = True, coupled_alpha: float = 0.22, label_alpha: float = 0.32,
+                     bond_note: Optional[str] = None, return_coords: bool = False, mark_bond: bool = False):
     """Structure of the molecule `smiles` (heavy-atom indices as in the SMILES) with atom `labelled_atom` as 13C.
-    exchanged=True: protons on N/O/S are drawn plain (decoupled by fast exchange); False: grey like the others."""
+    exchanged=True: protons on N/O/S are drawn plain (decoupled by fast exchange); False: grey like the others.
+    bond_note: text written by RDKit on one bond from the 13C to its protons (small); return_coords=True returns
+    (png, {"c": (x, y), "h": (x, y)}) with the pixel positions of the 13C and of one of its protons, for a label
+    drawn by the caller instead; mark_bond=True draws that 13C-H bond thick in the colour."""
     try:
         from rdkit import Chem
         from rdkit.Chem import rdDepictor
@@ -50,6 +54,20 @@ def isotopologue_png(smiles: str, labelled_atom: int, color: str, size: Sequence
             atoms.append(a.GetIdx())
             colors[a.GetIdx()] = (0.55, 0.55, 0.58, coupled_alpha)
             radii[a.GetIdx()] = 0.36
+    if bond_note:
+        hs = [n.GetIdx() for n in label.GetNeighbors() if n.GetAtomicNum() == 1]
+        if hs:
+            mol.GetBondBetweenAtoms(label.GetIdx(), hs[0]).SetProp("bondNote", bond_note)
+    bonds, bond_colors = [], {}
+    if mark_bond:
+        hs = [n.GetIdx() for n in label.GetNeighbors() if n.GetAtomicNum() == 1]
+        if hs:
+            # the proton lowest in the drawing (largest y after the flip): the label goes below the molecule
+            conf = mol.GetConformer()
+            h = min(hs, key=lambda i: conf.GetAtomPosition(i).y)
+            b = mol.GetBondBetweenAtoms(label.GetIdx(), h).GetIdx()
+            bonds, bond_colors = [b], {b: _rgba(color, 0.9)}
+            mol.SetProp("_marked_h", str(h))
     d = rdMolDraw2D.MolDraw2DCairo(int(size[0]), int(size[1]))
     o = d.drawOptions()
     o.clearBackground = False
@@ -59,8 +77,16 @@ def isotopologue_png(smiles: str, labelled_atom: int, color: str, size: Sequence
     o.maxFontSize = 40
     o.baseFontSize = 1.0
     o.isotopeLabels = True
+    o.annotationFontScale = 0.62
     o.setAtomPalette({-1: _rgba(INK)[:3], 1: _rgba(INK)[:3], 7: _rgba(MUTED)[:3], 8: _rgba(MUTED)[:3]})
+    o.highlightBondWidthMultiplier = 4
     d.DrawMolecule(mol, highlightAtoms=atoms, highlightAtomColors=colors, highlightAtomRadii=radii,
-                   highlightBonds=[], highlightBondColors={})
+                   highlightBonds=bonds, highlightBondColors=bond_colors)
     d.FinishDrawing()
-    return d.GetDrawingText()
+    if not return_coords:
+        return d.GetDrawingText()
+    hs = [n.GetIdx() for n in label.GetNeighbors() if n.GetAtomicNum() == 1]
+    pos = lambda i: tuple(float(v) for v in (d.GetDrawCoords(i).x, d.GetDrawCoords(i).y))
+    marked = int(mol.GetProp("_marked_h")) if mol.HasProp("_marked_h") else (hs[0] if hs else label.GetIdx())
+    return d.GetDrawingText(), {"c": pos(label.GetIdx()), "h": pos(marked), "hs": [pos(i) for i in hs],
+                                "size": (int(size[0]), int(size[1]))}

@@ -21,7 +21,8 @@ signal. Power-line harmonics are kept and marked. Nothing here changes the fit.
 
 --insets: JSON list of {"component": label, "smiles": "...", "atom": heavy-atom index of the 13C,
 "segment": 0, "rect": [f0_hz, y0, width_hz, height]} (RDKit drawings, scripts/figure_tools.py; skipped without
-RDKit). Writes OUT.png and OUT.caption.txt.
+RDKit; "bond_note": a coupling key, e.g. "J(C2,HC2)", writes that J, with sigma from --uncertainty, on the 13C-H
+bond). Writes OUT.png and OUT.caption.txt.
 """
 import json
 import sys
@@ -132,6 +133,7 @@ def main():
     ap.add_argument("--stacked-detail", action="store_true", help="detail panels stacked instead of overlaid")
     ap.add_argument("--insets", default="")
     ap.add_argument("--colors", default="{}", help="JSON {component label: colour}")
+    ap.add_argument("--uncertainty", default="", help="coupling_diagram.py OUT.json: sigma for the bond notes")
     ap.add_argument("--title", default="")
     ap.add_argument("--figure", default="")
     args = ap.parse_args()
@@ -245,13 +247,32 @@ def main():
                         frameon=False, fontsize=10)
     if args.insets:
         import matplotlib.image as mpimg
+        sig = {}
+        if args.uncertainty:
+            sig = {r["key"]: r["sigma"] for r in json.load(open(args.uncertainty))}
         for ins in json.load(open(args.insets)):
-            png = isotopologue_png(ins["smiles"], ins["atom"], colors[ins["component"]])
-            if png is None:
+            note = None
+            if ins.get("bond_note") in fit["couplings"]:          # e.g. "J(C2,HC2)": its 1J on the C-H bond
+                key = ins["bond_note"]
+                jv = fit["couplings"][key]["J_at_x"][0]
+                note = (f"{jv:.2f} \u00b1 {sig[key]:.2f} Hz" if key in sig else f"{jv:.2f} Hz")
+            out_png = isotopologue_png(ins["smiles"], ins["atom"], colors[ins["component"]], return_coords=True,
+                                       mark_bond=bool(note))
+            if out_png is None:
                 print("RDKit not installed: structure insets skipped")
                 break
-            a_ = axes[ins.get("segment", 0)].inset_axes(ins["rect"], transform=axes[ins.get("segment", 0)].transData)
+            png, pts = out_png
+            seg = axes[ins.get("segment", 0)]
+            a_ = seg.inset_axes(ins["rect"], transform=seg.transData)
             a_.imshow(mpimg.imread(BytesIO(png), format="png"))
+            if note:
+                # 1J under the drawing, joined to the marked 13C-H bond
+                mid = 0.5 * (np.array(pts["c"]) + np.array(pts["h"]))
+                a_.annotate("$^1J$ = " + note, xy=mid, xytext=(0.5 * pts["size"][0], pts["size"][1] * 1.04),
+                            textcoords="data", ha="center", va="top", fontsize=9.5, color=colors[ins["component"]],
+                            fontweight="bold", annotation_clip=False,
+                            arrowprops=dict(arrowstyle="-", color=colors[ins["component"]], lw=0.9, alpha=0.8,
+                                            shrinkA=2, shrinkB=4))
             a_.axis("off")
     J = {prob.key_of.get(n, n): j.coupling_values(z, k)[0] for k, n in enumerate(j.coupling)}
     caption = (f"{args.title or prob.series[0]['id']} at zero field. Fit: "

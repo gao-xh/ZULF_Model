@@ -23,6 +23,9 @@ Worked example: isopropylamine, docs/analysis/2026-10-03_isopropylamine_complex-
   panels: the 13C and its protons in the isotopologue colour, the coupled carbon-bound protons grey, N/O-bound
   protons plain (decoupled by fast exchange). Insets need RDKit (`pip install rdkit`, extra `figures`).
 - Power-line harmonics (60.06 Hz x n) are kept and marked with a small triangle, never cut.
+- 1J on the structure: an inset entry with `"bond_note": "J(C2,HC2)"` and `--uncertainty
+  RUN/coupling_diagram.json` marks one 13C-H bond in the isotopologue colour and writes 1J = J +- sigma under
+  the drawing with a leader line (RDKit's own bond notes are too small to read).
 
 ## Display processing (not the fit's)
 
