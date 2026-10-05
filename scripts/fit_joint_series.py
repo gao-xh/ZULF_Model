@@ -1079,7 +1079,9 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         previous = json.load(open(args.from_joint))
         # the previous fit's row at the same concentration, else the nearest one (a concentration new to the series)
         rows = [int(np.argmin(np.abs(np.asarray(previous["x"]) - x))) for x in joint.nodes]
-        table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] for n in joint.coupling] for s in rows])
+        # couplings the previous fit does not have (a model extended since) keep their structure values
+        table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] if key_of[n] in previous["couplings"]
+                           else table[i, k] for k, n in enumerate(joint.coupling)] for i, s in enumerate(rows)])
     if args.from_joint:
         # decay rates and delays of spectra already in the previous fit (same id)
         for e, x in zip(series, xs0):
@@ -1203,12 +1205,60 @@ def make_parser():
     ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
                     "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
     ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
+    ap.add_argument("--model-line-passes", type=int, default=0,
+                    help="after the fit: refits with the best model's own lines (envelope above "
+                         "--model-line-threshold noise sigma) added to the signal-weighting cores, so model lines "
+                         "where the data show none are fully weighted (0 = off)")
+    ap.add_argument("--model-line-threshold", type=float, default=2.0)
     ap.add_argument("--max-nfev", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="runs/processed/joint")
     ap.add_argument("--monitor", default="on", choices=["on", "off"],
                     help="record the objective of every start live in OUT/monitor (scripts/fit_monitor.py shows it)")
     return ap
+
+
+def model_line_passes(joint, z, solutions, passes, threshold, index):
+    """Model-line passes of signal weighting (as refine's signal_model_passes): the grid points where the best
+    model's own line envelope exceeds `threshold` noise sigma join the peak cores of every spectrum, so a line the
+    model puts where the data show none (or a dip) is weighted fully, and the best solution is refit; repeated
+    until no point is added. The objective changes with the weights, so every solution is rescored under the final
+    weights; the record keeps the objective of the final vector under the original weights for comparison with
+    runs without passes."""
+    saved = [(f.signal_cores.copy(), f.weight.copy(), f.norm, f.signal_mask) for f in joint.forwards]
+    record = {"threshold_sigma": threshold, "passes": []}
+    for k in range(passes):
+        added = []
+        for s, f in enumerate(joint.forwards):
+            x = joint.spectrum_vector(z, s)
+            pred = f.predict(x)
+            points = f.model_line_points(f.p.values(x), np.asarray(pred.gains), threshold)
+            new = points & ~f.signal_cores
+            added.append({"points": int(new.sum()),
+                          "hz": [round(float(v), 2) for v in f.f[new][:: max(1, int(new.sum()) // 40)]]})
+            f.add_signal_cores(new)
+        if not any(a["points"] for a in added):
+            break
+        before = float(np.sum(joint.residual(z) ** 2))
+        refit = _solve_indexed((index + k, z))
+        after = float(np.sum(joint.residual(refit[1]) ** 2))
+        if after < before:
+            z = refit[1]
+        record["passes"].append({"added": added, "objective_before_refit": before, "objective_after_refit": after})
+        print(f"model-line pass {k + 1}: +{sum(a['points'] for a in added)} core points; objective (new weights) "
+              f"{before:.5f} -> {after:.5f}", flush=True)
+    final = [(f.signal_cores, f.weight, f.norm, f.signal_mask) for f in joint.forwards]
+    for f, (cores, weight, norm, mask) in zip(joint.forwards, saved):
+        f.signal_cores, f.weight, f.norm, f.signal_mask = cores, weight, norm, mask
+    record["objective_original_weights"] = float(np.sum(joint.residual(z) ** 2))
+    for f, (cores, weight, norm, mask) in zip(joint.forwards, final):
+        f.signal_cores, f.weight, f.norm, f.signal_mask = cores, weight, norm, mask
+    rescored = [(float(np.sum(joint.residual(zz) ** 2)), zz) for _, zz in solutions]
+    if not any(np.array_equal(z, zz) for _, zz in solutions):
+        rescored.append((float(np.sum(joint.residual(z) ** 2)), z))
+    rescored.sort(key=lambda t: t[0])
+    record["objective"] = rescored[0][0]
+    return rescored[0][1], rescored, record
 
 
 def main():
@@ -1343,6 +1393,17 @@ def main():
                 solutions.insert(0, (score_new, z_new))
                 score, z = score_new, z_new
         component_record["end"] = rec
+    model_line_record = None
+    if args.model_line_passes > 0:
+        if status is not None:
+            status.set(phase="model-line passes")
+        if joint.peaks is not None:
+            joint.peak_smooth = args.peak_smooth
+        z, solutions, model_line_record = model_line_passes(joint, z, solutions, args.model_line_passes,
+                                                            args.model_line_threshold, len(solved))
+        if joint.peaks is not None:
+            joint.peak_smooth = 0.0
+        score = solutions[0][0]
     if args.trace:
         best_start = next((k for k, (_, x) in enumerate(solved)
                            if any(np.array_equal(x, zz) for _, zz in solutions[:1])), None)
@@ -1373,7 +1434,7 @@ def main():
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
-              "component_search": component_record}
+              "component_search": component_record, "model_line_passes": model_line_record}
     for k, n in enumerate(joint.coupling):
         block = slice(k * joint.m, (k + 1) * joint.m)
         values = joint.coupling_values(z, k)

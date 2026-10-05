@@ -204,18 +204,36 @@ class MixtureForward:
             self.signal_cores, self.noise_sigma = cores, sigma
             self.signal_settings = dict(threshold=signal_threshold, baseline_hz=signal_baseline_hz,
                                         taper_hz=signal_taper_hz, outside=signal_outside_weight,
-                                        height_power=signal_height_power)
-            if cores.any():
-                factor = signal_weights(self.f, self.band, cores, signal_outside_weight, signal_taper_hz)
-                self.signal_mask = factor >= 0.6
-                if signal_height_power:
-                    factor = factor * height_factor(self.f, self.y, self.band, cores, signal_height_power,
-                                                    signal_height_floor)
-                scale = sigma / factor
-            else:
-                scale = np.full(len(self.y), sigma)
+                                        height_power=signal_height_power, height_floor=signal_height_floor)
+            scale = self._signal_scale()
         self.weight = 1.0 / scale
         self.norm = float(np.linalg.norm(self.y * self.weight)) or 1.0
+
+    def _signal_scale(self) -> np.ndarray:
+        """Per-point scale sigma / w of signal weighting for the current cores (see signal_weights)."""
+        st, cores, sigma = self.signal_settings, self.signal_cores, self.noise_sigma
+        if not cores.any():
+            self.signal_mask = None
+            return np.full(len(self.y), sigma)
+        factor = signal_weights(self.f, self.band, cores, st["outside"], st["taper_hz"])
+        self.signal_mask = factor >= 0.6
+        if st["height_power"]:
+            factor = factor * height_factor(self.f, self.y, self.band, cores, st["height_power"], st["height_floor"])
+        return sigma / factor
+
+    def add_signal_cores(self, points: np.ndarray) -> int:
+        """Join grid points (bool mask, e.g. model_line_points) to the peak cores of signal weighting and
+        recompute the weights and the residual norm: the model-line pass of a fitter that keeps one forward.
+        Equivalent to building the forward with signal_extra_hz at these points. Returns the number of new
+        core points (0 = nothing changed)."""
+        if self.signal_cores is None:
+            raise ValueError("add_signal_cores needs band_weighting='signal'.")
+        new = np.asarray(points, bool) & ~self.signal_cores
+        if new.any():
+            self.signal_cores = self.signal_cores | new
+            self.weight = 1.0 / self._signal_scale()
+            self.norm = float(np.linalg.norm(self.y * self.weight)) or 1.0
+        return int(new.sum())
 
     # -- columns ----------------------------------------------------------------------
     def transitions(self, values: Dict[str, float], c: int, system) -> "TransitionList":

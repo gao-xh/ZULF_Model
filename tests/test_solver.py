@@ -221,6 +221,28 @@ class SignalWeightingTests(unittest.TestCase):
         self.assertFalse(any(f.startswith("signal_mask_model_pass") for f in none.flags))
         self.assertIsNotNone(one.data_region_residual)
 
+    def test_added_signal_cores_match_a_forward_built_with_them(self):
+        # add_signal_cores on a built forward (the joint fitter's model-line pass) gives the same weights, norm and
+        # mask as a forward constructed with signal_extra_hz at those points (the single-spectrum pass).
+        acq = Acquisition(1000.0, 6000, start_sample=30)
+        ch = SpinSystem.from_group_couplings(["13C", "1H"], [1, 1], np.array([[0, 128.0], [128.0, 0]]))
+        fid = Renderer(acq).synthesize(compute_transitions(ch), 1.5, gain=np.exp(0.4j))
+        obs = ObservedSpectrum.from_fid(fid + np.random.default_rng(1).normal(0, 2e-3, acq.points), acq, RANGES)
+        param = RefineSettings().parameterize(Interpretation((Component(ch),)))
+        kw = dict(band_weighting="signal", background=1, signal_height_power=0.5)
+        built = MixtureForward(param, obs, **kw)
+        free = np.flatnonzero(~built.signal_cores & (built.f > 240.0))
+        points = np.zeros(len(built.f), bool)
+        points[free[:12]] = True
+        self.assertTrue(points.any() and not (points & built.signal_cores).any())
+        reference = MixtureForward(param, obs, signal_extra_hz=built.f[points].tolist(), **kw)
+        self.assertEqual(built.add_signal_cores(points), int(points.sum()))
+        np.testing.assert_array_equal(built.signal_cores, reference.signal_cores)
+        np.testing.assert_allclose(built.weight, reference.weight, rtol=1e-12)
+        self.assertAlmostEqual(built.norm, reference.norm, places=12)
+        np.testing.assert_array_equal(built.signal_mask, reference.signal_mask)
+        self.assertEqual(built.add_signal_cores(points), 0)                 # already cores: nothing changes
+
     def test_model_envelope_comes_from_the_transitions(self):
         # Heights read from the transition list match the rendered peak of an isolated line, and a line far below
         # the data's peak-picking threshold (weak, or of either sign) is still located.
