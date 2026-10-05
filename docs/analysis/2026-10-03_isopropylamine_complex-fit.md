@@ -388,3 +388,26 @@ an impurity line.
   spectrum of the same sample at another time).
 
 Commit: see git log (this file).
+
+## Paper-style figure (2026-10-05)
+
+User: show the fit like the methyl-formate panel of a ZULF paper, thinner lines,
+wider range, nothing cut, rolling baseline fixed for display (colleague: "the
+stuff Blake does to fix the rolling baseline"), detail panels overlaid.
+Display processing: crop 0.1 s, the whole 16.2 s record, window 0.1 1/s, zero
+fill 4; the fitted model (ipa_fast_fam2_4j) rendered through the same
+processing, gains solved on the fit bands and kept for 5-300 Hz. Display
+baseline, the same steps for data and model: (1) cubic spline through anchor
+points more than 2.5 Hz from every model line and away from narrow data peaks
+and power-line harmonics, knots every 6 Hz (zulf_processing.
+anchor_spline_baseline, new, with line_mask; test on a 10 Hz ripple under lines
+of both signs); (2) only under the line clusters (edges tapered over 1 Hz) an
+AsLS 1.5 Hz baseline, which lifts the negative crop-wing valleys between close
+lines; elsewhere unchanged. Power-line harmonics (60.06 Hz x n) are kept and
+marked. The ripple of period about 1/(crop + delay) = 10 Hz and the broad
+negative regions are processing effects of the 0.1 s crop with first-order
+phase correction (skills/zulf-phasing), not signal; the fit is unaffected
+(complex data, model through the same processing).
+Figure: runs/processed/ipa_fast_fam2_4j/paper_style4_w0.1_k6_p2.5_overlay.png
+(scratchpad ipa/paper_fig4.py). The 121.69 / 122.28 Hz pair is clearly resolved
+in the data and is a single line in the model.

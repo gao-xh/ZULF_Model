@@ -191,6 +191,22 @@ class AslsBaselineTests(unittest.TestCase):
         z2 = asls_baseline(b2 + l2, f2, smooth_hz=2.0, p=0.01)
         self.assertLess(np.max(np.abs(np.interp(f1, f2, z2) - z1)[(f1 > 140) & (f1 < 200)]), 0.01)
 
+    def test_anchor_spline_removes_a_rolling_baseline_and_keeps_lines(self):
+        from zulf_processing import anchor_spline_baseline, line_mask
+        f = np.arange(100.0, 300.0, 0.05)
+        base = 0.2 * np.sin(2 * np.pi * f / 10.0) + 0.001 * (f - 200.0)       # 10 Hz ripple + slope
+        centres = [131.0, 133.5, 134.8, 190.0, 250.0, 252.3]
+        signs = [1, 1, -1, 1, -1, 1]
+        lines = sum(s * 1.0 / (1 + ((f - c) / 0.15) ** 2) for s, c in zip(signs, centres))
+        noise = 0.005 * np.random.default_rng(3).normal(size=len(f))
+        protect = line_mask(f, centres, 1.0)
+        z = anchor_spline_baseline(base + lines + noise, f, protect, knot_spacing_hz=2.5)
+        self.assertLess(np.sqrt(np.mean((z - base) ** 2)), 0.02)                 # ripple amplitude 0.2
+        corrected = base + lines + noise - z
+        for c, s in zip(centres, signs):
+            i = int(np.argmin(np.abs(f - c)))
+            self.assertAlmostEqual(corrected[i], s * 1.0, delta=0.05)            # line heights kept
+
     def test_two_sided_handles_lines_of_both_signs(self):
         from zulf_processing import asls_two_sided
         f, base, lines = self.synthetic(0.1)

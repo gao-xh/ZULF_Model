@@ -89,3 +89,55 @@ def asls_two_sided(values: np.ndarray, frequencies_hz: np.ndarray, sigma: float,
         z[seg] = zs
         weights[seg] = w
     return z, weights
+
+
+def line_mask(frequencies_hz: np.ndarray, lines_hz, half_width_hz: float = 1.0) -> np.ndarray:
+    """True within +-half_width_hz of any of lines_hz (points that are not baseline)."""
+    f = np.asarray(frequencies_hz, float)
+    out = np.zeros(len(f), bool)
+    for v in np.asarray(lines_hz, float).ravel():
+        out |= np.abs(f - v) <= half_width_hz
+    return out
+
+
+def anchor_spline_baseline(values: np.ndarray, frequencies_hz: np.ndarray, protect: np.ndarray,
+                           knot_spacing_hz: float = 3.0, k_sigma: float = 3.0, iterations: int = 3) -> np.ndarray:
+    """Display baseline from anchor points: a least-squares cubic spline (interior knots every knot_spacing_hz)
+    through the points outside `protect` (line regions, e.g. `line_mask` of the model transitions and of narrow
+    data peaks), evaluated everywhere. Anchors farther than k_sigma robust sigmas from the spline are dropped and
+    the spline refitted (`iterations` passes). Knots without anchors between them are merged, so a dense line
+    cluster is spanned by one spline piece. Unlike AsLS it treats lines of both signs alike and follows rolling
+    baselines with a period down to about 2 knot spacings. Contiguous frequency segments are treated separately."""
+    from scipy.interpolate import make_lsq_spline
+    y = np.asarray(values, float)
+    f = np.asarray(frequencies_hz, float)
+    protect = np.asarray(protect, bool)
+    z = np.zeros(len(y))
+    if len(f) < 8:
+        return z
+    _, segments = _segments(f)
+    for seg in segments:
+        fs, ys, use = f[seg], y[seg], ~protect[seg]
+        if use.sum() < 8:
+            z[seg] = np.median(ys[use]) if use.any() else 0.0
+            continue
+        for _ in range(max(iterations, 1)):
+            xa, ya = fs[use], ys[use]
+            knots = []
+            for t in np.arange(xa[0] + knot_spacing_hz, xa[-1] - 0.5 * knot_spacing_hz, knot_spacing_hz):
+                prev = knots[-1] if knots else xa[0]
+                if np.count_nonzero((xa > prev) & (xa < t)) >= 4:
+                    knots.append(t)
+            if knots and np.count_nonzero(xa > knots[-1]) < 4:
+                knots.pop()
+            tt = np.r_[[xa[0]] * 4, knots, [xa[-1]] * 4]
+            spl = make_lsq_spline(xa, ya, tt, k=3)
+            zs = spl(fs, extrapolate=True)
+            r = ys - zs
+            sigma = 1.4826 * np.median(np.abs(r[use] - np.median(r[use]))) + 1e-30
+            keep = use & (np.abs(r) <= k_sigma * sigma)
+            if keep.sum() < 8 or np.array_equal(keep, use):
+                break
+            use = keep
+        z[seg] = zs
+    return z
