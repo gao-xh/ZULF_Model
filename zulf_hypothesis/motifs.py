@@ -238,6 +238,33 @@ def _xch2ch2x(one_bond):
                     "AA'BB' ethylene unit, fast X-H exchange")
 
 
+def _h2nch2ch2nh2_aabb(one_bond):
+    """Ethylenediamine with the AA'BB' ethylene unit and the N-H protons kept (slow exchange): each NH2 is one
+    group (its two protons equivalent by fast rotation and inversion), coupled to the 13C (2J, 3J), to the CH2
+    protons (3J(H,C,N,H) to the near pair, 4J to the far pair) and, in the 15N isotopologue, to 15N (1J)."""
+    base = _xch2ch2x(one_bond)
+    sites = base.sites
+    protons = base.protons + (ProtonGroup("HN1", 2, "N1"), ProtonGroup("HN2", 2, "N2"))
+    c = dict(base.couplings)
+    jn = -abs(one_bond.get("N1", 65.0))
+    for i, k in ((1, 2), (2, 1)):
+        c[pair(f"N{i}", f"HN{i}")] = jn
+        c[pair(f"C{i}", f"HN{i}")] = -3.0          # 2J(C,N,H)
+        c[pair(f"C{i}", f"HN{k}")] = 1.5           # 3J(C,C,N,H)
+        for x in "ab":
+            c[pair(f"HC{i}{x}", f"HN{i}")] = 5.5   # 3J(H,C,N,H)
+            c[pair(f"HC{k}{x}", f"HN{i}")] = 0.0   # 4J
+            c[pair(f"N{i}", f"HC{i}{x}")] = -1.0   # 2J(N,C,H)
+            c[pair(f"N{i}", f"HC{k}{x}")] = 1.0    # 3J(N,C,C,H)
+    c[pair("HN1", "HN2")] = 0.0
+    sym = (dict(base.symmetry[0], HN1="HN2", HN2="HN1"), base.symmetry[1])
+    return Fragment("H2N-CH2-CH2-NH2 (AA'BB')", sites, protons, c, sym, base.bonds,
+                    "AA'BB' ethylene unit with the N-H protons kept (slow exchange)")
+
+
+register_motif(Motif("H2N-CH2-CH2-NH2 (AA'BB')", _h2nch2ch2nh2_aabb,
+                     (OneBondSite("C1", "13C", 2, (125, 150)), OneBondSite("N1", "15N", 2, (55, 90))),
+                     "ethylenediamine, AA'BB' ethylene unit, slow N-H exchange (fast: use X-CH2-CH2-X (AA'BB'))"))
 register_motif(Motif("X-CH2-CH2-X (AA'BB')", _xch2ch2x, (OneBondSite("C1", "13C", 2, (125, 150)),),
                      "1,2-disubstituted ethane with fast X-H exchange (ethylenediamine): J and J' separate"))
 register_motif(Motif("(CH3)2CH-NH2", _chain("(CH3)2CH-NH2", [("C1", "C", 1), ("C2", "C", 3), ("C3", "C", 3),

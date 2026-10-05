@@ -557,3 +557,22 @@ class AABBMotifTest(unittest.TestCase):
         self.assertTrue(same_lines(aabb, ref, tol=1e-6))
         j[1, 3] = j[3, 1] = j[2, 4] = j[4, 2] = 3.0      # J != J': not the equivalent-group spectrum any more
         self.assertFalse(same_lines(SpinSystem(sys_.isotopes, j, groups=[(0,), (1,), (2,), (3,), (4,)]), ref, 1e-3))
+
+
+class AABBSlowMotifTest(unittest.TestCase):
+    def test_uncoupled_nh_protons_leave_the_13c_lines(self):
+        # independent reference: N-H protons with every coupling 0 are free spins that add no zero-field lines, so the
+        # 13C isotopologue of the slow motif equals the fast AA'BB' motif
+        from zulf_hypothesis.motifs import MOTIFS
+        from zulf_hypothesis import exchange_variants
+        slow = build_model(exchange_variants(MOTIFS["H2N-CH2-CH2-NH2 (AA'BB')"].fragment({"C1": 131.0, "N1": 65.0}),
+                                             "slow")[0], ranges=[(150.0, 230.0)])
+        fast = build_model(exchange_variants(MOTIFS["X-CH2-CH2-X (AA'BB')"].fragment({"C1": 131.0}), "fast")[0],
+                           ranges=[(150.0, 230.0)])
+        s13 = slow.interpretation.components[0].system
+        j = s13.couplings_hz.copy()
+        j[5:, :] = 0.0
+        j[:, 5:] = 0.0
+        a = SpinSystem(s13.isotopes, j, groups=s13.groups)
+        b = fast.interpretation.components[0].system
+        self.assertTrue(same_lines(a, b, tol=1e-6))
