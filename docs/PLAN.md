@@ -312,6 +312,8 @@ tall lines and barely sees it.
 - [x] Fit monitor (scripts/fit_monitor.py, fit_joint_series --monitor on by default; user request 2026-10-05):
       objective of every evaluation of every start, stage, best couplings, console; page and terminal view;
       results identical with and without (tests/test_j_tuner.py). To do: the same hook in fit_structure.
+- [x] Filled-dip rows and sharp-extrema rows (fit_joint_series --dip-penalty, --peak-max-width; user request
+      2026-10-05: one broad line must not cover a resolved splitting, a broad data line may be refined).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
       a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
 - [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them

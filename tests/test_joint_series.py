@@ -209,6 +209,47 @@ class JointSeriesTests(unittest.TestCase):
                                    for e in np.eye(len(z))])
         self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0))
 
+    def test_dip_rows_penalise_a_broad_line_over_a_splitting_and_have_the_right_jacobian(self):
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.05)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 300.0)], record=acq)
+        p = settings.parameterize(model.interpretation)
+        sig = np.asarray(MixtureForward(p, clean, gain_model=settings.gain_model, background=-1,
+                                        band_weighting="none", **_signal_kwargs(settings)).predict(
+            p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model)
+        rng = np.random.default_rng(4)
+        y = sig + 1e-4 * np.abs(sig).max() * (rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)))
+        joint = JointSeries(model, settings, [ObservedSpectrum.from_spectrum(f, y, [(100.0, 300.0)], record=acq)],
+                            [1.0], shape="free")
+        table, xs = self._table(joint)
+        z = joint.pack(table, xs)
+        rates = [joint.nt + i for i, n in enumerate(joint.local) if "log_rate" in n]
+        broad = z.copy()
+        broad[rates] += np.log(8.0)                     # every line 8 x broader: valleys filled, tops missed
+        joint.set_peak_penalty(0.0, prominence=0.02, tolerance_hz=0.15, min_sigma=3.0, dips=5.0)
+        self.assertTrue(np.all(joint.peak_signs[0] < 0) and len(joint.peaks[0]) > 0)
+        r_true = joint.forwards[0].predict(joint.spectrum_vector(z, 0)).residual
+        r_broad = joint.forwards[0].predict(joint.spectrum_vector(broad, 0)).residual
+        self.assertLess(np.abs(joint._peak_rows(0, r_true)[0]).max(), 1e-3)          # the true model reaches every valley
+        self.assertGreater(np.abs(joint._peak_rows(0, r_broad)[0]).max(), 0.05)      # the broad one fills them
+        joint.set_peak_penalty(5.0, prominence=0.02, tolerance_hz=0.15, min_sigma=3.0, dips=5.0)
+        self.assertTrue(np.any(joint.peak_signs[0] > 0) and np.any(joint.peak_signs[0] < 0))
+        n_all = len(joint.peaks[0])
+        joint.set_peak_penalty(5.0, prominence=0.02, tolerance_hz=0.15, min_sigma=3.0, dips=5.0, max_width_hz=0.01)
+        self.assertLess(len(joint.peaks[0]), n_all)               # nothing is narrower than 0.01 Hz on this grid
+        joint.set_peak_penalty(5.0, prominence=0.02, tolerance_hz=0.15, min_sigma=3.0, dips=5.0, max_width_hz=2.0)
+        zz = broad.copy()
+        zz[rates] -= 0.7
+        for smooth in (0.0, 0.03):
+            joint.peak_smooth = smooth
+            jac = joint.jacobian(zz)
+            h = 1e-6
+            numeric = np.column_stack([(joint.residual(zz + h * e) - joint.residual(zz - h * e)) / (2 * h)
+                                       for e in np.eye(len(zz))])
+            self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0), msg=str(smooth))
+
     def test_line_band_and_local_fit(self):
         # a line band that holds every line changes nothing; a narrow one keeps the Jacobian exact (finite
         # differences); the local fit recovers a coupling shift from one window

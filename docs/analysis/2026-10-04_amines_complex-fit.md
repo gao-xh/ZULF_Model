@@ -160,3 +160,21 @@ the 15N lines; 8 starts) and N-ethylmethylamine (nema_slow83; series with the
 77-102 Hz range added for the 15NH line near 83 Hz; 4 seeds, 3J(C2,H3)
 reset to 4.5 in three; 20 families; 8 starts, max_nfev 120). Timing: residual
 0.05 / 0.08 s, Jacobian 1.7 / 7.7 s.
+
+Slow-exchange results (1J(15N,H) -83 Hz): ethylenediamine (eda_slow83, 1043 s)
+best 0.0435 (fast 0.0719), relative residual 0.195; 1J(C,H) 131.39, 2J(C,H)
+-3.71, 3J(H,H) 4.53, 3J(H,HN) 6.33, 2J(C,HN) -0.09, 3J(C,HN) -0.97,
+1J(N,H) -83.1 Hz (next starts 0.0515, 0.0725). N-ethylmethylamine (nema_slow83,
+4245 s) best 0.1653 against 0.0752 fast: rejected. 1J(N,H) of aliphatic amines
+is about 64-67 Hz in the literature (85 Hz is typical of sp2 N), so a gain at
+83 Hz may come from 15N lines hidden in a line cluster; to check against a run
+with 65 Hz.
+
+Sharp structure rows (user: stop fitting several splittings with one broad
+line, a broad line refined is fine; penalise narrow negative residual peaks):
+fit_joint_series --dip-penalty (rows at sharp data valleys) and
+--peak-max-width (rows only at sharp extrema); tests in test_joint_series.
+Test run on ethylenediamine (fast, families): eda_fast_fam_sharp with
+--peak-penalty 20 --dip-penalty 10 --peak-prominence 0.02 --peak-min-sigma 5
+--peak-max-width 1.0.
+

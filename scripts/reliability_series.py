@@ -133,9 +133,10 @@ def direct_data_score(joint, series, key_of, fit):
 def peak_settings(fit):
     """A fit's missing-peak settings (strength 0 = none), without the per-run record fields."""
     p = fit.get("peak_penalty") or {}
-    if not p.get("strength"):
+    if not p.get("strength") and not p.get("dip_strength"):
         return {"strength": 0.0}
-    return {k: p[k] for k in ("strength", "prominence", "tolerance_hz", "min_sigma")}
+    return {**{k: p[k] for k in ("strength", "prominence", "tolerance_hz", "min_sigma")},
+            "dip_strength": p.get("dip_strength", 0.0), "max_width_hz": p.get("max_width_hz", 0.0)}
 
 
 def refit_spectrum_parameters(joint, series, key_of, J_at_x, fit_files):
@@ -243,9 +244,10 @@ def main():
     # fits with missing-peak rows: their stored scores contain the hard rows, so the compared score is data plus
     # those rows (the same settings in every fit; checked below)
     peaks = peak_settings(json.load(open(args.fit[0].split("=", 1)[1])))
-    if peaks["strength"]:
+    if peaks["strength"] or peaks.get("dip_strength"):
         joint.set_peak_penalty(peaks["strength"], peaks["prominence"], peaks["tolerance_hz"],
-                               min_sigma=peaks["min_sigma"], smooth=0.0)
+                               min_sigma=peaks["min_sigma"], smooth=0.0, dips=peaks.get("dip_strength", 0.0),
+                               max_width_hz=peaks.get("max_width_hz") or None)
     fits, pool = {}, []
     for item in args.fit:
         label, path = item.split("=", 1)

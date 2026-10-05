@@ -169,6 +169,10 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
 5. Back to global. Every local candidate becomes a global start; it is accepted only if the global objective
    improves (and, with residual-peak rows, on one common window set). A feature whose local optimum the rest of
    the spectrum rejects points to a model error (missing coupling, species or line-shape physics), to be reported.
+5b. Sharp structure rows (`--peak-penalty S --dip-penalty D --peak-max-width W`): rows at every sharp data line
+   (model below it: a sharp negative residual peak) and every sharp data valley (model filling it); together they
+   stop one broad line from covering a resolved splitting (the fit otherwise widens a rate family over a
+   doublet), while a broad data line refined into close model lines costs nothing extra.
 6. Residual-peak stage (`--residual-peaks S --residual-peak-rounds 3 --residual-peak-candidates 3`): outer loop
    detect -> weight windows -> refit. Known issues (isopropylamine, to fix): assignability can flip between rounds
    when the lines move away (keep a window once found, judged on the starting transitions), and the ranking chose

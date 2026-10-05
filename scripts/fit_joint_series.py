@@ -144,7 +144,8 @@ class JointSeries:
         self.trace_label = ""
         self.monitor = None                       # callable (stage, cost, z) at every evaluation (fit_monitor)
 
-    def set_peak_penalty(self, strength, prominence=0.12, tolerance_hz=0.15, min_sigma=2.0, smooth=0.0):
+    def set_peak_penalty(self, strength, prominence=0.12, tolerance_hz=0.15, min_sigma=2.0, smooth=0.0, dips=0.0,
+                         max_width_hz=None):
         """Missing-peak rows: for every data peak top (prominence >= `prominence` times the largest abs value and
         >= `min_sigma` noise sigma) one extra residual row strength * min(max over +-tolerance_hz of r, 0),
         r = W (model - data) / norm the ordinary residual. The row is zero while the model reaches the data peak
@@ -154,42 +155,69 @@ class JointSeries:
         smooth > 0 replaces max and min(., 0) by smooth versions for the optimiser (the hard rows have kinks,
         which keep least squares from converging): soft max tau log sum exp(r / tau) and soft hinge
         -s log(1 + exp(-m / s)), tau = s = smooth times the peak's own height in residual units. Scores for
-        ranking should use the hard rows (smooth 0)."""
+        ranking should use the hard rows (smooth 0).
+
+        dips > 0 adds the mirror rows for every data valley (a local minimum of the real part with the same
+        prominence rules): dips * max(min over +-tolerance_hz of r, 0), zero while the model comes down to the data
+        somewhere near the valley and growing when it fills the valley (one broad line over a doublet) or misses a
+        negative line. Together the two kinds penalise structure of the data that the model smooths over; structure
+        of the model finer than the data (a broad data line refined into close lines) costs nothing extra.
+
+        max_width_hz: only sharp extrema get rows (width at half prominence below this): the rows then act on the
+        sharp lines and narrow valleys of the data (a missed line is a sharp negative residual peak), not on broad
+        humps, which the model may refine into close lines without penalty."""
         from scipy.signal import find_peaks
         from zulf_core.solver.forward import signal_regions
         self.peak_strength = float(strength)
         self.peak_smooth = float(smooth)
-        if not strength:
+        self.dip_strength = float(dips)
+        if not strength and not dips:
             self.peaks = None
             return
-        self.peaks, self.peak_heights = [], []
+        self.peaks, self.peak_heights, self.peak_signs = [], [], []
         for f in self.forwards:
             y = f.y.real
             _, sigma = signal_regions(f.f, f.y, f.band, 4.0)
-            tops, _ = find_peaks(y, prominence=max(prominence * float(np.abs(f.y).max()), min_sigma * sigma))
+            prom = max(prominence * float(np.abs(f.y).max()), min_sigma * sigma)
             spacing = float(np.median(np.diff(f.f)))
             half = max(int(round(tolerance_hz / spacing)), 0)
-            self.peaks.append([np.arange(max(t - half, 0), min(t + half + 1, len(y))) for t in tops])
-            self.peak_heights.append(np.abs(y[tops]) * f.weight[tops] / f.norm)
+            wins, heights, signs = [], [], []
+            for sign, on in ((1.0, bool(strength)), (-1.0, bool(dips))):
+                if not on:
+                    continue
+                width = (None, max_width_hz / spacing) if max_width_hz else None
+                ext, props = find_peaks(sign * y, prominence=prom, width=width)
+                wins += [np.arange(max(t - half, 0), min(t + half + 1, len(y))) for t in ext]
+                # smoothing scale of a dip row: its prominence (the depth of the valley), like a peak's height
+                scale = np.abs(y[ext]) if sign > 0 else props["prominences"]
+                heights += list(scale * f.weight[ext] / f.norm)
+                signs += [sign] * len(ext)
+            self.peaks.append(wins)
+            self.peak_heights.append(np.asarray(heights))
+            self.peak_signs.append(np.asarray(signs))
 
     def _peak_rows(self, s, r):
         """Rows of spectrum s from its ordinary residual r, and per row (indices, coefficients) of
         d row / d r (the Jacobian row is the matching combination of ordinary rows)."""
         rows, grads = [], []
-        for w, h in zip(self.peaks[s], self.peak_heights[s]):
+        signs = getattr(self, "peak_signs", None)
+        for i, (w, h) in enumerate(zip(self.peaks[s], self.peak_heights[s])):
+            sg = 1.0 if signs is None else float(signs[s][i])
+            st = self.peak_strength if sg > 0 else self.dip_strength
+            rw = sg * r[w]                       # a dip row is a peak row of the mirrored residual
             if self.peak_smooth > 0:
                 t = self.peak_smooth * h
-                a = r[w] / t
+                a = rw / t
                 p = np.exp(a - a.max())
                 m = t * (a.max() + np.log(p.sum()))
                 p /= p.sum()
-                rows.append(-self.peak_strength * t * np.logaddexp(0.0, -m / t))
-                grads.append((w, self.peak_strength * expit(-m / t) * p))
+                rows.append(-st * t * np.logaddexp(0.0, -m / t))
+                grads.append((w, sg * st * expit(-m / t) * p))
             else:
-                j = w[int(np.argmax(r[w]))]
-                v = min(float(r[j]), 0.0)
-                rows.append(self.peak_strength * v)
-                grads.append((np.array([j]), np.array([self.peak_strength])) if v < 0 else (np.zeros(0, int), np.zeros(0)))
+                j = int(np.argmax(rw))
+                v = min(float(rw[j]), 0.0)
+                rows.append(st * v)
+                grads.append((np.array([w[j]]), np.array([sg * st])) if v < 0 else (np.zeros(0, int), np.zeros(0)))
         return np.array(rows), grads
 
     def set_smoothing(self, sigma_hz):
@@ -850,7 +878,7 @@ def build_problem(args):
             sigma.append(s)
     joint.set_priors(ks, mean, sigma, args.prior_weight)
     joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance, min_sigma=args.peak_min_sigma,
-                           smooth=args.peak_smooth)
+                           smooth=args.peak_smooth, dips=args.dip_penalty, max_width_hz=args.peak_max_width or None)
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     return SimpleNamespace(series=series, left_out=left_out, lo=lo, hi=hi, obs=obs, model=model,
@@ -892,6 +920,11 @@ def make_parser():
     ap.add_argument("--peak-prominence", type=float, default=0.12,
                     help="peak tops: prominence as a fraction of the largest value (and at least 2 noise sigma)")
     ap.add_argument("--peak-tolerance", type=float, default=0.15, help="peak tops: position tolerance (Hz)")
+    ap.add_argument("--peak-max-width", type=float, default=0.0,
+                    help="peak tops and dips: only extrema narrower than this (Hz, width at half prominence; 0 = any)")
+    ap.add_argument("--dip-penalty", type=float, default=0.0,
+                    help="filled-dip rows: strength per data valley (or negative line) the model stays above (0 = off); "
+                         "with --peak-penalty it stops one broad line from covering a resolved splitting")
     ap.add_argument("--peak-min-sigma", type=float, default=2.0, help="peak tops: prominence at least this many noise sigma")
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
@@ -1066,6 +1099,7 @@ def main():
               "peak_penalty": {"strength": args.peak_penalty, "prominence": args.peak_prominence,
                                "tolerance_hz": args.peak_tolerance, "min_sigma": args.peak_min_sigma,
                                "tops": [len(t) for t in joint.peaks] if joint.peaks else [],
+                               "dip_strength": args.dip_penalty, "max_width_hz": args.peak_max_width,
                                "smooth": args.peak_smooth, "smooth_scores_sorted_by_hard": smooth_scores},
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
               "scores": [s for s, _ in solutions],
