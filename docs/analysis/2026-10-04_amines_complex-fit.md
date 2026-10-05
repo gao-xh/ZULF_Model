@@ -178,3 +178,36 @@ Test run on ethylenediamine (fast, families): eda_fast_fam_sharp with
 --peak-penalty 20 --dip-penalty 10 --peak-prominence 0.02 --peak-min-sigma 5
 --peak-max-width 1.0.
 
+
+## The 15N-H line test and a weighting gap (2026-10-05)
+
+**The 15N-H line test.** In slow N-H exchange, the 15N isotopologue must show the 15N-H line, with its intensity
+fixed by natural abundance (ratio 0.338 to a 13C component). The fast-exchange model has no such line, so the slow
+model does not nest the fast one, even with every NH coupling at 0.
+
+- **N-ethylmethylamine (one NH).** The line falls at |1J(N,H)|.
+  - Slow model at the nested start (fast-family couplings and rates, NH couplings 0): the line is 0.112 at 83 Hz
+    and 0.087 at 65 Hz. The strongest 13C lines are 0.042.
+  - Data: 0.0012 / 0.0020. The largest peak between 62 and 102 Hz is 6-9 sigma, against 224 sigma for the main
+    lines.
+  - Slow exchange is therefore excluded at either value, which explains nema_slow83 (0.165). The planned nested
+    slow runs (nema_slow83n / nema_slow65n) were cancelled.
+- **Ethylenediamine (NH2).** The 15N lines fall near 1.5 x J: 124.5 Hz for 83, 97.5 Hz for 65.
+  - Data: at most 3 sigma at 97.5, 124.5, 83 and 65 Hz.
+  - eda_slow83 nevertheless puts its 15N lines at 118-128 Hz, up to 0.0085, against a data maximum of 0.0019 there
+    (residual 3.8 x the data norm in that window). It also puts ripples at 210-238 Hz that the data do not show.
+    Figure: runs/processed/amine_overview/ethylenediamine.png.
+  - Its objective (0.0435 against 0.0719) improves anyway. The gain comes from the 13C lines at 185-210 Hz, where
+    the free NH couplings absorb misfit; the residual there drops from 0.25 to 0.19.
+
+**The weighting gap.** fit_joint_series weights by data signal only. Far from data peaks, the relative weight is
+signal_outside_weight 0.2, so a squared residual there counts 0.04. A model line where the data show none is
+therefore cheap. The single-spectrum solver closes this gap with signal_model_passes: the model's own lines join
+the cores, so a line placed where the data show none is fully penalised. The joint fitter never had that pass.
+
+**Consequence.** The slow-exchange gains of eda_slow83 and ipa_slow83 are not evidence for slow exchange or for
+1J(N,H) = 83 Hz until they are rescored with model-line weighting. The eda_slow65 control (same recipe, 65 Hz) is
+running for comparison.
+
+Overview figures of the current fits: runs/processed/amine_overview/{ethylenediamine,triethylamine,
+N-ethylmethylamine}.png (scratchpad amines/plot_runs.py).

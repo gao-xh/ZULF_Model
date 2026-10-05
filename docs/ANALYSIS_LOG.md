@@ -1332,3 +1332,8 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-05: J -> structure (Phase 7). Route A (rule readout with bond orders) and route B (learned likelihood)
   both reach synthetic top-1 0.91 / top-3 1.00 and rank all four amines first. The remaining ties are unseen-atom
   placement. docs/analysis/2026-10-05_j-to-structure.md, docs/J_TO_STRUCTURE.md
+- 2026-10-05: amines, the 15N-H line test. Slow N-H exchange predicts a natural-abundance 15N-H line that the data
+  do not show: N-ethylmethylamine (65 / 83 Hz) excluded; ethylenediamine slow83 places unobserved 15N lines at
+  118-128 Hz. fit_joint_series lacks the model-line weighting pass of the single-spectrum solver, so model-only
+  lines are cheap (weight 0.2), and the slow gains are not evidence yet.
+  docs/analysis/2026-10-04_amines_complex-fit.md
