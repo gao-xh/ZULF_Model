@@ -141,3 +141,22 @@ scripts/fit_monitor.py shows it live. Checked: the ethylenediamine stage-2 run
 (4 starts, 2 workers, max_nfev 15) gives identical scores, couplings and
 spectrum parameters with --monitor on and off; demo on triethylamine
 (runs/processed/tea_monitor_demo, 6 starts, 3 workers, max_nfev 60).
+
+## Slow N-H exchange with 1J(15N,H) = 83 Hz (2026-10-05, user)
+
+User: ethylenediamine and triethylamine are not good; fit the NH2 with
+1J = 83 Hz; N-ethylmethylamine again as well. Triethylamine has no N-H (no
+NH test there). Line table (ethylenediamine, slow, 1J(N,H) -83): with the NH
+couplings at 0 the 13C@C1 lines are those of the fast model and the 15N@N1
+lines sit at 123.3-125.7 Hz (1.5 x 83); with 2J(C,HN) -3, 3J(C,HN) 1.5,
+3J(H,HN) 3 Hz the methylene-13C lines split into about 90 lines over
+187.7-207.7 Hz, the 15N lines spread over 120.8-127.3 Hz.
+
+Runs (run_slow83.sh): --exchange slow, 15N isotopologue included, NH coupling
+seeds nonzero (0 is a stationary point): ethylenediamine (eda_slow83; seeds
+(2J(C1,HN1), 3J(C1,HN2), 3J(HC1,HN1)) = (-4.5, 4.5, 5.5), (-3, 1.5, 3),
+(3, -1.5, -3), (-1.5, 1, 7); 13 family edges incl. 110 / 130 / 150 Hz for
+the 15N lines; 8 starts) and N-ethylmethylamine (nema_slow83; series with the
+77-102 Hz range added for the 15NH line near 83 Hz; 4 seeds, 3J(C2,H3)
+reset to 4.5 in three; 20 families; 8 starts, max_nfev 120). Timing: residual
+0.05 / 0.08 s, Jacobian 1.7 / 7.7 s.
