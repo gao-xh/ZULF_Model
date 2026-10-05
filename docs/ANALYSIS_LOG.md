@@ -1350,3 +1350,6 @@ skills under `skills/`; this file keeps the history.
   docs/analysis/2026-10-04_amines_complex-fit.md
 - 2026-10-05: ethylenediamine 15N scan (1J 55-135 Hz). A 15N line on the 190.6 / 192.1 Hz pair makes the fit worse
   (0.0449 -> 0.0528), so the pair is not the 15N isotopologue. docs/analysis/2026-10-05_amines_overnight.md
+- 2026-10-05: ethylenediamine with a second AA'BB' ethylene unit (free ratio 0.17): 0.0449 -> 0.0099. It explains the
+  190.6 / 192.1 Hz pair and the 208-238 Hz undulation. The species is open (carbamate, protonated form, conformer).
+  docs/analysis/2026-10-05_amines_overnight.md

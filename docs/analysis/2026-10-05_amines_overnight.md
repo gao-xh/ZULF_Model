@@ -52,3 +52,50 @@ Figure: runs/processed/amine_overview/ethylenediamine_delay.png.
 | eda_2sp | ethylenediamine plus a second AA'BB' unit with a free ratio |
 
 A job queue (scratchpad amines/queue.sh, queue.txt) starts the next script whenever fewer than four fits run.
+
+## 09:44 UTC check-in
+
+The container restarted around 09:4x and every job was lost; the monitor records survived.
+
+**Component search reruns** (from the monitor records; the end passes were not reached):
+
+| Sample | Best objective | Previous best |
+|---|---|---|
+| isopropylamine (ipa_fast_fam_cs) | 0.0475 | 0.0475 |
+| N-ethylmethylamine (nema_fast_fam_cs) | 0.0501 | 0.0501 |
+
+The start passes found no better basin for any component. These fits are at their best for the current models.
+
+### Step 3: ethylenediamine plus a second ethylene unit (eda_2sp)
+
+Setup: two AA'BB' units with a free ratio (`--structure` list; 20 seeds over the second unit's 1J, J and J').
+Best start before the restart: objective **0.0099**, against 0.0449 for one species (-78 %).
+
+| Coupling (Hz) | Species 1 | Species 2 |
+|---|---|---|
+| 1J(C,H) | 131.32 | 126.75 |
+| 2J(C,H) | -1.94 | -2.03 |
+| geminal | -14.43 | -9.11 |
+| J (same side) | 1.74 | 5.10 |
+| J' (across) | 15.05 | 12.02 |
+
+Gain ratio species 2 / species 1: 0.17.
+
+What species 2 explains:
+- the 190.6 / 192.1 Hz pair;
+- the 197.8 Hz shoulder;
+- the 208-238 Hz undulation, which is now fitted (its residual drops from about 0.005 to about 0.001).
+
+What remains: the 199.5 / 200.2 Hz dip and peak structure.
+
+Species 2 is a conditional result: a second, less abundant ethylene unit with smaller 1J, larger geminal and less
+anti-dominated vicinal couplings. Candidates are a minor species in the sample (ethylenediamine carbamate from CO2,
+or a protonated or hydrogen-bonded form) or a slowly exchanging second conformer population. Note that a carbamate
+or a mono-protonated ethylenediamine would have two inequivalent CH2 groups, so a symmetric unit is only a first
+model.
+
+Figures:
+- runs/processed/amine_overview/ethylenediamine_2sp.png
+- runs/processed/amine_overview/ethylenediamine_2sp_components.png
+
+Restarted: eda_2sp_refit (from this start, 6 starts, component search) and tea_fam121.
