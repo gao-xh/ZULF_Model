@@ -208,7 +208,7 @@ class _Structure:
         return self._replace[x]
 
 
-@lru_cache(maxsize=16)
+@lru_cache(maxsize=64)
 def _structure(spins: Tuple[Fraction, ...]) -> _Structure:
     return _Structure(spins)
 
@@ -308,6 +308,9 @@ class _Block:
     non-exchanging equivalence group of spin-1/2), its SpinSystem over the sites, and its weight."""
 
     def __init__(self, system, sites, multiplicity):
+        # sites in a canonical order (largest spin first) so that blocks of different isotopologues share one
+        # spin list and therefore one cached _structure
+        sites = sorted(sites, key=lambda site: (-site[0], site[1]))
         self.sites = sites                       # [(spin, members tuple)]
         self.multiplicity = multiplicity
         self.spins = tuple(sp_ for sp_, _ in sites)

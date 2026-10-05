@@ -124,6 +124,12 @@ def add_nh_exchange(param, model, labels, start, bounds):
     return leader
 
 
+def exchange_variants_for(fragment, exchange, overrides):
+    from zulf_hypothesis import exchange_variants
+    from fit_processed_spectrum import override_couplings
+    return exchange_variants(override_couplings(fragment, overrides), exchange)[0]
+
+
 def exchangeable_labels(fragment):
     """Proton groups on N or O sites (candidates for --nh-exchange)."""
     element = {site.label: site.element for site in fragment.sites}
@@ -133,9 +139,14 @@ def exchangeable_labels(fragment):
 class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
-    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None):
+    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=()):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
+        for p in self.params:                      # couplings held at their structure values (--free-couplings)
+            for key in fixed:
+                for n in model.coupling_names.get(key, []):
+                    if n in p.parameters:
+                        p.parameters[n].free = False
         if exchange:
             for p in self.params:
                 add_nh_exchange(p, model, exchange["labels"], exchange["start"], exchange["bounds"])
@@ -834,7 +845,20 @@ def build_problem(args):
     obs = [observation(e) for e in series]
     spec = json.loads(args.structure)
     spec.setdefault("compound", "series")
-    fragment = override_couplings(reg.structure_for(spec), json.loads(args.couplings))
+    overrides = json.loads(args.couplings)
+    fixed_keys = []
+    if getattr(args, "free_couplings", ""):
+        # every coupling not matching the pattern is held, at its value in --from-joint (else the structure's)
+        import re
+        pattern = re.compile(args.free_couplings)
+        previous = json.load(open(args.from_joint))["couplings"] if args.from_joint else {}
+        probe = exchange_variants_for(reg.structure_for(spec), args.exchange, overrides)
+        for key in build_model(probe, ranges=[(lo, hi)]).coupling_names:
+            if not pattern.search(key):
+                fixed_keys.append(key)
+                if key in previous:
+                    overrides[key] = float(previous[key]["J_at_x"][0])
+    fragment = override_couplings(reg.structure_for(spec), overrides)
     from zulf_hypothesis import exchange_variants
     fragment = exchange_variants(fragment, args.exchange)[0]     # fast: protons on N/O/S dropped (decoupled)
     model = build_model(fragment, ranges=[(lo, hi)])
@@ -857,7 +881,7 @@ def build_problem(args):
         exchange = {"labels": labels, "start": args.nh_exchange, "bounds": (lo_k, hi_k)}
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
                         shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape,
-                        exchange=exchange)
+                        exchange=exchange, fixed=fixed_keys)
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
         raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
@@ -979,6 +1003,9 @@ def make_parser():
                     help="start value (1/s) of one fitted exchange rate k of the N-H / O-H protons with the solvent "
                          "(exact Liouville model, physics.exchange; needs --exchange slow; 0 = static, off)")
     ap.add_argument("--nh-exchange-bounds", default="0.05,5000", help="bounds of k (1/s)")
+    ap.add_argument("--free-couplings", default="",
+                    help="regex: only couplings whose key matches are fitted; the others are held at their "
+                         "--from-joint values (e.g. 'HN|N1' for a staged N-H fit)")
     ap.add_argument("--nh-exchange-labels", default="", help="exchanging proton groups (default: all on N / O)")
     ap.add_argument("--shape", default="monotone", choices=["monotone", "free"],
                     help="monotone (default): every coupling monotonic in x; free: independent J at every x")
