@@ -318,6 +318,13 @@ tall lines and barely sees it.
       "one look shows the CH2 group is bad; know which part to adjust"): misfit share per isotopologue band,
       levers per bad band (wanted step, band gain, cost elsewhere, selectivity; verdict free knob / conflict /
       weak), and whether the band's own parameters are exhausted (then the model lacks something there).
+- [x] Component search in fit_joint_series (--component-search start|end|both, default both; user request
+      2026-10-05: "at the start and at the end; the start pass guides the following fit"). Every isotopologue on
+      the window it dominates, its own couplings (shared H-H held) and rate families refit on the window from
+      random starts. The start pass result becomes the first centre of the multi-start; the end pass searches from
+      the best solution and refits globally, keeping the result only if it wins. Test: tests/test_j_tuner.py
+      ComponentSearchTests (+6 Hz wrong basin found back). Motivated by N-ethylmethylamine 13CH2 (whole
+      objective -29 % from a basin the multi-start never reached).
 - [ ] Joint fitter: model-line weighting pass (the single-spectrum solver's signal_model_passes), so a model
       line where the data show none is fully penalised (eda_slow83 / eda_slow65: unobserved 15N lines at
       weight 0.2).

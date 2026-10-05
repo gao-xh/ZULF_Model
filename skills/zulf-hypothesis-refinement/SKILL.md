@@ -232,6 +232,10 @@ Use occasionally or as the last step, not inside every fit.
     coupling, a 1J that also places other lines).
   - **weak**: no real gain.
 
+  fit_joint_series runs this automatically (`--component-search both`, the default): once at the start to
+  guide the multi-start, and once at the end from the best solution, followed by a global refit. Turn it
+  off (`off`) only for timing comparisons. Its record is in fit.json under "component_search": the windows,
+  the window costs, and the whole objective before and after.
   "Already at the band optimum" can be a local optimum. Isolate the component's window and search its own
   couplings globally from random starts (`JointSeries.local_fit` with the shared H-H couplings held), then refit
   globally from the best basin. N-ethylmethylamine 13CH2: the whole objective dropped 29 % (3J(C2,H3) 12.1 -> 5.8,

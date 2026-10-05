@@ -249,3 +249,33 @@ class BandDiagnosisTests(unittest.TestCase):
         actual_gain = cost_b - float(r2[rows] @ r2[rows])
         self.assertGreater(actual_gain, 0.0)
         self.assertAlmostEqual(top["band_gain"] / actual_gain, 1.0, delta=0.25)
+
+
+class ComponentSearchTests(unittest.TestCase):
+    """fit_joint_series.component_search: a coupling started in a wrong basin is found again on its window."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmpdir = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls.tmpdir.name)
+        cls.prob, cls.truth_z = _problem(cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmpdir.cleanup()
+
+    def test_wrong_basin_is_found(self):
+        prob = self.prob
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": 6.0})                      # truth -4.2 Hz: far outside a local step
+        z_bad = s.z.copy()
+        windows = fj._component_windows(prob.joint, z_bad, 0)
+        self.assertTrue(any(prob.joint.model.component_labels[c] == "13C@C1" for c, _, _ in windows))
+        args = _args(self.tmp, ["--component-search-starts", "12", "--seed", "3"])
+        args.workers = 1
+        z_new, rec = fj.component_search(prob.joint, prob, z_bad, args, "start")
+        self.assertLess(rec["objective_after"], 0.5 * rec["objective_before"])
+        k = prob.joint.coupling.index(next(n for n in prob.joint.coupling if prob.key_of.get(n, n) == "J(C1,HC2)"))
+        self.assertAlmostEqual(float(prob.joint.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.1)
+        self.assertTrue(any(w["accepted"] for w in rec["windows"]))

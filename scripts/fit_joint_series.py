@@ -766,6 +766,135 @@ def _coordinate_scan(joint, z, lower, upper, max_nfev, cycles=2, half_width=4.0,
 _MONITOR = None        # (directory, coupling keys) when fit_monitor records the starts
 
 
+
+# ---------------------------------------------------------------------------------------------------------------
+# Component search: every isotopologue on the window where it dominates, its own couplings from random starts
+# ---------------------------------------------------------------------------------------------------------------
+
+_CS_TASK = None
+
+
+def _component_windows(joint, z, s, min_line=0.05, gap_hz=3.0, dominance=0.8):
+    """[(component, lo, hi)] for spectrum s: the lines of each component (relative amplitude >= min_line) clustered
+    at gaps > gap_hz, each cluster +- 1 Hz, merged with its neighbours of the same component while the merged
+    window stays dominated by that component (>= dominance of the summed component magnitudes on its points)."""
+    f = joint.forwards[s]
+    P = joint.params[s]
+    values = P.values(joint.spectrum_vector(z, s))
+    pred = f.predict(joint.spectrum_vector(z, s))
+    nf = len(f.f)
+    comps = [np.abs(np.asarray(c)[:nf] if len(c) == nf else np.asarray(c)) for c in pred.component_spectra]
+    f_lo, f_hi = float(f.f.min()), float(f.f.max())
+
+    def share(c, lo, hi):
+        w = (f.f >= lo) & (f.f <= hi)
+        if not w.any():
+            return 0.0
+        tot = sum(float(np.linalg.norm(x[w])) for x in comps)
+        return float(np.linalg.norm(comps[c][w])) / tot if tot > 0 else 0.0
+
+    out = []
+    for c, system in enumerate(P.systems(values)):
+        tl = f.transitions(values, c, system)
+        a = np.abs(np.asarray(tl.amplitudes))
+        fr = np.asarray(tl.frequencies_hz)
+        if not len(a):
+            continue
+        fr = np.sort(fr[(a >= min_line * a.max()) & (fr >= f_lo) & (fr <= f_hi)])
+        if not len(fr):
+            continue
+        clusters, start = [], fr[0]
+        for x0, x1 in zip(fr[:-1], fr[1:]):
+            if x1 - x0 > gap_hz:
+                clusters.append([start - 1.0, x0 + 1.0])
+                start = x1
+        clusters.append([start - 1.0, fr[-1] + 1.0])
+        merged = []
+        for cl in clusters:
+            if merged and cl[0] - merged[-1][1] <= gap_hz and share(c, merged[-1][0], cl[1]) >= dominance:
+                merged[-1][1] = cl[1]
+            else:
+                merged.append(cl)
+        out += [(c, max(lo, f_lo), min(hi, f_hi)) for lo, hi in merged if share(c, lo, hi) >= dominance]
+    return out
+
+
+def _cs_local(start):
+    joint, s, window, names, rates, lower, upper, max_nfev, z = _CS_TASK
+    return joint.local_fit(z, s, window, names, locals_=rates, lower=lower, upper=upper, starts=[start],
+                           max_nfev=max_nfev)[0]
+
+
+def component_search(joint, prob, z, args, stage):
+    """For every spectrum and every component, on each window it dominates (_component_windows): its own couplings
+    (J(site, ...) of its labelled nucleus; shared H-H couplings held) and its rate families in the window are refit
+    on the window alone (JointSeries.local_fit, the window's own gains) from the current values and from
+    --component-search-starts random starts (one-bond couplings +- --component-search-box[2] Hz, the others uniform
+    in the box). The best distinct window solutions are scored on the whole objective with everything else held;
+    the best improving one is accepted (greedy, worst bands first). Returns (z, record)."""
+    global _CS_TASK
+    lo_box, hi_box, one_bond = (float(v) for v in args.component_search_box.split(","))
+    rng = np.random.default_rng(args.seed + (0 if stage == "start" else 1))
+    key_of = prob.key_of
+    labels = joint.model.component_labels
+    edges = np.asarray(joint.params[0].policy.family_edges_hz or [], float)
+    z = z.copy()
+    whole = float(np.sum(joint.residual(z) ** 2))
+    record = {"stage": stage, "objective_before": whole, "windows": []}
+    t0 = time.time()
+    for s in range(len(joint.forwards)):
+        windows = _component_windows(joint, z, s, args.component_search_min_line, args.component_search_gap,
+                                     args.component_search_dominance)
+        for c, lo, hi in windows:
+            site = labels[c].split("@")[-1].split(" ")[0] if "@" in labels[c] else None
+            names = [n for n in joint.coupling if site and key_of.get(n, n).startswith(f"J({site},")]
+            if not names:
+                continue
+            fams = set(np.searchsorted(edges, np.linspace(lo, hi, 200), side="right").tolist()) if len(edges) \
+                else {0}
+            rates = [n for n in joint.local if n.startswith(f"c{c}.log_rate") and int(n.split("log_rate")[1]) in fams]
+            current = {n: float(joint.coupling_values(z, joint.coupling.index(n))[joint.node_of[s]]) for n in names}
+            starts = [{}]
+            for _ in range(args.component_search_starts):
+                starts.append({n: float(rng.uniform(v - one_bond, v + one_bond) if abs(v) >= 50.0
+                                        else rng.uniform(lo_box, hi_box)) for n, v in current.items()})
+            _CS_TASK = (joint, s, (lo, hi), names, rates, prob.lower, prob.upper, args.component_search_nfev, z)
+            if args.workers > 1:
+                import multiprocessing
+                with multiprocessing.get_context("fork").Pool(args.workers) as pool:
+                    results = pool.map(_cs_local, starts, chunksize=1)
+            else:
+                results = [_cs_local(st) for st in starts]
+            here = results[0][0]
+            results.sort(key=lambda t: t[0])
+            distinct = []
+            for cost, zz in results:
+                vals = {n: float(joint.coupling_values(zz, joint.coupling.index(n))[joint.node_of[s]]) for n in names}
+                if all(max(abs(vals[n] - d[2][n]) for n in names) > 0.15 for d in distinct):
+                    distinct.append((cost, zz, vals))
+                if len(distinct) == args.component_search_keep:
+                    break
+            scored = [(float(np.sum(joint.residual(zz) ** 2)), cost, zz, vals) for cost, zz, vals in distinct]
+            scored.sort(key=lambda t: t[0])
+            best = scored[0]
+            accepted = best[0] < whole * (1 - 1e-4)
+            entry = {"spectrum": s, "component": labels[c], "window_hz": [lo, hi],
+                     "couplings": [key_of.get(n, n) for n in names], "rates": rates,
+                     "window_cost_here": here, "window_cost_best": best[1], "objective_before": whole,
+                     "objective_best": best[0], "accepted": bool(accepted),
+                     "values_before": {key_of.get(n, n): v for n, v in current.items()},
+                     "values_best": {key_of.get(n, n): v for n, v in best[3].items()}}
+            record["windows"].append(entry)
+            print(f"component search ({stage}): {labels[c]} {lo:.1f}-{hi:.1f} Hz, {len(starts)} starts: window cost "
+                  f"{here:.4f} -> {best[1]:.4f}; whole objective {whole:.5f} -> {best[0]:.5f}"
+                  f"{' accepted' if accepted else ''}  ({time.time() - t0:.0f} s)", flush=True)
+            if accepted:
+                z, whole = best[2].copy(), best[0]
+    record["objective_after"] = whole
+    record["seconds"] = round(time.time() - t0)
+    return z, record
+
+
 def _solve_indexed(item):
     """_solve_start for start k, recorded by a fit_monitor.MonitorWriter when monitoring is on (observation only)."""
     k, z = item
@@ -1003,6 +1132,18 @@ def make_parser():
                     help="start value (1/s) of one fitted exchange rate k of the N-H / O-H protons with the solvent "
                          "(exact Liouville model, physics.exchange; needs --exchange slow; 0 = static, off)")
     ap.add_argument("--nh-exchange-bounds", default="0.05,5000", help="bounds of k (1/s)")
+    ap.add_argument("--component-search", default="both", choices=["off", "start", "end", "both"],
+                    help="component search: every isotopologue on the window it dominates, its own couplings from "
+                         "random starts (window fit, shared H-H held); 'start' guides the multi-start (its result is "
+                         "the first centre), 'end' searches from the best solution and refits globally if it wins")
+    ap.add_argument("--component-search-starts", type=int, default=30, help="random starts per window")
+    ap.add_argument("--component-search-nfev", type=int, default=30, help="max_nfev of each window fit")
+    ap.add_argument("--component-search-keep", type=int, default=6, help="distinct window solutions scored")
+    ap.add_argument("--component-search-box", default="-8,13,7",
+                    help="small couplings uniform in lo,hi; one-bond couplings current +- the third value (Hz)")
+    ap.add_argument("--component-search-dominance", type=float, default=0.8)
+    ap.add_argument("--component-search-min-line", type=float, default=0.05)
+    ap.add_argument("--component-search-gap", type=float, default=3.0)
     ap.add_argument("--free-couplings", default="",
                     help="regex: only couplings whose key matches are fitted; the others are held at their "
                          "--from-joint values (e.g. 'HN|N1' for a staged N-H fit)")
@@ -1059,6 +1200,12 @@ def main():
         rows = [int(np.argmin(np.abs(np.asarray(seeds["x"]) - x))) for x in joint.nodes]
         centres = [np.clip(joint.pack(np.array([[sol[key_of[n]][s] for n in joint.coupling] for s in rows]), xs0),
                            lower + 1e-9, upper - 1e-9) for sol in seeds["solutions"]]
+    component_record = {}
+    if args.component_search in ("start", "both"):
+        # one pass from the first centre guides the multi-start: its result becomes the first centre
+        z_cs, component_record["start"] = component_search(joint, prob, centres[0], args, "start")
+        if component_record["start"]["objective_after"] < component_record["start"]["objective_before"]:
+            centres = [z_cs] + centres
     starts = list(centres) + [
         np.clip(centres[i % len(centres)] + joint.level_shift(rng.normal(0, args.spread, len(z0))), lower + 1e-9, upper - 1e-9)
         for i in range(max(args.starts - len(centres), 0))]
@@ -1147,6 +1294,27 @@ def main():
             joint.monitor = None
         score, z = solutions[0]
         joint.trace = None
+    if args.component_search in ("end", "both"):
+        # the best solution again, component by component; a better basin is refit globally and kept if it wins
+        if status is not None:
+            status.set(phase="component search (end)")
+        z_cs, rec = component_search(joint, prob, z, args, "end")
+        if rec["objective_after"] < rec["objective_before"]:
+            if joint.peaks is not None:
+                joint.peak_smooth = args.peak_smooth
+            refit = _solve_indexed((len(solved), z_cs))
+            if joint.peaks is not None:
+                joint.peak_smooth = 0.0
+            z_new = refit[1]
+            score_new = float(np.sum(joint.residual(z_new) ** 2))
+            rec["refit_objective"] = score_new
+            rec["refit_kept"] = bool(score_new < score)
+            print(f"component search (end): global refit {score_new:.5f} against {score:.5f}"
+                  f"{' kept' if score_new < score else ''}", flush=True)
+            if score_new < score:
+                solutions.insert(0, (score_new, z_new))
+                score, z = score_new, z_new
+        component_record["end"] = rec
     if args.trace:
         best_start = next((k for k, (_, x) in enumerate(solved)
                            if any(np.array_equal(x, zz) for _, zz in solutions[:1])), None)
@@ -1176,7 +1344,8 @@ def main():
               "prior": {"sigma_hh": args.prior_sigma_hh, "sigma_ch": args.prior_sigma_ch, "weight": args.prior_weight},
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
-              "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record}
+              "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
+              "component_search": component_record}
     for k, n in enumerate(joint.coupling):
         block = slice(k * joint.m, (k + 1) * joint.m)
         values = joint.coupling_values(z, k)
