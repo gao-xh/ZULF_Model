@@ -187,6 +187,15 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
    state the baseline; "Save" writes OUT/tuned.json, which fit_joint_series reads with --from-joint (a manual
    point as the start of a full multi-start fit). Use it to test a hypothesis by hand (move one coupling, watch
    the window and the global cost together) before writing a scripted local fit.
+8. Watching a fit (`scripts/fit_monitor.py runs/processed` -> http://127.0.0.1:8770, or `--text` in a terminal).
+   fit_joint_series records every run in OUT/monitor (on by default, `--monitor off`): the objective of every
+   residual evaluation of every start with its stage (start / smoothing / fit / coordinate scan / residual-peak
+   stage), the best point so far (couplings and the full vector, at most once a second), the start's own starting
+   couplings, the phase of the run and the console output. The hook only reads the objective the fit has already
+   computed; a test checks that a start gives bit-identical results with and without it. The page shows the
+   objective curves of all starts, a table of the starts, the couplings of a chosen start against its start, the
+   console, and on request data and model at that start's best point (rebuilt in the viewer process from the
+   recorded command; the fit is not touched).
 
 ## 9. Reliability and uncertainty budget
 
@@ -230,3 +239,4 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
     python scripts/trace_view.py runs/processed/NAME --band 112,140
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME
     python scripts/j_tuner.py <the fit_joint_series options of the fit> --fit runs/processed/NAME/fit.json
+    python scripts/fit_monitor.py runs/processed            # live view of running fits (or --text)

@@ -142,6 +142,7 @@ class JointSeries:
         self.res_strength = 0.0
         self.trace = None                         # list collecting (stage, cost, z) at every residual evaluation
         self.trace_label = ""
+        self.monitor = None                       # callable (stage, cost, z) at every evaluation (fit_monitor)
 
     def set_peak_penalty(self, strength, prominence=0.12, tolerance_hz=0.15, min_sigma=2.0, smooth=0.0):
         """Missing-peak rows: for every data peak top (prominence >= `prominence` times the largest abs value and
@@ -310,6 +311,8 @@ class JointSeries:
         out = np.concatenate(parts)
         if self.trace is not None:
             self.trace.append((self.trace_label, float(out @ out), np.array(z, float)))
+        if self.monitor is not None:                 # observes only: the returned residual is unchanged
+            self.monitor(self.trace_label, float(out @ out), z)
         return out
 
     def jacobian(self, z):
@@ -690,6 +693,27 @@ def _coordinate_scan(joint, z, lower, upper, max_nfev, cycles=2, half_width=4.0,
     return z
 
 
+_MONITOR = None        # (directory, coupling keys) when fit_monitor records the starts
+
+
+def _solve_indexed(item):
+    """_solve_start for start k, recorded by a fit_monitor.MonitorWriter when monitoring is on (observation only)."""
+    k, z = item
+    if _MONITOR is None:
+        return _solve_start(z)
+    from fit_monitor import MonitorWriter
+    joint = _JOINT_TASK[0]
+    joint.monitor = MonitorWriter(_MONITOR[0], f"start_{k:03d}", joint, _MONITOR[1])
+    score = None
+    try:
+        out = _solve_start(z)
+        score = out[0]
+        return out
+    finally:
+        joint.monitor.close(score)
+        joint.monitor = None
+
+
 def _solve_start(z):
     """One start (module level so worker processes can run it; fork start method): least squares at every level
     of the smoothing schedule in turn (coarse to fine; the last level is always unsmoothed); returns the score of
@@ -698,7 +722,7 @@ def _solve_start(z):
     tracing = joint.trace is not None
     if tracing:
         joint.trace = []
-        joint.trace_label = "hold small couplings" if hold_small else "start"
+    joint.trace_label = "hold small couplings" if hold_small else "start"      # stage name for trace and monitor
     if hold_small:
         # stage 1: every small coupling (level, change and shape) held at its start; 1J, rates and delays free
         lo_h, hi_h = lower.copy(), upper.copy()
@@ -711,11 +735,11 @@ def _solve_start(z):
                           x_scale="jac", max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
         z = np.clip(z, lower + 1e-9, upper - 1e-9)
     if scan:
+        joint.trace_label = "coordinate scan"
         z = _coordinate_scan(joint, z, lower, upper, max_nfev, **scan)
     for sigma in list(schedule) + [0.0]:
         joint.set_smoothing(sigma)
-        if tracing:
-            joint.trace_label = f"smoothing {sigma:g} Hz" if sigma else "fit"
+        joint.trace_label = f"smoothing {sigma:g} Hz" if sigma else "fit"
         sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
                             max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
         z = sol.x
@@ -908,6 +932,8 @@ def make_parser():
     ap.add_argument("--max-nfev", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="runs/processed/joint")
+    ap.add_argument("--monitor", default="on", choices=["on", "off"],
+                    help="record the objective of every start live in OUT/monitor (scripts/fit_monitor.py shows it)")
     return ap
 
 
@@ -954,12 +980,32 @@ def main():
     _JOINT_TASK = (joint, lower, upper, args.max_nfev, schedule, scan, args.hold_small_first)
     if args.trace:
         joint.trace = []                          # each start collects its own (worker processes fork this)
+    global _MONITOR
+    status = None
+    if args.monitor == "on":
+        from fit_monitor import RunStatus, Tee
+        keys = [key_of.get(n, n) for n in joint.coupling]
+        status = RunStatus(Path(args.out) / "monitor", sys.argv, len(starts), keys, joint.nodes.tolist(),
+                           {key: joint.coupling_values(z0, k).tolist() for k, key in enumerate(keys)})
+        sys.stdout = Tee(sys.stdout, status.dir / "console.log")
+        _MONITOR = (str(status.dir), keys)
+        status.set(phase=f"starts ({args.workers} worker{'s' if args.workers > 1 else ''})")
+        print(f"monitor: python scripts/fit_monitor.py {args.out}", flush=True)
+    solved = []
     if args.workers > 1:
         import multiprocessing
         with multiprocessing.get_context("fork").Pool(args.workers) as pool:
-            solved = pool.map(_solve_start, starts, chunksize=1)
+            for k, out in enumerate(pool.imap(_solve_indexed, list(enumerate(starts)), chunksize=1)):
+                solved.append(out)
+                print(f"start {k} finished: objective {out[0]:.5f}", flush=True)
+                if status is not None:
+                    status.finished(k, out[0])
     else:
-        solved = [_solve_start(z) for z in starts]
+        for k, z in enumerate(starts):
+            solved.append(_solve_indexed((k, z)))
+            print(f"start {k} finished: objective {solved[-1][0]:.5f}", flush=True)
+            if status is not None:
+                status.finished(k, solved[-1][0])
     traces = [t[2] for t in solved] if args.trace else None
     solved = [(t[0], t[1]) for t in solved]
     solutions = []
@@ -967,6 +1013,8 @@ def main():
         solutions.append((score, x))
         print(f"start {k}: score {score:.5f}", flush=True)
     print(f"{len(starts)} starts in {time.time() - t0:.0f} s", flush=True)
+    if status is not None:
+        status.set(phase="ranking and writing results")
     joint.set_smoothing(0.0)
     smooth_scores = None
     if joint.peaks is not None and joint.peak_smooth > 0:
@@ -983,7 +1031,15 @@ def main():
     if args.residual_peaks > 0:
         if args.trace:
             joint.trace = stage_trace
+        if status is not None:
+            from fit_monitor import MonitorWriter
+            status.set(phase="residual-peak stage")
+            joint.monitor = MonitorWriter(status.dir, "residual_peak_stage", joint, _MONITOR[1])
+            joint.trace_label = "residual-peak stage"
         solutions, residual_peak_record = _residual_peak_stage(joint, solutions, lower, upper, args)
+        if status is not None:
+            joint.monitor.close(solutions[0][0])
+            joint.monitor = None
         score, z = solutions[0]
         joint.trace = None
     if args.trace:
@@ -1091,6 +1147,8 @@ def main():
                     "J_at_x": {k: v["J_at_x"] for k, v in result["couplings"].items()}, "x": result["x"]},
                    figures=["spectra.png", "couplings_vs_x.png", "J_table.csv"])
     print(json.dumps({"score": score, "residuals": result["data_region_residuals"], "seconds": result["seconds"]}))
+    if status is not None:
+        status.set(phase="finished", score=score, finished_at=time.time())
 
 
 if __name__ == "__main__":

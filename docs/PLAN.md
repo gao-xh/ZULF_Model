@@ -307,6 +307,9 @@ tall lines and barely sees it.
       sliders with the live objective, view cost, residual, lines and residual peaks; peak sources; suggested
       steps; stoppable refinement of chosen parameters; tuned.json readable by --from-joint.
       To do: show several spectra of a series at once; a rate / delay panel.
+- [x] Fit monitor (scripts/fit_monitor.py, fit_joint_series --monitor on by default; user request 2026-10-05):
+      objective of every evaluation of every start, stage, best couplings, console; page and terminal view;
+      results identical with and without (tests/test_j_tuner.py). To do: the same hook in fit_structure.
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
       a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
 - [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them

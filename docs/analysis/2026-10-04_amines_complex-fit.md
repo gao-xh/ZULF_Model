@@ -134,3 +134,10 @@ reproduces the triethylamine series exactly). Checked on isopropylamine
 +0.25 Hz by the fine slider gives 0.1432 (+201 %); a refinement of the small
 couplings and the rate families in view returns to 0.047526 in 11 evaluations
 (20 s). Update time about 0.3 s per change (residual peaks included).
+
+Fit monitor (user: show the output of a running fit without changing the
+algorithm): fit_joint_series now records every run in OUT/monitor;
+scripts/fit_monitor.py shows it live. Checked: the ethylenediamine stage-2 run
+(4 starts, 2 workers, max_nfev 15) gives identical scores, couplings and
+spectrum parameters with --monitor on and off; demo on triethylamine
+(runs/processed/tea_monitor_demo, 6 starts, 3 workers, max_nfev 60).

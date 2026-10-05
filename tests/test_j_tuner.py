@@ -170,3 +170,42 @@ class JTunerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FitMonitorTests(unittest.TestCase):
+    """The monitor observes the fit; the optimizer's path and result must be identical with and without it."""
+
+    def test_monitoring_does_not_change_a_start_and_records_it(self):
+        import fit_monitor
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, _ = _problem(tmp)
+            joint = prob.joint
+            s = jt.TuningSession(prob)
+            z = s.set_couplings({"J(C1,HC2)": TRUTH["J(C1,HC2)"] + 0.5, "J(HC1,HC2)": TRUTH["J(HC1,HC2)"] - 0.5})
+            keys = [prob.key_of.get(n, n) for n in joint.coupling]
+            fj._JOINT_TASK = (joint, prob.lower, prob.upper, 30, [], None, False)
+            try:
+                fj._MONITOR = None
+                plain = fj._solve_indexed((0, z.copy()))
+                fj._MONITOR = (str(tmp / "monitor"), keys)
+                status = fit_monitor.RunStatus(tmp / "monitor", ["fit_joint_series.py"], 1, keys, joint.nodes.tolist(),
+                                               {k: [0.0] for k in keys})
+                watched = fj._solve_indexed((0, z.copy()))
+                status.finished(0, watched[0])
+                status.set(phase="finished")
+            finally:
+                fj._MONITOR = None
+                fj._JOINT_TASK = None
+            self.assertEqual(plain[0], watched[0])
+            np.testing.assert_array_equal(plain[1], watched[1])
+            self.assertIsNone(joint.monitor)
+            run = fit_monitor.read_run(tmp)
+            rec = run["starts"]["start_000"]
+            self.assertFalse(rec["running"])
+            self.assertGreater(rec["evaluations"], 2)
+            self.assertAlmostEqual(rec["best"], float(np.sum(joint.residual(np.asarray(rec["z"])) ** 2)), places=12)
+            self.assertLessEqual(rec["best"], rec["history"][0][1])
+            self.assertAlmostEqual(rec["J0"]["J(HC1,HC2)"][0], TRUTH["J(HC1,HC2)"] - 0.5, places=9)
+            self.assertEqual(run["status"]["phase"], "finished")
+            self.assertEqual(fit_monitor.find_runs(tmp), [tmp])

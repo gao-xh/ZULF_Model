@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fit Monitor</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e2e0;
+  --data: #1d1d1f; --model: #d1495b; --resid: #8a8a8f; --good: #2a8a52; --bad: #c0392b; --accent: #3b6fb6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161618; --panel: #1f1f22; --ink: #ececee; --muted: #9a9aa0; --line: #33333a;
+    --data: #ececee; --model: #ff6b7d; --resid: #8a8a92; --good: #4cc27e; --bad: #ff6b5e; --accent: #6ea2ec;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161618; --panel: #1f1f22; --ink: #ececee; --muted: #9a9aa0; --line: #33333a;
+  --data: #ececee; --model: #ff6b7d; --resid: #8a8a92; --good: #4cc27e; --bad: #ff6b5e; --accent: #6ea2ec;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+select, button, input { font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; }
+button { cursor: pointer; } button:hover { border-color: var(--accent); }
+.muted { color: var(--muted); }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-width: 130px; }
+.tile .k { color: var(--muted); font-size: 11px; } .tile .v { font-size: 17px; font-variant-numeric: tabular-nums; }
+main { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; padding: 0 16px 16px; }
+@media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
+section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+canvas { width: 100%; display: block; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 2px 6px; border-bottom: 1px solid var(--line); font-size: 12px; white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; }
+tr.sel td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+tbody tr { cursor: pointer; }
+pre { margin: 0; max-height: 260px; overflow: auto; font: 11px/1.35 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar input[type=number] { width: 76px; }
+.good { color: var(--good); } .bad { color: var(--bad); }
+#err { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fit Monitor</h1>
+  <select id="run"></select>
+  <label class="muted"><input type="checkbox" id="auto" checked> follow (every 2 s)</label>
+  <span id="err"></span>
+  <span style="flex:1"></span>
+  <button id="theme">theme</button>
+</header>
+<div class="tiles">
+  <div class="tile"><div class="k">phase</div><div class="v" id="t-phase">-</div></div>
+  <div class="tile"><div class="k">elapsed</div><div class="v" id="t-el">-</div></div>
+  <div class="tile"><div class="k">starts finished</div><div class="v" id="t-done">-</div></div>
+  <div class="tile"><div class="k">best objective so far</div><div class="v" id="t-best">-</div></div>
+  <div class="tile"><div class="k">evaluations (all starts)</div><div class="v" id="t-ev">-</div></div>
+  <div class="tile"><div class="k">fit process</div><div class="v" id="t-alive">-</div></div>
+</div>
+<main>
+  <section>
+    <h2>Objective of every start (best so far, log scale)</h2>
+    <canvas id="chart" height="320"></canvas>
+    <div class="muted" style="margin-top:4px">thin: objective of each evaluation; thick: best so far; the selected start is drawn on top</div>
+  </section>
+  <section>
+    <h2>Starts</h2>
+    <div style="max-height: 340px; overflow:auto">
+    <table id="starts"><thead><tr><th>start</th><th>state</th><th>stage</th><th>evals</th><th>current</th><th>best</th><th>finished at</th><th>s</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+  <section>
+    <h2>Couplings of the selected start (best point so far)</h2>
+    <table id="jt"><thead></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Console</h2>
+    <pre id="console"></pre>
+  </section>
+  <section style="grid-column: 1 / -1">
+    <h2>Spectrum at the selected start's best point</h2>
+    <div class="bar">
+      <button id="show">Show spectrum</button>
+      <label class="muted"><input type="checkbox" id="follow-spec"> update with the run</label>
+      <select id="part"><option value="re">real</option><option value="im">imaginary</option><option value="abs">magnitude</option></select>
+      <label class="muted">view</label><input type="number" id="vlo" step="0.5"> - <input type="number" id="vhi" step="0.5"> Hz
+      <span class="muted" id="specnote">rendered in the monitor process from the recorded command (the fit is not touched)</span>
+    </div>
+    <canvas id="spec" height="320"></canvas>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const palette = ["#3b6fb6", "#d1495b", "#2a9d5c", "#e08a2c", "#8e5ac8", "#1f9eb3", "#b5651d", "#6b8e23", "#c2185b", "#5c6bc0", "#00897b", "#8d6e63"];
+let data = null, selected = null, specData = null, timer = null;
+const fmt = (v) => (v === null || v === undefined || !isFinite(v)) ? "-" : v.toPrecision(5);
+
+async function api(path) { const r = await fetch(path); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+
+async function loadRuns() {
+  const r = await api("/api/runs"), sel = $("run"), cur = sel.value;
+  sel.innerHTML = r.runs.map(p => `<option value="${p}">${p}</option>`).join("");
+  if (r.runs.includes(cur)) sel.value = cur;
+  else { try { const s = localStorage.getItem("fitmonitor.run"); if (s && r.runs.includes(s)) sel.value = s; } catch (e) {} }
+}
+
+async function refresh() {
+  if (!$("run").value) return;
+  try {
+    data = await api("/api/run?run=" + encodeURIComponent($("run").value));
+    $("err").textContent = "";
+    render();
+    if ($("follow-spec").checked && specData) showSpectrum();
+  } catch (e) { $("err").textContent = e.message; }
+}
+
+function render() {
+  const st = data.status, starts = data.starts, names = Object.keys(starts);
+  $("t-phase").textContent = st.phase;
+  const end = st.finished_at || data.now;
+  $("t-el").textContent = ((end - st.started) / 60).toFixed(1) + " min";
+  $("t-done").textContent = Object.keys(st.finished).length + " / " + st.starts;
+  let best = null, bestName = null, evals = 0;
+  for (const n of names) { const s = starts[n]; evals += s.evaluations; if (s.best !== null && (best === null || s.best < best)) { best = s.best; bestName = n; } }
+  $("t-best").textContent = fmt(best) + (bestName ? "  (" + bestName.replace("start_", "#") + ")" : "");
+  $("t-ev").textContent = evals;
+  $("t-alive").textContent = data.alive === null ? "?" : (data.alive ? "running" : (st.phase === "finished" ? "finished" : "not running"));
+  $("t-alive").className = "v " + (data.alive ? "good" : (st.phase === "finished" ? "" : "bad"));
+  if (!selected || !starts[selected]) selected = bestName || names[0];
+  const tb = $("starts").querySelector("tbody"); tb.innerHTML = "";
+  names.forEach((n, i) => {
+    const s = starts[n], k = n.startsWith("start_") ? String(parseInt(n.slice(6))) : null;
+    const fin = k !== null ? st.finished[k] : s.score;
+    const tr = document.createElement("tr"); if (n === selected) tr.className = "sel";
+    tr.innerHTML = `<td><span class="swatch" style="background:${palette[i % palette.length]}"></span>${n.replace("start_", "#")}</td>
+      <td>${s.running ? "running" : "done"}</td><td>${s.label}</td><td>${s.evaluations}</td><td>${fmt(s.cost)}</td>
+      <td>${fmt(s.best)}</td><td>${fin === undefined || fin === null ? "" : fmt(fin)}</td><td>${s.seconds.toFixed(0)}</td>`;
+    tr.addEventListener("click", () => { selected = n; render(); if (specData) showSpectrum(); });
+    tb.appendChild(tr);
+  });
+  // couplings
+  const s = starts[selected], jt = $("jt");
+  if (s && s.J) {
+    const nodes = st.nodes, many = nodes.length > 1;
+    jt.querySelector("thead").innerHTML = "<tr><th>coupling</th>" + (many ? nodes.map(x => `<th>x=${(+x).toFixed(2)}</th>`).join("") : "<th>J (Hz)</th>") + "<th>change from start</th></tr>";
+    jt.querySelector("tbody").innerHTML = Object.entries(s.J).map(([k, v]) => {
+      const v0 = (s.J0 && s.J0[k]) || st.start_couplings[k] || v, d = v.map((x, i) => x - v0[i]), dm = d.reduce((a, b) => Math.abs(b) > Math.abs(a) ? b : a, 0);
+      return `<tr><td>${k}</td>${v.map(x => `<td>${x.toFixed(3)}</td>`).join("")}<td style="color:${Math.abs(dm) > 1e-3 ? css("--accent") : ""}">${dm >= 0 ? "+" : ""}${dm.toFixed(3)}</td></tr>`;
+    }).join("");
+  } else { jt.querySelector("thead").innerHTML = ""; jt.querySelector("tbody").innerHTML = "<tr><td class='muted'>no best point recorded yet</td></tr>"; }
+  const pre = $("console"), atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 4;
+  pre.textContent = data.console || "(no console output yet)";
+  if (atEnd) pre.scrollTop = pre.scrollHeight;
+  chart();
+}
+
+function chart() {
+  const cv = $("chart"), dpr = devicePixelRatio || 1, w = cv.clientWidth, h = 320;
+  cv.width = w * dpr; cv.height = h * dpr; const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const starts = data.starts, names = Object.keys(starts);
+  let maxN = 1, lo = Infinity, hi = -Infinity;
+  for (const n of names) for (const [k, c, b] of starts[n].history) { maxN = Math.max(maxN, k); lo = Math.min(lo, b); hi = Math.max(hi, c); }
+  if (!isFinite(lo)) return;
+  hi = Math.min(hi, lo * 1e3);
+  const L = 58, R = 10, T = 8, B = 34, ll = Math.log10(lo) - 0.05, lh = Math.log10(hi) + 0.05;
+  const X = (k) => L + (k - 1) / Math.max(maxN - 1, 1) * (w - L - R), Y = (v) => T + (lh - Math.log10(Math.min(Math.max(v, lo), hi))) / (lh - ll) * (h - T - B);
+  g.strokeStyle = css("--line"); g.strokeRect(L, T, w - L - R, h - T - B);
+  g.fillStyle = css("--muted"); g.font = "11px system-ui"; g.textAlign = "right";
+  const ticks = [];
+  for (let e = Math.floor(ll); e <= Math.ceil(lh); e++) for (const m of [1, 2, 5]) { const v = m * 10 ** e; if (Math.log10(v) >= ll && Math.log10(v) <= lh) ticks.push(v); }
+  for (const v of (ticks.length > 9 ? ticks.filter((_, i) => i % 2 === 0) : ticks)) { const y = Y(v); g.fillText(v.toPrecision(2), L - 4, y + 4);
+    g.strokeStyle = css("--line"); g.beginPath(); g.moveTo(L, y); g.lineTo(w - R, y); g.stroke(); }
+  g.textAlign = "center";
+  const xs = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(st => maxN / st <= 10) || 2000;
+  for (let k = xs; k <= maxN; k += xs) g.fillText(k, X(k), h - B + 14);
+  g.fillText("evaluation", (L + w - R) / 2, h - 2);
+  const order = names.filter(n => n !== selected).concat(selected ? [selected] : []);
+  for (const n of order) {
+    const i = names.indexOf(n), col = palette[i % palette.length], hist = starts[n].history;
+    if (!hist.length) continue;
+    g.globalAlpha = n === selected ? 0.5 : 0.18; g.strokeStyle = col; g.lineWidth = 1; g.beginPath();
+    hist.forEach(([k, c], j) => j ? g.lineTo(X(k), Y(c)) : g.moveTo(X(k), Y(c))); g.stroke();
+    g.globalAlpha = n === selected ? 1 : 0.65; g.lineWidth = n === selected ? 2.5 : 1.5; g.beginPath();
+    hist.forEach(([k, , b], j) => j ? g.lineTo(X(k), Y(b)) : g.moveTo(X(k), Y(b))); g.stroke();
+    g.globalAlpha = 1;
+  }
+}
+
+async function showSpectrum() {
+  if (!selected) return;
+  const lo = $("vlo").value, hi = $("vhi").value;
+  if ((lo === "") !== (hi === "")) return;                 // wait until both ends of the view are set
+  const q = `/api/spectrum?run=${encodeURIComponent($("run").value)}&start=${selected}` + (lo && hi ? `&lo=${lo}&hi=${hi}` : "");
+  $("specnote").textContent = "rendering ...";
+  try {
+    specData = await api(q);
+    if (lo === "" && hi === "" && $("vlo").value === "" && $("vhi").value === "") { $("vlo").value = specData.extent[0]; $("vhi").value = specData.extent[1]; }
+    $("specnote").textContent = `${selected.replace("start_", "start #")}: objective ${fmt(specData.objective)} (rendered in the monitor process; the fit is not touched)`;
+    drawSpec();
+  } catch (e) { $("specnote").textContent = e.message; }
+}
+
+function drawSpec() {
+  const cv = $("spec"), dpr = devicePixelRatio || 1, w = cv.clientWidth, h = 320;
+  cv.width = w * dpr; cv.height = h * dpr; const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h); if (!specData) return;
+  const sp = specData, part = $("part").value;
+  const pick = (re, im) => re.map((v, i) => part === "re" ? v : part === "im" ? im[i] : Math.hypot(v, im[i]));
+  const y = pick(sp.data_re, sp.data_im), m = pick(sp.model_re, sp.model_im), r = y.map((v, i) => m[i] - v);
+  const L = 10, R = 10, T = 8, B = 22, mainH = (h - T - B) * 0.72, resH = (h - T - B) - mainH;
+  const x0 = sp.f[0], x1 = sp.f[sp.f.length - 1], X = (f) => L + (f - x0) / (x1 - x0) * (w - L - R);
+  let lo = Math.min(...y, ...m), hi = Math.max(...y, ...m); const pad = 0.05 * (hi - lo || 1); lo -= pad; hi += pad;
+  const Y = (v) => T + (hi - v) / (hi - lo) * mainH, rmax = Math.max(1e-12, ...r.map(Math.abs)) * 1.1, Yr = (v) => T + mainH + resH / 2 - v / rmax * resH / 2;
+  g.strokeStyle = css("--line"); g.strokeRect(L, T, w - L - R, h - T - B);
+  const path = (arr, Yf, col, lw) => { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); arr.forEach((v, i) => i ? g.lineTo(X(sp.f[i]), Yf(v)) : g.moveTo(X(sp.f[i]), Yf(v))); g.stroke(); };
+  path(y, Y, css("--data"), 1.1); path(m, Y, css("--model"), 1.1); path(r, Yr, css("--resid"), 0.9);
+  g.fillStyle = css("--muted"); g.font = "11px system-ui"; g.textAlign = "center";
+  const span = x1 - x0, stp = [0.2, 0.5, 1, 2, 5, 10, 20, 50].find(s => span / s <= 14) || 100;
+  for (let t = Math.ceil(x0 / stp) * stp; t <= x1; t += stp) g.fillText(+t.toFixed(2), X(t), h - 6);
+}
+
+async function init() {
+  await loadRuns();
+  $("run").addEventListener("change", () => { try { localStorage.setItem("fitmonitor.run", $("run").value); } catch (e) {} selected = null; specData = null; drawSpec(); refresh(); });
+  $("auto").addEventListener("change", schedule);
+  $("show").addEventListener("click", showSpectrum);
+  $("part").addEventListener("change", drawSpec);
+  $("vlo").addEventListener("change", showSpectrum); $("vhi").addEventListener("change", showSpectrum);
+  $("theme").addEventListener("click", () => { const d = document.documentElement, cur = d.getAttribute("data-theme");
+    const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; d.setAttribute("data-theme", dark ? "light" : "dark"); chart(); drawSpec(); });
+  window.addEventListener("resize", () => { if (data) chart(); drawSpec(); });
+  await refresh(); schedule();
+}
+function schedule() { clearInterval(timer); if ($("auto").checked) timer = setInterval(async () => { await loadRuns(); refresh(); }, 2000); }
+init().catch(e => $("err").textContent = e.message);
+</script>
+</body>
+</html>
