@@ -18,7 +18,7 @@ system inversion was found (confirm with a Scholar search).
 | Stern and Sheberstov 2023, Magn. Reson. 4, 87, simulation A to Z [V] | https://mr.copernicus.org/articles/4/87/2023/ | Independent reference for detection and polarization conventions. |
 | Tayler et al. 2017, Rev. Sci. Instrum. 88, 091101 [V] | https://pubs.aip.org/aip/rsi/article/88/9/091101/950953 | Noise and linewidth priors. |
 | Barskiy et al. 2019, Nat. Commun., exchange [V]; urea 2021 JPCL [V] | https://www.nature.com/articles/s41467-019-10787-9 | Justifies dropping exchangeable NH/OH protons; 14N must be exchange-decoupled for spin-1/2 scope. |
-| Andrews, Liu, Zumbrunn et al. 2026, arXiv 2604.26071, natural-abundance 13C ZULF with DFT [V abstract] | https://arxiv.org/abs/2604.26071 | First candidate real test set (13 molecules, isotopologue mixtures). |
+| Andrews, Liu, Zumbrunn et al. 2026, arXiv 2604.26071, natural-abundance 13C ZULF with DFT [V abstract] | https://arxiv.org/abs/2604.26071 | First candidate real test set (13 molecules, isotopologue mixtures). Its DFT-predicted multiplets are a source of independent J values for the amine fits (HANDOFF open work). |
 | Put et al. 2021 Anal. Chem.; Put et al. 2023 Commun. Chem. [V] | https://doi.org/10.1021/acs.analchem.0c04738 | Labelled 13C and natural-abundance 15N cases. |
 
 ## Machine learning for NMR inverse problems
@@ -69,7 +69,7 @@ system inversion was found (confirm with a Scholar search).
 | 1J(13C,1H) | about 500 s(C): sp3 about 125, sp2 160-165, sp about 250 Hz; plus 20-30 Hz with electronegative substituents; benzene 158.3 Hz; positive | [V snippet] |
 | 2J(H,H) | sp3 CH2 -10 to -15 Hz; sp2 =CH2 0 to +3 Hz | [V snippet] |
 | 3J(H,H) | Karplus 0 to about 13 Hz; free rotation averages about 7 Hz; Haasnoot-de Leeuw-Altona 1980 | [V], parameters [U] |
-| 2J(13C,1H) | about -5 to +5 Hz; sp3 usually negative; benzene about +1.1 Hz | [U] |
+| 2J(13C,1H) | about -5 to +5 Hz; sp3 usually negative (typically -4 to -6 Hz); aldehyde H about +25, terminal ethynyl +40 to +50 Hz; benzene about +1.1 Hz; ethanol 12CH3-13CH2-OH -4.6 Hz at zero field (simulation matching the data, arXiv:0901.4069); an electronegative substituent on the 13C anti to the proton contributes positively, gauche negatively (Schwarcz, Cyr, Perlin, Can. J. Chem. 1975, doi:10.1139/v75-262); review: Hansen, Prog. NMR Spectrosc. 14, 175 (1981) | [V snippet] (ranges, ethanol, orientation), benzene [U] |
 | 3J(13C,1H) | 0 to about 10 Hz, Karplus-like; aromatic 7-8 Hz | [U] |
 | 1J(13C,13C) | single 35-45, aromatic about 56, double about 68, triple about 172 Hz | ranges [V], exact [U] |
 | 1J(15N,1H) | negative; NH4+ -73.5; sp3 amines about -61 to -67 [U]; anilines -78 to -90; amides and pyrroles -89 to -97 Hz | partly [V] |

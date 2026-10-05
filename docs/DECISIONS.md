@@ -704,6 +704,46 @@ polarization is static at zero field; 0 for an unpolarized pool).
 - Not covered: pulses and static fields with exchange, exchange between two
   sites of one molecule, 14N quadrupolar relaxation.
 
+## D46. Known-structure complex fits: rate families, component search, multi-species, model-line passes (2026-10-05)
+
+The amine fits (docs/analysis/2026-10-04_amines_complex-fit.md, 2026-10-05_amines_overnight.md) settled these
+choices in `scripts/fit_joint_series.py`.
+
+- **Decay-rate families.** One decay rate per line cluster (`--family-edges`), not one per isotopologue.
+  - A single rate cannot carry the narrow and the broad lines of one component: stage 1 objectives were 0.10-0.31,
+    against 0.038-0.072 with families.
+  - Edges are chosen by hand from the line clusters and are reported with every run as nuisance parameters.
+  - A sharp line that shares a family with broad lines gets its own narrow family:
+    - triethylamine 0.049 -> 0.038;
+    - ethylenediamine 0.0066 -> 0.0051.
+    In both, the 1J values moved by < 0.07 Hz.
+  - A rate pushed to its bound or a 15x rate spread inside one species is a warning sign. The family may be hiding
+    a predicted line the data do not have.
+- **Component search on by default** (`--component-search both`).
+  - Every isotopologue is searched on the window it dominates, from random starts of its own couplings.
+  - Candidates are accepted by the whole objective, never by the window cost: window fits re-solve gains and
+    phase, so they overstate the gain.
+  - The start pass guides the multi-start; the end pass is followed by a global refit that is kept only if it
+    wins.
+  - Reason: the N-ethylmethylamine 13CH2 basin. The multi-start never reached it; it was -33 % on the whole
+    objective.
+- **Several molecules** (`--structure` as a JSON list, `combine_models`): ratios free between parts, fixed within
+  each.
+  - Seeds must place a new species away from the existing one, because a copy has zero gain and no gradient.
+  - A second species is a numerical result until it is identified chemically.
+- **Model-line passes** (`--model-line-passes N`, `MixtureForward.add_signal_cores`) are **off by default**.
+  - Signal weighting is built from data peaks, so a model line where the data show none is weighted only 0.2.
+  - The passes add the model's own line envelope to the cores and refit, as `refine`'s `signal_model_passes`
+    does.
+  - They are off by default so that older runs stay comparable. The record keeps the objective under the
+    original weights for comparison.
+- **N-H protons decoupled (fast exchange) by default for amines.** The evidence:
+  - no natural-abundance 15N-H lines;
+  - static N-H models are worse and fit their N-H couplings to about 0;
+  - a fitted exchange rate goes fast.
+  The exact exchange model (D45) does not scale to ethylenediamine with N-H kept (9 spins, no reducible group,
+  35 GiB), so intermediate exchange there needs an approximation.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

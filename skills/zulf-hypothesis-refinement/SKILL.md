@@ -188,6 +188,9 @@ is not evidence.
   scripts assign must be set after the last import, and the run must print
   its effective settings (ranges, signal mask) so mistakes show at once.
 - 8-spin isotopologues with 3 starts take about 10 minutes each on one core.
+- Cloud sessions: the container is reclaimed when the session is idle, and background fits die with it. Keep the
+  session active during long runs (waits under 10 minutes) and snapshot the best monitor vector
+  (`OUT/monitor/start_*.jsonl`) into a `--from-joint` file, so a restart costs one refit, not the run.
 
 ## Chemical exchange (N-H, O-H) with a fitted rate
 
@@ -210,6 +213,12 @@ is not evidence.
   3J(H,N-H) 5.5 Hz) ended 26 % above the fast fit, while the nested start ended 13 % below it. Then check what
   the extra freedom is used for: N-H couplings below 1 Hz and a broad 15N line without a clear data counterpart are
   not evidence of a resolved NH group (2026-10-03_isopropylamine_complex-fit.md).
+- Size limit of the exact model: the group reduction needs non-exchanging equivalence groups. Ethylenediamine
+  with its four N-H protons (13C + 4 CH + 4 NH, AA'BB', no reducible group) needs a 48620 x 48620 block (35 GiB).
+  There, compare the static (`--exchange slow`, no rate) and decoupled limits; seed the N-H couplings away from 0.
+  2026-10-05: static N-H was worse in both one- and two-species fits, with the N-H couplings fitted to about 0.
+- Symmetric motifs with N-H protons (AA'BB'): `--nh-exchange` locates the groups through `fit_staged.group_index`,
+  fixed in commit a532271 for keys that map to several pairs.
 
 
 ## Logging an analysis

@@ -51,6 +51,9 @@ python -m unittest discover -s tests              # full test suite
 python scripts/analyze_sample.py FID.npy --id ID  # new sample: overview, blind search, report (runs/blind/ID)
 python scripts/analyze_sample.py FID.npy --id ID --structure '{"motif": "ethyl", "one_bond": {"C1": 131, "C2": 125}}'
 ZULF_DATA_DIR=... python scripts/regression_confirmed.py --mode both   # confirmed-sample regression
+python scripts/make_series_entry.py --fid FID.npy --id NAME --out runs/series/NAME   # FID -> processed spectrum
+python scripts/fit_joint_series.py --series runs/series/NAME/series.json ...        # complex known-structure fit (docs/WORKFLOW.md)
+python scripts/band_diagnosis.py <fit options> --fit runs/processed/NAME/fit.json    # which band is bad, which parameters act on it
 python scripts/smoke_pipeline.py                  # generate -> train -> propose -> refine
 zulf-model tools list                             # agent tools
 zulf-model diagnose AVERAGE.npy 0.ini             # per-dataset processing diagnostics
@@ -66,6 +69,6 @@ Experimental inputs are read-only and never committed.
 
 ## Status
 
-Start with `docs/HANDOFF.md` (state, data, how to regenerate results, work in
-flight), then `docs/PLAN.md`. Results from the solver are conditional numerical
+Start with `docs/HANDOFF.md` (state as of 2026-10-05: data, current results, how to fit a known structure, open
+work), then `docs/PLAN.md` and `docs/WORKFLOW.md`. Results from the solver are conditional numerical
 candidates, reported with their flags, residuals and held-out scores.

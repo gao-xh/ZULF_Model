@@ -201,6 +201,38 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
    console, and on request data and model at that start's best point (rebuilt in the viewer process from the
    recorded command; the fit is not touched).
 
+9. Band diagnosis (`scripts/band_diagnosis.py <fit options> --fit RUN/fit.json [--band lo,hi] --figure OUT.png`).
+   - Misfit share per isotopologue band.
+   - Per bad band, every free parameter as a lever: wanted step, band gain, cost elsewhere, selectivity.
+   - Verdict per lever:
+     - "free knob": refit it;
+     - "conflict": the band and the rest want different values of a shared parameter;
+     - "weak": no real gain.
+   - When every lever is weak, no free parameter acts on the misfit and the model lacks something there.
+10. Component search (`--component-search start|end|both`, default both).
+    - Every isotopologue on the window it dominates, from random starts of its own couplings and rate families.
+    - Accepted by the whole objective only. Window fits re-solve gains and phase, so they look better than they
+      are.
+    - The start pass becomes the first centre of the multi-start; the end pass is followed by a global refit,
+      kept only if it wins.
+    - Record: fit.json["component_search"].
+11. When the model lacks something (checklist in skills/zulf-hypothesis-refinement), cheapest first:
+    1. **Line list against data peaks** (`TuningSession.lines`):
+       - a data peak with no model line is a position problem, which rates cannot fix;
+       - a model line where the data show none, sharp because it shares a rate family with sharp lines, needs a
+         family edge between them.
+    2. **Narrow rate families** around a sharp line that shares a family with broad ones. Remap the old rates onto
+       the new edges.
+    3. **A second species with a free ratio** (`--structure '[{...}, {...}]'`). Seed it away from species 1: a copy
+       has zero gain and no gradient. If seeds stay at the old objective, grid its couplings with the gains solved.
+    4. **Model-line passes** (`--model-line-passes N`): the model's own line envelope joins the signal-weighting
+       cores and the best solution is refit. Compare runs by
+       fit.json["model_line_passes"]["objective_original_weights"].
+12. Tests of a fitted parameter's sign or of a regime:
+    - flip it (for example every 2J(C,H)) and refit everything, then compare objectives;
+    - for N-H exchange, check the predicted natural-abundance 15N-H lines against the data before accepting a
+      slow-exchange gain.
+
 ## 9. Reliability and uncertainty budget
 
 Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine analysis
@@ -242,7 +274,9 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
       --couplings '{"J(HC2,HC3)": 0.0}' --family-edges "50,118.5,121,...,253.5" --rate-bounds 0.2,15 \
       --signal-threshold 2.5 --signal-taper 4.0 --peak-penalty 5 --peak-smooth 0.03 --peak-min-sigma 3 \
       --seeds seeds.json --starts 16 --spread 1.0 --workers 4 --trace 60 \
-      [--residual-peaks 3] --out runs/processed/NAME
+      [--component-search both] [--model-line-passes 1] [--residual-peaks 3] --out runs/processed/NAME
+    python scripts/band_diagnosis.py <the fit_joint_series options> --fit runs/processed/NAME/fit.json \
+      --bands 2 --local-fit 3 --figure runs/processed/NAME/bands.png
     python scripts/line_table.py --structure '...' --exchange fast --fit runs/processed/NAME/fit.json \
       --band 120,124 --second-order
     python scripts/trace_view.py runs/processed/NAME --band 112,140

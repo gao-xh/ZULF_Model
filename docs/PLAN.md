@@ -337,6 +337,20 @@ tall lines and barely sees it.
       line (isopropylamine 121.67, N-ethylmethylamine 121.33).
 - [ ] Amines: test a common minor species (CO2 carbamate / ammonium) as a second component for all four samples;
       ethylenediamine needs one (eda_2sp_fam198, ratio 0.26), isopropylamine rejects a same-molecule copy.
+- [x] Several molecules with free ratios (`--structure` JSON list, commit aa02966); asymmetric motif
+      X-CH2-CH2-Y (ABCD, commit 518d2c8); `--from-joint` keeps structure values for couplings a previous fit lacks
+      (commit 0ecce84).
+- [x] N-H protons kept for symmetric motifs: `fit_staged.group_index` located no group in an AA'BB' component
+      (GroupIndexTests, commit a532271). Ethylenediamine with static N-H: one species 0.049, two species 0.0090
+      against 0.0051 decoupled; the N-H couplings fit to about 0 (fast exchange favoured).
+- [ ] Ethylenediamine species 2 with one tied decay rate (refit): do its -18 Hz geminal and line intensities
+      survive? (Fixed-rate check without refit: 0.0103.)
+- [ ] Intermediate N-H exchange for systems the exact model cannot hold (ethylenediamine with N-H: 9 spins, no
+      reducible group, 35 GiB): an approximation such as averaging over the N-H spin states, tested against the
+      exact model on a smaller system.
+- [ ] Automatic rate-family edges from the line clusters and sharp data lines (now chosen by hand, D46).
+- [ ] 2J(C,H) sign: multi-start refit on the positive side with wider bounds (the flip test used one start and
+      the +3.7 Hz template bound).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
       a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
 - [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them

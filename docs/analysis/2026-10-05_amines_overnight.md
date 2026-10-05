@@ -516,7 +516,7 @@ So the N-H protons were kept **static** (`--exchange slow`, no exchange rate):
 - 12 random N-H coupling seeds, the rest from eda_2sp_fam198;
 - component search at the end and 1 model-line pass.
 
-Fix needed first (commit after 479f6ea): `fit_staged.group_index` failed on symmetric components;
+Fix needed first (commit a532271): `fit_staged.group_index` failed on symmetric components;
 GroupIndexTests added.
 
 | Run | Model | Objective (original weights) | Data residual |
