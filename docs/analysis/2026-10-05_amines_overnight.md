@@ -27,3 +27,28 @@ A 15N line placed on the pair (1J about 127 Hz) makes the fit worse: it is broad
 show two sharp ones. No value improves the fit by more than 3 %, and the two small dips (119 and 133 Hz) are
 outside any physical 1J(15N,H) of an amine. The 190.6 / 192.1 Hz pair is not the 15N isotopologue.
 Figure: runs/processed/eda_aabb/scan_15n.png.
+
+## Step 2: ethylenediamine, delay prior
+
+eda_aabb_d holds the delay to the instrument prior (-4.6..-2.6 ms) and ends at the -2.6 ms bound.
+
+| Run | Objective | Delay (ms) | Couplings (Hz) |
+|---|---|---|---|
+| eda_aabb (delay free) | 0.0449 | +0.58 | 1J 131.16, 2J -1.77, geminal -13.79, J 1.48, J' 16.04 |
+| eda_aabb_d (prior) | 0.0452 | -2.6 (bound) | 1J 131.09, 2J -1.73, geminal -13.41, J 1.38, J' 16.48 |
+
+The couplings do not depend on the delay. The 208-238 Hz undulation is the same in both, so the delay is not its
+cause. The likely cause is the crop wings of the broad lines in the four coarse rate families, which have little
+weight outside the line cores. Queued: eda_aabb_fam with 12 family edges (186-212 Hz), from eda_aabb.
+Figure: runs/processed/amine_overview/ethylenediamine_delay.png.
+
+## Running at 08:50 UTC
+
+| Run | What it tests |
+|---|---|
+| ipa_fast_fam_cs | isopropylamine with the component search |
+| nema_fast_fam_cs | N-ethylmethylamine, component search from the new basin |
+| tea_fam121 | triethylamine with narrow rate families at the 121 Hz CH3 lines (120.8 / 121.2 / 121.6) |
+| eda_2sp | ethylenediamine plus a second AA'BB' unit with a free ratio |
+
+A job queue (scratchpad amines/queue.sh, queue.txt) starts the next script whenever fewer than four fits run.
