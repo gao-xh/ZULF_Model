@@ -1337,3 +1337,7 @@ skills under `skills/`; this file keeps the history.
   118-128 Hz. fit_joint_series lacks the model-line weighting pass of the single-spectrum solver, so model-only
   lines are cheap (weight 0.2), and the slow gains are not evidence yet.
   docs/analysis/2026-10-04_amines_complex-fit.md
+\n- 2026-10-05: amines. The ethylenediamine 65 Hz control scores like 83 Hz (0.0414 / 0.0435), so 1J(N,H) is not
+  determined. scripts/band_diagnosis.py: the N-ethylmethylamine CH2 band (31 % of the cost) has its own
+  parameters exhausted, and the 14N hypothesis is open. Triethylamine range edge moved to 181.0 Hz (180 Hz
+  power-line tail). docs/analysis/2026-10-04_amines_complex-fit.md

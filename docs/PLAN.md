@@ -314,6 +314,16 @@ tall lines and barely sees it.
       results identical with and without (tests/test_j_tuner.py). To do: the same hook in fit_structure.
 - [x] Filled-dip rows and sharp-extrema rows (fit_joint_series --dip-penalty, --peak-max-width; user request
       2026-10-05: one broad line must not cover a resolved splitting, a broad data line may be refined).
+- [x] Band diagnosis (scripts/band_diagnosis.py, tests/test_j_tuner.py BandDiagnosisTests; user request 2026-10-05:
+      "one look shows the CH2 group is bad; know which part to adjust"): misfit share per isotopologue band,
+      levers per bad band (wanted step, band gain, cost elsewhere, selectivity; verdict free knob / conflict /
+      weak), and whether the band's own parameters are exhausted (then the model lacks something there).
+- [ ] Joint fitter: model-line weighting pass (the single-spectrum solver's signal_model_passes), so a model
+      line where the data show none is fully penalised (eda_slow83 / eda_slow65: unobserved 15N lines at
+      weight 0.2).
+- [ ] 14N (spin 1) in spin systems, with quadrupolar relaxation: the worst bands of the amines are the
+      N-bonded carbons (N-ethylmethylamine CH2, ethylenediamine CH2); test partially resolved 1J(13C,14N) and
+      2J(14N,H).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
       a derivative-spectrum term in chosen windows; check that they do not trade the tall lines.
 - [ ] Validation: synthetic spectra with known close splittings (does the local-then-global loop recover them

@@ -209,3 +209,43 @@ class FitMonitorTests(unittest.TestCase):
             self.assertAlmostEqual(rec["J0"]["J(HC1,HC2)"][0], TRUTH["J(HC1,HC2)"] - 0.5, places=9)
             self.assertEqual(run["status"]["phase"], "finished")
             self.assertEqual(fit_monitor.find_runs(tmp), [tmp])
+
+
+class BandDiagnosisTests(unittest.TestCase):
+    """scripts/band_diagnosis.py on the synthetic ethyl spectrum with one coupling detuned."""
+
+    @classmethod
+    def setUpClass(cls):
+        import band_diagnosis as bd
+        cls.bd = bd
+        cls.tmpdir = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls.tmpdir.name)
+        cls.prob, cls.truth_z = _problem(cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmpdir.cleanup()
+
+    def test_detuned_coupling_is_the_free_knob(self):
+        prob, bd = self.prob, self.bd
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": TRUTH["J(C1,HC2)"] + 0.1})
+        z = s.z.copy()
+        lines = s.lines(z, (110.0, 260.0), min_relative=0.05)
+        c1 = [l["frequency_hz"] for l in lines if l["label"].startswith("13C@C1")]
+        lo, hi = min(c1) - 1.0, max(c1) + 1.0
+        cost_b, levers = bd.band_levers(prob, z, 0, lo, hi, max_step_hz=1.0, min_gain=0.03)
+        top = levers[0]
+        self.assertEqual(top["name"], "J(C1,HC2)")
+        self.assertEqual(top["verdict"], "free knob")
+        self.assertAlmostEqual(top["step_hz"], -0.1, delta=0.025)          # Gauss-Newton: near-linear at 0.1 Hz
+        # independent check: the band cost actually evaluated at the stepped vector
+        z2 = z.copy()
+        z2[top["index"]] += top["step"]
+        f = prob.joint.forwards[0]
+        r2 = np.asarray(f.predict(prob.joint.spectrum_vector(z2, 0)).residual)
+        rows = bd.band_rows(f, lo, hi, len(r2))
+        actual_gain = cost_b - float(r2[rows] @ r2[rows])
+        self.assertGreater(actual_gain, 0.0)
+        self.assertAlmostEqual(top["band_gain"] / actual_gain, 1.0, delta=0.25)

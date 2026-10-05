@@ -234,3 +234,37 @@ What the figures show:
 - **Triethylamine.** The 121 Hz line is still missed.
 - **N-ethylmethylamine.** The CH2 band at 186-206 Hz is the worst region.
 - **All three.** The low-frequency features at 20-35 Hz and at 45 Hz are not in the fit ranges.
+
+## Controls, the 180 Hz edge and the band diagnosis (2026-10-05)
+
+**Ethylenediamine, 1J(N,H) = 65 Hz control** (eda_slow65: same recipe as eda_slow83, seeds with -65 Hz):
+
+| Run | Objective | Data residual | 1J(N,H) | 3J(H,HN) | 3J(C,HN) |
+|---|---|---|---|---|---|
+| eda_slow83 | 0.0435 | 0.195 | -83.1 | 6.33 | -0.97 |
+| eda_slow65 | 0.0414 | 0.191 | -65.8 | 6.21 | -0.93 |
+
+The other NH couplings agree between the two runs as well. 1J(N,H) is therefore not determined by these data.
+The slow-exchange gain over fast (0.0719) comes from the small NH couplings acting on the 13C lines, while the
+obligatory 15N lines are not seen in the data. The same contradiction holds as for the 83 Hz run.
+
+**Triethylamine, 180 Hz edge** (user: the 180 Hz feature is noise). The power-line harmonic at 180.18 Hz has a
+tail of 2-3 sigma up to about 180.8 Hz inside the old range edge (180.5 Hz). The range now starts at 181.0 Hz
+(series_4322bdfc_m.json). Runs tea_fast_fam_m (plain) and tea_fast_fam_sharp_m (sharp-structure rows), both
+from tea_fast_fam, are running. The earlier tea_fast_fam_sharp was stopped, since it used the old range.
+
+**Band diagnosis** (scripts/band_diagnosis.py, user: "one look shows the CH2 group is bad; know which part to
+adjust"). N-ethylmethylamine fast families, runs/processed/nema_fast_fam/band_diagnosis.png:
+
+- **13C@C2 (CH2) band, 189.6-201.3 Hz.** 31 % of the spectrum cost; relative residual 0.86.
+  - Its own couplings J(C2,HC1), J(C2,HC2), J(C2,HC3) and its rate families are already at the band optimum.
+  - The only levers are conflicts: shared H-H couplings and other one-bond couplings, removing at most 11 % of
+    the band cost at a cost elsewhere of 2-40 times the band cost.
+- **13C@C1 band, 120.2-125.9 Hz** (the 121.3 Hz line). 23 %; every lever is weak.
+
+Both bands therefore lack something in the model, and no coupling change within it will fix them.
+
+Hypothesis (not tested): the worst bands are the carbons bonded to N, namely the N-ethylmethylamine CH2 and the
+ethylenediamine CH2 pairs at 190.6 / 192.1 Hz. A partially resolved 1J(13C,14N) (about 3-5 Hz, spin 1) and
+2J(14N,H) would split exactly these lines, and the fitter may be imitating that with NH couplings in slow
+exchange. 14N is not yet placed in spin systems (zulf_core.nuclei: bookkeeping only). PLAN Phase 3e lists it.
