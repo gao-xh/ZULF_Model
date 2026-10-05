@@ -417,3 +417,16 @@ the network distorts to compensate.
 Limits:
 - the positive side is bounded at +3.7 Hz by the template bounds;
 - one start and 40 evaluations, so the positive region is not searched exhaustively.
+
+Literature on the sign (web search, 2026-10-05):
+- Two-bond 13C-1H couplings are usually small and negative, about -4 to -6 Hz. They can be positive: aldehyde
+  protons about +25 Hz, terminal ethynyl +40 to +50 Hz (general reviews; P. E. Hansen, Prog. NMR Spectrosc. 14,
+  175 (1981), doi:10.1016/0079-6565(81)80001-5).
+- Closest analogue to the amines: ethanol at zero field, 12CH3-13CH2-OH, with 2J(C,H) = -4.6 Hz, 1J 140.4 Hz and
+  3J(H,H) 7.1 Hz in the simulations that matched the data. Source: "Optical detection of NMR J-spectra at zero
+  magnetic field", arXiv:0901.4069. The CH3-13CH2-N couplings fitted here are -4.86 (triethylamine) and -4.50
+  (N-ethylmethylamine).
+- Orientation dependence: an electronegative substituent (O) on the 13C anti to the coupled proton contributes
+  positively, gauche negatively (Schwarcz, Cyr, Perlin, Can. J. Chem. 1975, doi:10.1139/v75-262).
+- No amine-specific 2J(C,H) values were found. DFT prediction of zero-field multiplets for natural-abundance 13C
+  (Andrews et al., arXiv:2604.26071) is a route to independent values.
