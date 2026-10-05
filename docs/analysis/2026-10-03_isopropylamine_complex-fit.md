@@ -420,3 +420,14 @@ line (a cubic piece over a cluster overshot); the noise-free model without
 outlier rejection; then AsLS 1.5 Hz within 2.5 Hz of the model lines only.
 Figure runs/processed/ipa_fast_fam2_4j/paper_style4_w0.1_k1.5_p1_l2.5_overlay.png.
 
+Script version (repo): scripts/paper_figure.py with the fit's options, --fit
+runs/processed/ipa_fast_fam2_4j/fit.json --fid <isopropylamine average FID>
+--segments "104,158;222,276" --gains 1,2.5 --colors '{"13C@C1": "#2f8f5b",
+"13C@C2 (x2)": "#c0469e"}' --title Isopropylamine --insets with
+[{"component": "13C@C2 (x2)", "smiles": "CC(N)C", "atom": 0, "segment": 0,
+"rect": [103.6, 0.26, 15.0, 1.0]}, {"component": "13C@C1", "smiles": "CC(N)C",
+"atom": 1, "segment": 0, "rect": [142.3, 0.26, 15.5, 1.0]}, {"component":
+"13C@C2 (x2)", "smiles": "CC(N)C", "atom": 0, "segment": 1, "rect": [221.8,
+0.26, 15.5, 1.0]}]. Structure insets drawn with RDKit (user: the hand-drawn
+ones were ugly). Figure runs/processed/ipa_fast_fam2_4j/paper_figure.png.
+

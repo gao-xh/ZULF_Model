@@ -1326,3 +1326,6 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-04: other amines (ethylenediamine, triethylamine, N-ethylmethylamine), complex fits with the
   isopropylamine settings: stage 1 (one rate per isotopologue) 0.101 / 0.312 / 0.313; rate families running.
   docs/analysis/2026-10-04_amines_complex-fit.md
+- 2026-10-05: isopropylamine publication figure (scripts/paper_figure.py, skills/zulf-figures): whole record,
+  overlay of the detail bands, display-only anchor-spline + cluster AsLS baseline, RDKit insets.
+  docs/analysis/2026-10-03_isopropylamine_complex-fit.md

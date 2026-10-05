@@ -19,6 +19,8 @@ or processing in chat, and never invent numbers that a tool did not return.
 - `zulf-phasing`: conventions, model-free phasing, first-order ripple.
 - `zulf-hypothesis-refinement`: model candidates, multi-isotopologue
   hypotheses, fitting settings, physical checks, comparison.
+- `zulf-figures`: publication-style figures of a fit (overlay, isotopologue bars,
+  structure insets, display processing and display-only baseline).
 
 ## Access
 

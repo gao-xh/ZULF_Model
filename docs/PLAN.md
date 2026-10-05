@@ -307,6 +307,8 @@ tall lines and barely sees it.
       sliders with the live objective, view cost, residual, lines and residual peaks; peak sources; suggested
       steps; stoppable refinement of chosen parameters; tuned.json readable by --from-joint.
       To do: show several spectra of a series at once; a rate / delay panel.
+- [x] Publication figure (scripts/paper_figure.py, figure_tools.py, zulf_processing.anchor_spline_baseline,
+      skills/zulf-figures; user request 2026-10-05). To do: an inset placer that finds empty regions.
 - [x] Fit monitor (scripts/fit_monitor.py, fit_joint_series --monitor on by default; user request 2026-10-05):
       objective of every evaluation of every start, stage, best couplings, console; page and terminal view;
       results identical with and without (tests/test_j_tuner.py). To do: the same hook in fit_structure.
