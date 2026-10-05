@@ -268,3 +268,33 @@ Hypothesis (not tested): the worst bands are the carbons bonded to N, namely the
 ethylenediamine CH2 pairs at 190.6 / 192.1 Hz. A partially resolved 1J(13C,14N) (about 3-5 Hz, spin 1) and
 2J(14N,H) would split exactly these lines, and the fitter may be imitating that with NH couplings in slow
 exchange. 14N is not yet placed in spin systems (zulf_core.nuclei: bookkeeping only). PLAN Phase 3e lists it.
+
+## N-ethylmethylamine 13CH2: the global fit sat in a wrong basin (2026-10-05)
+
+User: "why is 200 Hz never fitted well? Take the 13CH2 component out on its own."
+
+**Method** (scratchpad amines/isolate_ch2.py). In 180.5-215.9 Hz only 13C@C2 contributes; 13C@C1 and 13C@C3
+have no lines there. Its couplings were searched on that window alone, from 60 random starts, with
+`JointSeries.local_fit` (the window forward, its own gains) and the 13C@C2 rate families in the window free.
+
+| Variant | Window cost (start 0.332) | Whole objective, rest held (fit 0.0752) | 1J(C2,H2) | 2J(C2,H1) | 3J(C2,H3) | 3J(H1,H2) |
+|---|---|---|---|---|---|---|
+| global fit nema_fast_fam | 0.332 | 0.0752 | 138.37 | -6.20 | 12.08 | 7.20 |
+| H-H couplings held (best of 60) | 0.054 (-84 %) | **0.0535 (-29 %)** | 131.61 | -4.54 | 5.81 | 7.20 (held) |
+| all five free (2-start trial) | 0.138 | 0.963 | 131.40 | -1.69 | 5.36 | 3.79 |
+
+With the H-H couplings held, the best solution fits the 194.5 and 199 Hz peaks and the 197-198 Hz dip, and it
+lowers the whole objective by 29 % without touching the other isotopologues. The new couplings are also
+chemically reasonable: the old 3J(C2,H3) = 12 Hz through N becomes 5.8 Hz, and 1J(C2,H2) = 138 becomes
+131.6 Hz. The global multi-start (spread 0.5-2 Hz around the regression values) never reached this basin.
+Figure: runs/processed/nema_fast_fam/isolate_ch2_hold/isolate_ch2.png.
+
+**Global refit from this basin**: runs/processed/nema_fast_fam_ch2basin (running).
+
+**Lesson.** When a band is bad and its own parameters are "at the band optimum" (band_diagnosis), the optimum
+may be a local one. Isolate the component's window and search its own couplings globally, holding the shared
+H-H couplings, before concluding that the model lacks something.
+
+**N-H exchange runs** (nema_kex10 / nema_kex40, running). The best intermediate solution is 0.069 at
+k = 108 /s; k rises in every start. The CH2 band is unchanged, and the gain comes from 60-70 Hz (a broadened
+15N-H line taking the low-frequency undulation). Figure: runs/processed/amine_overview/N-ethylmethylamine_kex.png.

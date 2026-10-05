@@ -232,8 +232,11 @@ Use occasionally or as the last step, not inside every fit.
     coupling, a 1J that also places other lines).
   - **weak**: no real gain.
 
-  When the band's own couplings and rate families are listed as "already at the band optimum" and every lever
-  is weak or a conflict, no coupling change will fix the band. The model lacks something there: a fixed or tied
+  "Already at the band optimum" can be a local optimum. Isolate the component's window and search its own
+  couplings globally from random starts (`JointSeries.local_fit` with the shared H-H couplings held), then refit
+  globally from the best basin. N-ethylmethylamine 13CH2: the whole objective dropped 29 % (3J(C2,H3) 12.1 -> 5.8,
+  1J 138.4 -> 131.6 Hz). Only when that search also fails, and every lever is weak or a conflict, will no
+  coupling change fix the band. The model lacks something there: a fixed or tied
   coupling, a line, another nucleus. Do not tune further; change the model.
 - **Slow N-H exchange check.** Slow exchange implies a natural-abundance 15N-H line: at |1J(N,H)| for NH, and
   near 1.5 |1J| for NH2. Check that the data show it before taking a slow-exchange gain. The joint fitter weights
