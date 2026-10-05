@@ -251,3 +251,20 @@ Use occasionally or as the last step, not inside every fit.
   large plain-objective loss; check `fit.json["residual_peaks"]` (rounds, scores) before using its choice.
 - `--trace N` and `scripts/trace_view.py RUN` to watch a fit step by step (slider).
 
+
+## From a fitted J network to a structure (Phase 7, docs/J_TO_STRUCTURE.md)
+
+- Write the fitted couplings as an observation, following configs/j_networks/*.json. It needs units (13C sites
+  with proton count and copies), proton groups, and J(unit, group) / J(group, group).
+- Rank with route A: `python scripts/j_structure.py OBS.json --explain 1`. Add route B with
+  `--model runs/models/j_edges_v1.json`; train it first with `scripts/j_structure_benchmark.py --model ...`.
+- Read the margin.
+  - A margin equal to a prior difference (1.0, 2.0) with equal log L means the J values cannot separate the two
+    graphs. This typically happens when an unseen atom X is placed differently, or a ring passes through X
+    instead of two separate X atoms. Report both graphs, not one.
+  - The readout says where the carbons are and that something sits at a free valence, not what it is (N, O or
+    a quaternary C).
+- A network from a fit of the true structure is biased toward it. For a real test, fit the J network without a
+  motif and then rank it.
+- The hypothesis pipeline (spectrum -> fragments) stays the primary route. The readout proposes candidates for
+  it and checks it.

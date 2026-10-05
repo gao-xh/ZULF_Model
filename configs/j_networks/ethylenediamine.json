@@ -1,0 +1,25 @@
+{
+ "truth": "C1-C1', C1-X1, C1'-X2",
+ "run": "eda_fast_fam",
+ "units": {
+  "C1": {
+   "h": 2,
+   "copies": 2
+  }
+ },
+ "protons": {
+  "HC1": [
+   "C1",
+   0
+  ],
+  "HC2": [
+   "C1",
+   1
+  ]
+ },
+ "couplings": {
+  "J(C1,HC1)": 132.06,
+  "J(C1,HC2)": -2.862,
+  "J(HC1,HC2)": 6.353
+ }
+}

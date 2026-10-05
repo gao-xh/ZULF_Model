@@ -1329,3 +1329,6 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-05: isopropylamine publication figure (scripts/paper_figure.py, skills/zulf-figures): whole record,
   overlay of the detail bands, display-only anchor-spline + cluster AsLS baseline, RDKit insets.
   docs/analysis/2026-10-03_isopropylamine_complex-fit.md
+- 2026-10-05: J -> structure (Phase 7). Route A (rule readout with bond orders) and route B (learned likelihood)
+  both reach synthetic top-1 0.91 / top-3 1.00 and rank all four amines first. The remaining ties are unseen-atom
+  placement. docs/analysis/2026-10-05_j-to-structure.md, docs/J_TO_STRUCTURE.md

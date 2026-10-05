@@ -75,6 +75,7 @@ The fitting workflow and its algorithms, step by step: docs/WORKFLOW.md.
 | `zulf_model.finetune` | Failure classification, focused resampling that respects frozen test families, active-learning loop around the trainer. | evaluation, training |
 | `zulf_core.io` | Loading averaged FIDs (npy, legacy NMRduino DAT decoding, INI parsing, group averaging). | - |
 | `zulf_core.diagnostics` | Per-dataset FID diagnostics (first point, saturation plateau, ringing end, baseline fits) and candidate processing recipes. | - |
+| `zulf_model.structure` | J to structure (Phase 7, docs/J_TO_STRUCTURE.md): generator graphs -> observed J networks with true bond counts (`observations`); route B bond-count and hybridization classifiers used as the likelihood of `zulf_hypothesis.j_structure.rank_structures` (`edge_model`). Shares the observation format with zulf_hypothesis by convention, without importing it. | generator (torch for training) |
 | `zulf_model.agent` | Tool registry shared by the JSON CLI, the MCP server and exported Anthropic/OpenAI tool schemas; background jobs. | all |
 | `zulf_model.device`, `zulf_core.timing` | CUDA/MPS/CPU policy; built-in timers. | - |
 | `zulf_model.cli` | Command line entry points (thin layer over the agent registry). | agent |
@@ -142,6 +143,7 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Recognition benchmark | `zulf_hypothesis.benchmark.register_case`, `run_benchmark` | New truth cases with their own couplings; run after every change to stage 2. |
 | Scoring | `zulf_hypothesis.scoring.yardstick`, `criterion` | Other common yardsticks or criteria (AIC, cross-validated held-out residual). |
 | Search policy | `zulf_hypothesis.search.SearchSettings`, `search_hypotheses` | Budgets, variants, rounds, acceptance threshold, parallel workers; hinted interpretations as extra candidates. |
+| J to structure | `zulf_hypothesis.j_structure.rank_structures(likelihood=...)`, `couplings_likelihood`, `one_bond_likelihood` | Route A ranges, other priors (ring size, element-specific X), or any learned likelihood with the same call signature (route B: `zulf_model.structure.edge_model.LearnedLikelihood`). |
 | Coupling priors | `zulf_hypothesis.enumerate.CouplingPrior`, `register_prior` | Starting couplings by bond distance for enumerated fragments (generic sp3 now; topology- or database-based later). |
 
 ## Data flow for one training sample

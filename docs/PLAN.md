@@ -398,9 +398,21 @@ verification data before adoption.
       b683220d final guess lactic acid, confirmed. Models contributed no
       usable structure at these SNRs; hypotheses plus the solver did.
 
-## Phase 7 (optional): J to structure
+## Phase 7: J to structure (docs/J_TO_STRUCTURE.md; user 2026-10-05: "both routes", keep the direct readout)
 
-- [ ] Not started. The generator already records graphs for paired data.
+- [x] Keep the hypothesis pipeline (spectrum -> fitted fragments) unchanged as the first route.
+- [x] Route A, rule-based direct readout (`zulf_hypothesis.j_structure.rank_structures`): enumerate heavy-atom
+      graphs over the carbon copies and up to two unseen atoms, with bond orders, and rank them by
+      p(J | bond count) and p(1J | hybridization). CLI `scripts/j_structure.py`; real networks in
+      `configs/j_networks/` (all four amines rank first). Tests: `tests/test_j_structure.py`.
+- [x] Paired data from the generator (`zulf_model.structure.observations.observation_from_graph`, with bond counts
+      and hybridization labels).
+- [x] Route B, learned likelihood (`zulf_model.structure.edge_model`): bond-count and hybridization MLPs trained on
+      generator pairs and plugged into the same ranking. Benchmark `scripts/j_structure_benchmark.py`: synthetic
+      top-1 0.91 / top-3 1.00 for both routes; residual failures are equal-bond-count ties.
+- [ ] Route B as a GNN over the whole network; compare with A.
+- [ ] Per-coupling sigma from the fit uncertainty; 15N and 13C-13C observations.
+- [ ] Readout on a structure-free J network from the hypothesis pipeline (closes spectrum -> J -> structure).
 
 ## Experimental data inventory (user Google Drive, "Metabolites/Low Gamma")
 
