@@ -22,3 +22,4 @@ and are not committed.
 | 2026-10-03 | isopropylamine (10000-scan average) | complex known-structure fit, fast vs slow N-H exchange, rate families, 122 Hz pair (local fit, NH2, 15N, line width) | [2026-10-03_isopropylamine_complex-fit.md](2026-10-03_isopropylamine_complex-fit.md) |
 | 2026-10-04 | ethylenediamine, triethylamine, N-ethylmethylamine (fde3fbb2, 4322bdfc, e66a4b08) | complex known-structure fits with the isopropylamine settings, rate families | [2026-10-04_amines_complex-fit.md](2026-10-04_amines_complex-fit.md) |
 | 2026-10-05 | four amines (fast fits), synthetic generator pairs | J -> structure: route A rule readout, route B learned likelihood, failure analysis | [2026-10-05_j-to-structure.md](2026-10-05_j-to-structure.md) |
+| 2026-10-05 | four amines (overnight) | 15N scan, second species, delay prior, 121 Hz CH3 lines, polish runs | [2026-10-05_amines_overnight.md](2026-10-05_amines_overnight.md) |

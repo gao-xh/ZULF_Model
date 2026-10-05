@@ -1348,3 +1348,5 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-05: ethylenediamine with the AA'BB' motif (J != J'): 0.0714 -> 0.0449 (J 1.5, J' 16.0, geminal -13.8 Hz).
   The 190.6 / 192.1 Hz pair is still open. N-ethylmethylamine new basin final at 0.0501.
   docs/analysis/2026-10-04_amines_complex-fit.md
+- 2026-10-05: ethylenediamine 15N scan (1J 55-135 Hz). A 15N line on the 190.6 / 192.1 Hz pair makes the fit worse
+  (0.0449 -> 0.0528), so the pair is not the 15N isotopologue. docs/analysis/2026-10-05_amines_overnight.md
