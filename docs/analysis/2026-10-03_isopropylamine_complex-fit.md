@@ -411,3 +411,12 @@ phase correction (skills/zulf-phasing), not signal; the fit is unaffected
 Figure: runs/processed/ipa_fast_fam2_4j/paper_style4_w0.1_k6_p2.5_overlay.png
 (scratchpad ipa/paper_fig4.py). The 121.69 / 122.28 Hz pair is clearly resolved
 in the data and is a single line in the model.
+
+Final display settings (user: keep the flat noise, lift the line clusters):
+anchors more than 1 Hz from every model line above 20 Hz, away from the
+power-line harmonics and from narrow data peaks within 5 Hz of the lines; knots
+every 1.5 Hz; protected runs longer than 2 knot spacings bridged by a straight
+line (a cubic piece over a cluster overshot); the noise-free model without
+outlier rejection; then AsLS 1.5 Hz within 2.5 Hz of the model lines only.
+Figure runs/processed/ipa_fast_fam2_4j/paper_style4_w0.1_k1.5_p1_l2.5_overlay.png.
+

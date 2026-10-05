@@ -15,7 +15,7 @@ Contiguous frequency segments are treated separately.
 """
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from scipy import sparse
@@ -101,13 +101,16 @@ def line_mask(frequencies_hz: np.ndarray, lines_hz, half_width_hz: float = 1.0) 
 
 
 def anchor_spline_baseline(values: np.ndarray, frequencies_hz: np.ndarray, protect: np.ndarray,
-                           knot_spacing_hz: float = 3.0, k_sigma: float = 3.0, iterations: int = 3) -> np.ndarray:
+                           knot_spacing_hz: float = 3.0, k_sigma: float = 3.0, iterations: int = 3,
+                           bridge_hz: Optional[float] = None) -> np.ndarray:
     """Display baseline from anchor points: a least-squares cubic spline (interior knots every knot_spacing_hz)
     through the points outside `protect` (line regions, e.g. `line_mask` of the model transitions and of narrow
     data peaks), evaluated everywhere. Anchors farther than k_sigma robust sigmas from the spline are dropped and
     the spline refitted (`iterations` passes). Knots without anchors between them are merged, so a dense line
     cluster is spanned by one spline piece. Unlike AsLS it treats lines of both signs alike and follows rolling
-    baselines with a period down to about 2 knot spacings. Contiguous frequency segments are treated separately."""
+    baselines with a period down to about 2 knot spacings. Across a protected run longer than bridge_hz (default
+    2 knot spacings) the baseline is the straight line between the spline values at its ends: a cubic piece over a
+    wide line cluster can overshoot. Contiguous frequency segments are treated separately."""
     from scipy.interpolate import make_lsq_spline
     y = np.asarray(values, float)
     f = np.asarray(frequencies_hz, float)
@@ -139,5 +142,11 @@ def anchor_spline_baseline(values: np.ndarray, frequencies_hz: np.ndarray, prote
             if keep.sum() < 8 or np.array_equal(keep, use):
                 break
             use = keep
+        bridge = 2.0 * knot_spacing_hz if bridge_hz is None else bridge_hz
+        prot = protect[seg]
+        edges = np.flatnonzero(np.diff(np.r_[0, prot.astype(int), 0]))
+        for a, b in zip(edges[0::2], edges[1::2]):             # protected run [a, b)
+            if fs[b - 1] - fs[a] > bridge and a > 0 and b < len(fs):
+                zs[a:b] = np.interp(fs[a:b], [fs[a - 1], fs[b]], [zs[a - 1], zs[b]])
         z[seg] = zs
     return z
