@@ -356,3 +356,25 @@ Figures: runs/processed/amine_overview/ethylenediamine_aabb.png, runs/processed/
 
 N-ethylmethylamine final refit from the 13CH2 basin (nema_fast_fam_ch2basin): 0.0501, data residual 0.224
 (old fit 0.0752 / 0.276). The four starts end at 0.0501-0.0527.
+
+### The 190.6 / 192.1 Hz pair isolated (user: "take it out on its own, try N-H")
+
+Script: scratchpad amines/isolate_window.py. Window 186-195 Hz; the 13C@C1 couplings were searched there alone
+(60 random starts, the window's own gains). Model A is AA'BB' without N-H; model B is AA'BB' with the N-H protons
+kept (slow, static; motif "H2N-CH2-CH2-NH2 (AA'BB')", 123d53b).
+
+| Model | Window cost (start) | Whole objective, rest held (eda_aabb 0.0449) | Couplings of the window solution (Hz) |
+|---|---|---|---|
+| A, no N-H | 0.0076 (0.185) | 1.023 | 1J 126.4, 2J -1.3, geminal -20.1, J 2.6, J' 14.7 |
+| B, N-H kept | 0.0114 (0.176) | 1.129 | 1J 135.1, 2J -10.2, geminal -14.0, J 5.7, J' 17.1, 2J(C,HN) -4.3, 3J(C,HN) 2.9, 3J(H,HN) 1.7 |
+
+- **Both models can draw the pair.** A does it better than B, and without N-H. N-H couplings are therefore not
+  needed for the pair.
+- **Neither window solution is compatible with the rest of the 13C@C1 band.** Both require couplings that wreck
+  195-207 Hz (whole objective 0.045 -> 1.0), and both use implausible values (geminal -20 Hz; 2J(C,H) -10 Hz).
+- **B also fails the 15N test.** Its 15N-H lines reach 0.056 in 90-135 Hz, where the data stay below 0.0026.
+
+So no single set of 13C@C1 couplings explains the pair together with the main band. The pair most likely belongs
+to something else: a second species (e.g. the carbamate formed with CO2, or protonated ethylenediamine) or another
+isotopologue. Next: a mixture model with a second ethylene unit with its own couplings and a free ratio.
+Figure: runs/processed/eda_aabb/isolate_190/isolate_window.png.
