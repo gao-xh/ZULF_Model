@@ -430,3 +430,31 @@ Literature on the sign (web search, 2026-10-05):
   positively, gauche negatively (Schwarcz, Cyr, Perlin, Can. J. Chem. 1975, doi:10.1139/v75-262).
 - No amine-specific 2J(C,H) values were found. DFT prediction of zero-field multiplets for natural-abundance 13C
   (Andrews et al., arXiv:2604.26071) is a route to independent values.
+
+## What is ethylenediamine species 2? (user question, 2026-10-05)
+
+In eda_2sp_fam198, species 2 has gain ratio 0.261 against species 1, and about 25 % of the integrated
+|component| signal.
+
+Its parameters do not fit the obvious candidates:
+- **1J(C,H) 126.7 Hz is low for a CH2 bonded to N.** Species 1 is at 131.3 Hz. A protonated (ammonium) or
+  carbamate N-CH2 should have a larger 1J, not a smaller one.
+- **The geminal coupling of -18.0 Hz is outside the usual sp3 range**, and two of its rate families sit at the
+  bound.
+
+Candidates and their status:
+- **Ethylenediamine carbamate / ammonium salt from air CO2.** Chemically plausible: ethylenediamine takes up CO2.
+  But the carbamate is asymmetric. The ABCD model neither requires nor excludes asymmetry (0.0069 against 0.0068),
+  and the low 1J argues against an N-CH2 next to a carbamate or ammonium N.
+- **Protonated or hydrated forms in fast exchange** average with the free base, so they cannot give a separate
+  spectrum.
+- **A second conformer is excluded as a separate species.** gauche / anti rotation is far faster than the
+  millisecond scale, so a slowly exchanging conformer is not plausible. Correction to step 3 of this log, which
+  listed it as a candidate.
+- **A stand-in for missing physics** (for example 14N coupling to the N-bonded 13C) is possible. The unusual
+  geminal and the bound hits support this reading as much as a real compound.
+
+Decisive checks:
+- high-field 1H / 13C NMR of the same sample (a species at about 25 % would be obvious);
+- a fresh sample kept under inert gas against an air-exposed one;
+- deliberately adding CO2 (or a known carbamate) to see whether the 190.6 / 192.1 Hz lines grow.
