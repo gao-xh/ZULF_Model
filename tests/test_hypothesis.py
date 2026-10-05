@@ -537,3 +537,23 @@ class MotifTests(unittest.TestCase):
         for case, row in rows.items():
             self.assertEqual(row["motif_rank"], 1, msg=f"{case}: {row}")
         self.assertIsNone(rows["ethyl"]["group_rank"])                      # the group path alone misses it
+
+
+class AABBMotifTest(unittest.TestCase):
+    def test_equal_vicinal_couplings_reduce_to_equivalent_groups(self):
+        # independent reference: with J = J' the CH2 protons are magnetically equivalent again, the geminal coupling
+        # drops out, and the lines must equal those of a 13C + 2 x CH2 system built from groups
+        from zulf_hypothesis.motifs import MOTIFS
+        from zulf_hypothesis import exchange_variants
+        fr = exchange_variants(MOTIFS["X-CH2-CH2-X (AA'BB')"].fragment({"C1": 131.0}), "fast")[0]
+        model = build_model(fr, ranges=[(150.0, 230.0)])
+        sys_ = model.interpretation.components[0].system
+        j = sys_.couplings_hz.copy()
+        j[1, 3] = j[3, 1] = j[2, 4] = j[4, 2] = 6.2      # J
+        j[1, 4] = j[4, 1] = j[2, 3] = j[3, 2] = 6.2      # J'
+        j[1, 2] = j[2, 1] = j[3, 4] = j[4, 3] = -11.0    # geminal (no effect when equivalent)
+        aabb = SpinSystem(sys_.isotopes, j, groups=[(0,), (1,), (2,), (3,), (4,)])
+        ref = grouped(["13C", "1H", "1H"], [1, 2, 2], [[0, 131.0, -4.5], [131.0, 0, 6.2], [-4.5, 6.2, 0]])
+        self.assertTrue(same_lines(aabb, ref, tol=1e-6))
+        j[1, 3] = j[3, 1] = j[2, 4] = j[4, 2] = 3.0      # J != J': not the equivalent-group spectrum any more
+        self.assertFalse(same_lines(SpinSystem(sys_.isotopes, j, groups=[(0,), (1,), (2,), (3,), (4,)]), ref, 1e-3))

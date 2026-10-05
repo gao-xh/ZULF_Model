@@ -215,6 +215,31 @@ register_motif(Motif("H2N-CH2-CH2-NH2", _chain("H2N-CH2-CH2-NH2", [("C1", "C", 2
                                                   "HC2": "HC1", "HN1": "HN2", "HN2": "HN1"},)),
                      (OneBondSite("C1", "13C", 2, (125, 150)), OneBondSite("N1", "15N", 2, (55, 80))),
                      "ethylenediamine, slow N-H exchange (fast exchange: use CH2-CH2)"))
+def _xch2ch2x(one_bond):
+    """X-CH2-CH2-X with fast X-H exchange, the CH2 protons kept individually (AA'BB'): the two vicinal couplings
+    differ, J between protons on the same side (HC1a-HC2a, HC1b-HC2b) and J' across (HC1a-HC2b, HC1b-HC2a), so
+    the protons of one CH2 are not magnetically equivalent and their geminal coupling matters. Symmetry: the two
+    halves (C1 <-> C2) and the two sides (a <-> b)."""
+    sites = (Site("C1", "C"), Site("C2", "C"), Site("N1", "N"), Site("N2", "N"))
+    protons = tuple(ProtonGroup(f"HC{i}{x}", 1, f"C{i}") for i in (1, 2) for x in "ab")
+    j1 = one_bond.get("C1", 132.0)
+    c = {}
+    for i, k in ((1, 2), (2, 1)):
+        for x in "ab":
+            c[pair(f"C{i}", f"HC{i}{x}")] = j1
+            c[pair(f"C{i}", f"HC{k}{x}")] = SP3["2JCH"]
+    c[pair("HC1a", "HC2a")] = c[pair("HC1b", "HC2b")] = 4.0          # J (same side)
+    c[pair("HC1a", "HC2b")] = c[pair("HC1b", "HC2a")] = 8.7          # J' (across)
+    c[pair("HC1a", "HC1b")] = c[pair("HC2a", "HC2b")] = -12.0        # geminal
+    sym = ({"C1": "C2", "C2": "C1", "N1": "N2", "N2": "N1", "HC1a": "HC2a", "HC2a": "HC1a", "HC1b": "HC2b",
+            "HC2b": "HC1b"},
+           {"HC1a": "HC1b", "HC1b": "HC1a", "HC2a": "HC2b", "HC2b": "HC2a"})
+    return Fragment("X-CH2-CH2-X (AA'BB')", sites, protons, c, sym, (("C1", "C2"), ("C1", "N1"), ("C2", "N2")),
+                    "AA'BB' ethylene unit, fast X-H exchange")
+
+
+register_motif(Motif("X-CH2-CH2-X (AA'BB')", _xch2ch2x, (OneBondSite("C1", "13C", 2, (125, 150)),),
+                     "1,2-disubstituted ethane with fast X-H exchange (ethylenediamine): J and J' separate"))
 register_motif(Motif("(CH3)2CH-NH2", _chain("(CH3)2CH-NH2", [("C1", "C", 1), ("C2", "C", 3), ("C3", "C", 3),
                                                             ("N1", "N", 2)],
                                             [("C1", "C2"), ("C1", "C3"), ("C1", "N1")], (_ISO_SWAP,)),
