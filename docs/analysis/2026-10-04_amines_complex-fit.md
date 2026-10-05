@@ -298,3 +298,31 @@ H-H couplings, before concluding that the model lacks something.
 **N-H exchange runs** (nema_kex10 / nema_kex40, running). The best intermediate solution is 0.069 at
 k = 108 /s; k rises in every start. The CH2 band is unchanged, and the gain comes from 60-70 Hz (a broadened
 15N-H line taking the low-frequency undulation). Figure: runs/processed/amine_overview/N-ethylmethylamine_kex.png.
+
+Global refit from the 13CH2 basin (nema_fast_fam_ch2basin; 3 of 4 starts done at the time of writing). The best
+start reaches **0.0501**, against 0.0752 for the old fit (-33 %).
+
+| Coupling | Old fit | New fit (Hz) |
+|---|---|---|
+| 1J(C2,H2) | 138.37 | 131.57 |
+| 2J(C2,H1) | -6.20 | -4.50 |
+| 3J(C2,H3) | 12.08 | 5.84 |
+
+The other couplings are unchanged within 0.3 Hz: 1J(C1,H1) 124.93, 1J(C3,H3) 131.75, 3J(H1,H2) 7.21,
+3J(C3,H2) 4.26.
+
+The CH2 band now fits: the 194-195, 199 and 203 Hz peaks and the 197-198 and 200-201 Hz dips. The 121.3 Hz line
+of the CH3 cluster is still missed.
+
+Figures:
+- runs/processed/amine_overview/N-ethylmethylamine_ch2basin.png (comparison with the old fit);
+- runs/processed/nema_fast_fam_ch2basin/paper_figure.png (from the best monitor snapshot, scratchpad
+  amines/snapshot_fit.py).
+
+The N-H exchange runs (nema_kex10 / nema_kex40) were stopped at about 0.067. They held the 13C-H couplings in the
+old basin, so N-H coupling has to be re-tested on the new basin.
+
+Component search in the fitter (aaa352c and the merge rule after it). In the first ethylenediamine rerun, windows
+of a single component split at 3 Hz gaps (e.g. 189.6-191.6 Hz) were too narrow to constrain a refit. Clusters of a
+component are now merged whenever the merged window stays dominated by it. Reruns with the search:
+tea_fast_fam_cs (range from 181 Hz) and eda_fast_fam_cs.

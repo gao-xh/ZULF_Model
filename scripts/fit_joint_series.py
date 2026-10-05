@@ -776,8 +776,9 @@ _CS_TASK = None
 
 def _component_windows(joint, z, s, min_line=0.05, gap_hz=3.0, dominance=0.8):
     """[(component, lo, hi)] for spectrum s: the lines of each component (relative amplitude >= min_line) clustered
-    at gaps > gap_hz, each cluster +- 1 Hz, merged with its neighbours of the same component while the merged
-    window stays dominated by that component (>= dominance of the summed component magnitudes on its points)."""
+    at gaps > gap_hz, each cluster +- 1 Hz, merged with the next cluster of the same component whenever the merged
+    window stays dominated by that component (>= dominance of the summed component magnitudes on its points), so
+    a component alone in a region gets one window over all of it."""
     f = joint.forwards[s]
     P = joint.params[s]
     values = P.values(joint.spectrum_vector(z, s))
@@ -811,7 +812,7 @@ def _component_windows(joint, z, s, min_line=0.05, gap_hz=3.0, dominance=0.8):
         clusters.append([start - 1.0, fr[-1] + 1.0])
         merged = []
         for cl in clusters:
-            if merged and cl[0] - merged[-1][1] <= gap_hz and share(c, merged[-1][0], cl[1]) >= dominance:
+            if merged and share(c, merged[-1][0], cl[1]) >= dominance:
                 merged[-1][1] = cl[1]
             else:
                 merged.append(cl)
