@@ -23,6 +23,10 @@ interface and `docs/PLAN.md` before starting new work.
 - A refined candidate is a conditional numerical result. Reports and docstrings
   must not describe it as a determined molecular assignment; keep boundary
   hits, residuals, ambiguity and held-out prediction visible.
+- Commits and pull requests name Xuehan Gao <gao.xh@berkeley.edu> as the only
+  author (set `git config user.name` / `user.email` in every new clone). Do not
+  add co-author lines, session links or "generated with" footers to commit
+  messages or pull request descriptions.
 - Experimental inputs are read-only. Generated data, checkpoints and reports go
   under `runs/` or another configured output directory, never into `git`.
 - Frozen test sets and generator versions are recorded in `docs/PLAN.md`.
