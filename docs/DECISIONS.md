@@ -791,6 +791,29 @@ fit-progress slider, log and terminal inside, and an API for AI. Design:
   transverse field, Lorentzian FWHM = rate / pi; fit command, fit application and trace frames; HTTP API;
   offscreen window and session following each other across threads).
 
+## D49. Studio display scale and figures (2026-10-06)
+
+Two requests of Xuehan (handed over from a read-only session):
+
+- The simulated curve jumped while 1J was dragged (acetonitrile, 136.8-136.9 Hz): the display scale was a
+  least-squares fit on the shown real part, which faded to 3e-6 as the line moved through a dispersive data
+  feature and then fell back to max|data| / max|sim| (a 300x jump). The scale is now the least-squares fit on the
+  magnitudes (positive, continuous in the parameters, the same for every shown part); `lock_scale` freezes it.
+  The status bar shows it. Test: DisplayScaleTests (dispersive synthetic data, scan of J).
+- Figures: Studio runs scripts/paper_figure.py as a subprocess (PNG at 300 dpi, PDF, SVG, caption.txt; preview
+  in the window; export to a chosen directory; API tools figure_command, make_figure, figure_status,
+  export_figure). If the parameters are exactly an applied fit, its run is drawn (its options and fit.json);
+  after the sliders moved, a fit.json-compatible parameter file of the current state is written and the figure
+  and caption say "manual parameters (not a fit)".
+- paper_figure.py no longer assumes 4 kHz: the sampling rate comes from the series entry's record (or
+  --sampling-rate), the display zero-order phase from the series entry's phasing (or --phase0-deg; the 4 kHz
+  calibration only as the fallback); the caption names the fitted field and the sampling rate; --formats, --dpi,
+  --manual. scripts/regression_confirmed.py is unchanged.
+- make_series_entry.py records the FID as "source_fid" (not "fid": fit_joint_series reads an entry with "fid"
+  as a raw FID to process with the 4 kHz recipe). Studio asks for the FID when a series has none.
+- Tests: FigureTests (a 136 Hz line of a 2 kHz FID appears at 136 Hz in the display spectrum; a full Studio
+  figure of a synthetic 2 kHz series, files and caption).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

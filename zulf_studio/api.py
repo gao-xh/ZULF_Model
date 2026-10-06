@@ -33,6 +33,14 @@ _JSON_TYPES = {bool: "boolean", int: "integer", float: "number", str: "string", 
 FIT_OPTIONS = {k: {"type": _JSON_TYPES[type(v)]} for k, v in FIT_DEFAULTS.items()}
 FIT_OPTIONS["range"] = {"type": "array", "items": NUM}
 FIT_OPTIONS["out"] = STR
+FIGURE_OPTIONS = {"title": STR, "wide": {"type": "string", "description": "lo,hi Hz of panel a"},
+                  "segments": {"type": "string", "description": "lo,hi;lo,hi detail panels"},
+                  "gains": {"type": "string", "description": "display factor per detail panel, e.g. 1,2.5"},
+                  "display_window": NUM, "colors": {"type": "string", "description": "JSON {component: colour}"},
+                  "insets": {"type": "string", "description": "insets JSON file (needs RDKit)"},
+                  "formats": {"type": "string", "description": "png,pdf,svg"}, "dpi": {"type": "integer"},
+                  "fid": {"type": "string", "description": "averaged FID .npy when the series has no source_fid"},
+                  "out": STR}
 
 
 # name -> (session method name, description, parameter schema)
@@ -83,6 +91,15 @@ TOOLS: Dict[str, tuple] = {
     "trace_frame": ("trace_frame", "Show frame `index` of the loaded trace (couplings and objective of that point of "
                     "the fit); apply=true copies its couplings into the session.",
                     _obj({"index": {"type": "integer"}, "apply": {"type": "boolean"}}, ["index"])),
+    "figure_command": ("figure_command", "The scripts/paper_figure.py command for the current state (no side effects). "
+                       "If the parameters are an applied fit, its run is drawn; otherwise a parameter file of the "
+                       "current state is written and the figure says 'manual parameters (not a fit)'.", _obj(FIGURE_OPTIONS)),
+    "make_figure": ("make_figure", "Make the publication figure (paper_figure.py) in the background: PNG (dpi), PDF, "
+                    "SVG and caption.txt under the workspace. Poll figure_status.", _obj(FIGURE_OPTIONS)),
+    "figure_status": ("figure_status", "Running / finished, directory, files, whether it shows manual parameters.",
+                      _obj({})),
+    "export_figure": ("export_figure", "Copy the last figure (PNG, PDF, SVG, caption, parameter file) to a directory.",
+                      _obj({"directory": STR}, ["directory"])),
     "export": ("export", "Write parameters.json, lines.csv and spectrum.csv to a directory (default under the "
                "workspace).", _obj({"directory": STR})),
     "read_log": ("read_log", "Last log entries (sources: session, api, fit, terminal).",
@@ -124,7 +141,8 @@ class StudioAPI:
         if tool == "set_couplings":
             return _jsonable(method(args["values"]))
         result = _jsonable(method(**args))
-        if tool not in ("get_state", "list_motifs", "lines", "simulate", "fit_status", "read_log", "fit_command"):
+        if tool not in ("get_state", "list_motifs", "lines", "simulate", "fit_status", "read_log", "fit_command",
+                        "figure_status", "figure_command"):
             self.session.log(f"{tool} {json.dumps(args)[:300]}", "api")
         return result
 

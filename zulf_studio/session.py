@@ -55,11 +55,12 @@ def _resolve(path) -> Path:
 
 
 class FitJob:
-    """One fit_joint_series run in a subprocess; its output lines go to the session log."""
+    """One script run in a subprocess (a fit, or a figure); its output lines go to the session log under
+    `source`."""
 
     def __init__(self, argv: List[str], out_dir: Path, log: Callable[[str, str], None],
-                 done: Callable[["FitJob"], None]):
-        self.argv, self.out_dir = argv, out_dir
+                 done: Callable[["FitJob"], None], source: str = "fit"):
+        self.argv, self.out_dir, self.source = argv, out_dir, source
         self.started = time.time()
         self.finished: Optional[float] = None
         self.returncode: Optional[int] = None
@@ -85,11 +86,11 @@ class FitJob:
                 self.best = v if self.best is None else min(self.best, v)
             if re.match(r"start \d+ finished", line):
                 self.starts_finished += 1
-            self._log(line, "fit")
+            self._log(line, self.source)
         self.returncode = self.proc.wait()
         self.finished = time.time()
-        self._log(f"fit finished with code {self.returncode} ({self.finished - self.started:.0f} s): {self.out_dir}",
-                  "fit")
+        self._log(f"{self.source} finished with code {self.returncode} ({self.finished - self.started:.0f} s): "
+                  f"{self.out_dir}", self.source)
         self._done(self)
 
     @property
@@ -128,6 +129,9 @@ class StudioSession:
         self.display = "re"
         self.scale_lock: Optional[float] = None      # fixed display scale of the simulation (None: automatic)
         self.fit_job: Optional[FitJob] = None
+        self.figure_job: Optional[FitJob] = None
+        self.figure: Optional[dict] = None           # last figure: directory, files, manual flag
+        self.applied: Optional[dict] = None          # run directory of the applied fit and the state it gave
         self.trace: Optional[dict] = None
         self.trace_index = -1
         self._model_cache = None
@@ -380,11 +384,13 @@ class StudioSession:
                 fr, va = np.load(_resolve(entry["freq"])), np.load(_resolve(entry["values"]))
                 self.data = {"freq": np.asarray(fr, float), "values": np.asarray(va, complex), "label": entry["id"],
                              "series": str(spath.resolve()), "index": int(index),
+                             "source_fid": entry.get("source_fid"),
                              "ranges": [list(map(float, r)) for r in entry.get("ranges", [])]}
             else:
                 fr, va = np.load(_resolve(freq)), np.load(_resolve(values))
                 self.data = {"freq": np.asarray(fr, float), "values": np.asarray(va, complex),
-                             "label": label or Path(values).stem, "series": None, "index": 0, "ranges": []}
+                             "label": label or Path(values).stem, "series": None, "index": 0, "ranges": [],
+                             "source_fid": None}
             if self.data["ranges"]:
                 self.view = [min(r[0] for r in self.data["ranges"]), max(r[1] for r in self.data["ranges"])]
         self.log(f"spectrum loaded: {self.data['label']} ({len(self.data['freq'])} points)")
@@ -455,12 +461,135 @@ class StudioSession:
             rates = [math.exp(v) for k, v in sp.items() if ".log_rate" in k]
             if rates:
                 self.rate_per_s = float(np.median(rates))
+        self.applied = {"run": str(run), "fit": fit, "spectrum": spectrum or next(iter(sp_all), None),
+                        "state": self._snapshot()}
         self.log(f"applied fit {run}: score {fit.get('scores', [None])[0]}, field {self.field_nt} nT, "
                  f"rate {self.rate_per_s:.3g} 1/s (median of {len(rates)} families)")
         if (run / "trace.json").exists():
             self.load_trace(str(run))
         self._changed("couplings")
         return {"couplings": couplings, "field_nt": self.field_nt, "rate_per_s": self.rate_per_s}
+
+    def _snapshot(self):
+        return (json.dumps(self.spec, sort_keys=True), self.exchange,
+                tuple(sorted((c["key"], round(c["value"], 9)) for c in self.couplings())),
+                tuple(round(v, 9) for v in self.field_nt), round(self.rate_per_s, 9))
+
+    def state_is_applied_fit(self) -> bool:
+        return self.applied is not None and self.applied["state"] == self._snapshot()
+
+    # ---- figures (scripts/paper_figure.py) -----------------------------------------------
+    def _manual_fit_file(self, out: Path) -> Path:
+        """A fit.json-compatible file of the current sliders (the format load_fit / --from-joint read): couplings,
+        field, decay rates (the applied fit's families when the rate slider was not moved) and its delay."""
+        base = self.applied["fit"] if self.applied else {}
+        sid = self.data["label"]
+        old = dict(next(iter(base.get("spectrum_parameters", {}).values()), {})) if base else {}
+        rates = {k: v for k, v in old.items() if ".log_rate" in k}
+        moved_rate = not self.applied or abs(self.applied["state"][4] - round(self.rate_per_s, 9)) > 1e-12
+        if moved_rate or not rates:
+            _, model = self._model_cache
+            edges = base.get("family_edges_hz") or []
+            rates = {f"c{c}.log_rate{f}": math.log(self.rate_per_s)
+                     for c in range(len(model.component_labels)) for f in range(len(edges) + 1)}
+        sp = {k: v for k, v in old.items() if k == "phase_delay"}
+        sp.update(rates)
+        sp.update({"field_transverse_ut": 1e-3 * self.field_nt[0], "field_z_ut": 1e-3 * self.field_nt[1]})
+        fit = {"x": [1.0], "manual_parameters": True, "family_edges_hz": base.get("family_edges_hz", []),
+               "couplings": {c["key"]: {"J_at_x": [c["value"]]} for c in self.couplings()},
+               "spectrum_parameters": {sid: sp}}
+        path = out / "parameters_fit.json"
+        path.write_text(json.dumps(fit, indent=1))
+        return path
+
+    def figure_command(self, **options) -> dict:
+        """paper_figure.py command for the current state: the applied fit's run unchanged, or (sliders moved) a
+        parameter file of the current state, labelled as manual parameters. Options: title, wide, segments, gains,
+        display_window, colors (JSON), insets (path), formats, dpi, fid, out."""
+        if self.data is None or not self.data.get("series"):
+            raise ValueError("load a series file before making a figure")
+        fid = options.get("fid") or self.data.get("source_fid")
+        if not fid:
+            raise ValueError("the series entry has no source_fid: give fid (the averaged FID .npy)")
+        label = re.sub(r"[^A-Za-z0-9]+", "-", self.data["label"])
+        out = Path(options.get("out") or self.workspace / "figures" / f"{time.strftime('%Y%m%d-%H%M%S')}_{label}")
+        out.mkdir(parents=True, exist_ok=True)
+        manual = not self.state_is_applied_fit()
+        if self.applied:                          # the problem (options) of the applied fit's run
+            if str(ROOT / "scripts") not in sys.path:
+                sys.path.insert(0, str(ROOT / "scripts"))
+            from run_problem import problem_argv, run_argv
+            base = problem_argv(run_argv(self.applied["run"]))
+        else:                                     # the problem a fit from the current state would solve
+            full = self.fit_command(fit_field=any(self.field_nt))
+            base = full[2:full.index("--out")]
+        fit_path = self._manual_fit_file(out) if manual else Path(self.applied["run"]) / "fit.json"
+        base = self._strip(base, ("--couplings", "--trace", "--starts", "--workers", "--max-nfev"))
+        argv = [sys.executable, str(ROOT / "scripts" / "paper_figure.py"), *base, "--fit", str(fit_path),
+                "--fid", str(fid), "--figure", str(out / "figure.png"),
+                "--formats", str(options.get("formats", "png,pdf,svg")), "--dpi", str(int(options.get("dpi", 300)))]
+        for key, flag in (("title", "--title"), ("wide", "--wide"), ("segments", "--segments"), ("gains", "--gains"),
+                          ("display_window", "--display-window"), ("colors", "--colors"), ("insets", "--insets")):
+            if options.get(key) not in (None, ""):
+                argv += [flag, str(options[key])]
+        if manual:
+            argv.append("--manual")
+        return {"argv": argv, "out_dir": str(out), "manual": manual, "fit_file": str(fit_path)}
+
+    @staticmethod
+    def _strip(argv, flags):
+        out, skip = [], False
+        for a in argv:
+            if skip:
+                skip = False
+                continue
+            if a in flags:
+                skip = True
+                continue
+            out.append(a)
+        return out
+
+    def make_figure(self, **options) -> dict:
+        """Run paper_figure.py in the background (PNG, PDF, SVG and caption.txt); poll figure_status."""
+        if self.figure_job is not None and self.figure_job.running:
+            raise RuntimeError("a figure is already being made")
+        cmd = self.figure_command(**options)
+        out = Path(cmd["out_dir"])
+        self.figure = {"directory": str(out), "manual": cmd["manual"], "files": []}
+        self.log(("figure (manual parameters, not a fit): " if cmd["manual"] else "figure of the applied fit: ")
+                 + " ".join(cmd["argv"][1:]), "figure")
+
+        def done(job):
+            self.figure["files"] = sorted(p.name for p in out.glob("figure*"))
+            self._changed("figure_done")
+        self.figure_job = FitJob(cmd["argv"], out, self.log, done, source="figure")
+        return self.figure_status()
+
+    def figure_status(self) -> dict:
+        if self.figure_job is None:
+            return {"running": False, "directory": None}
+        st = self.figure_job.status()
+        out = Path(st["out_dir"])
+        return {"running": st["running"], "returncode": st["returncode"], "directory": str(out),
+                "manual": self.figure["manual"], "seconds": st["seconds"],
+                "files": sorted(p.name for p in out.glob("figure*")),
+                "png": str(out / "figure.png") if (out / "figure.png").exists() else None}
+
+    def export_figure(self, directory: str) -> dict:
+        """Copy the last figure (PNG, PDF, SVG, caption, parameter file) to a directory."""
+        import shutil
+        st = self.figure_status()
+        if not st.get("directory") or st["running"] or not st["files"]:
+            raise ValueError("no finished figure to export")
+        dest = _resolve(directory)
+        dest.mkdir(parents=True, exist_ok=True)
+        src = Path(st["directory"])
+        copied = []
+        for p in list(src.glob("figure*")) + list(src.glob("parameters_fit.json")):
+            shutil.copy2(p, dest / p.name)
+            copied.append(p.name)
+        self.log(f"figure exported to {dest}: {', '.join(sorted(copied))}", "figure")
+        return {"directory": str(dest), "files": sorted(copied)}
 
     # ---- fit trace (progress slider) -----------------------------------------------------
     def load_trace(self, run_dir: str) -> dict:
@@ -507,8 +636,9 @@ class StudioSession:
                     "display": {"part": self.display, "phase_deg": self.data_phase_deg,
                                 "delay_ms": self.data_delay_ms, "scale_lock": self.scale_lock},
                     "data": None if self.data is None else {k: self.data[k] for k in ("label", "series", "index",
-                                                                                       "ranges")},
-                    "fit": self.fit_status(),
+                                                                                       "ranges", "source_fid")},
+                    "fit": self.fit_status(), "figure": self.figure_status(),
+                    "parameters_are_applied_fit": self.state_is_applied_fit(),
                     "trace": None if self.trace is None else {"run": self.trace["run"], "index": self.trace_index,
                                                               "frames": len(self.trace["meta"]["frames"])}}
 

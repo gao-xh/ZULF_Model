@@ -395,6 +395,9 @@ tall lines and barely sees it.
       the sliders with a trace (progress) slider, log, terminal, Python console, JSON API for AI agents.
       First use: a 4-start acetonitrile fit from a 20 / 60 nT field start ended in a worse basin (0.158 against
       0.044): the field start matters (try several, as in the analysis).
+- [x] Studio display scale continuous (least squares on the magnitudes, lock option) and figures from Studio
+      (paper_figure.py: sampling rate and phase from the series entry, PNG/PDF/SVG/caption, manual-parameter
+      label; series entries record source_fid). D49; tests/test_studio.py DisplayScaleTests, FigureTests.
 - [ ] Studio: field-start grid for fits; rate families in the quick-look simulation; MCP wrapper of the API.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)

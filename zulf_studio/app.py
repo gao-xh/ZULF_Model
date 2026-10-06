@@ -16,7 +16,8 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QFont, QKeySequence
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QSplitter,
@@ -305,6 +306,7 @@ class StudioWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.addTab(self._lines_tab(), "Lines")
         self.tabs.addTab(self._fit_tab(), "Fit")
+        self.tabs.addTab(self._figure_tab(), "Figure")
         self.log_view = QPlainTextEdit(readOnly=True)
         self.log_view.setFont(MONO)
         self.log_view.setMaximumBlockCount(5000)
@@ -519,6 +521,103 @@ class StudioWindow(QMainWindow):
         lay.addLayout(right, 1)
         return w
 
+    def _figure_tab(self):
+        w = QWidget()
+        lay = QHBoxLayout(w)
+        form = QFormLayout()
+        self.g_title = QLineEdit(placeholderText="title (default: the spectrum id)")
+        self.g_wide = QLineEdit("5,300")
+        self.g_segments = QLineEdit(placeholderText="lo,hi;lo,hi (default: the fit ranges)")
+        self.g_gains = QLineEdit(placeholderText="e.g. 1,2.5")
+        self.g_window = QDoubleSpinBox(decimals=2, minimum=0.0, maximum=5.0, value=0.1, singleStep=0.05)
+        self.g_dpi = QSpinBox(minimum=72, maximum=1200, value=300, singleStep=50)
+        fmt = QHBoxLayout()
+        fmt.setContentsMargins(0, 0, 0, 0)
+        self.g_formats = {f: QCheckBox(f, checked=True) for f in ("png", "pdf", "svg")}
+        for c in self.g_formats.values():
+            fmt.addWidget(c)
+        fmt_w = QWidget()
+        fmt_w.setLayout(fmt)
+        self.g_colors = QLineEdit(placeholderText='{"13C@C1": "#2f8f5b"}')
+        self.g_insets = QLineEdit(placeholderText="insets JSON (paper_figure --insets)")
+        try:
+            import rdkit  # noqa: F401
+        except ImportError:
+            self.g_insets.setEnabled(False)
+            self.g_insets.setPlaceholderText("structure insets need RDKit (not installed)")
+        for label, wid in (("title", self.g_title), ("whole range (Hz)", self.g_wide), ("detail panels", self.g_segments),
+                           ("panel gains", self.g_gains), ("display window (1/s)", self.g_window), ("formats", fmt_w),
+                           ("PNG dpi", self.g_dpi), ("colours", self.g_colors), ("insets", self.g_insets)):
+            form.addRow(label, wid)
+        btns = QHBoxLayout()
+        self.g_make = QPushButton("Generate figure")
+        self.g_make.setStyleSheet("font-weight: 600")
+        self.g_export = QPushButton("Export ...")
+        self.g_open = QPushButton("Open folder")
+        for b in (self.g_make, self.g_export, self.g_open):
+            btns.addWidget(b)
+        self.g_make.clicked.connect(self.make_figure)
+        self.g_export.clicked.connect(self.export_figure)
+        self.g_open.clicked.connect(lambda: self.session.figure and QDesktopServices.openUrl(
+            QUrl.fromLocalFile(self.session.figure["directory"])))
+        self.g_status = QLabel("Draws the applied fit; after moving sliders, the current parameters, labelled "
+                               "'manual parameters (not a fit)'.")
+        self.g_status.setWordWrap(True)
+        left = QVBoxLayout()
+        left.addLayout(form)
+        left.addLayout(btns)
+        left.addWidget(self.g_status)
+        left.addStretch(1)
+        self.g_preview = QLabel("no figure yet")
+        self.g_preview.setAlignment(Qt.AlignCenter)
+        self.g_preview.setMinimumSize(200, 120)
+        scroll = QScrollArea()
+        scroll.setWidget(self.g_preview)
+        scroll.setWidgetResizable(True)
+        lay.addLayout(left, 1)
+        lay.addWidget(scroll, 2)
+        return w
+
+    def make_figure(self):
+        opts = {"title": self.g_title.text().strip(), "wide": self.g_wide.text().strip(),
+                "segments": self.g_segments.text().strip(), "gains": self.g_gains.text().strip(),
+                "display_window": self.g_window.value(), "dpi": self.g_dpi.value(),
+                "formats": ",".join(f for f, c in self.g_formats.items() if c.isChecked()) or "png",
+                "colors": self.g_colors.text().strip(), "insets": self.g_insets.text().strip()}
+        if self.session.data is not None and not self.session.data.get("source_fid"):
+            fid, _ = QFileDialog.getOpenFileName(self, "Averaged FID of this spectrum (not in the series file)",
+                                                 str(Path.home() / "research"), "FID (*.npy)")
+            if not fid:
+                return
+            self.session.data["source_fid"] = fid
+        if self._guard(self.session.make_figure, **opts) is not None:
+            self.g_status.setText("generating ...")
+            self.g_make.setEnabled(False)
+
+    def export_figure(self):
+        st = self.session.figure_status()
+        if not st.get("files"):
+            self.statusBar().showMessage("no figure yet", 5000)
+            return
+        d = QFileDialog.getExistingDirectory(self, "Export figure to", st["directory"])
+        if d:
+            r = self._guard(self.session.export_figure, d)
+            if r:
+                self.statusBar().showMessage(f"figure exported to {r['directory']}: {', '.join(r['files'])}", 8000)
+
+    def show_figure(self):
+        st = self.session.figure_status()
+        self.g_make.setEnabled(not st.get("running"))
+        if st.get("returncode") not in (0, None):
+            self.g_status.setText(f"figure failed (code {st['returncode']}); see the Log tab")
+            return
+        if st.get("png"):
+            pix = QPixmap(st["png"])
+            self.g_preview.setPixmap(pix.scaledToWidth(max(self.g_preview.width() - 20, 400),
+                                                       Qt.SmoothTransformation))
+            self.g_status.setText(("MANUAL PARAMETERS (not a fit). " if st["manual"] else "Applied fit. ")
+                                  + f"{st['directory']}\n" + ", ".join(st["files"]))
+
     def _api_tab(self):
         w = QPlainTextEdit(readOnly=True)
         w.setFont(MONO)
@@ -541,7 +640,7 @@ class StudioWindow(QMainWindow):
     def _menu(self):
         m = self.menuBar().addMenu("&File")
         for text, key, fn in (("Load series ...", "Ctrl+O", self.load_series), ("Load fit run ...", "Ctrl+R", self.load_run),
-                              ("Export ...", "Ctrl+E", self.export)):
+                              ("Export ...", "Ctrl+E", self.export), ("Generate figure", "Ctrl+G", self.make_figure)):
             a = QAction(text, self)
             a.setShortcut(QKeySequence(key))
             a.triggered.connect(fn)
@@ -598,6 +697,8 @@ class StudioWindow(QMainWindow):
         self.refresh_widgets()
         if event in ("fit_done", "trace", "fit_started"):
             self.update_fit_status()
+        if event == "figure_done":
+            self.show_figure()
         self.schedule()
 
     def on_logged(self, e):

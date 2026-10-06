@@ -199,3 +199,54 @@ class WindowSmokeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _synthetic_fid_2khz(n=16000, j=136.0, fs=2000.0):
+    """A methyl-like FID at 2 kHz: saturated plateau to 3.5 ms, then lines at J and 2J (decaying cosines)."""
+    t = np.arange(n) / fs
+    fid = 40.0 * np.exp(-1.0 * t) * (np.cos(2 * np.pi * j * t) + 0.8 * np.cos(2 * np.pi * 2 * j * t))
+    fid += np.random.default_rng(0).normal(0, 0.05, n)
+    fid[:7] = 3000.0
+    return fid
+
+
+class FigureTests(unittest.TestCase):
+    def test_display_spectrum_uses_the_sampling_rate(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        import paper_figure
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "fid.npy"
+            np.save(path, _synthetic_fid_2khz())
+            f, spec, _, _, _ = paper_figure.display_spectrum(path, 0.1, 0.1, 2, fs=2000.0, phase0_rad=0.0)
+            band = (f > 100) & (f < 200)
+            self.assertAlmostEqual(f[band][np.argmax(np.abs(spec[band]))], 136.0, delta=0.05)
+
+    def test_studio_figure_of_manual_parameters_on_a_2khz_series(self):
+        import subprocess
+        import sys
+        import time
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            np.save(tmp / "fid.npy", _synthetic_fid_2khz())
+            subprocess.run([sys.executable, str(root / "scripts" / "make_series_entry.py"), "--fid", str(tmp / "fid.npy"),
+                            "--id", "synthetic", "--out", str(tmp / "series"), "--sampling-rate", "2000",
+                            "--ranges", "125,150;260,285"], check=True, capture_output=True, cwd=root)
+            entry = json.loads((tmp / "series" / "series.json").read_text())[0]
+            self.assertEqual(Path(entry["source_fid"]), (tmp / "fid.npy").resolve())
+            s = session(METHYL, d)
+            s.load_spectrum(series=str(tmp / "series" / "series.json"))
+            self.assertTrue(s.figure_command()["manual"])               # no applied fit: manual parameters
+            s.make_figure(formats="png,svg", dpi=80, title="synthetic")
+            t0 = time.time()
+            while s.figure_status()["running"] and time.time() - t0 < 120:
+                time.sleep(0.2)
+            st = s.figure_status()
+            self.assertEqual(st["returncode"], 0, s.read_log(30))
+            self.assertEqual(st["files"], ["figure.caption.txt", "figure.png", "figure.svg"])
+            caption = (Path(st["directory"]) / "figure.caption.txt").read_text()
+            self.assertIn("sampling 2000 Hz", caption)
+            self.assertIn("Manual parameters (not a fit)", caption)
+            out = s.export_figure(str(tmp / "export"))
+            self.assertIn("parameters_fit.json", out["files"])

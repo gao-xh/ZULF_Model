@@ -6,8 +6,9 @@
         [--gains 1,2.5] [--insets insets.json] [--colors '{"13C@C1": "#2f8f5b"}'] [--title NAME] [--figure OUT.png]
 
 Display processing (not the fit's): the FID from --display-crop s to its end, exponential window
---display-window 1/s, zero fill --display-zero-fill, phase from the instrument calibration
-(configs/confirmed_samples.json). The fitted model (couplings, decay rates, delay of --fit) is rendered through
+--display-window 1/s, zero fill --display-zero-fill. Sampling rate: --sampling-rate, else the series entry's
+record (sampling_rate_hz), else 4000 Hz. Zero-order phase: --phase0-deg, else the series entry's phasing, else the
+instrument calibration (configs/confirmed_samples.json); the first-order phase from this FID's switching edge. The fitted model (couplings, decay rates, delay of --fit) is rendered through
 this same processing; its gains are solved on the fit's ranges and kept for the whole range; the residual
 zero-order phase of the gains (modulo 180 deg) is removed from data and model alike.
 
@@ -22,7 +23,8 @@ signal. Power-line harmonics are kept and marked. Nothing here changes the fit.
 --insets: JSON list of {"component": label, "smiles": "...", "atom": heavy-atom index of the 13C,
 "segment": 0, "rect": [f0_hz, y0, width_hz, height]} (RDKit drawings, scripts/figure_tools.py; skipped without
 RDKit; "bond_note": a coupling key, e.g. "J(C2,HC2)", writes that J, with sigma from --uncertainty, on the 13C-H
-bond). Writes OUT.png and OUT.caption.txt.
+bond). Writes OUT.png (and --formats pdf,svg) and OUT.caption.txt. --manual labels the model "manual parameters
+(not a fit)" (a parameter file written by ZULF Studio from moved sliders).
 """
 import json
 import sys
@@ -41,7 +43,7 @@ from j_tuner import load_fit                                             # noqa:
 MAINS_HZ = 60.06
 
 
-def display_spectrum(fid_path, crop_s, window, zero_fill, fs=4000.0):
+def display_spectrum(fid_path, crop_s, window, zero_fill, fs=4000.0, phase0_rad=None):
     from zulf_core.render.phasing import correction_phasor, reference_delay_s
     from zulf_processing import plan_for_dataset, process_dataset
     from zulf_processing.diagnostics import switching_edge
@@ -53,7 +55,7 @@ def display_spectrum(fid_path, crop_s, window, zero_fill, fs=4000.0):
                                                 "apodization_rate_per_s": window, "ranges": [[1.0, fs / 2 - 1.0]]})
     ds = process_dataset(fid, fs, plan=plan, phase_criterion=None)
     acq = plan.acquisition()
-    phi0 = float(np.radians(cal["phase0_deg"]))
+    phi0 = float(np.radians(cal["phase0_deg"])) if phase0_rad is None else float(phase0_rad)
     delay = float(-(edge + acq.time_origin_s))
     spec = ds.spectrum * correction_phasor(ds.frequencies_hz, phi0, delay + reference_delay_s(acq))
     return ds.frequencies_hz, spec, acq, {"phase0_rad": phi0, "delay_s": delay}, (len(fid) - start) / fs
@@ -136,6 +138,11 @@ def main():
     ap.add_argument("--uncertainty", default="", help="coupling_diagram.py OUT.json: sigma for the bond notes")
     ap.add_argument("--title", default="")
     ap.add_argument("--figure", default="")
+    ap.add_argument("--sampling-rate", type=float, default=0.0, help="Hz (default: the series entry's record, else 4000)")
+    ap.add_argument("--phase0-deg", type=float, default=None, help="display zero-order phase (default: series phasing)")
+    ap.add_argument("--formats", default="png", help="comma-separated: png,pdf,svg")
+    ap.add_argument("--dpi", type=int, default=160)
+    ap.add_argument("--manual", action="store_true", help="the parameters are not a fit (label and caption say so)")
     args = ap.parse_args()
     import matplotlib
     matplotlib.use("Agg")
@@ -153,8 +160,13 @@ def main():
     colors.update(json.loads(args.colors))
     wide = tuple(float(v) for v in args.wide.split(","))
     fit_ranges = [tuple(r) for r in prob.series[0].get("ranges", [(prob.lo, prob.hi)])]
+    entry = prob.series[0]
+    fs = args.sampling_rate or float((entry.get("record") or {}).get("sampling_rate_hz", 4000.0))
+    phase0 = (np.radians(args.phase0_deg) if args.phase0_deg is not None
+              else (entry.get("phasing") or {}).get("phase0_rad"))
     f, spec, acq, phasing, record_s = display_spectrum(args.fid, args.display_crop, args.display_window,
-                                                       args.display_zero_fill)
+                                                       args.display_zero_fill, fs=fs, phase0_rad=phase0)
+    sim_label = "Simulation (manual parameters, not a fit)" if args.manual else "Simulation (fit)"
     f, y, m, gains, lines = render_model(prob, z, f, spec, acq, phasing, wide, fit_ranges)
     phi = float(np.angle(gains[0]))
     phi -= np.pi * round(phi / np.pi)
@@ -191,7 +203,7 @@ def main():
     ax0.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(5))
     ax0.set_ylabel("Signal [a.u.]", color=INK, fontsize=11)
     ax0.set_xlabel("Frequency [Hz]", color=INK, fontsize=10.5)
-    for txt, yy, fc in (("Experimental", 0.55, INK), ("Simulation (fit)", off0 + 0.55, SIMULATION)):
+    for txt, yy, fc in (("Experimental", 0.55, INK), (sim_label, off0 + 0.55, SIMULATION)):
         ax0.text(wide[0] + 1, yy, txt, color="white", fontsize=10, fontweight="bold", va="center",
                  bbox=dict(boxstyle="round,pad=0.3", fc=fc, ec="none"))
     ax0.text(wide[1], 1.1, f"v  {MAINS_HZ:g} Hz power-line harmonics", ha="right", va="center", fontsize=8.5, color=MUTED)
@@ -243,7 +255,7 @@ def main():
     fig.text(0.52, 0.035, "Frequency [Hz]", ha="center", color=INK, fontsize=10.5)
     if not args.stacked_detail:
         axes[-1].legend([Line2D([], [], color=INK, lw=1.2), Line2D([], [], color=SIMULATION, lw=2, alpha=0.8)],
-                        ["Experimental", "Simulation (fit)"], loc="upper right", bbox_to_anchor=(1.0, 0.74),
+                        ["Experimental", sim_label], loc="upper right", bbox_to_anchor=(1.0, 0.74),
                         frameon=False, fontsize=10)
     if args.insets:
         import matplotlib.image as mpimg
@@ -275,7 +287,14 @@ def main():
                                             shrinkA=2, shrinkB=4))
             a_.axis("off")
     J = {prob.key_of.get(n, n): j.coupling_values(z, k)[0] for k, n in enumerate(j.coupling)}
-    caption = (f"{args.title or prob.series[0]['id']} at zero field. Fit: "
+    sp = dict(zip(j.local, z[j.nt:j.nt + j.nl]))
+    sp.update(dict(zip(j.shared, z[j.ntheta:j.ntheta + len(j.shared)])))
+    bt, bz = sp.get("field_transverse_ut"), sp.get("field_z_ut")
+    field = ("at zero field" if bt is None and bz is None else
+             f"in a static field (B transverse {1e3 * (bt or 0):.1f} nT, B z {1e3 * (bz or 0):.1f} nT, "
+             f"{'set by hand' if args.manual else 'fitted'}, D47)")
+    caption = (f"{args.title or prob.series[0]['id']} {field}, sampling {fs:g} Hz. "
+               + ("Manual parameters (not a fit): " if args.manual else "Fit: ")
                + ", ".join(f"{k} {v:.2f}" for k, v in J.items()) + " Hz. "
                f"Display processing: record {args.display_crop:g}-{args.display_crop + record_s:.1f} s, window "
                f"{args.display_window:g} 1/s; the model rendered through the same processing (gains of the fit "
@@ -284,7 +303,8 @@ def main():
                f"AsLS 1.5 Hz within {args.lift:g} Hz of the lines. Power-line harmonics kept and marked. Bars: lines "
                f"of each 13C isotopologue.")
     out = Path(args.figure or Path(args.fit).parent / "paper_figure.png")
-    fig.savefig(out, dpi=160)
+    for fmt in [v.strip() for v in args.formats.split(",") if v.strip()]:
+        fig.savefig(out.with_suffix("." + fmt), dpi=args.dpi)
     out.with_suffix(".caption.txt").write_text(caption + "\n")
     print(out)
     print(caption)

@@ -8,7 +8,8 @@ Recipe of the isopropylamine / amine analyses (docs/analysis/2026-10-03_isopropy
 configs/confirmed_samples.json (phase0 at the switching edge + delay offset). Without --ranges the fit ranges are the
 bands where the smoothed |spectrum| exceeds 5 noise levels (noise from 330-380 Hz), widened by 3 Hz, with the mains
 harmonics (n x 60.06 Hz) and the instrument lines of the config +-0.4 Hz left out; check them on OUT/phased.png.
-Writes OUT/frequency.npy, OUT/amplitude.npy (complex), OUT/series.json and OUT/phased.png.
+Writes OUT/frequency.npy, OUT/amplitude.npy (complex), OUT/series.json (with "source_fid", the FID it came from, for
+figures) and OUT/phased.png.
 """
 import argparse
 import json
@@ -87,7 +88,7 @@ def main():
     np.save(out / "amplitude.npy", r)
     entry = {"id": args.id, "x": 1.0, "freq": str(out / "frequency.npy"), "values": str(out / "amplitude.npy"),
              "record": acq.to_dict(), "phasing": {"phase0_rad": float(phi0), "delay_s": float(-(edge + acq.time_origin_s))},
-             "ranges": ranges}
+             "ranges": ranges, "source_fid": str(Path(args.fid).expanduser().resolve())}
     json.dump([entry], open(out / "series.json", "w"), indent=1)
     try:
         import matplotlib
