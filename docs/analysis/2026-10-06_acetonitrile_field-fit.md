@@ -47,7 +47,7 @@
    | Run | Options |
    |---|---|
    | acn_ch3_fast | (zero field, one rate) |
-   | acn_field_<perp>_<z> | `--fit-field --field-start perp,z` for six starts |
+   | acn_field_<transverse>_<z> | `--fit-field --field-start transverse,z` for six starts |
    | acn_field_fam2 | `--fit-field --family-edges 135.5,137.2,200 --from-joint runs/processed/acn_field_0.005_0.08/fit.json` |
    | acn_field_fam4 | as fam2 with edges 135.5,137.2,200,272.1,273.1 |
    | acn_{even,odd,allscans}_field_fam2 | fam2 settings on the half averages and on the all-scans average |
@@ -64,7 +64,7 @@ A purely transverse field splits the J line into an equal doublet (not observed)
 
 Fitted field, one decay rate:
 
-| Field start (perp, z) uT | Objective | Residual | 1J (Hz) | B_perp (uT) | Bz (uT) |
+| Field start (transverse, z) uT | Objective | Residual | 1J (Hz) | B_transverse (uT) | Bz (uT) |
 |---|---|---|---|---|---|
 | 0.005, 0.08 | **0.1992** | 0.439 | 136.280 | 0.0301 | 0.0530 |
 | 0.05, 0.05 | 0.1992 | 0.439 | 136.280 | 0.0301 | 0.0530 |
@@ -79,7 +79,7 @@ The field reproduces the side lines of the J band (134.65 / 137.9 Hz) and the 2J
 Fitted field with rate families (acn_field_fam2, edges 135.5, 137.2, 200 Hz): objective **0.0439**, data
 residual **0.211**, all 8 starts equal, no boundary hits; the end component search finds nothing better.
 
-| Average | Objective | Residual | 1J (Hz) | B_perp (uT) | Bz (uT) | abs(B) (uT) | Rates (1/s): <135.5 / centre / 137.2-200 / 2J |
+| Average | Objective | Residual | 1J (Hz) | B_transverse (uT) | Bz (uT) | abs(B) (uT) | Rates (1/s): <135.5 / centre / 137.2-200 / 2J |
 |---|---|---|---|---|---|---|---|
 | z5 (4907 scans) | 0.0439 | 0.211 | 136.282 | 0.0371 | 0.0453 | 0.0586 | 0.78 / 0.43 / 2.76 / 2.16 |
 | even half | 0.0706 | 0.273 | 136.286 | 0.0372 | 0.0431 | 0.0570 | 1.07 / 0.45 / 3.76 / 2.18 |
@@ -103,7 +103,7 @@ Figures:
 
 Conditional numerical result for one 13CH3 model with a uniform static field and frequency rate families:
 
-- A static field of about 0.06 uT (B_perp about 0.037-0.040, Bz about 0.043-0.046 uT) explains the split J and
+- A static field of about 0.06 uT (B_transverse about 0.037-0.040, Bz about 0.043-0.046 uT) explains the split J and
   2J bands; without it the 13CH3 model fails (objective 0.58 against 0.044). Both halves give the same field
   within 3 nT and 1J within 0.007 Hz.
 - 1J(13C,1H) = 136.28 Hz (spread over halves and averages 136.279-136.286 Hz).
@@ -111,7 +111,7 @@ Conditional numerical result for one 13CH3 model with a uniform static field and
   inhomogeneous field (field-sensitive lines broaden more; the J centre moves only at second order with a
   longitudinal field). The rate families stand in for a field distribution, which the model does not have.
 - Excluding the 11 % disturbed scans changes nothing measurable (0.0439 against 0.0435).
-- B_perp and Bz trade against each other between fits (0.030 / 0.053 with one rate, 0.037 / 0.045 with rate
+- B_transverse and Bz trade against each other between fits (0.030 / 0.053 with one rate, 0.037 / 0.045 with rate
   families); the magnitude is better defined than the direction.
 
 ## Open points

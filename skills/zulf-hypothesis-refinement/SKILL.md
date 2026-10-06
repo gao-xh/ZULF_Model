@@ -138,7 +138,7 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   stationary at zero field, and the coupling multistart does not move spectrum parameters); acetonitrile:
   four of six starts reached the best basin. Field-sensitive lines then decay faster than field-insensitive
   ones (field inhomogeneity): rate families per line group (centre / side lines / 2J band) took the objective
-  from 0.20 to 0.044. Report the field with the result; B_perp and Bz trade against each other, the magnitude
+  from 0.20 to 0.044. Report the field with the result; B_transverse and Bz trade against each other, the magnitude
   is better defined.
 
 ## Spectra processed elsewhere and concentration series (Blake pyridine, ANALYSIS_LOG)

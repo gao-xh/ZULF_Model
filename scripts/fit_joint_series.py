@@ -72,8 +72,8 @@ def _rate_policy(base, args):
     transitions by frequency (one rate per family, D31 derivatives), --rate-bounds sets the rate range,
     --phase-delay-bounds the range of the fitted delay (ms; an instrument prior, e.g. -4.6,-2.6 for the NMRduino
     setup: near 200 Hz a delay is ambiguous by about 1 / f within one band). --fit-field adds a fitted static
-    field (D47: field_perp_ut, field_z_ut >= 0; default zero field), with --field-axes, --field-bounds (uT) and
-    --field-start (perp,z in uT; nonzero, because the signal is stationary at zero field)."""
+    field (D47: field_transverse_ut, field_z_ut >= 0; default zero field), with --field-axes, --field-bounds (uT) and
+    --field-start (transverse,z in uT; nonzero, because the signal is stationary at zero field)."""
     policy = base.policy
     edges = [float(v) for v in getattr(args, "family_edges", "").split(",") if v.strip()]
     if edges:
@@ -93,8 +93,8 @@ def _rate_policy(base, args):
         axes = tuple(a.strip() for a in args.field_axes.split(",") if a.strip())
         lo, hi = (float(v) for v in args.field_bounds.split(","))
         start = tuple(float(v) for v in args.field_start.split(","))
-        if not 0.0 <= lo < hi or len(start) != 2 or not set(axes) <= {"perp", "z"} or not axes:
-            raise SystemExit("--fit-field: axes from {perp,z}, bounds 0 <= lo < hi (uT), start perp,z (uT)")
+        if not 0.0 <= lo < hi or len(start) != 2 or not set(axes) <= {"transverse", "z"} or not axes:
+            raise SystemExit("--fit-field: axes from {transverse,z}, bounds 0 <= lo < hi (uT), start transverse,z (uT)")
         if any(v == 0.0 for v in start):
             print("warning: a field start of exactly 0 has zero gradient and stays there (D47)")
         policy = dataclasses.replace(policy, fit_field=True, field_axes=axes, field_bounds_ut=(lo, hi),
@@ -106,8 +106,11 @@ def remap_family_rates(params, old_edges, new_edges):
     """Spectrum parameters of a fit made with rate-family edges `old_edges`, for a model with `new_edges`: every
     new family takes the decay rate of the old family that contains its centre (the outer families: a point
     0.5 Hz beyond the outermost new edge; one new family: the middle of the old edges). Other parameters are
-    copied. `old_edges` None (a fit that did not record its edges) or equal edges: no change."""
+    copied. `old_edges` None (a fit that did not record its edges) or equal edges: no change. The transverse field
+    of fits made before its rename (`field_perp_ut`, D47) is read as `field_transverse_ut`."""
     out = dict(params)
+    if "field_perp_ut" in out and "field_transverse_ut" not in out:
+        out["field_transverse_ut"] = out.pop("field_perp_ut")
     if old_edges is None:
         return out
     old = np.asarray(old_edges, float)
@@ -1354,9 +1357,9 @@ def make_parser():
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--fit-field", action="store_true",
                     help="fit a static field during evolution (D47); default: zero field")
-    ap.add_argument("--field-axes", default="perp,z", help="fitted field components: perp and/or z")
+    ap.add_argument("--field-axes", default="transverse,z", help="fitted field components: transverse and/or z")
     ap.add_argument("--field-bounds", default="0,1", help="lo,hi of each fitted field component (uT)")
-    ap.add_argument("--field-start", default="0.02,0.02", help="start perp,z (uT); not 0 (zero gradient there)")
+    ap.add_argument("--field-start", default="0.02,0.02", help="start transverse,z (uT); not 0 (zero gradient there)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
                     help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
     ap.add_argument("--nh-exchange", type=float, default=0.0,

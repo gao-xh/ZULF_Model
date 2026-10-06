@@ -751,8 +751,8 @@ measurement: its 2J band is split into 271.3 / 273.8 Hz, which a longitudinal fi
 while the zero-field 13CH3 model leaves a relative residual of 0.73). The field is therefore an optional fitted
 parameter (`ParameterPolicy.fit_field`, default False: zero field, unchanged results).
 
-- With preparation and detection along z the signal depends only on the transverse size B_perp and on |Bz|
-  (rotation about z, and a pi rotation about x, leave it unchanged). Two parameters `field_perp_ut` (placed in
+- With preparation and detection along z the signal depends only on the transverse size B_transverse and on |Bz|
+  (rotation about z, and a pi rotation about x, leave it unchanged). Two parameters `field_transverse_ut` (placed in
   Bx, By = 0, so the real eigensolver stays in use) and `field_z_ut`, both >= 0 (`field_bounds_ut`).
 - The signal is stationary at zero field (zero gradient), so starts are nonzero (`initial_field_ut`, default
   0.02 uT each); a fit that should be able to reach zero field still can (lower bound 0).
@@ -762,8 +762,10 @@ parameter (`ParameterPolicy.fit_field`, default False: zero field, unchanged res
 - The global pattern search (solver.search) still uses the fixed protocol: with a fitted field, rely on the
   multistart from the field starts.
 - Test: tests/test_solver.py FieldFitTests (data from brute-force propagation in a field; recovery of
-  B_perp and Bz from a nonzero start; the zero-field model is at least 10x worse on such data).
+  B_transverse and Bz from a nonzero start; the zero-field model is at least 10x worse on such data).
 - D19 still holds for reporting: a fitted field is reported with every result that uses it.
+- Names: the transverse component was first called `field_perp_ut` (axis `perp`); renamed the same day to
+  `field_transverse_ut` (axis `transverse`) on Xuehan's request. Figures write it as B with a perpendicular sign.
 
 ## Open questions
 

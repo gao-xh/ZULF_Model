@@ -123,7 +123,7 @@ Physics, rendering, generation and refinement run on NumPy/SciPy alone.
 | Candidate proposer | `evaluation.proposers.CandidateProposer` | Any strategy that turns an observed spectrum into interpretations. |
 | Solver objective | `solver.forward.MixtureForward` | Magnitude or windowed objectives, background terms. |
 | Global search | `solver.search.PatternObjective`, `global_search` | Other phase-insensitive objectives or search strategies that return distinct starting vectors for `refine(initial_points=...)`. |
-| Evolution field | `physics.protocol.Protocol.field_ut`; fitted: `ParameterPolicy.fit_field`, `fit_joint_series --fit-field` (D47) | Static field during evolution; exact in the sector decomposition. Fitted as `field_perp_ut`, `field_z_ut` (>= 0, default off = zero field, nonzero starts). |
+| Evolution field | `physics.protocol.Protocol.field_ut`; fitted: `ParameterPolicy.fit_field`, `fit_joint_series --fit-field` (D47) | Static field during evolution; exact in the sector decomposition. Fitted as `field_transverse_ut`, `field_z_ut` (>= 0, default off = zero field, nonzero starts). |
 | Input phasing | `spec.GridSpec.phasing`, `render.phasing` | "none" (random phase, real+imag) or "corrected" (manual-style 0/1-order phasing, real part). |
 | Training data source | `training.prerender.PrerenderedDataset` | Live rendering (default) or pre-rendered shards; any iterable of items in the `make_item` format. |
 | Fragment templates | `zulf_hypothesis.fragments.register_template` | New structural motifs (CH2-CH3, aromatic rings, N-methyl ...) as label-based fragments with symmetry. |

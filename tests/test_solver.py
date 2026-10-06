@@ -428,7 +428,7 @@ class FieldFitTests(unittest.TestCase):
         policy = ParameterPolicy(fit_field=True, initial_field_ut=(0.015, 0.03), fit_phase_delay=False)
         start = Interpretation((Component(self.methyl_13c(136.4)),))
         res = refine(start, obs, RefineSettings(policy=policy, starts=1))
-        self.assertAlmostEqual(res.parameters["field_perp_ut"], truth[0], delta=2e-3)
+        self.assertAlmostEqual(res.parameters["field_transverse_ut"], truth[0], delta=2e-3)
         self.assertAlmostEqual(res.parameters["field_z_ut"], truth[2], delta=2e-3)
         self.assertAlmostEqual(res.interpretation.components[0].system.couplings_hz[0, 1], 136.0, delta=0.02)
         self.assertLess(res.relative_residual, 1e-3)

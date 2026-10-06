@@ -531,14 +531,14 @@ class FieldOptionTests(unittest.TestCase):
             prob, z = _problem(tmp)
             plain = prob.joint
             fitted = fj.build_problem(_args(tmp, ["--fit-field", "--field-start", "0.03,0.05"])).joint
-            self.assertEqual([n for n in fitted.local if n.startswith("field_")], ["field_perp_ut", "field_z_ut"])
+            self.assertEqual([n for n in fitted.local if n.startswith("field_")], ["field_transverse_ut", "field_z_ut"])
             self.assertFalse(any(n.startswith("field_") for n in plain.local))
             zf = np.concatenate([z[:plain.nt], [z[plain.nt + plain.local.index(n)] if n in plain.local else 0.0
                                                 for n in fitted.local]])
-            i_perp, i_z = (fitted.nt + fitted.local.index(n) for n in ("field_perp_ut", "field_z_ut"))
-            zf[i_perp], zf[i_z] = 0.0, 0.0
+            i_trans, i_z = (fitted.nt + fitted.local.index(n) for n in ("field_transverse_ut", "field_z_ut"))
+            zf[i_trans], zf[i_z] = 0.0, 0.0
             np.testing.assert_allclose(fitted.residual(zf), plain.residual(z), rtol=1e-9, atol=1e-12)
-            zf[i_perp], zf[i_z] = 0.03, 0.05
+            zf[i_trans], zf[i_z] = 0.03, 0.05
             x = plain.spectrum_vector(z, 0)
             f0 = plain.forwards[0]
             fixed = copy.copy(f0)                        # same data and weights, protocol fixed at the field
@@ -552,3 +552,12 @@ class FieldOptionTests(unittest.TestCase):
             np.testing.assert_allclose(fitted.forwards[0].predict(xf).model, fixed.predict(x).model,
                                        rtol=1e-8, atol=1e-12)
             fitted.peak_sources(zf, 0, 130.0)            # field-aware derivatives run
+
+
+class FieldRenameTests(unittest.TestCase):
+    def test_old_transverse_field_name_is_read(self):
+        old = {"phase_delay": -0.004, "field_perp_ut": 0.037, "field_z_ut": 0.045}
+        new = fj.remap_family_rates(old, None, [])
+        self.assertEqual(new, {"phase_delay": -0.004, "field_transverse_ut": 0.037, "field_z_ut": 0.045})
+        self.assertEqual(fj.remap_family_rates({"field_transverse_ut": 0.01}, [1.0], [2.0, 3.0]),
+                         {"field_transverse_ut": 0.01})

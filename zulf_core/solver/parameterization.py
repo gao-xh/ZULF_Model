@@ -52,12 +52,12 @@ class ParameterPolicy:
     phase_delay_bounds_s: Tuple[float, float] = (-0.01, 0.01)
     # Static field during evolution (Protocol.field_ut, D19), fitted only when asked; the default is zero field.
     # With preparation and detection along z the signal depends on the field only through its transverse size
-    # B_perp (placed in Bx) and |Bz|, so two parameters >= 0 cover every field ("field_perp_ut", "field_z_ut").
+    # B_transverse (placed in Bx) and |Bz|, so two parameters >= 0 cover every field ("field_transverse_ut", "field_z_ut").
     # The signal is stationary at zero field (zero gradient), so the starts must be nonzero.
     fit_field: bool = False
-    field_axes: Tuple[str, ...] = ("perp", "z")
+    field_axes: Tuple[str, ...] = ("transverse", "z")
     field_bounds_ut: Tuple[float, float] = (0.0, 1.0)
-    initial_field_ut: Tuple[float, float] = (0.02, 0.02)     # (perp, z) starts
+    initial_field_ut: Tuple[float, float] = (0.02, 0.02)     # (transverse, z) starts
     # Nuisance terms rendered through the same operator; linear amplitudes are real and unconstrained.
     # {"kind": "exponential", "rate_bounds_per_s": [lo, hi], "initial_rate_per_s": r}
     # {"kind": "damped_sinusoid", "frequency_bounds_hz": [lo, hi], "initial_frequency_hz": f,
@@ -128,9 +128,9 @@ class Parameterization:
         if policy.fit_field:
             lo, hi = policy.field_bounds_ut
             for axis in policy.field_axes:
-                if axis not in ("perp", "z"):
-                    raise ValueError(f"Unknown field axis '{axis}' (use 'perp' and/or 'z').")
-                start = float(np.clip(policy.initial_field_ut[0 if axis == "perp" else 1], lo, hi))
+                if axis not in ("transverse", "z"):
+                    raise ValueError(f"Unknown field axis '{axis}' (use 'transverse' and/or 'z').")
+                start = float(np.clip(policy.initial_field_ut[0 if axis == "transverse" else 1], lo, hi))
                 params.append(Parameter(f"field_{axis}_ut", start, lo, hi, True, "field", -1, (axis,)))
         for i, term in enumerate(policy.nuisance):
             kind = term.get("kind")
@@ -257,10 +257,10 @@ class Parameterization:
         return any(p.kind == "field" for p in self.parameters.values())
 
     def field_ut(self, values: Dict[str, float]) -> Optional[Tuple[float, float, float]]:
-        """(Bx, By, Bz) in microtesla from the field parameters (B_perp along x), or None without them."""
+        """(Bx, By, Bz) in microtesla from the field parameters (B_transverse along x), or None without them."""
         if not self.has_field():
             return None
-        return (float(values.get("field_perp_ut", 0.0)), 0.0, float(values.get("field_z_ut", 0.0)))
+        return (float(values.get("field_transverse_ut", 0.0)), 0.0, float(values.get("field_z_ut", 0.0)))
 
     def interpretation(self, values: Dict[str, float], contributions: Sequence[float]) -> Interpretation:
         comps = [Component(system, float(max(c, 0.0)), layout.label, {"refined": True})

@@ -33,9 +33,13 @@ def field_label(run):
     params = (run.fit or {}).get("spectrum_parameters") or {}
     parts = []
     for sp in params.values():
-        if "field_perp_ut" in sp or "field_z_ut" in sp:
-            bp, bz = sp.get("field_perp_ut", 0.0), sp.get("field_z_ut", 0.0)
-            parts.append(f"B_perp {1e3 * bp:.0f} nT, Bz {1e3 * bz:.0f} nT, |B| {1e3 * np.hypot(bp, bz):.0f} nT")
+        # field_perp_ut: the transverse component in fits made before the rename (D47, 2026-10-06)
+        bt = sp.get("field_transverse_ut", sp.get("field_perp_ut"))
+        bz = sp.get("field_z_ut")
+        if bt is not None or bz is not None:
+            bt, bz = bt or 0.0, bz or 0.0
+            parts.append(f"$B_\\perp$ {1e3 * bt:.0f} nT, $B_z$ {1e3 * bz:.0f} nT, "
+                         f"$|B|$ {1e3 * np.hypot(bt, bz):.0f} nT")
     return "; ".join(parts) if parts else "zero field"
 
 
