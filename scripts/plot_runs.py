@@ -27,6 +27,17 @@ def summary(run):
     return score, residual, original
 
 
+def field_label(run):
+    """Fitted static field of a run (D47) as legend text, per spectrum; "zero field" without field parameters."""
+    params = (run.fit or {}).get("spectrum_parameters") or {}
+    parts = []
+    for sp in params.values():
+        if "field_perp_ut" in sp or "field_z_ut" in sp:
+            bp, bz = sp.get("field_perp_ut", 0.0), sp.get("field_z_ut", 0.0)
+            parts.append(f"B_perp {1e3 * bp:.0f} nT, Bz {1e3 * bz:.0f} nT, |B| {1e3 * np.hypot(bp, bz):.0f} nT")
+    return "; ".join(parts) if parts else "zero field"
+
+
 def plot(out, run_dirs, zooms=(), title=""):
     import matplotlib
     matplotlib.use("Agg")
@@ -51,7 +62,7 @@ def plot(out, run_dirs, zooms=(), title=""):
         score, residual, original = summary(run)
         extra = f", original weights {original:.4f}" if original is not None else ""
         line(ax0, ff, m.real, color=COLORS[k % len(COLORS)], lw=0.6, alpha=0.85,
-             label=f"{run.name}: objective {score:.4f}{extra}, residual {residual:.3f}")
+             label=f"{run.name}: objective {score:.4f}{extra}, residual {residual:.3f}; {field_label(run)}")
         rows_out.append((run.name, score, original, residual))
     ax0.legend(fontsize=7, loc="upper left", frameon=False)
     ax0.set_title(title or ", ".join(r.name for r in runs), fontsize=10, loc="left")
