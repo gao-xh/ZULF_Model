@@ -170,7 +170,8 @@ def exchangeable_labels(fragment):
 class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
-    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=()):
+    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=(),
+                 tie_rates=""):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
         for p in self.params:                      # couplings held at their structure values (--free-couplings)
@@ -178,6 +179,20 @@ class JointSeries:
                 for n in model.coupling_names.get(key, []):
                     if n in p.parameters:
                         p.parameters[n].free = False
+        self.tied_rate_components = []
+        if tie_rates:
+            # --tie-rates: every rate family of a matching component follows its family 0 (one decay rate for the
+            # whole component, e.g. a second species whose rate families must not hide lines)
+            import re
+            pattern = re.compile(tie_rates)
+            self.tied_rate_components = [c for c, label in enumerate(model.component_labels) if pattern.search(label)]
+            if not self.tied_rate_components:
+                raise ValueError(f"--tie-rates {tie_rates!r} matches no component of {model.component_labels}")
+            for p in self.params:
+                for c in self.tied_rate_components:
+                    names = [n for n in p.order if n.startswith(f"c{c}.log_rate")]
+                    if len(names) > 1:
+                        p.tie(names[0], *names[1:])
         if exchange:
             for p in self.params:
                 add_nh_exchange(p, model, exchange["labels"], exchange["start"], exchange["bounds"])
@@ -884,7 +899,8 @@ def component_search(joint, prob, z, args, stage):
                 continue
             fams = set(np.searchsorted(edges, np.linspace(lo, hi, 200), side="right").tolist()) if len(edges) \
                 else {0}
-            rates = [n for n in joint.local if n.startswith(f"c{c}.log_rate") and int(n.split("log_rate")[1]) in fams]
+            rates = [n for n in joint.local if n.startswith(f"c{c}.log_rate") and
+                     (int(n.split("log_rate")[1]) in fams or c in joint.tied_rate_components)]
             current = {n: float(joint.coupling_values(z, joint.coupling.index(n))[joint.node_of[s]]) for n in names}
             starts = [{}]
             for _ in range(args.component_search_starts):
@@ -1069,7 +1085,7 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         exchange = {"labels": labels, "start": args.nh_exchange, "bounds": (lo_k, hi_k)}
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
                         shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape,
-                        exchange=exchange, fixed=fixed_keys)
+                        exchange=exchange, fixed=fixed_keys, tie_rates=getattr(args, "tie_rates", ""))
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
         raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
@@ -1240,6 +1256,8 @@ def make_parser():
     ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
                     "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
     ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
+    ap.add_argument("--tie-rates", default="", help="regex on component labels (e.g. '^P2:'): every rate family of "
+                    "a matching component shares one decay rate (its family 0)")
     ap.add_argument("--model-line-passes", type=int, default=0,
                     help="after the fit: refits with the best model's own lines (envelope above "
                          "--model-line-threshold noise sigma) added to the signal-weighting cores, so model lines "

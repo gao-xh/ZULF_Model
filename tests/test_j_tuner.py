@@ -334,3 +334,30 @@ class RateRemapTests(unittest.TestCase):
             p2 = fj.build_problem(_args(tmp, ["--family-edges", "150,180,220"]))
             jt.load_fit(p2, fit)
             np.testing.assert_allclose(p2.z0[p2.joint.nt:], p.z0[j.nt:])
+
+
+class TiedRatesTests(unittest.TestCase):
+    def test_tied_families_equal_one_family(self):
+        # Reference: the same structure without family edges has exactly one rate per component. With edges and
+        # every component tied, the residual and the Jacobian (rate column = sum of the family columns) must match.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z_truth = _problem(tmp)
+            one = fj.build_problem(_args(tmp))
+            tied = fj.build_problem(_args(tmp, ["--family-edges", "150,200", "--tie-rates", "."]))
+            j1, j2 = one.joint, tied.joint
+            self.assertEqual(j1.local, j2.local)                  # followers are not free parameters
+            z = z_truth.copy()
+            for i, n in enumerate(j1.local):
+                if ".log_rate" in n:
+                    z[j1.nt + i] = 0.7 + 0.2 * i
+            np.testing.assert_allclose(j2.residual(z), j1.residual(z), rtol=1e-10, atol=1e-12)
+            np.testing.assert_allclose(j2.jacobian(z), j1.jacobian(z), rtol=1e-7, atol=1e-9)
+            partly = fj.build_problem(_args(tmp, ["--family-edges", "150,200", "--tie-rates", "C2"]))
+            free = [n for n in partly.joint.local if ".log_rate" in n]
+            labels = partly.model.component_labels
+            c2 = labels.index(next(l for l in labels if "C2" in l))
+            self.assertEqual([n for n in free if n.startswith(f"c{c2}.")], [f"c{c2}.log_rate0"])
+            self.assertEqual(len([n for n in free if not n.startswith(f"c{c2}.")]), 3)
+            with self.assertRaises(ValueError):
+                fj.build_problem(_args(tmp, ["--family-edges", "150", "--tie-rates", "no such component"]))
