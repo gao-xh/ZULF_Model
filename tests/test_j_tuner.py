@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 import tempfile
@@ -519,3 +520,35 @@ class RunToolsTests(unittest.TestCase):
             self.assertTrue((tmp / "runs.png").stat().st_size > 10000 and (tmp / "components.png").stat().st_size > 10000)
             snap = snapshot_fit.snapshot(out, tmp / "snap.json")
             self.assertLessEqual(snap["scores"][0], fit["scores"][0] * (1 + 1e-6))
+
+
+class FieldOptionTests(unittest.TestCase):
+    def test_fitted_field_matches_a_fixed_field_protocol(self):
+        # Reference: the zero-field problem with the protocol fixed at the field (MixtureForward(protocol=...)).
+        from zulf_core.physics.protocol import Protocol
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z = _problem(tmp)
+            plain = prob.joint
+            fitted = fj.build_problem(_args(tmp, ["--fit-field", "--field-start", "0.03,0.05"])).joint
+            self.assertEqual([n for n in fitted.local if n.startswith("field_")], ["field_perp_ut", "field_z_ut"])
+            self.assertFalse(any(n.startswith("field_") for n in plain.local))
+            zf = np.concatenate([z[:plain.nt], [z[plain.nt + plain.local.index(n)] if n in plain.local else 0.0
+                                                for n in fitted.local]])
+            i_perp, i_z = (fitted.nt + fitted.local.index(n) for n in ("field_perp_ut", "field_z_ut"))
+            zf[i_perp], zf[i_z] = 0.0, 0.0
+            np.testing.assert_allclose(fitted.residual(zf), plain.residual(z), rtol=1e-9, atol=1e-12)
+            zf[i_perp], zf[i_z] = 0.03, 0.05
+            x = plain.spectrum_vector(z, 0)
+            f0 = plain.forwards[0]
+            fixed = copy.copy(f0)                        # same data and weights, protocol fixed at the field
+            fixed.protocol, fixed._last = Protocol(field_ut=(0.03, 0.0, 0.05)), None
+            fixed.cache = type(f0.cache)(16)
+            moved = fitted.residual(zf)
+            self.assertGreater(np.linalg.norm(moved - plain.residual(z)), 1e-3 * np.linalg.norm(plain.residual(z)))
+            xf = fitted.spectrum_vector(zf, 0)
+            vf = fitted.params[0].values(xf)
+            self.assertEqual(fitted.forwards[0].protocol_for(vf).field_ut, (0.03, 0.0, 0.05))
+            np.testing.assert_allclose(fitted.forwards[0].predict(xf).model, fixed.predict(x).model,
+                                       rtol=1e-8, atol=1e-12)
+            fitted.peak_sources(zf, 0, 130.0)            # field-aware derivatives run

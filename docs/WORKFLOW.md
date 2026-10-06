@@ -117,6 +117,11 @@ Code: scripts/fit_joint_series.JointSeries, zulf_core.solver.parameterization.
   Isopropylamine: one rate per isotopologue 0.146, three per isotopologue 0.107, one per line cluster 0.050,
   couplings within 0.16 Hz; the 2J-band lines decay about twice as fast as the J band.
 - Per-entry fit ranges in a series file (e.g. to leave out mains harmonics at 120 and 240 Hz).
+- Static field (`--fit-field`, D47; default zero field): for measurements in a nonzero field (fringe field,
+  residual shield field). Two parameters, `field_perp_ut` and `field_z_ut` (>= 0, `--field-bounds`); the signal
+  is stationary at zero field, so give nonzero starts (`--field-start perp,z`) and try several, since the
+  coupling multistart does not perturb spectrum parameters. Report the fitted field with the result (D19).
+  `scripts/line_table.py` still lists zero-field lines.
 
 ## 7. Search
 
