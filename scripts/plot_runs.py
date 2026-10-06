@@ -2,6 +2,7 @@
 zoom windows below with their residuals.
 
     python scripts/plot_runs.py OUT.png RUN_DIR [RUN_DIR ...] [--zooms "lo,hi;lo,hi"] [--title TEXT]
+        [--colors "#c0469e,#2f8f5b"]
 
 Each run is rebuilt from its RUN_LOG.md (or monitor/status.json) with its own fit.json (run_problem.load_run).
 The legend gives the fit.json score and the data-region residual. When the run used model-line passes, the
@@ -38,11 +39,12 @@ def field_label(run):
     return "; ".join(parts) if parts else "zero field"
 
 
-def plot(out, run_dirs, zooms=(), title=""):
+def plot(out, run_dirs, zooms=(), title="", colors=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     runs = [load_run(r) for r in run_dirs]
+    colors = list(colors or COLORS)
     arrays = [spectrum_arrays(r.prob) for r in runs]
     ncol = max(len(zooms), 1)
     rows = 3 if zooms else 2
@@ -61,7 +63,7 @@ def plot(out, run_dirs, zooms=(), title=""):
     for k, (run, (ff, yy, m, _, _)) in enumerate(zip(runs, arrays)):
         score, residual, original = summary(run)
         extra = f", original weights {original:.4f}" if original is not None else ""
-        line(ax0, ff, m.real, color=COLORS[k % len(COLORS)], lw=0.6, alpha=0.85,
+        line(ax0, ff, m.real, color=colors[k % len(colors)], lw=0.6, alpha=0.85,
              label=f"{run.name}: objective {score:.4f}{extra}, residual {residual:.3f}; {field_label(run)}")
         rows_out.append((run.name, score, original, residual))
     ax0.legend(fontsize=7, loc="upper left", frameon=False)
@@ -71,7 +73,7 @@ def plot(out, run_dirs, zooms=(), title=""):
     if not zooms:
         axr = fig.add_subplot(gs[1, :], sharex=ax0)
         for k, (ff, yy, m, _, _) in enumerate(arrays):
-            line(axr, ff, (yy - m).real, color=COLORS[k % len(COLORS)], lw=0.6, alpha=0.85)
+            line(axr, ff, (yy - m).real, color=colors[k % len(colors)], lw=0.6, alpha=0.85)
         axr.set_ylabel("residual", fontsize=7)
         axr.tick_params(labelsize=7)
     for jz, (lo, hi) in enumerate(zooms):
@@ -81,8 +83,8 @@ def plot(out, run_dirs, zooms=(), title=""):
         line(ax, f[w], y.real[w], color="black", lw=0.8)
         for k, (ff, yy, m, _, _) in enumerate(arrays):
             ww = (ff >= lo) & (ff <= hi)
-            line(ax, ff[ww], m.real[ww], color=COLORS[k % len(COLORS)], lw=0.8, alpha=0.85)
-            line(axr, ff[ww], (yy - m).real[ww], color=COLORS[k % len(COLORS)], lw=0.7, alpha=0.85)
+            line(ax, ff[ww], m.real[ww], color=colors[k % len(colors)], lw=0.8, alpha=0.85)
+            line(axr, ff[ww], (yy - m).real[ww], color=colors[k % len(colors)], lw=0.7, alpha=0.85)
         ax.set_xlim(lo, hi)
         ax.set_title(f"{lo:g}-{hi:g} Hz", fontsize=8)
         ax.tick_params(labelsize=7)
@@ -101,9 +103,11 @@ def main():
     ap.add_argument("runs", nargs="+", help="run output directories")
     ap.add_argument("--zooms", default="", help="lo,hi;lo,hi windows (Hz)")
     ap.add_argument("--title", default="")
+    ap.add_argument("--colors", default="", help="comma-separated line colors, one per run (default palette)")
     args = ap.parse_args()
     zooms = [tuple(float(v) for v in z.split(",")) for z in args.zooms.split(";") if z.strip()]
-    for name, score, original, residual in plot(args.out, args.runs, zooms, args.title):
+    for name, score, original, residual in plot(args.out, args.runs, zooms, args.title,
+                                                [c for c in args.colors.split(",") if c.strip()] or None):
         extra = f"  (original weights {original:.5f})" if original is not None else ""
         print(f"{name}: objective {score:.5f}{extra}, data residual {residual:.3f}")
     print(args.out)
