@@ -879,7 +879,13 @@ def main(argv=None):
         session.load_spectrum(series=args.series)
     if args.fit:
         session.apply_fit(args.fit)
-    server = None if args.api_port < 0 else serve(session, port=args.api_port, background=not args.no_gui)
+    server = None
+    if args.api_port >= 0:
+        try:
+            server = serve(session, port=args.api_port, background=not args.no_gui)
+        except OSError as exc:                       # port taken (another Studio): any free port instead
+            session.log(f"API port {args.api_port} unavailable ({exc}); using a free port", "api")
+            server = serve(session, port=0, background=not args.no_gui)
     if args.no_gui:
         print(f"ZULF Studio API on http://127.0.0.1:{server.server_address[1]}/api/tools", flush=True)
         try:
