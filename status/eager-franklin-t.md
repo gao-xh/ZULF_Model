@@ -5,7 +5,7 @@
 - Task (assigned by Xuehan 2026-10-06): 1. fitter features, 2. then the 14N spin-1 model (PLAN Phase 3e, claimed)
 - Area: scripts/fit_joint_series.py (rate ties, automatic family edges, rate remap in --from-joint, local fit
   with gains held), new scripts/snapshot_fit.py, tests/test_j_tuner.py; later zulf_core/physics (14N) and tests
-- State: working (fitter features done, waiting for merge go-ahead; porting plot helpers)
-- Last update: 2026-10-06T0821Z
-- Next step: port plot_runs and a components figure into scripts/, then 14N
+- State: working (fitter work merged into main dfda00a; 14N physics on branch, integration next)
+- Last update: 2026-10-06T0848Z
+- Next step: 14N in the models (N sites as 14N with a fitted quadrupolar rate), synthetic validation
 - Questions: none
