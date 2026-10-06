@@ -294,7 +294,7 @@ tall lines and barely sees it.
 - [x] Local refinement (JointSeries.local_fit, window forward with line_band_hz and jacobian_only: 26 x faster Jacobian; commits 109cf89, 1e7894b): fit a narrow window (1-3 Hz around the feature) on the highest-resolution data (full
       record, no window, more zero fill), free only the sensitive couplings plus local widths / phase, everything
       else held; multi-start inside the local window (local minima are cheap to enumerate there).
-- [ ] Local fit with gains, phase and background held at the global values (or one free scale): the window
+- [~] (in progress: claude/eager-franklin-tp94gf) Local fit with gains, phase and background held at the global values (or one free scale): the window
       forward re-solves them and overstates the local gain (isopropylamine NH2 test: 0.0198 local, 0.122 in
       the full-model window).
 - [~] Propagate (residual-peak stage in fit_joint_series; to fix: sticky windows judged on the starting transitions, cap on the plain-objective loss; local-candidate -> global refit as an option): each local candidate becomes a global start; accept it only if the global objective (all
@@ -330,7 +330,7 @@ tall lines and barely sees it.
       weight 0.2). Done: `--model-line-passes N`, MixtureForward.add_signal_cores (tested against a forward
       built with signal_extra_hz), commit 0ecce84. First use: ethylenediamine two-species (model-only
       177.5 Hz line), eda_2sp_mlp.
-- [ ] 14N (spin 1) in spin systems, with quadrupolar relaxation: the worst bands of the amines are the
+- [~] (in progress: claude/eager-franklin-tp94gf, after the fitter features) 14N (spin 1) in spin systems, with quadrupolar relaxation: the worst bands of the amines are the
       N-bonded carbons (N-ethylmethylamine CH2, ethylenediamine CH2); test partially resolved 1J(13C,14N) and
       2J(14N,H). Update 2026-10-05 overnight: after a second species (ethylenediamine) and narrow rate families
       (triethylamine, N-ethylmethylamine), the open misfits are methyl 13C lines near 121-122 Hz with no model
@@ -348,7 +348,11 @@ tall lines and barely sees it.
 - [ ] Intermediate N-H exchange for systems the exact model cannot hold (ethylenediamine with N-H: 9 spins, no
       reducible group, 35 GiB): an approximation such as averaging over the N-H spin states, tested against the
       exact model on a smaller system.
-- [ ] Automatic rate-family edges from the line clusters and sharp data lines (now chosen by hand, D46).
+- [~] (in progress: claude/eager-franklin-tp94gf) Automatic rate-family edges from the line clusters and sharp data lines (now chosen by hand, D46).
+- [~] (in progress: claude/eager-franklin-tp94gf) Fitter: one tied decay rate per chosen component (code for the ethylenediamine species-2 test;
+      the real-data refit is the local line's); rates remapped automatically when --from-joint comes from a fit with
+      other family edges (fit.json records its edges); scripts/snapshot_fit.py (best monitor vector -> --from-joint
+      file). Replaces the scratchpad helpers remap_families and snapshot_fit.
 - [ ] 2J(C,H) sign: multi-start refit on the positive side with wider bounds (the flip test used one start and
       the +3.7 Hz template bound).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
