@@ -50,8 +50,10 @@ type its name in the model field (or set <code>OPENAI_MODEL</code>).</li>
 </ul>
 <h4>2. Give the key to Studio (one of these)</h4>
 <ul>
-<li><b>Easiest</b>: paste it into "API key (this session only)" below and press "Use for this session".
-It stays in memory until Studio closes: not saved, not logged.</li>
+<li><b>Easiest</b>: paste it into the key field below, tick <b>Remember (macOS Keychain)</b> and press
+<b>Use</b>. Studio stores it encrypted in the macOS Keychain and loads it every time it starts: enter it once.
+Without Remember it stays in memory until Studio closes. Never written to a file or the log; Forget removes it
+(also from the Keychain).</li>
 <li><b>Before starting Studio</b>, in iTerm2:<br>
 <code>export ANTHROPIC_API_KEY=sk-ant-...</code> (or <code>export OPENAI_API_KEY=...</code>), then start Studio
 from that same terminal: <code>python scripts/zulf_studio.py ...</code></li>
@@ -720,14 +722,19 @@ class StudioWindow(QMainWindow):
         self.ai_guide_btn.setCheckable(True)
         self.ai_key = QLineEdit()
         self.ai_key.setEchoMode(QLineEdit.Password)
-        self.ai_key.setPlaceholderText("API key (this session only: not saved, not logged)")
-        use_key = QPushButton("Use for this session")
+        self.ai_key.setPlaceholderText("API key (kept in memory; tick Remember to keep it in the macOS Keychain)")
+        self.ai_remember = QCheckBox("Remember (macOS Keychain)")
+        self.ai_remember.setToolTip("store the key encrypted in the macOS Keychain (service zulf-studio); Studio loads it "
+                                    "at start. Forget removes it. Never written to a file or the log.")
+        from . import credentials
+        self.ai_remember.setEnabled(credentials.available())
+        use_key = QPushButton("Use")
         forget_key = QPushButton("Forget")
         check = QPushButton("Check")
         use_key.clicked.connect(self._ai_use_key)
         forget_key.clicked.connect(self._ai_forget_key)
         check.clicked.connect(self._ai_provider_changed)
-        for wdg in (self.ai_guide_btn, self.ai_key, use_key, forget_key, check):
+        for wdg in (self.ai_guide_btn, self.ai_key, self.ai_remember, use_key, forget_key, check):
             setup_row.addWidget(wdg)
         setup_row.setStretch(1, 1)
         self.ai_guide = QTextBrowser()
@@ -758,14 +765,23 @@ class StudioWindow(QMainWindow):
         key = self.ai_key.text().strip()
         if not key:
             return
-        os.environ[self._ai_key_variable()] = key        # this process only; never written anywhere
+        var = self._ai_key_variable()
+        os.environ[var] = key                            # this process; the Keychain only when Remember is ticked
         self.ai_key.clear()
-        self.session.log(f"{self._ai_key_variable()} set for this session (not saved)", "ai")
+        where = "this session (not saved)"
+        if self.ai_remember.isChecked():
+            from . import credentials
+            where = ("this session and the macOS Keychain" if credentials.save(var, key)
+                     else "this session (Keychain save failed)")
+        self.session.log(f"{var} set for {where}", "ai")
         self._ai_provider_changed()
 
     def _ai_forget_key(self):
-        os.environ.pop(self._ai_key_variable(), None)
-        self.session.log(f"{self._ai_key_variable()} removed from this session", "ai")
+        var = self._ai_key_variable()
+        os.environ.pop(var, None)
+        from . import credentials
+        removed = credentials.available() and credentials.delete(var)
+        self.session.log(f"{var} removed from this session" + (" and the macOS Keychain" if removed else ""), "ai")
         self._ai_provider_changed()
 
     def _ai_provider_changed(self):
@@ -1048,6 +1064,10 @@ def main(argv=None):
     ap.add_argument("--no-gui", action="store_true", help="API server only (for agents; Ctrl+C to quit)")
     args = ap.parse_args(argv)
     session = StudioSession(json.loads(args.structure) if args.structure else None, workspace=args.workspace)
+    from . import credentials
+    loaded = credentials.load_into_environment()
+    if loaded:
+        session.log("API keys loaded from the macOS Keychain: " + ", ".join(loaded), "ai")
     if args.series:
         session.load_spectrum(series=args.series)
     if args.fit:

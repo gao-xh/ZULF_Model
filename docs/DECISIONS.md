@@ -836,8 +836,10 @@ conditional numerical results.
   unchanged (append-only history).
 - OpenAI: Responses API through the `openai` SDK with function calling; no default model (names of Codex models
   change): the model field or OPENAI_MODEL.
-- Credentials only from the environment (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / `ant auth login`,
-  OPENAI_API_KEY); Studio never stores keys. The terminal and the Python console are not tools of the model.
+- Credentials from the environment (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / `ant auth login`,
+  OPENAI_API_KEY), or entered in the AI tab: kept in memory, or with "Remember" stored encrypted in the macOS
+  Keychain (service zulf-studio, zulf_studio/credentials.py; Xuehan: enter once) and loaded at start, an
+  environment value winning. Never in a file, config, the repository or the log. The terminal and the Python console are not tools of the model.
 - Environment: anthropic 1.11 and openai 3.24 added to the `zulf` env (15 packages, all new; no version
   changes); pyproject extra "ai". User guide docs/STUDIO.md, environment docs/ENVIRONMENT.md.
 - Tests: AssistantTests (fake provider clients, no network: tool calls reach the session, unknown tools come

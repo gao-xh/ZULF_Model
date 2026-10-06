@@ -360,8 +360,16 @@ class AssistantSetupTests(unittest.TestCase):
         except ImportError:
             self.skipTest("PySide6 not installed")
         import os
+        from unittest import mock
+        from zulf_studio import credentials
         app = QApplication.instance() or QApplication([])
         saved = {k: os.environ.pop(k, None) for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")}
+        stored = {}
+        patches = [mock.patch.object(credentials, "available", lambda: True),               # never the real Keychain
+                   mock.patch.object(credentials, "save", lambda v, k: stored.update({v: k}) or True),
+                   mock.patch.object(credentials, "delete", lambda v: stored.pop(v, None) is not None)]
+        for p in patches:
+            p.start()
         try:
             s = session(METHYL)
             w = StudioWindow(s)
@@ -375,8 +383,48 @@ class AssistantSetupTests(unittest.TestCase):
             self.assertFalse(any(secret in e["message"] for e in s.read_log(1000)))
             w._ai_forget_key()
             self.assertNotIn("ANTHROPIC_API_KEY", os.environ)
+            self.assertEqual(stored, {})                                   # not remembered: Keychain untouched
+            w.ai_key.setText(secret)
+            w.ai_remember.setChecked(True)
+            w._ai_use_key()
+            self.assertEqual(stored, {"ANTHROPIC_API_KEY": secret})
+            self.assertFalse(any(secret in e["message"] for e in s.read_log(1000)))
+            w._ai_forget_key()
+            self.assertEqual(stored, {})
             w.close()
         finally:
+            for p in patches:
+                p.stop()
             for k, v in saved.items():
                 if v is not None:
                     os.environ[k] = v
+
+
+class CredentialsTests(unittest.TestCase):
+    def test_keychain_commands_and_environment(self):
+        from types import SimpleNamespace as NS
+        from zulf_studio import credentials
+        calls, store = [], {"OPENAI_API_KEY": "sk-openai-x"}
+
+        def runner(args, **kw):
+            calls.append(args)
+            account = args[args.index("-a") + 1]
+            if args[1] == "find-generic-password":
+                return NS(returncode=0 if account in store else 44, stdout=store.get(account, "") + "\n")
+            if args[1] == "add-generic-password":
+                store[account] = args[args.index("-w") + 1]
+            if args[1] == "delete-generic-password":
+                return NS(returncode=0 if store.pop(account, None) else 44, stdout="")
+            return NS(returncode=0, stdout="")
+        self.assertTrue(credentials.save("ANTHROPIC_API_KEY", "sk-ant-y", runner))
+        self.assertEqual(calls[-1][:2], ["security", "add-generic-password"])
+        self.assertIn("-U", calls[-1])                                     # replaces an existing item
+        self.assertEqual(calls[-1][calls[-1].index("-s") + 1], "zulf-studio")
+        env = {"OPENAI_API_KEY": "from-shell"}
+        loaded = credentials.load_into_environment(runner, env)
+        self.assertEqual(loaded, ["ANTHROPIC_API_KEY"])                    # the shell's key wins
+        self.assertEqual(env, {"OPENAI_API_KEY": "from-shell", "ANTHROPIC_API_KEY": "sk-ant-y"})
+        self.assertTrue(credentials.delete("ANTHROPIC_API_KEY", runner))
+        self.assertIsNone(credentials.load("ANTHROPIC_API_KEY", runner))
+        with self.assertRaises(ValueError):
+            credentials.save("HOME", "x", runner)

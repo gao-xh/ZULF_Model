@@ -119,8 +119,11 @@ university) may already have an API account; ask its administrator first.
 - OpenAI: create an API key in the OpenAI platform and choose a model available to the account.
 
 Giving Studio the key (the AI assistant tab has the same guide under "Setup guide"):
-- paste it into "API key (this session only)" and press "Use for this session": it stays in Studio's memory until
-  Studio closes (not saved, not logged); "Forget" removes it; "Check" re-reads the credentials;
+- paste it into the key field, tick "Remember (macOS Keychain)" and press "Use": the key is stored encrypted in
+  the macOS Keychain (service "zulf-studio", one item per variable; zulf_studio/credentials.py) and loaded every
+  time Studio starts, so it is entered once. Without Remember it stays in memory until Studio closes. Never
+  written to a file or the log. "Forget" removes it from Studio and the Keychain (or delete it in the Keychain
+  Access app); "Check" re-reads the credentials. A key already set in the environment wins over the Keychain;
 - or set it in the shell before starting Studio (`export ANTHROPIC_API_KEY=...`, `export OPENAI_API_KEY=...`) and
   start Studio from that shell;
 - or (Anthropic) `ant auth login`, a stored profile the library reads by itself (needs the `ant` command-line
