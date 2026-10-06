@@ -20,10 +20,13 @@ STRUCTURE = {"compound": "ethyl test", "chain": {"groups": [["C1", "C", 2], ["C2
 TRUTH = {"J(C1,HC2)": -4.2, "J(HC1,HC2)": 7.1}
 
 
+def _argv(tmp, extra=()):
+    return ["--series", str(tmp / "series.json"), "--real-only", "false", "--shape", "free", "--exchange", "fast",
+            "--range", "110,260", "--structure", json.dumps(STRUCTURE), "--signal-threshold", "2.5", *extra]
+
+
 def _args(tmp, extra=()):
-    return fj.make_parser().parse_args(
-        ["--series", str(tmp / "series.json"), "--real-only", "false", "--shape", "free", "--exchange", "fast",
-         "--range", "110,260", "--structure", json.dumps(STRUCTURE), "--signal-threshold", "2.5", *extra])
+    return fj.make_parser().parse_args(_argv(tmp, extra))
 
 
 def _problem(tmp):
@@ -409,3 +412,40 @@ class HeldGainLocalFitTests(unittest.TestCase):
             np.testing.assert_allclose(np.asarray(f.predict(x_bad, fixed_gains=ref.gains,
                                                             fixed_background=ref.background).residual),
                                        np.asarray(ref.residual), rtol=1e-9, atol=1e-12)
+
+
+class SnapshotTests(unittest.TestCase):
+    def test_snapshot_picks_the_best_vector_by_the_plain_objective(self):
+        # Two record files: one claims a tiny cost for a worse vector (as a smoothing stage can), the other a
+        # large cost for the truth. The snapshot must rescore and keep the truth, and --from-joint must load it.
+        import snapshot_fit
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z_truth = _problem(tmp)
+            s = jt.TuningSession(prob)
+            s.z = z_truth.copy()
+            s.set_couplings({"J(C1,HC2)": -2.0})
+            z_bad = s.z.copy()
+            run = tmp / "run"
+            (run / "monitor").mkdir(parents=True)
+            extra = ["--family-edges", "150,200"]
+            p_edges = fj.build_problem(_args(tmp, extra))
+            zt, zb = p_edges.z0.copy(), p_edges.z0.copy()     # the couplings of the two vectors, default rates
+            zt[:p_edges.joint.nt] = z_truth[:prob.joint.nt]
+            zb[:p_edges.joint.nt] = z_bad[:prob.joint.nt]
+            json.dump({"argv": ["scripts/fit_joint_series.py"] + _argv(tmp, extra + ["--out", str(run)])},
+                      open(run / "monitor" / "status.json", "w"))
+            with open(run / "monitor" / "start_000.jsonl", "w") as fh:
+                fh.write(json.dumps({"event": "start"}) + "\n")
+                fh.write(json.dumps({"n": 5, "cost": 1e-6, "best": 1e-6, "label": "smoothing", "z": zb.tolist()}) + "\n")
+            with open(run / "monitor" / "start_001.jsonl", "w") as fh:
+                fh.write(json.dumps({"n": 9, "cost": 9.0, "best": 9.0, "label": "fit", "z": zt.tolist()}) + "\n")
+                fh.write('{"n": 10, "cost": ')                   # a partly written line of a killed run
+            fit = snapshot_fit.snapshot(run, tmp / "snap.json")
+            self.assertEqual(fit["snapshot"]["record"], "start_001")
+            self.assertEqual(fit["family_edges_hz"], [150.0, 200.0])
+            self.assertAlmostEqual(fit["couplings"]["J(C1,HC2)"]["J_at_x"][0], TRUTH["J(C1,HC2)"], places=9)
+            j = p_edges.joint
+            self.assertAlmostEqual(fit["scores"][0], float(np.sum(j.residual(zt) ** 2)), places=12)
+            back = fj.build_problem(_args(tmp, extra + ["--from-joint", str(tmp / "snap.json")]))
+            np.testing.assert_allclose(back.z0, np.clip(zt, back.lower + 1e-9, back.upper - 1e-9), atol=1e-12)
