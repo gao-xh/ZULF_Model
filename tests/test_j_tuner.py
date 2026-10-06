@@ -449,3 +449,39 @@ class SnapshotTests(unittest.TestCase):
             self.assertAlmostEqual(fit["scores"][0], float(np.sum(j.residual(zt) ** 2)), places=12)
             back = fj.build_problem(_args(tmp, extra + ["--from-joint", str(tmp / "snap.json")]))
             np.testing.assert_allclose(back.z0, np.clip(zt, back.lower + 1e-9, back.upper - 1e-9), atol=1e-12)
+
+
+class AutoFamilyEdgesTests(unittest.TestCase):
+    def test_rule_on_hand_computed_cases(self):
+        lines = [100.0, 100.4, 101.0, 110.0, 110.5, 130.0]
+        # gaps > 1.5 Hz: 101.0 | 110.0 -> 105.5, 110.5 | 130.0 -> 120.25; sharp 100.42 isolates 100.4: 100.2, 100.7
+        self.assertEqual(fj.edges_from_lines(lines, [100.42]), [100.2, 100.7, 105.5, 120.25])
+        self.assertEqual(fj.edges_from_lines(lines, [140.0]), [105.5, 120.25])       # no model line near the peak
+        # two neighbouring sharp lines share the edge between them (duplicates merged)
+        self.assertEqual(fj.edges_from_lines([100.0, 100.4, 100.8], [100.4, 100.8]), [100.2, 100.6])
+        # a neighbour closer than min_separation_hz is not split off
+        self.assertEqual(fj.edges_from_lines([100.0, 100.1, 103.0], [100.1]), [101.55])
+        # edges closer than min_spacing_hz merge into their mean
+        self.assertEqual(fj.edges_from_lines([100.0, 100.3, 100.7], [100.3, 100.0], min_spacing_hz=0.3), [100.15, 100.5])
+        self.assertEqual(fj.edges_from_lines([120.0]), [])
+
+    def test_auto_edges_isolate_sharp_lines(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            args = _args(tmp, ["--family-edges", "auto"])
+            prob = fj.build_problem(args)
+            edges = [float(v) for v in args.family_edges.split(",")]
+            self.assertEqual(list(prob.joint.params[0].policy.family_edges_hz), edges)
+            self.assertTrue(len(edges) >= 2 and edges == sorted(edges))
+            first = fj.build_problem(_args(tmp))                 # the one-family problem the edges come from
+            got, lines, sharp = fj.auto_family_edges(first.joint, first.z0)
+            np.testing.assert_allclose(got, edges, atol=1e-3)
+            fam = np.searchsorted(edges, lines, side="right")
+            lines = np.asarray(lines)
+            for p in sharp:
+                i = int(np.argmin(np.abs(lines - p)))
+                if abs(lines[i] - p) > 0.5:
+                    continue
+                same = lines[(fam == fam[i]) & (np.abs(lines - lines[i]) > 0.2)]
+                self.assertEqual(len(same), 0, f"line {lines[i]:.2f} under the sharp peak {p:.2f} shares its family")

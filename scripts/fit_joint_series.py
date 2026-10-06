@@ -121,6 +121,64 @@ def remap_family_rates(params, old_edges, new_edges):
     return out
 
 
+def edges_from_lines(lines_hz, sharp_hz=(), gap_hz=1.5, min_separation_hz=0.2, match_hz=0.5, min_spacing_hz=0.25):
+    """Rate-family edges from model line positions (the rule behind the hand-chosen edges of the amine fits, D46):
+    1. an edge in the middle of every gap wider than gap_hz between neighbouring lines (one family per cluster);
+    2. for every sharp data peak with a model line within match_hz: edges halfway to that line's neighbours (if
+       they are more than min_separation_hz away), so the line gets a family of its own and its own decay rate;
+    3. edges closer than min_spacing_hz are merged (their mean). Returns sorted edges (Hz)."""
+    f = np.unique(np.asarray(lines_hz, float))
+    if len(f) < 2:
+        return []
+    edges = [0.5 * (a + b) for a, b in zip(f[:-1], f[1:]) if b - a > gap_hz]
+    for p in np.asarray(sharp_hz, float):
+        i = int(np.argmin(np.abs(f - p)))
+        if abs(f[i] - p) > match_hz:
+            continue
+        if i > 0 and f[i] - f[i - 1] > min_separation_hz:
+            edges.append(0.5 * (f[i - 1] + f[i]))
+        if i < len(f) - 1 and f[i + 1] - f[i] > min_separation_hz:
+            edges.append(0.5 * (f[i] + f[i + 1]))
+    edges = sorted(edges)
+    merged = []
+    for e in edges:
+        if merged and e - merged[-1][-1] < min_spacing_hz:
+            merged[-1].append(e)
+        else:
+            merged.append([e])
+    return [float(np.mean(g)) for g in merged]
+
+
+def auto_family_edges(joint, z, s=0, min_relative=0.02, sharp_width_hz=0.8, prominence=0.05, **rule):
+    """Edges for --family-edges auto: the model lines of spectrum s at z (every component, relative amplitude
+    |gain a| >= min_relative of that component's strongest line, inside the fit range) and the sharp peaks of the
+    data (|y|, prominence >= prominence x max, width at half prominence < sharp_width_hz), through
+    edges_from_lines. Returns (edges, lines, sharp peaks)."""
+    from scipy.signal import find_peaks, peak_widths
+    f = joint.forwards[s]
+    x = joint.spectrum_vector(z, s)
+    values = f.p.values(x)
+    gains = np.asarray(f.predict(x).gains)
+    lo, hi = float(f.f.min()), float(f.f.max())
+    lines = []
+    for c, system in enumerate(f.p.systems(values)):
+        tl = f.transitions(values, c, system)
+        if not len(tl) or c >= len(gains):
+            continue
+        w = np.abs(gains[c] * tl.amplitudes)
+        if not w.max() > 0:
+            continue
+        keep = (w >= min_relative * w.max()) & (tl.frequencies_hz >= lo) & (tl.frequencies_hz <= hi)
+        lines.extend(tl.frequencies_hz[keep].tolist())
+    y = np.abs(np.asarray(f.y))
+    peaks, props = find_peaks(y, prominence=prominence * float(y.max()))
+    sharp = []
+    if len(peaks):
+        width = peak_widths(y, peaks, rel_height=0.5)[0] * float(np.median(np.diff(f.f)))
+        sharp = [float(f.f[k]) for k, w_hz in zip(peaks, width) if w_hz < sharp_width_hz]
+    return edges_from_lines(lines, sharp, **rule), sorted(lines), sharp
+
+
 def monotone_profile(w: np.ndarray):
     """c (n,) rising from 0 to 1 and dc/dw (n, n-1) for the softmax step shares e^w / sum e^w."""
     e = np.exp(w - w.max())
@@ -1054,6 +1112,22 @@ def _solve_start(z):
 
 
 def build_problem(args):
+    """The fit problem of the command line. --family-edges auto: the problem is first built with one rate family,
+    the edges are read from its start vector (auto_family_edges: line clusters and sharp data lines), and the
+    problem is rebuilt with them (args.family_edges then holds the edges used)."""
+    if str(getattr(args, "family_edges", "")).strip().lower() == "auto":
+        import copy
+        first = copy.copy(args)
+        first.family_edges = ""
+        p = _build_problem(first)
+        edges, lines, sharp = auto_family_edges(p.joint, p.z0)
+        args.family_edges = ",".join(f"{e:.3f}" for e in edges)
+        print(f"--family-edges auto: {len(edges)} edges from {len(lines)} model lines and {len(sharp)} sharp data "
+              f"peaks: {args.family_edges}", flush=True)
+    return _build_problem(args)
+
+
+def _build_problem(args):
     """The fitting problem of a command line: observations, model, JointSeries (weights, priors, missing-peak
     rows), the start vector z0 and the bounds. Shared by main and scripts/j_tuner.py."""
     import regression_confirmed as reg
@@ -1262,7 +1336,8 @@ def make_parser():
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
     ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
-                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue)")
+                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue), or "
+                    "'auto': edges from the start vector's line clusters and the sharp data lines (auto_family_edges)")
     ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
@@ -1381,6 +1456,11 @@ def main():
     from run_log import RunLog
     run_log = RunLog(Path(args.out), "fit_joint_series")
     prob = build_problem(args)
+    if "--family-edges" in sys.argv[:-1]:                 # record the edges actually used (auto -> numbers)
+        i = sys.argv.index("--family-edges")
+        if sys.argv[i + 1].strip().lower() == "auto":
+            sys.argv[i + 1] = args.family_edges
+            run_log.argv = list(sys.argv)
     series, left_out, lo, hi, obs, model = prob.series, prob.left_out, prob.lo, prob.hi, prob.obs, prob.model
     settings, joint, key_of, centre, xs0, z0 = (prob.settings, prob.joint, prob.key_of, prob.centre, prob.xs0,
                                                 prob.z0)
