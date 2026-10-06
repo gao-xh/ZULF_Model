@@ -31,6 +31,7 @@ labelled experimental database; experiments remain the final check.
 | `configs/` | Problem, generator, couplings, processing, perturbation, protocol, model and run configurations |
 | `skills/zulf-model` | Agent skill guide (Claude skill format and OpenAI agent card) |
 | `skills/zulf-blind-analysis` and category skills | Experimental workflow skills: FID processing, spectrum interpretation, phasing, hypothesis refinement; case notes and derivation paths |
+| `zulf_studio/` | ZULF Studio: real-time simulator (structure, couplings, static field, line width), fitting with a progress slider, log, terminal, Python console (PySide6) and a JSON API for AI agents |
 | `docs/` | Architecture, conventions, decisions, plan ledger, references |
 
 ## Install
@@ -55,6 +56,7 @@ python scripts/make_series_entry.py --fid FID.npy --id NAME --out runs/series/NA
 python scripts/fit_joint_series.py --series runs/series/NAME/series.json ...        # complex known-structure fit (docs/WORKFLOW.md)
 python scripts/band_diagnosis.py <fit options> --fit runs/processed/NAME/fit.json    # which band is bad, which parameters act on it
 python scripts/smoke_pipeline.py                  # generate -> train -> propose -> refine
+python scripts/zulf_studio.py --series runs/series/NAME/series.json   # desktop simulator + fit; AI API on :8766
 zulf-model tools list                             # agent tools
 zulf-model diagnose AVERAGE.npy 0.ini             # per-dataset processing diagnostics
 zulf-model train configs/run_cnn_set_v1.json      # training run (live rendering)

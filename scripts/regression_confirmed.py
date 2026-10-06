@@ -23,7 +23,8 @@ from zulf_core.solver import ObservedSpectrum                               # no
 from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
                              search_hypotheses, write_report)
 from zulf_hypothesis.fit import EXCHANGE_ELEMENTS                            # noqa: E402
-from zulf_hypothesis.motifs import MOTIFS, _chain                           # noqa: E402
+from zulf_hypothesis.motifs import MOTIFS, _chain                           # noqa: E402,F401
+from zulf_hypothesis.structure_spec import fragment_from_spec               # noqa: E402
 from zulf_processing import process_dataset                                 # noqa: E402
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "confirmed_samples.json"
@@ -41,11 +42,8 @@ def observed_for(sample, proc, data_dir):
 
 
 def structure_for(sample):
-    if "motif" in sample:
-        return MOTIFS[sample["motif"]].fragment(sample["one_bond"])
-    c = sample["chain"]
-    return _chain(sample["compound"], [tuple(g) for g in c["groups"]], [tuple(b) for b in c["bonds"]],
-                  tuple(c.get("sym", ())))(sample["one_bond"])
+    """Fragment of a sample's structure spec (zulf_hypothesis.structure_spec.fragment_from_spec)."""
+    return fragment_from_spec(sample)
 
 
 def skeleton(fragment):

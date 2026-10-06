@@ -15,12 +15,13 @@ hdf5 = ["h5py>=3.8"]
 plots = ["matplotlib>=3.7"]
 figures = ["matplotlib>=3.7", "rdkit>=2023.9"]   # structure insets of scripts/paper_figure.py
 dev = ["torch>=2.1", "h5py>=3.8", "matplotlib>=3.7"]
+studio = ["pyside6>=6.5", "matplotlib>=3.7"]   # desktop simulator (scripts/zulf_studio.py)
 
 [project.scripts]
 zulf-model = "zulf_model.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["zulf_core*", "zulf_model*", "zulf_hypothesis*", "zulf_processing*"]
+include = ["zulf_core*", "zulf_model*", "zulf_hypothesis*", "zulf_processing*", "zulf_studio*"]
 
 [tool.setuptools.package-data]
 zulf_hypothesis = ["data/*.json"]

@@ -767,6 +767,30 @@ parameter (`ParameterPolicy.fit_field`, default False: zero field, unchanged res
 - Names: the transverse component was first called `field_perp_ut` (axis `perp`); renamed the same day to
   `field_transverse_ut` (axis `transverse`) on Xuehan's request. Figures write it as B with a perpendicular sign.
 
+## D48. ZULF Studio: one session for the window, the fitter and AI agents (2026-10-06)
+
+Xuehan asked for a standalone real-time simulator with a Python desktop UI (PySide), fitting with the
+fit-progress slider, log and terminal inside, and an API for AI. Design:
+
+- `zulf_studio.session.StudioSession` holds the whole state and every operation, without a GUI. The model is
+  rebuilt from the structure specification on every change (zulf_hypothesis.structure_spec; build_model takes
+  well under 1 ms) and the transitions are exact in the session's static field (D47). Triethylamine updates in
+  about 50 ms, so sliders are live.
+- The displayed simulation is a sum of complex Lorentzians with one decay rate: a quick look. The fit is
+  `scripts/fit_joint_series.py` run as a subprocess from the current couplings and field, so the fitter, its
+  processing operator and its objective are the same code as in the analyses (no second implementation); its
+  trace frames (`--trace`) feed the progress slider and are drawn as computed.
+- `zulf_studio.api` exposes the same operations as JSON tools over local HTTP (127.0.0.1, /api/tools with
+  schemas, Anthropic and OpenAI formats). The window listens to the session, so a person and an agent work on
+  one state and the window follows the agent.
+- Log (session, api, fit, terminal sources; also runs/studio/studio.log), a shell terminal (repository
+  directory, the studio's Python first on PATH) and a Python console with the session are tabs of the window.
+- `structure_for` / `override_couplings` moved from scripts into `zulf_hypothesis.structure_spec` (the scripts
+  re-export them), so a package does not import scripts.
+- Tests: tests/test_studio.py (closed forms: XA3 lines at J and 2J, a 13C-1H line split by (gH + gC) B / 2 in a
+  transverse field, Lorentzian FWHM = rate / pi; fit command, fit application and trace frames; HTTP API;
+  offscreen window and session following each other across threads).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

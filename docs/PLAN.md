@@ -388,6 +388,14 @@ tall lines and barely sees it.
 - [ ] Analytic field derivatives (Zeeman directions in physics.derivatives) instead of central differences.
 - [ ] Field in the global pattern search (solver.search) and in scripts/line_table.py.
 - [ ] Acetonitrile open lines: 83-85, 154.1, about 627 Hz; nitrile 13C isotopologue below 22 Hz; 14N.
+- [x] J tuner: live sliders for spectrum parameters (field in nT, decay rates on a log scale, delay in ms;
+      tests/test_j_tuner.py TunerSpectrumParameterTests; commit 0035e2b).
+- [x] ZULF Studio (D48, zulf_studio/, scripts/zulf_studio.py; tests/test_studio.py): real-time simulator with
+      field and line-width sliders, overlay of a processed spectrum, line table and export, fit_joint_series from
+      the sliders with a trace (progress) slider, log, terminal, Python console, JSON API for AI agents.
+      First use: a 4-start acetonitrile fit from a 20 / 60 nT field start ended in a worse basin (0.158 against
+      0.044): the field start matters (try several, as in the analysis).
+- [ ] Studio: field-start grid for fits; rate families in the quick-look simulation; MCP wrapper of the API.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
