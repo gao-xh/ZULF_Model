@@ -47,12 +47,10 @@ Visible input:
 - `input/structure.md`: the molecule (name and SMILES), the labels of its carbon sites and proton groups, the
   list of couplings to report, and the output schema.
 
-Produce:
-- `output/results.json` with every requested coupling in Hz, with sign (one-bond 13C-1H couplings are positive
-  by convention; report the other couplings with their signs relative to them), the isotopologues you modelled,
-  and short notes on your processing and fitting choices.
-- `output/fit_figure.png`: the processed experimental spectrum and your simulated spectrum over the signal
-  bands.
+Produce (schema in `input/structure.md`):
+- `output/results.json`: every requested coupling in Hz with sign (one-bond 13C-1H couplings positive; the
+  others signed relative to them), plus the isotopologues and processing you used.
+- `output/fit_figure.png`: processed experimental spectrum and your simulated spectrum over the signal bands.
 
 Rules: do not modify `input/`; write only under `output/`; do not install packages; the coupling values must
 come from your analysis of this FID, not from literature or databases.
@@ -73,13 +71,57 @@ come from your analysis of this FID, not from literature or databases.
 6. Determine the signs of the long-range couplings relative to the one-bond couplings.
 7. Report the couplings and the figure.
 
-## Inputs (per variant)
+## Input
 
-| File | Content |
-|---|---|
-| `input/fid.npy` | Averaged raw FID: 65516 samples at 4000 Hz (16.4 s), ADC units |
-| `input/acquisition.md` | Instrument, sequence (sudden field drop), sampling rate, known artifacts, instrument lines |
-| `input/structure.md` | Name, SMILES, site and proton-group labels, couplings to report, output schema |
+Staged in `input/` before the agent starts (read-only). Three files per variant:
+
+| File | Format | Content |
+|---|---|---|
+| `input/fid.npy` | NumPy array, float64, shape (65516,) | Averaged raw FID in ADC units, 4000 Hz sampling (16.4 s), sample 0 = first sample after the field-switch command. Nothing removed: saturation, ringing and baseline drift are in the data |
+| `input/acquisition.md` | Markdown | Spectrometer (NMRduino with atomic magnetometer), sequence (prepolarization, shuttling, sudden field drop, no pulses), sampling rate, number of averages, sample (neat liquid, natural abundance, room temperature), known artifacts: saturation and about 500 Hz ringing after the switch, mains harmonics n x 60.06 Hz, instrument lines (e.g. 180 Hz) |
+| `input/structure.md` | Markdown | Molecule name and SMILES; labels of the carbon sites (C1, C2, ...) and proton groups (H1, H2, ...) on a drawn structure; the list of coupling keys to report; the output schema below |
+
+Example of the coupling list in `structure.md` (triethylamine variant: C1 = CH2, C2 = CH3 of one ethyl group,
+H1 / H2 their protons):
+
+```
+1J(C1,H1)  1J(C2,H2)  2J(C1,H2)  2J(C2,H1)  3J(H1,H2)
+optional: couplings to the protons of the other two ethyl groups, e.g. 4J(C1,H1')
+```
+
+## Output
+
+Written by the agent under `output/` (nothing else is read):
+
+| File | Format | Graded |
+|---|---|---|
+| `output/results.json` | JSON, schema below | yes (all three tiers) |
+| `output/fit_figure.png` | PNG | no (kept for review) |
+
+`results.json` schema:
+
+```json
+{
+  "couplings_hz": {
+    "1J(C1,H1)": 130.7,
+    "1J(C2,H2)": 125.0,
+    "2J(C1,H2)": -4.9,
+    "2J(C2,H1)": -3.1,
+    "3J(H1,H2)": 7.2
+  },
+  "optional_couplings_hz": {"4J(C1,H1')": -1.7},
+  "isotopologues": ["13C1", "13C2"],
+  "exchangeable_protons": "decoupled (fast exchange) | coupled | none",
+  "processing": {"crop_start_s": 0.1, "record_length_s": 8.0, "apodization_per_s": 0.3,
+                 "phase0_deg": 176.0, "delay_ms": -3.4},
+  "notes": "free text: processing, model, fit"
+}
+```
+
+- `couplings_hz` must contain every key listed in `structure.md`, in Hz, signed; one-bond 13C-1H couplings
+  positive, all others signed relative to them. Missing keys score 0 for that item.
+- `processing`, `isotopologues`, `exchangeable_protons` and `notes` are not scored; they document the analysis.
+- The values in the example are illustrative only.
 
 ## Hidden reference (per variant)
 
