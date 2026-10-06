@@ -359,6 +359,7 @@ tall lines and barely sees it.
       file). Replaces the scratchpad helpers remap_families and snapshot_fit. Done: rate remap and recorded
       edges (cbf7655), `--tie-rates REGEX` (8caf49b), scripts/snapshot_fit.py (64bcc2e); tests in
       tests/test_j_tuner.py (RateRemapTests, TiedRatesTests, SnapshotTests).
+      Figure helpers ported: scripts/run_problem.py, plot_runs.py, plot_components.py (commit d6adbff, RunToolsTests).
 - [ ] 2J(C,H) sign: multi-start refit on the positive side with wider bounds (the flip test used one start and
       the +3.7 Hz template bound).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or

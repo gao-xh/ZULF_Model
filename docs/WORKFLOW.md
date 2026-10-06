@@ -294,3 +294,6 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME
     python scripts/j_tuner.py <the fit_joint_series options of the fit> --fit runs/processed/NAME/fit.json
     python scripts/fit_monitor.py runs/processed            # live view of running fits (or --text)
+    python scripts/plot_runs.py OUT.png runs/processed/A runs/processed/B --zooms "186,196;196,204"   # compare runs
+    python scripts/plot_components.py runs/processed/NAME OUT.png --band 176,216   # every component alone
+    python scripts/snapshot_fit.py runs/processed/NAME snap.json   # best monitor vector -> --from-joint file
