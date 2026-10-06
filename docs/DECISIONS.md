@@ -744,6 +744,27 @@ choices in `scripts/fit_joint_series.py`.
   The exact exchange model (D45) does not scale to ethylenediamine with N-H kept (9 spins, no reducible group,
   35 GiB), so intermediate exchange there needs an approximation.
 
+## D47. Fitted static field, default zero field (2026-10-06)
+
+Some measurements are made in a known nonzero field (the acetonitrile run of 2026-09-28 is a fringe-field
+measurement: its 2J band is split into 271.3 / 273.8 Hz, which a longitudinal field of about 0.08 uT reproduces,
+while the zero-field 13CH3 model leaves a relative residual of 0.73). The field is therefore an optional fitted
+parameter (`ParameterPolicy.fit_field`, default False: zero field, unchanged results).
+
+- With preparation and detection along z the signal depends only on the transverse size B_perp and on |Bz|
+  (rotation about z, and a pi rotation about x, leave it unchanged). Two parameters `field_perp_ut` (placed in
+  Bx, By = 0, so the real eigensolver stays in use) and `field_z_ut`, both >= 0 (`field_bounds_ut`).
+- The signal is stationary at zero field (zero gradient), so starts are nonzero (`initial_field_ut`, default
+  0.02 uT each); a fit that should be able to reach zero field still can (lower bound 0).
+- `MixtureForward.protocol_for(values)` puts the field into the protocol of every evaluation (transitions,
+  coupling derivatives, exchange); the field columns of the Jacobian are central differences (the analytic
+  derivative needs the Zeeman directions in physics.derivatives; possible later).
+- The global pattern search (solver.search) still uses the fixed protocol: with a fitted field, rely on the
+  multistart from the field starts.
+- Test: tests/test_solver.py FieldFitTests (data from brute-force propagation in a field; recovery of
+  B_perp and Bz from a nonzero start; the zero-field model is at least 10x worse on such data).
+- D19 still holds for reporting: a fitted field is reported with every result that uses it.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

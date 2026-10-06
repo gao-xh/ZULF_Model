@@ -395,3 +395,48 @@ class NuisanceTests(unittest.TestCase):
         self.assertGreater(err_plain, 10 * err_model)
         # Nuisance rates are weakly identified from band tails; only a loose check.
         self.assertAlmostEqual(np.exp(modeled.parameters["n0.log_rate"]), 0.8, delta=0.04)
+
+
+class FieldFitTests(unittest.TestCase):
+    """Fitted static field (ParameterPolicy.fit_field): data from brute-force propagation in the field."""
+
+    @staticmethod
+    def methyl_13c(j_ch=136.0):
+        j = np.zeros((4, 4))
+        j[0, 1:] = j[1:, 0] = j_ch
+        return SpinSystem(("13C", "1H", "1H", "1H"), j)
+
+    def field_observation(self, field_ut, rate=1.0):
+        from zulf_core.physics.protocol import Protocol
+        from zulf_core.physics.transitions import reference_signal
+        acq = Acquisition(1000.0, 4000, start_sample=40, sg_window=101, sg_order=2)
+        t = acq.times()
+        fid = 50.0 * reference_signal(self.methyl_13c(), t, Protocol(field_ut=field_ut)) * np.exp(-rate * t)
+        return ObservedSpectrum.from_fid(fid, acq, [(125.0, 147.0), (258.0, 286.0)])
+
+    def test_default_is_zero_field(self):
+        param = Parameterization.from_interpretation(Interpretation((Component(self.methyl_13c()),)))
+        self.assertFalse(param.has_field())
+        self.assertIsNone(param.field_ut(param.values()))
+        obs = self.field_observation((0.0, 0.0, 0.0))
+        forward = MixtureForward(param, obs)
+        self.assertIs(forward.protocol_for(param.values()), forward.protocol)
+
+    def test_field_is_recovered_from_a_nonzero_start(self):
+        truth = (0.03, 0.0, 0.06)
+        obs = self.field_observation(truth)
+        policy = ParameterPolicy(fit_field=True, initial_field_ut=(0.015, 0.03), fit_phase_delay=False)
+        start = Interpretation((Component(self.methyl_13c(136.4)),))
+        res = refine(start, obs, RefineSettings(policy=policy, starts=1))
+        self.assertAlmostEqual(res.parameters["field_perp_ut"], truth[0], delta=2e-3)
+        self.assertAlmostEqual(res.parameters["field_z_ut"], truth[2], delta=2e-3)
+        self.assertAlmostEqual(res.interpretation.components[0].system.couplings_hz[0, 1], 136.0, delta=0.02)
+        self.assertLess(res.relative_residual, 1e-3)
+
+    def test_zero_field_model_misses_the_field_splitting(self):
+        obs = self.field_observation((0.0, 0.0, 0.06))
+        start = Interpretation((Component(self.methyl_13c(136.0)),))
+        plain = refine(start, obs, RefineSettings(policy=ParameterPolicy(fit_phase_delay=False), starts=1))
+        fitted = refine(start, obs, RefineSettings(policy=ParameterPolicy(fit_field=True, fit_phase_delay=False),
+                                                   starts=1))
+        self.assertGreater(plain.relative_residual, 10 * fitted.relative_residual)

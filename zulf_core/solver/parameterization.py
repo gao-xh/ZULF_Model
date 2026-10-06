@@ -26,7 +26,7 @@ class Parameter:
     lower: float
     upper: float
     free: bool = True
-    kind: str = "coupling"          # coupling | log_rate | sigma | phase_delay | log_exchange
+    kind: str = "coupling"          # coupling | log_rate | sigma | phase_delay | log_exchange | field | nuisance
     component: int = -1
     detail: tuple = ()               # (group_a, group_b) for couplings, (family,) for rates, (group,) for exchange
 
@@ -50,6 +50,14 @@ class ParameterPolicy:
     # switching), and a shared zero-order phase alone forces the couplings to absorb it (D24).
     fit_phase_delay: bool = True
     phase_delay_bounds_s: Tuple[float, float] = (-0.01, 0.01)
+    # Static field during evolution (Protocol.field_ut, D19), fitted only when asked; the default is zero field.
+    # With preparation and detection along z the signal depends on the field only through its transverse size
+    # B_perp (placed in Bx) and |Bz|, so two parameters >= 0 cover every field ("field_perp_ut", "field_z_ut").
+    # The signal is stationary at zero field (zero gradient), so the starts must be nonzero.
+    fit_field: bool = False
+    field_axes: Tuple[str, ...] = ("perp", "z")
+    field_bounds_ut: Tuple[float, float] = (0.0, 1.0)
+    initial_field_ut: Tuple[float, float] = (0.02, 0.02)     # (perp, z) starts
     # Nuisance terms rendered through the same operator; linear amplitudes are real and unconstrained.
     # {"kind": "exponential", "rate_bounds_per_s": [lo, hi], "initial_rate_per_s": r}
     # {"kind": "damped_sinusoid", "frequency_bounds_hz": [lo, hi], "initial_frequency_hz": f,
@@ -117,6 +125,13 @@ class Parameterization:
             lo, hi = policy.phase_delay_bounds_s
             start = 0.0 if lo <= 0.0 <= hi else 0.5 * (lo + hi)     # an instrument prior may exclude zero
             params.append(Parameter("phase_delay", start, lo, hi, True, "phase_delay"))
+        if policy.fit_field:
+            lo, hi = policy.field_bounds_ut
+            for axis in policy.field_axes:
+                if axis not in ("perp", "z"):
+                    raise ValueError(f"Unknown field axis '{axis}' (use 'perp' and/or 'z').")
+                start = float(np.clip(policy.initial_field_ut[0 if axis == "perp" else 1], lo, hi))
+                params.append(Parameter(f"field_{axis}_ut", start, lo, hi, True, "field", -1, (axis,)))
         for i, term in enumerate(policy.nuisance):
             kind = term.get("kind")
             if kind in ("exponential", "damped_sinusoid"):
@@ -237,6 +252,15 @@ class Parameterization:
 
     def phase_delay(self, values: Dict[str, float]) -> float:
         return values.get("phase_delay", 0.0)
+
+    def has_field(self) -> bool:
+        return any(p.kind == "field" for p in self.parameters.values())
+
+    def field_ut(self, values: Dict[str, float]) -> Optional[Tuple[float, float, float]]:
+        """(Bx, By, Bz) in microtesla from the field parameters (B_perp along x), or None without them."""
+        if not self.has_field():
+            return None
+        return (float(values.get("field_perp_ut", 0.0)), 0.0, float(values.get("field_z_ut", 0.0)))
 
     def interpretation(self, values: Dict[str, float], contributions: Sequence[float]) -> Interpretation:
         comps = [Component(system, float(max(c, 0.0)), layout.label, {"refined": True})
