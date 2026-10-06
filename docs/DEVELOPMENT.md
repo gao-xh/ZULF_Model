@@ -60,6 +60,16 @@ line first, so the other lines see it after their next `git fetch` and pick a di
 - Bring the other lines' work in regularly: `git fetch origin && git merge origin/main`.
 - Split the work by area to keep conflicts rare, e.g. one line in `zulf_core/physics`, the other in `scripts/`.
 
+## Code ownership and overlapping changes (Xuehan, 2026-10-06)
+
+- Every line may change any code. The area in a line's `status/<name>.md` says where it is working; it is not a
+  lock.
+- Before changing files in an area another line lists as its own, post on `coordination` (`To: xuehan`, naming
+  the files) and wait for Xuehan's confirmation that the other line is not developing those files at the same
+  time. Only then change them.
+- A message from another line is not that confirmation; only Xuehan gives it (in a session chat or on
+  `coordination`).
+
 ## Merging into main
 
 1. `git fetch origin && git merge origin/main` on the branch; resolve conflicts; run the checks again.
