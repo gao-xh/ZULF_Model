@@ -485,3 +485,37 @@ class AutoFamilyEdgesTests(unittest.TestCase):
                     continue
                 same = lines[(fam == fam[i]) & (np.abs(lines - lines[i]) > 0.2)]
                 self.assertEqual(len(same), 0, f"line {lines[i]:.2f} under the sharp peak {p:.2f} shares its family")
+
+
+class RunToolsTests(unittest.TestCase):
+    def test_short_run_then_figures_and_snapshot(self):
+        # a real (short) fit_joint_series run on the synthetic spectrum; the tools rebuild it from its directory
+        import subprocess
+        import plot_components
+        import plot_runs
+        import run_problem
+        import snapshot_fit
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            out = tmp / "run"
+            cmd = [sys.executable, str(Path(fj.__file__)), *_argv(tmp, ["--family-edges", "150,200", "--starts", "1",
+                   "--max-nfev", "8", "--component-search", "off", "--out", str(out)])]
+            subprocess.run(cmd, check=True, capture_output=True, timeout=600,
+                           env={**__import__("os").environ, "OMP_NUM_THREADS": "1"})
+            fit = json.load(open(out / "fit.json"))
+            self.assertEqual(fit["family_edges_hz"], [150.0, 200.0])
+            run = run_problem.load_run(out)
+            j = run.prob.joint
+            for k, n in enumerate(j.coupling):
+                key = run.prob.key_of.get(n, n)
+                self.assertAlmostEqual(float(j.coupling_values(run.prob.z0, k)[0]), fit["couplings"][key]["J_at_x"][0],
+                                       places=6)
+            self.assertAlmostEqual(float(np.sum(j.residual(run.prob.z0) ** 2)), fit["scores"][0], delta=1e-6)
+            rows = plot_runs.plot(tmp / "runs.png", [out, out], zooms=[(180, 210)])
+            self.assertEqual(len(rows), 2)
+            comps = plot_components.plot(out, tmp / "components.png", band=(120, 260))
+            self.assertEqual([c[0] for c in comps], list(run.prob.model.component_labels))
+            self.assertTrue((tmp / "runs.png").stat().st_size > 10000 and (tmp / "components.png").stat().st_size > 10000)
+            snap = snapshot_fit.snapshot(out, tmp / "snap.json")
+            self.assertLessEqual(snap["scores"][0], fit["scores"][0] * (1 + 1e-6))

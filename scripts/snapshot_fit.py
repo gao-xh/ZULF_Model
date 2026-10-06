@@ -17,22 +17,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fit_joint_series import make_parser, build_problem  # noqa: E402
-
-# options that point to start files or outputs; not needed to rebuild the problem
-_DROP = ("--seeds", "--from-joint", "--out", "--monitor", "--trace")
+from run_problem import problem_argv  # noqa: E402
 
 
 def problem_from_status(status):
-    argv, keep, skip = list(status["argv"][1:]), [], False
-    for a in argv:
-        if skip:
-            skip = False
-            continue
-        if a in _DROP:
-            skip = True
-            continue
-        keep.append(a)
-    return build_problem(make_parser().parse_args(keep + ["--monitor", "off"]))
+    return build_problem(make_parser().parse_args(problem_argv(list(status["argv"][1:])) + ["--monitor", "off"]))
 
 
 def candidates(monitor_dir):
@@ -54,7 +43,8 @@ def candidates(monitor_dir):
 
 def snapshot(run_dir, out_path):
     run_dir = Path(run_dir)
-    status = json.load(open(run_dir / "monitor" / "status.json"))
+    with open(run_dir / "monitor" / "status.json") as fh:
+        status = json.load(fh)
     prob = problem_from_status(status)
     j = prob.joint
     j.set_smoothing(0.0)
@@ -75,7 +65,8 @@ def snapshot(run_dir, out_path):
         x = j.spectrum_vector(z, s)
         fit["spectrum_parameters"][e["id"]] = {n: float(x[j.col[n]]) for n in list(j.shared) + list(j.local)}
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    json.dump(fit, open(out_path, "w"), indent=1)
+    with open(out_path, "w") as fh:
+        json.dump(fit, fh, indent=1)
     return fit
 
 
