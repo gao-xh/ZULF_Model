@@ -27,6 +27,8 @@ interface and `docs/PLAN.md` before starting new work.
   author (set `git config user.name` / `user.email` in every new clone). Do not
   add co-author lines, session links or "generated with" footers to commit
   messages or pull request descriptions.
+- Work on your own branch and merge into `main` as described in
+  `docs/DEVELOPMENT.md` (parallel sessions, conflicts, cloud-session limits).
 - Experimental inputs are read-only. Generated data, checkpoints and reports go
   under `runs/` or another configured output directory, never into `git`.
 - Frozen test sets and generator versions are recorded in `docs/PLAN.md`.

@@ -12,9 +12,9 @@ covered processing; its open items are kept under "Open work" below.
 
 ## Repository
 
-- GitHub `gao-xh/ZULF_Model` (the clone's remote `gao-xh/zulf_model` redirects there), branch
-  `claude/eager-franklin-tp94gf`. This is the
-  only branch on the remote; there is no `main` yet.
+- GitHub `gao-xh/ZULF_Model` (the clone's remote `gao-xh/zulf_model` redirects there). Default branch `main`;
+  every development line (local or cloud session) works on its own branch and merges into `main`: see
+  `docs/DEVELOPMENT.md`.
 - Packages:
   - `zulf_core`: NumPy/SciPy physics (including chemical exchange), rendering, the single processing operator
     (`render/acquisition.py`), solver.
