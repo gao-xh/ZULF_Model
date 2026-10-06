@@ -17,6 +17,14 @@ git config user.name "Xuehan Gao"
 git config user.email "gao.xh@berkeley.edu"
 ```
 
+## Communication between lines
+
+Cloud sessions run in separate containers and cannot message each other directly. They talk through the branch
+`coordination` (no code, never merged into `main`): `status/<name>.md` per line (branch, task, area, state) and
+one file per message in `messages/`. Protocol and commands: README.md on that branch
+(`git fetch origin coordination && git show origin/coordination:README.md`). Look there at the start of a
+session, before and after every merge into `main`, and at least hourly during long work.
+
 ## One branch per development line
 
 | Line | Branch |
@@ -38,7 +46,8 @@ python scripts/check_ascii.py
 python -m unittest tests.test_processing tests.test_j_tuner     # quick check, about 1.5 min
 ```
 
-Then claim the work in `docs/PLAN.md`: mark the item `[~]` with "in progress: <branch>", commit and push this
+Then read the `coordination` branch (messages and status of the other lines) and claim the work in
+`docs/PLAN.md`: mark the item `[~]` with "in progress: <branch>", commit and push this
 line first, so the other lines see it after their next `git fetch` and pick a different item.
 
 ## During the work
