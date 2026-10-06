@@ -67,6 +67,24 @@ python -m zulf_model.agent.mcp_server             # MCP server for Claude Code /
 Outputs go to `$ZULF_MODEL_WORKSPACE` (default `runs/`, ignored by git).
 Experimental inputs are read-only and never committed.
 
+## Data
+
+Experimental data is not in git. On the local machine of the owner it is stored under
+`~/research/zulf/data/` (layout, rules and inventory with sha256 in its `README.md`). Every file sits in a
+measurement folder (`<YYYY-MM-DD>-<compound>`, or `<compound>-<sample id>` when the date is unknown), created
+first under each area:
+
+| Folder | Contents |
+| --- | --- |
+| `original/<measurement>/` | Instrument output of one run, every scan (NMRduino `<n>.dat`, `<n>.ini`), as given, read-only |
+| `raw/<measurement>/` | Other received data, original names: averaged FID `<id>-<name>.npy`, `selected-scans/` (legacy ScanSelector), `spectra/` (other groups or software) |
+| `processed/<measurement>/` | Data products of our code (scan-selection records and their averages) |
+
+`ZULF_DATA_DIR` points at `raw/` and is passed per command, e.g.
+`ZULF_DATA_DIR=~/research/zulf/data/raw python scripts/regression_confirmed.py ...`; the scripts find each
+FID by file name in any subfolder (`zulf_core.io.find_data_file`, exactly one match required). Cloud sessions
+have no copy of the data (docs/HANDOFF.md, "Data").
+
 ## Status
 
 Start with `docs/HANDOFF.md` (state as of 2026-10-05: data, current results, how to fit a known structure, open

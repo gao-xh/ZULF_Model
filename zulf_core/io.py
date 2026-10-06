@@ -91,6 +91,23 @@ def average_folder(folder, scan_ids: Optional[Sequence[int]] = None, groups: Opt
             for m, g in zip(means, groups)]
 
 
+def find_data_file(data_dir, name) -> Path:
+    """Locate a data file by name under data_dir, directly or in any subfolder.
+
+    Data folders keep one subfolder per measurement (e.g. raw/<date>-<compound>/), while configs name files
+    only. Exactly one match is required, so an ambiguous name is an error rather than a silent choice.
+    """
+    data_dir = Path(data_dir)
+    direct = data_dir / name
+    if direct.is_file():
+        return direct
+    matches = sorted(p for p in data_dir.rglob(Path(name).name) if p.is_file())
+    if len(matches) != 1:
+        found = ", ".join(str(p) for p in matches) or "none"
+        raise FileNotFoundError(f"Expected exactly one file named {name} under {data_dir}; found: {found}")
+    return matches[0]
+
+
 def load_spectrum_table(path):
     """Load a processed spectrum as (frequencies_hz, values).
 
