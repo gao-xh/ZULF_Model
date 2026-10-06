@@ -280,6 +280,18 @@ class ComponentSearchTests(unittest.TestCase):
         self.assertAlmostEqual(float(prob.joint.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.1)
         self.assertTrue(any(w["accepted"] for w in rec["windows"]))
 
+    def test_wrong_basin_is_found_with_held_gains(self):
+        prob = self.prob
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": 6.0})
+        args = _args(self.tmp, ["--component-search-starts", "12", "--seed", "3", "--component-search-hold-gains"])
+        args.workers = 1
+        z_new, rec = fj.component_search(prob.joint, prob, s.z.copy(), args, "start")
+        self.assertLess(rec["objective_after"], 0.5 * rec["objective_before"])
+        k = prob.joint.coupling.index(next(n for n in prob.joint.coupling if prob.key_of.get(n, n) == "J(C1,HC2)"))
+        self.assertAlmostEqual(float(prob.joint.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.15)
+
 
 class GroupIndexTests(unittest.TestCase):
     def test_exchanging_groups_found_in_a_symmetric_component(self):
@@ -361,3 +373,39 @@ class TiedRatesTests(unittest.TestCase):
             self.assertEqual(len([n for n in free if not n.startswith(f"c{c2}.")]), 3)
             with self.assertRaises(ValueError):
                 fj.build_problem(_args(tmp, ["--family-edges", "150", "--tie-rates", "no such component"]))
+
+
+class HeldGainLocalFitTests(unittest.TestCase):
+    def test_held_gain_cost_is_the_window_part_of_the_full_residual(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z_truth = _problem(tmp)
+            j = prob.joint
+            f = j.forwards[0]
+            s = jt.TuningSession(prob)
+            s.z = z_truth.copy()
+            s.set_couplings({"J(C1,HC2)": -3.6})                 # truth -4.2 Hz
+            z_bad = s.z.copy()
+            labels = prob.model.component_labels
+            c1 = labels.index("13C@C1")
+            window = next((lo, hi) for c, lo, hi in fj._component_windows(j, z_bad, 0) if c == c1)
+            name = next(n for n in j.coupling if prob.key_of.get(n, n) == "J(C1,HC2)")
+            out = j.local_fit(z_bad, 0, window, [name], lower=prob.lower, upper=prob.upper, max_nfev=60,
+                              hold_gains=True)
+            cost, z_new = out[0]
+            k = j.coupling.index(name)
+            # the gains stay at the start's global solution (fitted with the wrong coupling), which biases the window
+            # optimum slightly; the global refit that follows a local candidate removes it
+            self.assertAlmostEqual(float(j.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.1)
+            # reference: the full forward (every line rendered) with the gains of z_bad held, on the window rows
+            x_bad = j.spectrum_vector(z_bad, 0)
+            ref = f.predict(x_bad)
+            r = np.asarray(f.predict(j.spectrum_vector(z_new, 0), fixed_gains=ref.gains,
+                                     fixed_background=ref.background).residual)
+            idx = np.flatnonzero((f.f >= window[0]) & (f.f <= window[1]))
+            rows = np.concatenate([idx, idx + len(f.f)]) if len(r) == 2 * len(f.f) else idx
+            self.assertAlmostEqual(cost, float(r[rows] @ r[rows]), delta=1e-3 * max(cost, 1e-12) + 1e-12)
+            # at the start point the held-gain residual is the plain residual (the gains are the global solution)
+            np.testing.assert_allclose(np.asarray(f.predict(x_bad, fixed_gains=ref.gains,
+                                                            fixed_background=ref.background).residual),
+                                       np.asarray(ref.residual), rtol=1e-9, atol=1e-12)

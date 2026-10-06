@@ -571,15 +571,23 @@ class JointSeries:
         return {"frequency_hz": float(frequency_hz), "lines": lines, "couplings": effect}
 
     def local_fit(self, z, s, window_hz, couplings, locals_=(), lower=None, upper=None, starts=None, max_nfev=100,
-                  margin_hz=2.0):
+                  margin_hz=2.0, hold_gains=False):
         """Targeted local refinement: fit only spectrum s inside window_hz = (lo, hi), with only the named couplings
         (leaders, e.g. the split-type couplings of peak_sources) and spectrum parameters (e.g. the rate family holding
         those lines) free; everything else held at z. Fast: a forward model of the window points alone that renders
         and differentiates only the transitions within window +- margin_hz (farther lines add only their tails;
         gains, phase and background are solved again on the window). `starts`: list of dicts {name: start value}
-        (default: z itself). Returns [(local cost, z)] sorted, each z a full vector for a global refit."""
+        (default: z itself). Returns [(local cost, z)] sorted, each z a full vector for a global refit.
+
+        hold_gains: gains, phase and background stay at the global solution at z, and the cost is the full
+        objective's residual on the window points (its own weights and norm). The local cost is then the window
+        part of the whole objective, not a cost with re-solved amplitudes that overstates the gain. Lines outside
+        window +- margin_hz enter as their contribution at z (a constant offset); Jacobian by finite differences."""
         f = self.forwards[s]
         lo_w, hi_w = float(window_hz[0]), float(window_hz[1])
+        if hold_gains:
+            return self._local_fit_held(z, s, (lo_w, hi_w), couplings, locals_, lower, upper, starts, max_nfev,
+                                        margin_hz)
         obs_w = f.obs.restricted([(lo_w, hi_w)])
         fw = MixtureForward(self.params[s], obs_w, f.protocol, self.settings.gain_model,
                             self.settings.background_order, self.settings.band_weighting,
@@ -619,6 +627,55 @@ class JointSeries:
                 p0[names.index(n)] = v
             p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
             sol = least_squares(res, p0, jac=jac, bounds=(lo, hi), x_scale="jac", max_nfev=max_nfev,
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10)
+            out.append((float(2 * sol.cost), full(sol.x)))
+        out.sort(key=lambda t: t[0])
+        return out
+
+    def _local_index(self, s, couplings, locals_):
+        zi = []
+        for n in couplings:
+            k = self.coupling.index(n)
+            zi.append(k * self.m + (self.node_of[s] if self.shape == "free" else 0))
+        for n in locals_:
+            zi.append(self.ntheta + self.shared.index(n) if n in self.shared else self.nt + s * self.nl + self.local.index(n))
+        return np.asarray(zi, int)
+
+    def _local_fit_held(self, z, s, window_hz, couplings, locals_, lower, upper, starts, max_nfev, margin_hz):
+        import copy
+        f = self.forwards[s]
+        x0 = self.spectrum_vector(z, s)
+        ref = f.predict(x0)
+        gains, background = np.asarray(ref.gains), np.asarray(ref.background)
+        r_full = np.asarray(f.predict(x0, fixed_gains=gains, fixed_background=background).residual)
+        idx = np.flatnonzero((f.f >= window_hz[0]) & (f.f <= window_hz[1]))
+        nf = len(f.f)
+        rows = np.concatenate([idx, idx + nf]) if len(r_full) == 2 * nf else idx
+        fw = copy.copy(f)                                   # same weights and norm; only nearby lines rendered
+        fw.line_band_hz = (window_hz[0] - margin_hz, window_hz[1] + margin_hz)
+        fw.jacobian_only = None
+        fw._last = None
+        offset = r_full[rows] - np.asarray(fw.predict(x0, fixed_gains=gains, fixed_background=background).residual)[rows]
+        zi = self._local_index(s, couplings, locals_)
+        lo = lower[zi] if lower is not None else np.full(len(zi), -np.inf)
+        hi = upper[zi] if upper is not None else np.full(len(zi), np.inf)
+
+        def full(p):
+            zz = z.copy()
+            zz[zi] = p
+            return zz
+
+        def res(p):
+            r = fw.predict(self.spectrum_vector(full(p), s), fixed_gains=gains, fixed_background=background).residual
+            return np.asarray(r)[rows] + offset
+        out = []
+        names = list(couplings) + list(locals_)
+        for st in (starts or [{}]):
+            p0 = z[zi].copy()
+            for n, v in st.items():
+                p0[names.index(n)] = v
+            p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
+            sol = least_squares(res, p0, bounds=(lo, hi), x_scale=1.0, diff_step=1e-6, max_nfev=max_nfev,
                                 ftol=1e-10, xtol=1e-10, gtol=1e-10)
             out.append((float(2 * sol.cost), full(sol.x)))
         out.sort(key=lambda t: t[0])
@@ -867,9 +924,9 @@ def _component_windows(joint, z, s, min_line=0.05, gap_hz=3.0, dominance=0.8):
 
 
 def _cs_local(start):
-    joint, s, window, names, rates, lower, upper, max_nfev, z = _CS_TASK
+    joint, s, window, names, rates, lower, upper, max_nfev, z, hold_gains = _CS_TASK
     return joint.local_fit(z, s, window, names, locals_=rates, lower=lower, upper=upper, starts=[start],
-                           max_nfev=max_nfev)[0]
+                           max_nfev=max_nfev, hold_gains=hold_gains)[0]
 
 
 def component_search(joint, prob, z, args, stage):
@@ -906,7 +963,8 @@ def component_search(joint, prob, z, args, stage):
             for _ in range(args.component_search_starts):
                 starts.append({n: float(rng.uniform(v - one_bond, v + one_bond) if abs(v) >= 50.0
                                         else rng.uniform(lo_box, hi_box)) for n, v in current.items()})
-            _CS_TASK = (joint, s, (lo, hi), names, rates, prob.lower, prob.upper, args.component_search_nfev, z)
+            _CS_TASK = (joint, s, (lo, hi), names, rates, prob.lower, prob.upper, args.component_search_nfev, z,
+                        bool(getattr(args, "component_search_hold_gains", False)))
             if args.workers > 1:
                 import multiprocessing
                 with multiprocessing.get_context("fork").Pool(args.workers) as pool:
@@ -1219,6 +1277,9 @@ def make_parser():
                          "the first centre), 'end' searches from the best solution and refits globally if it wins")
     ap.add_argument("--component-search-starts", type=int, default=30, help="random starts per window")
     ap.add_argument("--component-search-nfev", type=int, default=30, help="max_nfev of each window fit")
+    ap.add_argument("--component-search-hold-gains", action="store_true",
+                    help="window fits keep gains, phase and background at the global solution (cost = the window "
+                         "part of the whole objective) instead of solving them on the window")
     ap.add_argument("--component-search-keep", type=int, default=6, help="distinct window solutions scored")
     ap.add_argument("--component-search-box", default="-8,13,7",
                     help="small couplings uniform in lo,hi; one-bond couplings current +- the third value (Hz)")
