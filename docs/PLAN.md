@@ -239,6 +239,12 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Instrument-line detection per dataset instead of a fixed list.
 - [x] Wire `process_dataset` into the regression:
       `regression_confirmed.py --processing dataset [--window-mode ...]`.
+- [~] Scan averaging with per-scan screening (`scripts/average_scans.py`, tests/test_diagnostics.py
+      AverageScansTests; commit of the acetonitrile analysis): robust-z deviation metric, even / odd half
+      averages, a record (scans.json). Open: the full rewrite of the legacy ScanSelector (signal-band metric,
+      leave-one-out reference, held-out check of the selection).
+- [ ] Phase calibration of the 2 kHz sequence (standard_zf_2000Hz_no_dead.seq); the config holds only the
+      4 kHz one (acetonitrile 2026-09-28: calibrated spectrum far from absorptive).
 
 ## Phase 3d: processed spectra from other groups (Blake pyridine series)
 
@@ -370,6 +376,18 @@ tall lines and barely sees it.
 - [x] Fixed-by-default couplings: list every coupling the template leaves unspecified (fixed at 0) with its
       |df/dJ| (line_table reports zero couplings); free those that move lines by more than a line width
       (isopropylamine methyl-methyl 4J(H,H) freed: +0.19 Hz, total -5 %).
+
+## Phase 3f: measurements in a field (user 2026-10-06)
+
+- [x] Fitted static field, default zero field (D47; `ParameterPolicy.fit_field`, `fit_joint_series --fit-field`;
+      tests/test_solver.py FieldFitTests, tests/test_j_tuner.py FieldOptionTests; commits 913bce5, 4fbac0a).
+- [x] Acetonitrile fringe-field run 2026-09-28 (docs/analysis/2026-10-06_acetonitrile_field-fit.md): 13CH3 with
+      a fitted field and rate families, objective 0.58 -> 0.044, |B| about 0.06 uT, 1J 136.28 Hz (halves agree
+      within 0.007 Hz and 3 nT).
+- [ ] Field distribution (gradient over the sample) instead of rate families for field-sensitive lines.
+- [ ] Analytic field derivatives (Zeeman directions in physics.derivatives) instead of central differences.
+- [ ] Field in the global pattern search (solver.search) and in scripts/line_table.py.
+- [ ] Acetonitrile open lines: 83-85, 154.1, about 627 Hz; nitrile 13C isotopologue below 22 Hz; 14N.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
 

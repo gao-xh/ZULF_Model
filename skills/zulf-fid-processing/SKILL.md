@@ -77,6 +77,18 @@ docs/analysis/2026-10-01_blake-pyridine_data-consistency.md).
 8. Peak-top noise floor for missing-peak rows (`--peak-min-sigma`): raise it
    for unwindowed or weak spectra (x 0.02 had 49 noise tops at 2 sigma).
 
+## Averaging scans of a run
+
+- `scripts/average_scans.py RUN OUT [--exclude-z Z]`: decodes every `<n>.dat`, a per-scan deviation from the
+  mean (0.1-4.1 s, own mean and trend removed) with a robust z, even / odd half averages and scans.json.
+  Look at OUT/scans.png before choosing Z. Acetonitrile 2026-09-28: 11 % of the scans had z > 5 (scattered
+  disturbances); leaving them out changed no fitted number, so check this before trusting a selection.
+- The half averages are the held-out check: fit both with the same settings and compare couplings and
+  nuisance parameters (field, delay).
+- Use the run's own sampling rate (`--sampling-rate` in make_series_entry.py): the 2 kHz sequence
+  (standard_zf_2000Hz_no_dead.seq) exists next to the 4 kHz one, and the config's phase calibration is for
+  4 kHz only; a complex fit absorbs the phase, a phased figure does not.
+
 ## Acquisition assumptions
 
 - Without an ini, match the array length to earlier datasets of the same

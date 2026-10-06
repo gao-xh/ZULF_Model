@@ -74,3 +74,44 @@ class FindDataFileTests(unittest.TestCase):
                 find_data_file(root, "missing.npy")
             with self.assertRaises(FileNotFoundError):
                 find_data_file(root, "twice.npy")
+
+
+def _encode_dat(samples):
+    """Inverse of the legacy NMRduino convention (decode_dat): reverse samples, pad 20 + 2 words, little-endian
+    int16, reverse bytes. Written independently of decode_dat for the averaging test."""
+    words = np.concatenate([np.zeros(20, "<i2"), np.asarray(samples, "<i2")[::-1], np.zeros(2, "<i2")])
+    return words.tobytes()[::-1]
+
+
+class AverageScansTests(unittest.TestCase):
+    def test_average_halves_and_outlier_exclusion(self):
+        import json
+        import subprocess
+        import sys
+        rng = np.random.default_rng(3)
+        n, scans = 200, 40
+        t = np.arange(n) / 100.0
+        clean = (300 * np.exp(-t) * np.cos(2 * np.pi * 12 * t)).astype(int)
+        data = np.array([clean + rng.integers(-20, 21, n) for _ in range(scans)])
+        data[7] += (2000 * np.sin(2 * np.pi * 3 * t)).astype(np.int64)        # one disturbed scan
+        ini = "[NMRduino]\nSampleRate=100\nNumberOfSamples=%d\n" % n
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run, out = Path(tmp) / "run", Path(tmp) / "out"
+            run.mkdir()
+            for i, row in enumerate(data):
+                (run / f"{i}.dat").write_bytes(_encode_dat(row))
+                (run / f"{i}.ini").write_text(ini)
+            np.testing.assert_array_equal(decode_dat((run / "3.dat").read_bytes()), data[3])
+            cmd = [sys.executable, str(root / "scripts" / "average_scans.py"), str(run), str(out),
+                   "--window", "0.1,1.9"]
+            subprocess.run(cmd, check=True, capture_output=True)
+            np.testing.assert_allclose(np.load(out / "average_fid.npy"), data.mean(axis=0))
+            np.testing.assert_allclose(np.load(out / "average_even.npy"), data[0::2].mean(axis=0))
+            np.testing.assert_allclose(np.load(out / "average_odd.npy"), data[1::2].mean(axis=0))
+            subprocess.run(cmd + ["--exclude-z", "5"], check=True, capture_output=True)
+            record = json.load(open(out / "scans.json"))
+            self.assertEqual(record["excluded_scans"], [7])
+            kept = np.delete(np.arange(scans), 7)
+            np.testing.assert_allclose(np.load(out / "average_fid.npy"), data[kept].mean(axis=0))
+            np.testing.assert_allclose(np.load(out / "average_even.npy"), data[kept[0::2]].mean(axis=0))

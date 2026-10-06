@@ -129,6 +129,17 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 - Blind global search from a model skeleton measures the pipeline; it found
   an envelope fit with unphysical couplings, not the structure.
 - Save full results (parameters, gains, prediction) for every fit.
+- Measurements in a field (fringe field, residual shield field; D47): a zero-field multiplet that is split
+  where the model has one line, with a sharp centre and broader side lines, points to a static field
+  (acetonitrile 2026-09-28: 13CH3 J band 134.65 / 136.30 / 137.9 Hz, 2J band 271.5 / 272.6 / 273.5 Hz).
+  Check first with sticks (`compute_transitions(system, Protocol(field_ut=...))`): a longitudinal field leaves
+  the J line of an XA3 group in place and splits its 2J line into three; a transverse field splits the J line
+  into an equal doublet. Then fit `--fit-field` from several nonzero `--field-start` values (the signal is
+  stationary at zero field, and the coupling multistart does not move spectrum parameters); acetonitrile:
+  four of six starts reached the best basin. Field-sensitive lines then decay faster than field-insensitive
+  ones (field inhomogeneity): rate families per line group (centre / side lines / 2J band) took the objective
+  from 0.20 to 0.044. Report the field with the result; B_perp and Bz trade against each other, the magnitude
+  is better defined.
 
 ## Spectra processed elsewhere and concentration series (Blake pyridine, ANALYSIS_LOG)
 

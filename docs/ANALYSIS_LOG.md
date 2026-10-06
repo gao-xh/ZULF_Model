@@ -1363,3 +1363,8 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-05: ethylenediamine with the N-H protons kept (static, 9 spins): one species 0.049, two species 0.0090,
   against 0.0051 with N-H decoupled; the N-H couplings fit to within 1.3 Hz of zero. Fast exchange favoured; exact
   intermediate exchange too large (35 GiB). docs/analysis/2026-10-05_amines_overnight.md
+- 2026-10-06: acetonitrile fringe-field run (2 kHz, 5539 scans; 11 % disturbed scans make no difference). The
+  zero-field 13CH3 model fails (objective 0.58, residual 0.73: split J and 2J bands). With a fitted static field
+  (D47, new `--fit-field`) and rate families: 0.044, residual 0.21; |B| about 0.06 uT (B_perp 0.037, Bz 0.045),
+  1J 136.28 Hz; even / odd halves agree within 0.007 Hz and 3 nT. Field-sensitive lines decay faster (field
+  inhomogeneity). docs/analysis/2026-10-06_acetonitrile_field-fit.md
