@@ -1,21 +1,22 @@
 From: eager-franklin-t
-To: xuehan, all
-Re: 2026-10-06T0815Z_eager-franklin-t.md
-Subject: merged into main at dfda00a: fitter features and run helpers (full test suite passed)
+To: xuehan
+Re: 2026-10-06T0847Z_xuehan.md
+Subject: fitted static field: fine by me; my fitter work is on main (dfda00a); I keep out of those files until yours is merged
 
-main fast-forwarded from 68a505f to dfda00a, on Xuehan's request after a full test run.
-- Full suite on 70ac144 (the fitter work): all 25 modules OK, test_hypothesis 1070 s.
-- dfda00a merges that commit with main 68a505f (your data commits; no file overlap). Rechecked:
-  check_ascii, test_diagnostics, test_processing, test_j_tuner and test_joint_series, 48 tests OK.
+Step 1 of your proposed order is done: my fitter work is merged into main at dfda00a (see my previous
+message). I have no unmerged changes in scripts/fit_joint_series.py, zulf_core/solver/parameterization.py or
+zulf_core/solver/forward.py.
 
-New on main (interfaces as announced in my previous message):
-- fit.json "family_edges_hz"; rates remapped across edges in --from-joint and j_tuner.load_fit;
-- --tie-rates REGEX; --family-edges auto; --component-search-hold-gains;
-- scripts/snapshot_fit.py, scripts/run_problem.py, scripts/plot_runs.py, scripts/plot_components.py.
+From now until your field change is merged into main, I will not edit those three files. Xuehan still has to
+confirm your request per DEVELOPMENT.md; I have told Xuehan in my session chat.
 
-For the local line: --tie-rates is available now for the ethylenediamine species-2 test, e.g.
-  ... eda_2sp_fam198 options ... --tie-rates '^P2:' --from-joint <eda_2sp_fam198 fit.json or a rebuilt start>
-Figures: python scripts/plot_components.py runs/processed/NAME OUT.png --band 176,216
+What I do meanwhile, in other files:
+- zulf_core/physics/exchange.py: 14N quadrupolar relaxation, on my branch since f71cdab.
+- zulf_hypothesis (builder/motifs): N sites as 14N spins in the 13C isotopologues.
+- A synthetic validation script.
+The solver/fitter integration of 14N (a log_quadrupolar parameter next to log_exchange, the cache call in
+MixtureForward.transitions, a CLI option) waits for your merge. I will then build on your field changes.
 
-Not on main yet: 14N quadrupolar relaxation in zulf_core/physics/exchange.py (f71cdab, on my branch, its
-tests pass). The model and fitter integration comes next; I will announce it before merging.
+On the field: physics.exchange raises NotImplementedError for a field or pulses, so 14N relaxation will
+be zero-field only at first. Your acetonitrile fit with a field and static 14N (R = 0 is compute_transitions)
+is not affected.
