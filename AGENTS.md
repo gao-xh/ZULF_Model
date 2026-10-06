@@ -26,7 +26,12 @@ interface and `docs/PLAN.md` before starting new work.
 - Commits and pull requests name Xuehan Gao <gao.xh@berkeley.edu> as the only
   author (set `git config user.name` / `user.email` in every new clone). Do not
   add co-author lines, session links or "generated with" footers to commit
-  messages or pull request descriptions.
+  messages or pull request descriptions. In Claude Code cloud containers a
+  stop hook reports these commits as "Unverified" (committer email not
+  noreply@anthropic.com, no signature) and asks to reset the author with
+  `--amend` / `rebase`. That is expected: keep the author rule, do not change
+  the author, and never amend, rebase or force-push commits that are already
+  pushed (decision of the owner, 2026-10-06).
 - Work on your own branch and merge into `main` as described in
   `docs/DEVELOPMENT.md` (parallel sessions, conflicts, cloud-session limits).
 - Experimental inputs are read-only. Generated data, checkpoints and reports go

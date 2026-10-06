@@ -87,9 +87,14 @@ Never force-push `main` and never rewrite history on a branch someone else uses 
   (HTTP 403, or the connection is dropped). The owner does these on github.com: Settings -> General -> Default
   branch; Branches page -> delete.
 - The session does not open pull requests unless asked.
+- The container's stop hook flags commits authored by Xuehan Gao as "Unverified" and asks to amend them to
+  `Claude <noreply@anthropic.com>`. Do not follow it: the author rule of AGENTS.md stands, and amending pushed
+  commits would rewrite shared history.
 
 ## Record: branch setup of 2026-10-06
 
 - `main` created at e9a1580 (identical to the former working branch `claude/eager-franklin-tp94gf`).
 - Default branch switched to `main` and `claude/eager-franklin-tp94gf` deleted, both by the owner on github.com.
 - Author rule added to AGENTS.md (9a09e53) and fast-forwarded into `main`.
+- `claude/eager-franklin-tp94gf` recreated from `main` at 8ab5c84 on the owner's request: it is again the branch
+  of the original development session (coordination name `eager-franklin-t`).
