@@ -18,7 +18,7 @@ import numpy as np
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Qt, QTimer, Signal
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence, QPixmap
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QSplitter,
                                QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
@@ -357,10 +357,9 @@ class StudioWindow(QMainWindow):
         self.log_view.setObjectName("mono")
         self.log_view.setMaximumBlockCount(5000)
         self.tabs.addTab(self.log_view, "Log")
-        self.tabs.addTab(Terminal(session), "Terminal")
-        self.tabs.addTab(Console({"session": session, "api": self.api, "np": np}), "Python")
         self.tabs.addTab(self._ai_tab(), "AI assistant")
-        self.tabs.addTab(self._api_tab(), "AI API")
+        self.settings = self._settings_dialog()          # AI configuration, API, appearance (menu: Settings)
+        self.tools = self._tools_window()                # terminal and Python console (menu: Tools)
 
         right = QSplitter(Qt.Vertical)
         right.addWidget(center)
@@ -706,21 +705,17 @@ class StudioWindow(QMainWindow):
                                   + f"{st['directory']}\n" + ", ".join(st["files"]))
 
     def _ai_tab(self):
+        """The chat: the request box, the transcript, and one status line; configuration is in Settings."""
         w = QWidget()
         lay = QVBoxLayout(w)
+        self._ai_config_widgets()
         row = QHBoxLayout()
-        self.ai_provider = QComboBox()
-        self.ai_provider.addItem("Anthropic (Claude)", "anthropic")
-        self.ai_provider.addItem("OpenAI (e.g. Codex)", "openai")
-        self.ai_model = QLineEdit("claude-opus-5-5")
-        self.ai_model.setToolTip("Claude: claude-opus-5-5 (default). OpenAI: a model your account offers (or OPENAI_MODEL)")
-        self.ai_provider.currentIndexChanged.connect(self._ai_provider_changed)
-        self.ai_steps = QSpinBox(minimum=1, maximum=200, value=30)
-        self.ai_creds = QLabel()
-        for wdg in (QLabel("provider"), self.ai_provider, QLabel("model"), self.ai_model, QLabel("max steps"),
-                    self.ai_steps):
-            row.addWidget(wdg)
-        row.addWidget(self.ai_creds, 1)
+        self.ai_status = QLabel()
+        settings_btn = QPushButton("Settings ...")
+        settings_btn.clicked.connect(lambda: self.open_settings("AI assistant"))
+        row.addWidget(self.ai_status, 1)
+        row.addWidget(settings_btn)
+        lay.addLayout(row)
         self.ai_log = QPlainTextEdit(readOnly=True)
         self.ai_log.setObjectName("mono")
         self.ai_prompt = QPlainTextEdit()
@@ -742,9 +737,22 @@ class StudioWindow(QMainWindow):
         send_key.setShortcut(QKeySequence("Ctrl+Return"))
         send_key.triggered.connect(self.ai_ask)
         self.ai_prompt.addAction(send_key)
-        setup_row = QHBoxLayout()
-        self.ai_guide_btn = QPushButton("Setup guide")
-        self.ai_guide_btn.setCheckable(True)
+        lay.addWidget(self.ai_log, 1)
+        lay.addWidget(self.ai_prompt)
+        lay.addLayout(btns)
+        self._ai_provider_changed()
+        return w
+
+    def _ai_config_widgets(self):
+        """Widgets of the AI configuration (shown in the Settings window)."""
+        self.ai_provider = QComboBox()
+        self.ai_provider.addItem("Anthropic (Claude)", "anthropic")
+        self.ai_provider.addItem("OpenAI (e.g. Codex)", "openai")
+        self.ai_model = QLineEdit("claude-opus-5-5")
+        self.ai_model.setToolTip("Claude: claude-opus-5-5 (default). OpenAI: a model your account offers (or OPENAI_MODEL)")
+        self.ai_provider.currentIndexChanged.connect(self._ai_provider_changed)
+        self.ai_steps = QSpinBox(minimum=1, maximum=200, value=30)
+        self.ai_creds = QLabel()
         self.ai_key = QLineEdit()
         self.ai_key.setEchoMode(QLineEdit.Password)
         self.ai_key.setPlaceholderText("API key (kept in memory; tick Remember to keep it in the macOS Keychain)")
@@ -759,23 +767,74 @@ class StudioWindow(QMainWindow):
         use_key.clicked.connect(self._ai_use_key)
         forget_key.clicked.connect(self._ai_forget_key)
         check.clicked.connect(self._ai_provider_changed)
-        for wdg in (self.ai_guide_btn, self.ai_key, self.ai_remember, use_key, forget_key, check):
-            setup_row.addWidget(wdg)
-        setup_row.setStretch(1, 1)
+        self.ai_key_buttons = (use_key, forget_key, check)
         self.ai_guide = QTextBrowser()
         self.ai_guide.setHtml(AI_SETUP_GUIDE)
-        self.ai_guide.setVisible(False)
-        self.ai_guide_btn.toggled.connect(self.ai_guide.setVisible)
+
+    def _settings_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Settings")
+        dlg.resize(820, 640)
+        tabs = QTabWidget()
+        ai = QWidget()
+        form = QFormLayout(ai)
+        form.addRow("provider", self.ai_provider)
+        form.addRow("model", self.ai_model)
+        form.addRow("max steps per request", self.ai_steps)
+        key_row = QHBoxLayout()
+        key_row.addWidget(self.ai_key, 1)
+        for b in self.ai_key_buttons:
+            key_row.addWidget(b)
+        form.addRow("API key", key_row)
+        form.addRow("", self.ai_remember)
+        form.addRow("status", self.ai_creds)
+        form.addRow(self.ai_guide)
+        tabs.addTab(ai, "AI assistant")
+        tabs.addTab(self._api_tab(), "AI API")
+        look = QWidget()
+        lf = QFormLayout(look)
+        theme = QComboBox()
+        for text, mode in (("follow the system", "auto"), ("light", "light"), ("dark", "dark")):
+            theme.addItem(text, mode)
+        theme.currentIndexChanged.connect(lambda _: self.apply_theme(theme.currentData()))
+        lf.addRow("theme", theme)
+        tabs.addTab(look, "Appearance")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(tabs)
+        close = QPushButton("Close")
+        close.clicked.connect(dlg.hide)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(close)
         lay.addLayout(row)
-        lay.addLayout(setup_row)
-        lay.addWidget(self.ai_guide, 3)
-        lay.addWidget(self.ai_log, 2)
-        lay.addWidget(self.ai_prompt)
-        lay.addLayout(btns)
-        self._ai_provider_changed()
-        if not self._ai_has_credentials():
-            self.ai_guide_btn.setChecked(True)      # first time: show how to set it up
-        return w
+        self.settings_tabs = tabs
+        return dlg
+
+    def open_settings(self, page: str = ""):
+        tabs = self.settings_tabs
+        names = [tabs.tabText(i) for i in range(tabs.count())]
+        if page in names:
+            tabs.setCurrentIndex(names.index(page))
+        self.settings.show()
+        self.settings.raise_()
+
+    def _tools_window(self):
+        win = QWidget(self, Qt.Window)
+        win.setWindowTitle("ZULF Studio tools")
+        win.resize(900, 560)
+        tabs = QTabWidget()
+        tabs.addTab(Terminal(self.session), "Terminal")
+        tabs.addTab(Console({"session": self.session, "api": self.api, "np": np}), "Python")
+        QVBoxLayout(win).addWidget(tabs)
+        self.tools_tabs = tabs
+        return win
+
+    def open_tools(self, page: str = ""):
+        names = [self.tools_tabs.tabText(i) for i in range(self.tools_tabs.count())]
+        if page in names:
+            self.tools_tabs.setCurrentIndex(names.index(page))
+        self.tools.show()
+        self.tools.raise_()
 
     def _ai_key_variable(self):
         return "ANTHROPIC_API_KEY" if self.ai_provider.currentData() == "anthropic" else "OPENAI_API_KEY"
@@ -818,9 +877,15 @@ class StudioWindow(QMainWindow):
             self.ai_model.setText(os.environ.get("OPENAI_MODEL", ""))
         ok = self._ai_has_credentials()
         hint = ("credentials found" if ok else
-                f"no credentials: set {self._ai_key_variable()} (Setup guide)")
+                f"no credentials: set {self._ai_key_variable()} (see the guide below)")
         self.ai_creds.setText(hint)
         self.ai_creds.setStyleSheet("color: %s" % (self.t["good"] if ok else self.t["bad"]))
+        if hasattr(self, "ai_status"):
+            name = self.ai_provider.currentText().split(" (")[0]
+            model = self.ai_model.text() or "no model set"
+            self.ai_status.setText(f"{name} \u00b7 {model} \u00b7 " +
+                                   ("ready" if ok else "no API key yet: open Settings to set it up"))
+            self.ai_status.setStyleSheet("color: %s" % (self.t["muted"] if ok else self.t["bad"]))
         self.assistant = None                      # a new provider or model starts a new conversation
 
     def _ai_new(self):
@@ -885,16 +950,23 @@ class StudioWindow(QMainWindow):
         QApplication.instance().setStyleSheet(stylesheet(self.t))
         if hasattr(self, "fig"):
             self.fig.set_facecolor(self.t["panel"])
-            self._ai_provider_changed() if hasattr(self, "ai_creds") else None
+            if hasattr(self, "ai_creds"):
+                self._ai_provider_changed()
             self.schedule()
 
     def _menu(self):
-        v = self.menuBar().addMenu("&View")
-        for text, mode in (("Theme: follow system", "auto"), ("Theme: light", "light"), ("Theme: dark", "dark")):
-            a = QAction(text, self)
-            a.triggered.connect(lambda _=False, m=mode: self.apply_theme(m))
-            v.addAction(a)
         m = self.menuBar().addMenu("&File")
+        prefs = QAction("Settings ...", self)
+        prefs.setMenuRole(QAction.PreferencesRole)          # macOS: ZULF Studio > Settings, Cmd+,
+        prefs.setShortcut(QKeySequence.Preferences)
+        prefs.triggered.connect(lambda: self.open_settings())
+        m.addAction(prefs)
+        t = self.menuBar().addMenu("&Tools")
+        for text, key, page in (("Terminal", "Ctrl+Shift+T", "Terminal"), ("Python console", "Ctrl+Shift+P", "Python")):
+            a = QAction(text, self)
+            a.setShortcut(QKeySequence(key))
+            a.triggered.connect(lambda _=False, pg=page: self.open_tools(pg))
+            t.addAction(a)
         for text, key, fn in (("Load series ...", "Ctrl+O", self.load_series), ("Load fit run ...", "Ctrl+R", self.load_run),
                               ("Export ...", "Ctrl+E", self.export), ("Generate figure", "Ctrl+G", self.make_figure)):
             a = QAction(text, self)

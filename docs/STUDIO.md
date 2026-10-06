@@ -50,10 +50,16 @@ Bottom tabs:
   drawn; otherwise the current parameters are drawn and labelled "manual parameters (not a fit)".
 - **Log**: everything the session did (sources session, api, ai, fit, figure, terminal); also written to
   `runs/studio/studio.log`.
-- **Terminal**: shell commands in the repository directory, with the Studio's Python first on PATH.
-- **Python**: an interactive console with `session` (StudioSession), `api` (StudioAPI) and `np`.
-- **AI assistant**: a language model operates the session (below).
-- **AI API**: the address of the JSON API and the tool list.
+- **AI assistant**: the chat with a language model that operates the session (below); its status line shows the
+  provider, the model and whether a key is set.
+
+**Settings** (File > Settings, on macOS ZULF Studio > Settings, Cmd+,): the AI assistant configuration
+(provider, model, steps, API key, Keychain, setup guide), the AI API address and tool list, and the appearance
+(theme: follow the system, light, dark).
+
+**Tools** menu (separate window): **Terminal** (shell commands in the repository directory, the Studio's Python
+first on PATH; Ctrl+Shift+T) and **Python** console with `session` (StudioSession), `api` (StudioAPI) and `np`
+(Ctrl+Shift+P).
 
 ## JSON API (for scripts and AI agents)
 
@@ -88,7 +94,7 @@ J(C1,HC1) from 136.2 to 136.4 Hz"); it calls the API with curl and the window sh
 
 ## AI assistant (Anthropic or OpenAI)
 
-The AI assistant tab sends a request to a model, which then calls the Studio tools in a loop
+The AI assistant tab sends a request to a model (configured in Settings), which then calls the Studio tools in a loop
 (`zulf_studio/assistant.py`, executed in-process on the session). Every call and its result go to the transcript
 and to the log (source "ai"). Large arrays are summarised before they reach the model. The model is told that a
 fitted result is a conditional numerical result.
@@ -98,7 +104,7 @@ fitted result is a conditional numerical result.
 | Anthropic (Claude) | `anthropic` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or a profile from `ant auth login` | `claude-opus-5-5` (default); the server-side refusal fallback is on |
 | OpenAI (e.g. Codex) | `openai` | `OPENAI_API_KEY` | required: a model your account offers (field "model" or `OPENAI_MODEL`) |
 
-Usage: choose the provider and model, write the request (Ctrl+Enter sends), watch the tool calls; Stop ends the
+Usage: choose the provider and model in Settings, write the request in the AI assistant tab (Ctrl+Enter sends), watch the tool calls; Stop ends the
 loop after the current step; New conversation forgets the history; "max steps" limits the tool calls of one
 request. The same assistant works from Python:
 
@@ -118,7 +124,7 @@ university) may already have an API account; ask its administrator first.
   uses a few hundred thousand tokens, about 1-3 USD with Opus 5.5.
 - OpenAI: create an API key in the OpenAI platform and choose a model available to the account.
 
-Giving Studio the key (the AI assistant tab has the same guide under "Setup guide"):
+Giving Studio the key (Settings > AI assistant shows the same guide):
 - paste it into the key field, tick "Remember (macOS Keychain)" and press "Use": the key is stored encrypted in
   the macOS Keychain (service "zulf-studio", one item per variable; zulf_studio/credentials.py) and loaded every
   time Studio starts, so it is entered once. Without Remember it stays in memory until Studio closes. Never
