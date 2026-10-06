@@ -37,9 +37,10 @@ MONO = QFont("Menlo", 11)
 
 
 class Bridge(QObject):
-    """Session events (any thread: API server, fit reader) -> Qt signals handled in the GUI thread."""
+    """Session events (any thread: API server, fit reader, AI assistant) -> Qt signals handled in the GUI thread."""
     changed = Signal(str)
     logged = Signal(dict)
+    ai_message = Signal(str, str)
 
 
 class ValueSlider(QWidget):
@@ -250,6 +251,8 @@ class StudioWindow(QMainWindow):
         self.bridge = Bridge()
         self.bridge.changed.connect(self.on_changed)
         self.bridge.logged.connect(self.on_logged)
+        self.bridge.ai_message.connect(self.on_ai_message)
+        self.assistant = None
         session.listeners.append(self.bridge.changed.emit)
         session.log_listeners.append(self.bridge.logged.emit)
         self.coupling_rows = {}
@@ -313,6 +316,7 @@ class StudioWindow(QMainWindow):
         self.tabs.addTab(self.log_view, "Log")
         self.tabs.addTab(Terminal(session), "Terminal")
         self.tabs.addTab(Console({"session": session, "api": self.api, "np": np}), "Python")
+        self.tabs.addTab(self._ai_tab(), "AI assistant")
         self.tabs.addTab(self._api_tab(), "AI API")
 
         right = QSplitter(Qt.Vertical)
@@ -637,6 +641,96 @@ class StudioWindow(QMainWindow):
                                                        Qt.SmoothTransformation))
             self.g_status.setText(("MANUAL PARAMETERS (not a fit). " if st["manual"] else "Applied fit. ")
                                   + f"{st['directory']}\n" + ", ".join(st["files"]))
+
+    def _ai_tab(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        row = QHBoxLayout()
+        self.ai_provider = QComboBox()
+        self.ai_provider.addItem("Anthropic (Claude)", "anthropic")
+        self.ai_provider.addItem("OpenAI (e.g. Codex)", "openai")
+        self.ai_model = QLineEdit("claude-opus-5-5")
+        self.ai_model.setToolTip("Claude: claude-opus-5-5 (default). OpenAI: a model your account offers (or OPENAI_MODEL)")
+        self.ai_provider.currentIndexChanged.connect(self._ai_provider_changed)
+        self.ai_steps = QSpinBox(minimum=1, maximum=200, value=30)
+        self.ai_creds = QLabel()
+        for wdg in (QLabel("provider"), self.ai_provider, QLabel("model"), self.ai_model, QLabel("max steps"),
+                    self.ai_steps):
+            row.addWidget(wdg)
+        row.addWidget(self.ai_creds, 1)
+        self.ai_log = QPlainTextEdit(readOnly=True)
+        self.ai_log.setFont(MONO)
+        self.ai_prompt = QPlainTextEdit()
+        self.ai_prompt.setFixedHeight(64)
+        self.ai_prompt.setPlaceholderText("e.g. auto-phase the data, then scan J(C1,HC1) from 136.2 to 136.4 Hz and set the "
+                                          "value with the smallest rms residual  (Ctrl+Enter to send)")
+        btns = QHBoxLayout()
+        self.ai_send = QPushButton("Send")
+        self.ai_send.setStyleSheet("font-weight: 600")
+        stop = QPushButton("Stop")
+        new = QPushButton("New conversation")
+        self.ai_send.clicked.connect(self.ai_ask)
+        stop.clicked.connect(lambda: self.assistant and self.assistant.stop())
+        new.clicked.connect(self._ai_new)
+        for b in (self.ai_send, stop, new):
+            btns.addWidget(b)
+        btns.addStretch(1)
+        send_key = QAction(self)
+        send_key.setShortcut(QKeySequence("Ctrl+Return"))
+        send_key.triggered.connect(self.ai_ask)
+        self.ai_prompt.addAction(send_key)
+        lay.addLayout(row)
+        lay.addWidget(self.ai_log, 1)
+        lay.addWidget(self.ai_prompt)
+        lay.addLayout(btns)
+        self._ai_provider_changed()
+        return w
+
+    def _ai_provider_changed(self):
+        prov = self.ai_provider.currentData()
+        if prov == "anthropic":
+            if not self.ai_model.text() or not self.ai_model.text().startswith("claude"):
+                self.ai_model.setText("claude-opus-5-5")
+            ok = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+                      or Path.home().joinpath(".config", "anthropic").exists())
+            hint = "credentials found" if ok else "no ANTHROPIC_API_KEY / ant auth login found"
+        else:
+            if self.ai_model.text().startswith("claude"):
+                self.ai_model.setText(os.environ.get("OPENAI_MODEL", ""))
+            ok = bool(os.environ.get("OPENAI_API_KEY"))
+            hint = "OPENAI_API_KEY found" if ok else "no OPENAI_API_KEY in the environment"
+        self.ai_creds.setText(hint)
+        self.ai_creds.setStyleSheet("color: %s" % ("#2a8a52" if ok else "#c0392b"))
+        self.assistant = None                      # a new provider or model starts a new conversation
+
+    def _ai_new(self):
+        self.assistant = None
+        self.ai_log.appendPlainText("--- new conversation ---")
+
+    def ai_ask(self):
+        prompt = self.ai_prompt.toPlainText().strip()
+        if not prompt:
+            return
+        try:
+            from .assistant import StudioAssistant
+            if self.assistant is None or self.assistant.model != self.ai_model.text().strip() \
+                    or self.assistant.provider != self.ai_provider.currentData():
+                self.assistant = StudioAssistant(self.session, self.ai_provider.currentData(),
+                                                 self.ai_model.text().strip(), self.ai_steps.value(),
+                                                 on_message=self.bridge.ai_message.emit)
+            self.assistant.max_steps = self.ai_steps.value()
+            self.assistant.ask(prompt, background=True)
+        except Exception as exc:
+            self.on_ai_message("error", f"{type(exc).__name__}: {exc}")
+            return
+        self.ai_prompt.clear()
+        self.ai_send.setEnabled(False)
+
+    def on_ai_message(self, role, text):
+        prefix = {"user": "you", "assistant": "AI", "tool": "  tool", "error": "error"}.get(role, role)
+        self.ai_log.appendPlainText(f"{prefix}: {text}" + ("\n" if role in ("assistant", "error") else ""))
+        if role in ("assistant", "error"):
+            self.ai_send.setEnabled(True)
 
     def _api_tab(self):
         w = QPlainTextEdit(readOnly=True)

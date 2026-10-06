@@ -823,6 +823,26 @@ Two requests of Xuehan (handed over from a read-only session):
   convention: a gamma / (gamma + i (f - f_k))); the real part was unaffected, the imaginary part and any complex
   match were wrong.
 
+## D50. AI assistant in ZULF Studio: Anthropic and OpenAI models drive the session (2026-10-06)
+
+Xuehan asked for Anthropic and Codex (OpenAI) API access in Studio. `zulf_studio.assistant.StudioAssistant` runs
+a tool loop: the model gets the Studio tools (the same definitions as /api/tools, executed in-process on the
+session the window shows), every call and result goes to the transcript and the log (source "ai"), arrays of
+`simulate` are summarised before they reach the model, and a system prompt says that fitted values are
+conditional numerical results.
+
+- Anthropic: Messages API through the `anthropic` SDK, manual loop with client tools, default model
+  claude-opus-5-5, server-side refusal fallback on (`fallbacks="default"`); thinking blocks are passed back
+  unchanged (append-only history).
+- OpenAI: Responses API through the `openai` SDK with function calling; no default model (names of Codex models
+  change): the model field or OPENAI_MODEL.
+- Credentials only from the environment (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / `ant auth login`,
+  OPENAI_API_KEY); Studio never stores keys. The terminal and the Python console are not tools of the model.
+- Environment: anthropic 1.11 and openai 3.24 added to the `zulf` env (15 packages, all new; no version
+  changes); pyproject extra "ai". User guide docs/STUDIO.md, environment docs/ENVIRONMENT.md.
+- Tests: AssistantTests (fake provider clients, no network: tool calls reach the session, unknown tools come
+  back as errors, simulate results are summarised).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

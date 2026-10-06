@@ -36,6 +36,8 @@ labelled experimental database; experiments remain the final check.
 
 ## Install
 
+On the owner's machine: the conda environment `zulf` (docs/ENVIRONMENT.md). Elsewhere:
+
 ```bash
 python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"                            # numpy, scipy, torch, h5py, matplotlib
@@ -56,7 +58,7 @@ python scripts/make_series_entry.py --fid FID.npy --id NAME --out runs/series/NA
 python scripts/fit_joint_series.py --series runs/series/NAME/series.json ...        # complex known-structure fit (docs/WORKFLOW.md)
 python scripts/band_diagnosis.py <fit options> --fit runs/processed/NAME/fit.json    # which band is bad, which parameters act on it
 python scripts/smoke_pipeline.py                  # generate -> train -> propose -> refine
-python scripts/zulf_studio.py --series runs/series/NAME/series.json --fit runs/processed/NAME   # desktop simulator: live sliders, fit, figure (Figure tab: PNG/PDF/SVG); AI API on :8766
+python scripts/zulf_studio.py --series runs/series/NAME/series.json --fit runs/processed/NAME   # ZULF Studio (docs/STUDIO.md): sliders, fit, figures, AI assistant; JSON API on :8766
 zulf-model tools list                             # agent tools
 zulf-model diagnose AVERAGE.npy 0.ini             # per-dataset processing diagnostics
 zulf-model train configs/run_cnn_set_v1.json      # training run (live rendering)

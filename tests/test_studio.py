@@ -279,3 +279,72 @@ class FigureTests(unittest.TestCase):
             self.assertIn("Manual parameters (not a fit)", caption)
             out = s.export_figure(str(tmp / "export"))
             self.assertIn("parameters_fit.json", out["files"])
+
+
+class AssistantTests(unittest.TestCase):
+    """The tool loop with fake provider clients (no network): the model's tool calls reach the session."""
+
+    @staticmethod
+    def _anthropic_client(script):
+        from types import SimpleNamespace as NS
+        calls = iter(script)
+
+        class Messages:
+            def __init__(self):
+                self.requests = []
+
+            def create(self, **kw):
+                self.requests.append({**kw, "messages": list(kw["messages"])})      # snapshot of the history
+                kind, payload = next(calls)
+                if kind == "tool":
+                    name, args = payload
+                    return NS(stop_reason="tool_use", content=[NS(type="tool_use", id=f"t{len(self.requests)}",
+                                                                  name=name, input=args)])
+                return NS(stop_reason="end_turn", content=[NS(type="text", text=payload)])
+        messages = Messages()
+        return NS(beta=NS(messages=messages)), messages
+
+    def test_anthropic_loop_runs_tools_on_the_session(self):
+        from zulf_studio.assistant import StudioAssistant
+        s = session(METHYL)
+        client, messages = self._anthropic_client([("tool", ("set_field", {"transverse_nt": 20, "z_nt": 30})),
+                                                   ("tool", ("no_such_tool", {})),
+                                                   ("text", "Field set to 20 / 30 nT.")])
+        seen = []
+        a = StudioAssistant(s, "anthropic", client=client, on_message=lambda r, t: seen.append(r))
+        self.assertEqual(a.ask("set the field"), "Field set to 20 / 30 nT.")
+        self.assertEqual(s.field_nt, [20.0, 30.0])
+        req = messages.requests[0]
+        self.assertEqual(req["model"], "claude-opus-5-5")
+        self.assertEqual({t["name"] for t in req["tools"]}, set(TOOLS))
+        bad = messages.requests[2]["messages"][-1]["content"][0]            # the unknown tool came back as an error
+        self.assertTrue(bad["is_error"])
+        self.assertEqual(seen, ["user", "tool", "tool", "assistant"])
+        self.assertTrue(any(e["source"] == "ai" for e in s.read_log()))
+
+    def test_openai_loop_and_simulate_summary(self):
+        from types import SimpleNamespace as NS
+        from zulf_studio.assistant import StudioAssistant
+        s = session(METHYL)
+        outputs = iter([
+            [NS(type="function_call", name="set_couplings", arguments=json.dumps({"values": {"J(C1,HC1)": 131.0}}),
+                call_id="c1")],
+            [NS(type="function_call", name="simulate", arguments="{}", call_id="c2")],
+            [NS(type="message")],
+        ])
+        requests = []
+
+        def create(**kw):
+            requests.append({**kw, "input": list(kw["input"])})
+            out = next(outputs)
+            return NS(output=out, output_text="done" if out[0].type == "message" else "")
+        client = NS(responses=NS(create=create))
+        with self.assertRaises(ValueError):
+            StudioAssistant(s, "openai", model="", client=client)            # OpenAI needs a model name
+        a = StudioAssistant(s, "openai", model="test-model", client=client)
+        self.assertEqual(a.ask("set J"), "done")
+        self.assertEqual(s.couplings()[0]["value"], 131.0)
+        self.assertEqual(requests[0]["tools"][0]["type"], "function")
+        sim_out = next(i for i in requests[2]["input"] if isinstance(i, dict) and i.get("call_id") == "c2")["output"]
+        self.assertNotIn("sim_re", sim_out)                                 # arrays summarised for the model
+        self.assertIn("points", json.loads(sim_out))

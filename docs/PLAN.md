@@ -399,6 +399,9 @@ tall lines and barely sees it.
       (paper_figure.py: sampling rate and phase from the series entry, PNG/PDF/SVG/caption, manual-parameter
       label; series entries record source_fid), auto phase of the shown data (model / data). D49;
       tests/test_studio.py DisplayScaleTests, FigureTests, AutoPhaseTests.
+- [x] Studio AI assistant (D50): Anthropic (claude-opus-5-5) and OpenAI (Responses API) drive the session through
+      its tools; docs/STUDIO.md (user guide, API, credentials) and docs/ENVIRONMENT.md. tests/test_studio.py
+      AssistantTests. Not yet run against the live APIs (no keys on this machine).
 - [ ] Studio: field-start grid for fits; rate families in the quick-look simulation; MCP wrapper of the API.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)

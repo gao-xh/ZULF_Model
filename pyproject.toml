@@ -16,6 +16,7 @@ plots = ["matplotlib>=3.7"]
 figures = ["matplotlib>=3.7", "rdkit>=2023.9"]   # structure insets of scripts/paper_figure.py
 dev = ["torch>=2.1", "h5py>=3.8", "matplotlib>=3.7"]
 studio = ["pyside6>=6.5", "matplotlib>=3.7"]   # desktop simulator (scripts/zulf_studio.py)
+ai = ["anthropic>=1.0", "openai>=1.0"]        # Studio AI assistant (zulf_studio/assistant.py)
 
 [project.scripts]
 zulf-model = "zulf_model.cli:main"
