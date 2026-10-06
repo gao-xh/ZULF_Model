@@ -25,6 +25,15 @@ and every mode with f_j > 0 becomes a line with amplitude 2 w_j g_j (its conjuga
 mirror term) and intrinsic decay R_j (TransitionList.line_rates). Non-oscillating modes are not rendered
 (their weight is reported in the metadata); only the static part enters `dc`.
 
+Quadrupolar relaxation (spins >= 1, e.g. 14N; isotropic tumbling, extreme narrowing): the term
+
+    R_x * Q_x(delta),   Q_x(delta) = -(1 / c_x) sum_m [T_2m(x)^dagger, [T_2m(x), delta]]
+
+with the rank-2 tensor operators T_2m of spin x, normalized (c_x) so that the spin's own rank-1 operators decay
+at exactly R_x (Q_x(I_z,x) = -I_z,x). The double commutator is a rotational scalar, so it stays in the rank-1
+q = 0 subspace. R_x large decouples spin x from the others (self-decoupling), with the scalar relaxation of
+the second kind of its partners as the residual broadening; R_x = 0 is the static spin.
+
 Cost: the rank-1 q = 0 dimension is 1001 for 7 spin-1/2 and 3432 for 8; practical up to about 8 spins.
 
 Linear-algebra backend (optional GPU): the dense projection of the Liouvillian, its eigen-decomposition and
@@ -181,6 +190,7 @@ class _Structure:
         self.iz = [self.project_vector(np.asarray(ops[2].toarray()).ravel()) for ops in self.site]
         self._pairs: Dict[Tuple[int, int], np.ndarray] = {}
         self._replace: Dict[int, np.ndarray] = {}
+        self._quad: Dict[int, np.ndarray] = {}
 
     def project_vector(self, vec: np.ndarray) -> np.ndarray:
         return self.basis.conj().T @ vec[self.q0]
@@ -200,6 +210,26 @@ class _Structure:
         if self.m <= PAIR_CACHE_MAX_DIMENSION:
             self._pairs[key] = out
         return out
+
+    def quadrupolar(self, x: int) -> np.ndarray:
+        """B^H Q_x B: quadrupolar relaxation of spin x at unit rank-1 rate (see the module docstring)."""
+        if x not in self._quad:
+            if self.spins[x] < 1:
+                raise ValueError("Quadrupolar relaxation needs a spin >= 1.")
+            ix, iy, iz = (sp.csr_matrix(o) for o in self.site[x])
+            ip, im = ix + 1j * iy, ix - 1j * iy
+            # T_2m up to sign and the identity part of T_20 (it commutes): 3 Iz^2 / sqrt 6, (I+- Iz + Iz I+-) / 2,
+            # I+-^2 / 2; sum over m of [T^dagger, [T, .]]
+            tensors = [(3 * (iz @ iz), 1.0 / 6.0), (ip @ iz + iz @ ip, 0.25), (im @ iz + iz @ im, 0.25),
+                       (ip @ ip, 0.25), (im @ im, 0.25)]
+            double = None
+            for t, weight in tensors:
+                term = weight * (_commutator_super(sp.csr_matrix(t.conj().T)) @ _commutator_super(t))
+                double = term if double is None else double + term
+            d = self.project_super(double)
+            c = float(np.real(self.iz[x].conj() @ d @ self.iz[x]) / np.real(self.iz[x].conj() @ self.iz[x]))
+            self._quad[x] = -d / c
+        return self._quad[x]
 
     def replacement(self, x: int) -> np.ndarray:
         """B^H (Tr_x(.) (x) 1_x / d_x) B."""
@@ -234,7 +264,7 @@ class _Modes:
 
     def __init__(self, system: SpinSystem, rates_per_s: Mapping[int, float], protocol: Protocol,
                  solvent_weight, inverse: bool, spins: Optional[Tuple[Fraction, ...]] = None,
-                 norm: Optional[float] = None):
+                 norm: Optional[float] = None, quadrupolar_per_s: Optional[Mapping[int, float]] = None):
         if protocol.pulses or protocol.has_field:
             raise NotImplementedError("Exchange spectra support the sudden-drop protocol without pulses or field.")
         registry = get_registry()
@@ -262,6 +292,14 @@ class _Modes:
                 continue
             liou += k * (st.replacement(x) - np.eye(m))
             source += k * self.eps[x] * st.iz[x]
+        self.quadrupolar = {}
+        for x, r in (quadrupolar_per_s or {}).items():
+            x, r = int(x), float(r)
+            if r < 0 or not np.isfinite(r):
+                raise ValueError("Quadrupolar relaxation rates must be finite and nonnegative.")
+            self.quadrupolar[x] = r
+            if r > 0.0:
+                liou += r * st.quadrupolar(x)
         aug = np.zeros((m + 1, m + 1), complex)
         aug[:m, :m] = liou
         aug[:m, m] = source
@@ -350,12 +388,14 @@ def _blocks(system: SpinSystem, exchanging) -> Optional[list]:
     return blocks
 
 
-def _block_modes(system, rates_per_s, protocol, solvent_weight, inverse, reduce):
+def _block_modes(system, rates_per_s, protocol, solvent_weight, inverse, reduce, quadrupolar_per_s=None):
     """[(block or None, _Modes)] for the full system (one entry) or for every group-reduced block."""
-    exchanging = {int(x) for x in rates_per_s}
+    quadrupolar_per_s = quadrupolar_per_s or {}
+    exchanging = {int(x) for x in rates_per_s} | {int(x) for x in quadrupolar_per_s}
     blocks = _blocks(system, exchanging) if reduce else None
     if blocks is None:
-        return [(None, _Modes(system, rates_per_s, protocol, solvent_weight, inverse=inverse))]
+        return [(None, _Modes(system, rates_per_s, protocol, solvent_weight, inverse=inverse,
+                              quadrupolar_per_s=quadrupolar_per_s))]
     registry = get_registry()
     n_full = int(np.prod([int(2 * Fraction(registry.spin(s)) + 1) for s in system.isotopes]))
     out = []
@@ -364,7 +404,9 @@ def _block_modes(system, rates_per_s, protocol, solvent_weight, inverse, reduce)
         weight = ({b.site_of[int(x)]: w for x, w in solvent_weight.items()} if isinstance(solvent_weight, Mapping)
                   else solvent_weight)
         norm = b.multiplicity / n_full if protocol.normalize_by_dimension else float(b.multiplicity)
-        out.append((b, _Modes(b.system, rates, protocol, weight, inverse=inverse, spins=b.spins, norm=norm)))
+        quad = {b.site_of[int(x)]: r for x, r in quadrupolar_per_s.items()}
+        out.append((b, _Modes(b.system, rates, protocol, weight, inverse=inverse, spins=b.spins, norm=norm,
+                              quadrupolar_per_s=quad)))
     return out
 
 
@@ -387,15 +429,17 @@ def _concatenate(parts):
 def exchange_transitions(system: SpinSystem, rates_per_s: Mapping[int, float], protocol: Protocol = SUDDEN_DROP,
                          solvent_weight: Union[Weight, Mapping[int, Weight]] = "preparation",
                          tolerance_hz: float = MERGE_TOLERANCE_HZ, relative_zero: float = 1e-12,
-                         reduce: bool = True) -> TransitionList:
+                         reduce: bool = True, quadrupolar_per_s: Optional[Mapping[int, float]] = None
+                         ) -> TransitionList:
     """Transition list (with line_rates) of `system` whose spins `rates_per_s` keys exchange at those rates.
 
     rates_per_s: {spin index: k (1/s)}; spins not listed do not exchange. solvent_weight: the incoming spin's
     deviation weight eps ('preparation': the protocol's preparation weight of that nucleus; 0: unpolarized
     solvent), one value or one per exchanging spin. Longitudinal preparation and detection only (no pulses,
     no field). reduce: replace every non-exchanging equivalence group of spin-1/2 by its total spins (exact;
-    lines of different blocks are not merged)."""
-    modes = _block_modes(system, rates_per_s, protocol, solvent_weight, False, reduce)
+    lines of different blocks are not merged). quadrupolar_per_s: {spin index: R (1/s)} quadrupolar
+    relaxation of spins >= 1 (e.g. 14N; module docstring); rates_per_s may then be empty."""
+    modes = _block_modes(system, rates_per_s, protocol, solvent_weight, False, reduce, quadrupolar_per_s)
     if modes[0][0] is None:
         return _transition_list(modes[0][1], tolerance_hz, relative_zero)[0]
     return _concatenate([_transition_list(md, tolerance_hz, relative_zero)[0] for _, md in modes])[0]
@@ -412,6 +456,7 @@ def _transition_list(md: _Modes, tolerance_hz: float, relative_zero: float):
     dc = complex(md.coef[still & ~moving].sum())
     meta = {"method": "exchange", "protocol": md.protocol.name, "n_spins": md.system.n_spins,
             "exchange_rates_per_s": {int(x): float(k) for x, k in md.rates.items()},
+            "quadrupolar_rates_per_s": {int(x): float(r) for x, r in md.quadrupolar.items()},
             "subspace_dimension": int(md.st.m), "backend": dict(_BACKEND),
             "nonoscillating_weight": float(np.abs(md.coef[still & moving]).sum()),
             # decaying modes at zero frequency: signal term amplitude * exp(-rate t) (not rendered)
@@ -440,10 +485,13 @@ def exchange_transition_derivatives(system: SpinSystem, rates_per_s: Mapping[int
                                     exchange_spins: Sequence[Sequence[int]] = (),
                                     protocol: Protocol = SUDDEN_DROP, solvent_weight="preparation",
                                     tolerance_hz: float = MERGE_TOLERANCE_HZ,
-                                    relative_zero: float = 1e-12, reduce: bool = True) -> ExchangeDerivatives:
+                                    relative_zero: float = 1e-12, reduce: bool = True,
+                                    quadrupolar_per_s: Optional[Mapping[int, float]] = None,
+                                    quadrupolar_spins: Sequence[Sequence[int]] = ()) -> ExchangeDerivatives:
     """Transition list and its derivatives with respect to (a) couplings: each direction is a list of spin
     pairs whose coupling moves together by one Hz (a group coupling), (b) log exchange rates: each direction is
-    a list of spins whose log k moves together.
+    a list of spins whose log k moves together, (c) log quadrupolar rates (quadrupolar_spins): each direction is
+    a list of spins whose log R moves together.
 
     With the augmented generator La = V diag(lambda) V^-1, X = V^-1 dLa V and M_ij = w_i X_ij g_j, the signal
     derivative is sum_ij M_ij F_ij(t) with F the divided difference of exp(lambda t) (Daleckii-Krein): the
@@ -452,11 +500,12 @@ def exchange_transition_derivatives(system: SpinSystem, rates_per_s: Mapping[int
 
     With reduce (group-reduced blocks, see exchange_transitions) a coupling direction must move every member
     pair of the groups it touches (a group coupling); pairs inside one reduced group have no effect."""
-    modes = _block_modes(system, rates_per_s, protocol, solvent_weight, True, reduce)
+    modes = _block_modes(system, rates_per_s, protocol, solvent_weight, True, reduce, quadrupolar_per_s)
     parts = []
     for block, md in modes:
         if block is None:
-            parts.append(_mode_derivatives(md, coupling_pairs, exchange_spins, tolerance_hz, relative_zero))
+            parts.append(_mode_derivatives(md, coupling_pairs, exchange_spins, tolerance_hz, relative_zero,
+                                           quadrupolar_spins))
             continue
         pairs_b = []
         for pairs in coupling_pairs:
@@ -474,7 +523,8 @@ def exchange_transition_derivatives(system: SpinSystem, rates_per_s: Mapping[int
                                      "(reduce=False for partial directions).")
             pairs_b.append(list(count))
         spins_b = [[block.site_of[int(x)] for x in spins_] for spins_ in exchange_spins]
-        parts.append(_mode_derivatives(md, pairs_b, spins_b, tolerance_hz, relative_zero))
+        quad_b = [[block.site_of[int(x)] for x in spins_] for spins_ in quadrupolar_spins]
+        parts.append(_mode_derivatives(md, pairs_b, spins_b, tolerance_hz, relative_zero, quad_b))
     if len(parts) == 1:
         return parts[0]
     tl, order = _concatenate([p.transitions for p in parts])
@@ -482,7 +532,8 @@ def exchange_transition_derivatives(system: SpinSystem, rates_per_s: Mapping[int
     return ExchangeDerivatives(tl, cat("d_amplitudes"), cat("t_terms"), cat("phase_terms"))
 
 
-def _mode_derivatives(md: "_Modes", coupling_pairs, exchange_spins, tolerance_hz, relative_zero):
+def _mode_derivatives(md: "_Modes", coupling_pairs, exchange_spins, tolerance_hz, relative_zero,
+                      quadrupolar_spins=()):
     tl, groups = _transition_list(md, tolerance_hz, relative_zero)
     st, m = md.st, md.st.m
     directions = []
@@ -497,6 +548,13 @@ def _mode_derivatives(md: "_Modes", coupling_pairs, exchange_spins, tolerance_hz
             k = md.rates.get(int(x), 0.0)
             dl[:m, :m] += k * (st.replacement(int(x)) - np.eye(m))
             dl[:m, m] += k * md.eps[int(x)] * st.iz[int(x)]
+        directions.append(dl)
+    for spins_ in quadrupolar_spins:
+        dl = np.zeros((m + 1, m + 1), complex)
+        for x in spins_:
+            r = md.quadrupolar.get(int(x), 0.0)
+            if r > 0.0:
+                dl[:m, :m] += r * st.quadrupolar(int(x))
         directions.append(dl)
     lam = md.lam
     scale = max(1.0, float(np.abs(lam).max(initial=0.0)))
@@ -529,21 +587,28 @@ class ExchangeCache:
         self._store: Dict[tuple, TransitionList] = {}
 
     def get(self, system: SpinSystem, rates_per_s: Mapping[int, float], protocol: Protocol = SUDDEN_DROP,
-            solvent_weight: Weight = "preparation") -> TransitionList:
+            solvent_weight: Weight = "preparation",
+            quadrupolar_per_s: Optional[Mapping[int, float]] = None) -> TransitionList:
+        quad = tuple(sorted((int(k), float(v)) for k, v in (quadrupolar_per_s or {}).items()))
         key = (system.isotopes, system.couplings_hz.tobytes(), tuple(sorted((int(k), float(v))
                                                                           for k, v in rates_per_s.items())),
-               repr(protocol.to_dict()), repr(solvent_weight))
+               repr(protocol.to_dict()), repr(solvent_weight), quad)
         if key not in self._store:
             if len(self._store) >= self.max_entries:
                 self._store.pop(next(iter(self._store)))
-            self._store[key] = exchange_transitions(system, rates_per_s, protocol, solvent_weight)
+            self._store[key] = exchange_transitions(system, rates_per_s, protocol, solvent_weight,
+                                                    quadrupolar_per_s=dict(quad))
         return self._store[key]
 
 
 def reference_exchange_signal(system: SpinSystem, rates_per_s: Mapping[int, float], times_s: np.ndarray,
-                              protocol: Protocol = SUDDEN_DROP, solvent_weight: float = None) -> np.ndarray:
+                              protocol: Protocol = SUDDEN_DROP, solvent_weight: float = None,
+                              quadrupolar_per_s: Optional[Mapping[int, float]] = None) -> np.ndarray:
     """Brute-force reference (tests only): the full Liouville space (all q, all ranks), dense superoperators
-    built from explicit partial traces, affine propagation by one augmented matrix exponential per time."""
+    built from explicit partial traces, affine propagation by one augmented matrix exponential per time.
+    Quadrupolar relaxation: the dense double commutator over the five rank-2 tensor operators in their standard
+    normalization (T_20 = (3 Iz^2 - I^2) / sqrt 6, T_2+-1 = -+(I+- Iz + Iz I+-) / 2, T_2+-2 = I+-^2 / 2), scaled
+    so that the spin's own I_z decays at R."""
     registry = get_registry()
     spins = [Fraction(registry.spin(s)) for s in system.isotopes]
     dims = [int(2 * s + 1) for s in spins]
@@ -576,7 +641,30 @@ def reference_exchange_signal(system: SpinSystem, rates_per_s: Mapping[int, floa
             full = np.einsum("ijkl,ab->iajkbl", reduced, np.eye(dims[x]) / dims[x]).reshape(n, n)
             eps = protocol.preparation_weight(system.isotopes[x]) if solvent_weight is None else solvent_weight
             out = out + k * (full + eps * ops[x][2] - rho)
+        for x, r in quad_terms:
+            out = out + r * quad_apply(x, rho)
         return out
+
+    quad_terms = [(int(x), float(r)) for x, r in (quadrupolar_per_s or {}).items() if r > 0]
+
+    def tensors(x):
+        ix, iy, iz = ops[x]
+        ip, im = ix + 1j * iy, ix - 1j * iy
+        sq = ix @ ix + iy @ iy + iz @ iz
+        return [(3 * iz @ iz - sq) / np.sqrt(6), -(ip @ iz + iz @ ip) / 2, (im @ iz + iz @ im) / 2,
+                ip @ ip / 2, im @ im / 2]
+
+    def double_commutator(x, rho):
+        out = np.zeros_like(rho)
+        for t in tensors(x):
+            inner = t @ rho - rho @ t
+            out = out - (t.conj().T @ inner - inner @ t.conj().T)
+        return out
+
+    def quad_apply(x, rho):
+        iz = ops[x][2]
+        c = np.real(np.trace(iz @ double_commutator(x, iz))) / np.real(np.trace(iz @ iz))
+        return double_commutator(x, rho) / (-c)
 
     # linear part as a dense matrix on vec(rho); the constant source separately
     zero = np.zeros((n, n), complex)

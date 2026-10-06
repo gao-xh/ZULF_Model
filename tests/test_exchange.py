@@ -257,3 +257,106 @@ class GroupReductionTest(unittest.TestCase):
         np.testing.assert_allclose(analytic(3), num, atol=1e-6 * np.abs(num).max())
         with self.assertRaises(ValueError):          # a direction moving only part of a reduced group
             exchange_transition_derivatives(system, {4: k0}, [[(0, 1)]], [])
+
+
+def cn_system():
+    # 13C bonded to one proton and to a 14N (spin 1): 1J(C,H), 1J(C,14N), 2J(H,14N)
+    j = np.zeros((3, 3))
+    j[0, 1] = j[1, 0] = 140.0
+    j[0, 2] = j[2, 0] = 4.0
+    j[1, 2] = j[2, 1] = 2.0
+    return SpinSystem(("13C", "1H", "14N"), j, groups=[(0,), (1,), (2,)])
+
+
+class QuadrupolarRelaxationTest(unittest.TestCase):
+    """14N (spin 1) with isotropic quadrupolar relaxation. Reference: the full Liouville space with the dense
+    double commutator over the five standard rank-2 tensor operators (reference_exchange_signal)."""
+
+    def test_matches_full_liouville_propagation(self):
+        system = cn_system()
+        t = np.linspace(0.0, 0.1, 81)
+        for r in (0.0, 5.0, 60.0, 600.0):
+            tl = exchange_transitions(system, {}, quadrupolar_per_s={2: r})
+            ref = reference_exchange_signal(system, {}, t, quadrupolar_per_s={2: r})
+            np.testing.assert_allclose(full_signal(tl, t), ref, atol=1e-9 * np.abs(ref).max())
+
+    def test_zero_rate_is_static_system(self):
+        system = cn_system()
+        t = np.linspace(0.0, 0.2, 101)
+        tl = exchange_transitions(system, {}, quadrupolar_per_s={2: 0.0})
+        static = compute_transitions(system)
+        np.testing.assert_allclose(full_signal(tl, t), static.signal(t), atol=1e-9 * np.abs(static.signal(t)).max())
+
+    def test_fast_relaxation_decouples_with_broadening_inverse_in_rate(self):
+        # R >> 2 pi J: the C-H line returns to J(C,H) (14N decoupled) and its residual broadening (scalar relaxation
+        # of the second kind) falls as 1 / R
+        system = cn_system()
+        widths = []
+        for r in (3.0e3, 3.0e4):
+            tl = exchange_transitions(system, {}, quadrupolar_per_s={2: r})
+            i = int(np.argmin(np.abs(tl.frequencies_hz - 140.0)))
+            self.assertAlmostEqual(tl.frequencies_hz[i], 140.0, delta=0.02)
+            widths.append(tl.rates_of_lines()[i])
+        self.assertAlmostEqual(widths[0] / widths[1], 10.0, delta=0.3)
+
+    def test_rank1_rate_normalization(self):
+        # a lone relaxing 14N: its I_z (the only rank-1 q = 0 operator of one spin) decays exactly at R
+        from fractions import Fraction
+        from zulf_core.physics.exchange import _structure
+        st = _structure((Fraction(1), Fraction(1, 2)))
+        q = st.quadrupolar(0)
+        np.testing.assert_allclose(q @ st.iz[0], -st.iz[0], atol=1e-12)
+        np.testing.assert_allclose(q @ st.iz[1], 0.0, atol=1e-12)
+        with self.assertRaises(ValueError):
+            st.quadrupolar(1)                                   # spin 1/2 has no quadrupole
+
+    def test_with_exchange_and_group_reduction(self):
+        # N-H proton exchanging with the solvent, 14N relaxing, a CH2 group reduced to its total spins
+        iso = ("13C", "1H", "1H", "14N", "1H")
+        j = np.zeros((5, 5))
+        j[0, 1] = j[1, 0] = j[0, 2] = j[2, 0] = 132.0
+        j[1, 2] = j[2, 1] = -12.0
+        j[0, 3] = j[3, 0] = 4.0
+        j[1, 3] = j[3, 1] = j[2, 3] = j[3, 2] = 1.5
+        j[0, 4] = j[4, 0] = -3.0
+        j[1, 4] = j[4, 1] = j[2, 4] = j[4, 2] = 5.0
+        j[3, 4] = j[4, 3] = 50.0
+        system = SpinSystem(iso, j, groups=[(0,), (1, 2), (3,), (4,)])
+        t = np.linspace(0.0, 0.08, 9)                         # the dense reference costs one 2305^2 expm per time
+        tl = exchange_transitions(system, {4: 20.0}, quadrupolar_per_s={3: 150.0})
+        self.assertEqual(tl.metadata["method"], "exchange (group-reduced)")
+        ref = reference_exchange_signal(system, {4: 20.0}, t, quadrupolar_per_s={3: 150.0})
+        np.testing.assert_allclose(full_signal(tl, t), ref, atol=1e-9 * np.abs(ref).max())
+
+    def test_derivatives_match_differences(self):
+        system = cn_system()
+        j0 = system.couplings_hz.copy()
+        r0 = 80.0
+        t = np.linspace(0.0, 0.3, 300)
+
+        def osc(jm, r):
+            tl = exchange_transitions(SpinSystem(system.isotopes, jm, groups=system.groups), {},
+                                      quadrupolar_per_s={2: r})
+            return tl.signal(t) - np.real(tl.dc)
+        directions = [[(0, 1)], [(0, 2)], [(1, 2)]]
+        d = exchange_transition_derivatives(system, {}, directions, quadrupolar_per_s={2: r0},
+                                            quadrupolar_spins=[[2]])
+        tl = d.transitions
+        lam = -tl.rates_of_lines() + 2j * np.pi * tl.frequencies_hz
+
+        def analytic(k):
+            return np.real(((d.d_amplitudes[k][None, :] + d.t_terms[k][None, :] * t[:, None])
+                            * np.exp(lam[None, :] * t[:, None])).sum(axis=1))
+        for k, pairs in enumerate(directions):
+            h = 1e-4
+            jp, jm = j0.copy(), j0.copy()
+            for p, q in pairs:
+                jp[p, q] += h
+                jp[q, p] += h
+                jm[p, q] -= h
+                jm[q, p] -= h
+            num = (osc(jp, r0) - osc(jm, r0)) / (2 * h)
+            np.testing.assert_allclose(analytic(k), num, atol=1e-6 * np.abs(num).max())
+        h = 1e-5
+        num = (osc(j0, r0 * np.exp(h)) - osc(j0, r0 * np.exp(-h))) / (2 * h)
+        np.testing.assert_allclose(analytic(3), num, atol=1e-6 * np.abs(num).max())
