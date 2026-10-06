@@ -1,11 +1,10 @@
 # xuehan
 
-- Kind: local line on Xuehan's Mac (persistent disk; experimental FIDs not yet copied, ZULF_DATA_DIR unset)
-- Branch: xuehan/local (main at e222fb1)
-- Task: real data: rebuild best amine fits; ethylenediamine species 2 with --tie-rates (after it is on main);
-  common minor species for the amines; 2J(C,H) sign multi-start; real-data regression after merges
+- Kind: local line on Xuehan's Mac (persistent disk; data under ~/research/zulf/data)
+- Branch: xuehan/local (main at b9e6bc7)
+- Task: done: fitted static field (D47) and the acetonitrile fringe-field analysis; next: amine rebuilds when their FIDs arrive
 - Area: runs/, docs/analysis/, configs/
-- State: waiting (for the FIDs)
-- Last update: 2026-10-06T0812Z
-- Next step: copy FIDs, claim the items in docs/PLAN.md, rebuild the amine fits
+- State: idle (Xuehan offline)
+- Last update: 2026-10-06T0901Z
+- Next step: amine FIDs from Xuehan; field distribution model if wanted
 - Questions: none
