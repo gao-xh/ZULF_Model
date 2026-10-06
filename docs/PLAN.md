@@ -294,9 +294,11 @@ tall lines and barely sees it.
 - [x] Local refinement (JointSeries.local_fit, window forward with line_band_hz and jacobian_only: 26 x faster Jacobian; commits 109cf89, 1e7894b): fit a narrow window (1-3 Hz around the feature) on the highest-resolution data (full
       record, no window, more zero fill), free only the sensitive couplings plus local widths / phase, everything
       else held; multi-start inside the local window (local minima are cheap to enumerate there).
-- [~] (in progress: claude/eager-franklin-tp94gf) Local fit with gains, phase and background held at the global values (or one free scale): the window
+- [x] Local fit with gains, phase and background held at the global values (or one free scale): the window
       forward re-solves them and overstates the local gain (isopropylamine NH2 test: 0.0198 local, 0.122 in
       the full-model window).
+      Done: `JointSeries.local_fit(hold_gains=True)`, `--component-search-hold-gains` (commit 04b9df6;
+      HeldGainLocalFitTests: the local cost equals the full forward's window residual).
 - [~] Propagate (residual-peak stage in fit_joint_series; to fix: sticky windows judged on the starting transitions, cap on the plain-objective loss; local-candidate -> global refit as an option): each local candidate becomes a global start; accept it only if the global objective (all
       bands) improves, else report the conflict (the feature wants J that the rest of the spectrum rejects:
       a model error such as a missing coupling or species).
@@ -348,11 +350,15 @@ tall lines and barely sees it.
 - [ ] Intermediate N-H exchange for systems the exact model cannot hold (ethylenediamine with N-H: 9 spins, no
       reducible group, 35 GiB): an approximation such as averaging over the N-H spin states, tested against the
       exact model on a smaller system.
-- [~] (in progress: claude/eager-franklin-tp94gf) Automatic rate-family edges from the line clusters and sharp data lines (now chosen by hand, D46).
-- [~] (in progress: claude/eager-franklin-tp94gf) Fitter: one tied decay rate per chosen component (code for the ethylenediamine species-2 test;
+- [x] Automatic rate-family edges from the line clusters and sharp data lines (now chosen by hand, D46).
+      Done: `--family-edges auto` (edges_from_lines, auto_family_edges; commit 8f5a09a). To check on real data
+      (local line): auto against the hand edges of tea_fam121, nema_fam121_final, eda_2sp_fam198.
+- [x] Fitter: one tied decay rate per chosen component (code for the ethylenediamine species-2 test;
       the real-data refit is the local line's); rates remapped automatically when --from-joint comes from a fit with
       other family edges (fit.json records its edges); scripts/snapshot_fit.py (best monitor vector -> --from-joint
-      file). Replaces the scratchpad helpers remap_families and snapshot_fit.
+      file). Replaces the scratchpad helpers remap_families and snapshot_fit. Done: rate remap and recorded
+      edges (cbf7655), `--tie-rates REGEX` (8caf49b), scripts/snapshot_fit.py (64bcc2e); tests in
+      tests/test_j_tuner.py (RateRemapTests, TiedRatesTests, SnapshotTests).
 - [ ] 2J(C,H) sign: multi-start refit on the positive side with wider bounds (the flip test used one start and
       the +3.7 Hz template bound).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
