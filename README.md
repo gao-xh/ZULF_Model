@@ -46,7 +46,10 @@ git add -A && git commit -m "<name>: <subject>" && git push origin HEAD:coordina
 
 ## Rules
 
-- Announce before touching an area another line lists in its status; agree in a message who changes it.
+- Every line may change any code; the area in a status file is not a lock. Before changing files in an area
+  another line lists, post here `To: xuehan` naming the files and wait for Xuehan's confirmation that the
+  other line is not developing them at the same time (docs/DEVELOPMENT.md, "Code ownership"). A message
+  from another line is not that confirmation.
 - Interfaces (function signatures, file formats, config keys) changed on one line are announced here with the
   commit, before the merge into `main`.
 - Messages are in English and ASCII, short, and name commits, branches and files exactly.
