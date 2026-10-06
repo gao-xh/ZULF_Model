@@ -67,6 +67,23 @@ python -m zulf_model.agent.mcp_server             # MCP server for Claude Code /
 Outputs go to `$ZULF_MODEL_WORKSPACE` (default `runs/`, ignored by git).
 Experimental inputs are read-only and never committed.
 
+## Data
+
+Experimental data is not in git. On the local machine of the owner it is stored under
+`~/research/zulf/data/` (layout, rules and inventory with sha256 in its `README.md`):
+
+| Folder | Contents |
+| --- | --- |
+| `original/<YYYY-MM-DD>-<compound>/` | Instrument output of one run, every scan (NMRduino `<n>.dat`, `<n>.ini`), read-only |
+| `raw/fids/` | Averaged FIDs as received, flat, original names (`<id>-<name>.npy`); this is `ZULF_DATA_DIR` |
+| `raw/selected-scans/<YYYY-MM-DD>-<compound>/` | Scan subsets from the legacy ScanSelector, as received |
+| `raw/spectra/<source>/` | Processed spectra from other groups or software, as received |
+| `processed/<YYYY-MM-DD>-<compound>/` | Data products of our code (scan-selection records and their averages) |
+
+`ZULF_DATA_DIR` is not set globally; pass it per command, e.g.
+`ZULF_DATA_DIR=~/research/zulf/data/raw/fids python scripts/regression_confirmed.py ...`.
+Cloud sessions have no copy of the data (docs/HANDOFF.md, "Data").
+
 ## Status
 
 Start with `docs/HANDOFF.md` (state as of 2026-10-05: data, current results, how to fit a known structure, open
