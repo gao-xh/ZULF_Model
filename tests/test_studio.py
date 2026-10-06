@@ -60,6 +60,35 @@ class SessionPhysicsTests(unittest.TestCase):
         self.assertAlmostEqual(f[half].max() - f[half].min(), 1.0 / np.pi, delta=0.01)
 
 
+class DisplayScaleTests(unittest.TestCase):
+    def test_scale_is_continuous_while_a_coupling_moves_and_can_be_locked(self):
+        # Data with dispersive lines (phase 90 deg): a least-squares scale on the real part crosses zero as the
+        # simulated line moves through the dispersion; the magnitude scale must change smoothly and stay > 0.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            f = np.arange(120.0, 290.0, 0.01)
+            g = 0.3
+            y = sum(1j * a * g / (g - 1j * (f - f0)) for a, f0 in ((1.0, 136.3), (0.8, 272.6)))
+            np.save(tmp / "f.npy", f)
+            np.save(tmp / "y.npy", y)
+            json.dump([{"id": "x", "x": 1.0, "freq": str(tmp / "f.npy"), "values": str(tmp / "y.npy"),
+                        "ranges": [[125, 150], [255, 290]]}], open(tmp / "series.json", "w"))
+            s = session(METHYL, d)
+            s.load_spectrum(series=str(tmp / "series.json"))
+            scales = []
+            for j in np.arange(135.5, 137.5, 0.02):
+                s.set_couplings({"J(C1,HC1)": float(j)})
+                scales.append(s.simulate(points=2000)["scale"])
+            scales = np.asarray(scales)
+            self.assertTrue(np.all(scales > 0))
+            self.assertLess(np.max(np.abs(np.diff(np.log(scales)))), np.log(1.2))
+            locked = s.lock_scale(True)["scale"]
+            s.set_couplings({"J(C1,HC1)": 140.0})
+            self.assertEqual(s.simulate()["scale"], locked)
+            s.lock_scale(False)
+            self.assertNotEqual(s.simulate()["scale"], locked)
+
+
 class FitPlumbingTests(unittest.TestCase):
     def test_fit_command_needs_a_series_and_starts_away_from_zero_field(self):
         with tempfile.TemporaryDirectory() as d:

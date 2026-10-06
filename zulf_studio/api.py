@@ -58,6 +58,9 @@ TOOLS: Dict[str, tuple] = {
     "set_view": ("set_view", "Frequency window in Hz.", _obj({"lo": NUM, "hi": NUM}, ["lo", "hi"])),
     "set_display": ("set_display", "Shown part of the spectra ('re', 'im', 'abs') and an extra display phase of the "
                     "data (degrees) and delay (ms).", _obj({"part": STR, "phase_deg": NUM, "delay_ms": NUM})),
+    "lock_scale": ("lock_scale", "Freeze the display scale of the simulation (lock=true; value optional, default the "
+                   "current automatic scale) or release it (lock=false). Automatic: least squares on the magnitudes.",
+                   _obj({"lock": {"type": "boolean"}, "value": NUM})),
     "lines": ("lines", "Line table: every transition of every isotopologue with frequency (Hz), amplitude (times the "
               "natural abundance) and relative amplitude.",
               _obj({"min_relative": NUM, "view": {"type": "array", "items": NUM}})),

@@ -281,10 +281,13 @@ class StudioWindow(QMainWindow):
         self.part.addItems(["re", "im", "abs"])
         self.show_sticks = QCheckBox("lines", checked=True)
         self.show_trace = QCheckBox("fit trace", checked=True)
+        self.lock_scale = QCheckBox("lock scale")
+        self.lock_scale.setToolTip("freeze the display scale of the simulation (automatic: least squares on |spectrum|)")
+        self.lock_scale.toggled.connect(lambda on: self._guard(self.session.lock_scale, on))
         self.field_label = QLabel()
         self.field_label.setStyleSheet("font-weight: 600")
         for w in (QLabel("view"), self.view_lo, QLabel("-"), self.view_hi, QLabel("Hz   part"), self.part,
-                  self.show_sticks, self.show_trace):
+                  self.show_sticks, self.show_trace, self.lock_scale):
             bar.addWidget(w)
         bar.addStretch(1)
         bar.addWidget(self.field_label)
@@ -621,6 +624,9 @@ class StudioWindow(QMainWindow):
         self.part.blockSignals(True)
         self.part.setCurrentText(s.display)
         self.part.blockSignals(False)
+        self.lock_scale.blockSignals(True)
+        self.lock_scale.setChecked(s.scale_lock is not None)
+        self.lock_scale.blockSignals(False)
         self.data_label.setText(s.data["label"] if s.data else "none")
         self.exchange.blockSignals(True)
         self.exchange.setCurrentText(s.exchange)
@@ -728,7 +734,8 @@ class StudioWindow(QMainWindow):
             a.tick_params(labelsize=8)
         self.canvas.draw_idle()
         self.fill_lines(sim["lines"])
-        msg = f"simulation {1e3 * sim['seconds']:.0f} ms, {len(sim['lines'])} lines in view"
+        msg = (f"simulation {1e3 * sim['seconds']:.0f} ms, {len(sim['lines'])} lines in view, scale {sim['scale']:.4g}"
+               + (" (locked)" if s.scale_lock is not None else ""))
         if has_data:
             msg += f", rms residual {sim['residual_rms']:.3g}"
         self.statusBar().showMessage(msg)

@@ -126,6 +126,7 @@ class StudioSession:
         self.data: Optional[dict] = None
         self.data_phase_deg, self.data_delay_ms = 0.0, 0.0
         self.display = "re"
+        self.scale_lock: Optional[float] = None      # fixed display scale of the simulation (None: automatic)
         self.fit_job: Optional[FitJob] = None
         self.trace: Optional[dict] = None
         self.trace_index = -1
@@ -282,6 +283,20 @@ class StudioSession:
         self._changed("display")
         return {"part": self.display, "phase_deg": self.data_phase_deg, "delay_ms": self.data_delay_ms}
 
+    def lock_scale(self, lock: bool = True, value: Optional[float] = None):
+        """Freeze the display scale of the simulation at `value` (default: the current automatic scale), or
+        release it (lock=False)."""
+        with self.lock:
+            if not lock:
+                self.scale_lock = None
+            else:
+                if value is None:
+                    self.scale_lock = None
+                    value = self.simulate(points=1500)["scale"]
+                self.scale_lock = float(value)
+        self._changed("display")
+        return {"locked": self.scale_lock is not None, "scale": self.scale_lock}
+
     # ---- simulation ----------------------------------------------------------------------
     def lines(self, min_relative: float = 0.0, view: Optional[List[float]] = None) -> List[dict]:
         """Every transition of every isotopologue: frequency, amplitude (times the abundance) and the amplitude
@@ -335,12 +350,15 @@ class StudioSession:
                     sim += r["amplitude"] * gamma / (gamma - 1j * (f - r["frequency_hz"]))
             part = self.display
             scale = 1.0
-            if data is not None:
-                m, d = self._part(sim, part), self._part(data, part)
+            if self.scale_lock is not None:
+                scale = self.scale_lock
+            elif data is not None:
+                # least squares on the magnitudes: positive and continuous in the parameters, the same for every
+                # shown part (a fit on the real part fades to zero and changes sign when a line moves through a
+                # dispersive data feature)
+                m, d = np.abs(sim), np.abs(data)
                 mm = float(m @ m)
                 scale = float(m @ d) / mm if mm > 0 else 1.0
-                if part == "abs" or scale <= 0:
-                    scale = float(np.max(np.abs(d)) / max(np.max(np.abs(m)), 1e-30))
             out = {"f": f.tolist(), "sim_re": (scale * sim.real).tolist(), "sim_im": (scale * sim.imag).tolist(),
                    "part": part, "scale": scale, "view": [lo, hi],
                    "lines": [r for r in lines if lo <= r["frequency_hz"] <= hi and r["relative"] >= 1e-3]}
@@ -487,7 +505,7 @@ class StudioSession:
                                  "magnitude": math.hypot(*self.field_nt)},
                     "rate_per_s": self.rate_per_s, "view": self.view,
                     "display": {"part": self.display, "phase_deg": self.data_phase_deg,
-                                "delay_ms": self.data_delay_ms},
+                                "delay_ms": self.data_delay_ms, "scale_lock": self.scale_lock},
                     "data": None if self.data is None else {k: self.data[k] for k in ("label", "series", "index",
                                                                                        "ranges")},
                     "fit": self.fit_status(),
