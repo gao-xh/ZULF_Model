@@ -65,11 +65,18 @@ th { color: var(--muted); font-weight: 500; }
 #status { color: var(--muted); }
 #err { color: var(--bad); }
 .spark { width: 100%; height: 60px; }
+.left { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.grp { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 2px; display: flex; gap: 8px; }
+.grp .val { text-transform: none; letter-spacing: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sprow .name { font-family: system-ui; font-weight: 500; }
+.unit { color: var(--muted); font-size: 11px; width: 28px; }
+#fieldtag { font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
 <header>
   <h1>J Tuner</h1><span class="sub" id="specname"></span>
+  <span class="sub" id="fieldtag"></span>
   <span class="sub" id="status">loading</span><span id="err"></span>
   <span style="flex:1"></span>
   <label class="sub"><input type="checkbox" id="live" checked> live analysis</label>
@@ -84,6 +91,7 @@ th { color: var(--muted); font-weight: 500; }
   <div class="tile"><div class="k">evaluation</div><div class="v" id="t-ms">-</div><div class="d">per update</div></div>
 </div>
 <main>
+  <div class="left">
   <section>
     <h2>Couplings (Hz)</h2>
     <div class="bar">
@@ -97,6 +105,12 @@ th { color: var(--muted); font-weight: 500; }
     <div class="hint">coarse: +-6 Hz (1J: +-3 Hz) around the baseline; fine: +-0.3 Hz around the value when the drag starts. Arrow keys on a slider move by one step.</div>
     <div id="jlist"></div>
   </section>
+  <section id="spsec">
+    <h2>Spectrum parameters</h2>
+    <div class="hint">live: field (nT), decay rate of every rate family (1/s, log slider), delay (ms). Undo, reset and accept cover them too.</div>
+    <div id="splist"></div>
+  </section>
+  </div>
   <div class="right">
     <section>
       <div class="bar">
@@ -145,8 +159,8 @@ th { color: var(--muted); font-weight: 500; }
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
-let state = null, last = null, view = null, pending = null, inflight = false, refining = false;
-const rows = {};
+let state = null, last = null, view = null, pending = null, pendingSp = null, inflight = false, refining = false;
+const rows = {}, sprows = {};
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const fmt = (v, d = 5) => (v === undefined || v === null || !isFinite(v)) ? "-" : (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toPrecision(d));
 
@@ -196,6 +210,75 @@ function buildRows() {
 
 function value(key) { return +rows[key].num.value; }
 
+const GROUPS = { field: "Static field", rates: "Decay rates", phase: "Phase", other: "Other" };
+function spDigits(p) { return p.unit === "1/s" ? 3 : p.unit === "nT" ? 1 : p.unit === "ms" ? 3 : 4; }
+function toSlider(p, v) { return p.log ? Math.log10(Math.max(v, 1e-12)) : v; }
+function fromSlider(p, x) { return p.log ? Math.pow(10, x) : x; }
+
+function buildSpectrumRows() {
+  const list = $("splist"); list.innerHTML = "";
+  const ps = state.spectrum_parameters || [];
+  if (!ps.length) { $("spsec").style.display = "none"; return; }
+  let group = null;
+  for (const p of ps) {
+    if (p.group !== group) {
+      group = p.group;
+      const h = document.createElement("div"); h.className = "grp";
+      h.innerHTML = `<span>${GROUPS[group] || group}</span>` + (group === "field" ? `<span class="val" id="bmag"></span>` : "");
+      list.appendChild(h);
+    }
+    const div = document.createElement("div"); div.className = "jrow sprow";
+    const fine = p.group === "field" ? 5 : p.group === "phase" ? 0.2 : 0;
+    div.innerHTML = `<div class="jhead"><span class="name">${p.label}${p.shared ? " (shared)" : ""}</span>
+      <input type="number" class="num" step="any"><span class="unit">${p.unit}</span><span class="delta"></span>
+      <button class="small rst" title="back to baseline">reset</button></div>
+      <div class="sl"><span>${p.log ? "log" : "coarse"}</span><input type="range" class="coarse"></div>` +
+      (fine ? `<div class="sl"><span>fine</span><input type="range" class="fine" min="${-fine}" max="${fine}" step="${fine / 150}" value="0"></div>` : "");
+    list.appendChild(div);
+    const r = { div, p, num: div.querySelector(".num"), coarse: div.querySelector(".coarse"), fine: div.querySelector(".fine"),
+                delta: div.querySelector(".delta"), anchor: p.value };
+    const lo = toSlider(p, p.lower), hi = toSlider(p, p.upper);
+    Object.assign(r.coarse, { min: lo, max: hi, step: (hi - lo) / 1000 });
+    sprows[p.name] = r;
+    r.coarse.addEventListener("input", () => { r.anchor = fromSlider(p, +r.coarse.value); if (r.fine) r.fine.value = 0; changeSp(p.name, r.anchor); });
+    r.coarse.addEventListener("change", () => commit());
+    if (r.fine) {
+      r.fine.addEventListener("pointerdown", () => { r.anchor = +r.num.value; });
+      r.fine.addEventListener("input", () => changeSp(p.name, r.anchor + +r.fine.value));
+      r.fine.addEventListener("change", () => { r.anchor = +r.num.value; r.fine.value = 0; commit(); });
+    }
+    r.num.addEventListener("change", () => { r.anchor = +r.num.value; changeSp(p.name, +r.num.value, true); });
+    div.querySelector(".rst").addEventListener("click", () => changeSp(p.name, r.p.baseline, true));
+  }
+}
+
+function showSpectrum(ps) {
+  if (!ps) return;
+  let bt = null, bz = null;
+  for (const p of ps) {
+    if (p.name === "field_transverse_ut") bt = p.value;
+    if (p.name === "field_z_ut") bz = p.value;
+    const r = sprows[p.name]; if (!r) continue;
+    r.p = p;
+    const d = spDigits(p);
+    if (document.activeElement !== r.num) r.num.value = p.value.toFixed(d);
+    if (document.activeElement !== r.coarse) r.coarse.value = toSlider(p, p.value);
+    const dv = p.value - p.baseline;
+    r.delta.textContent = (dv >= 0 ? "+" : "") + dv.toFixed(d);
+    r.delta.style.color = Math.abs(dv) > 1e-9 ? css("--accent") : "";
+  }
+  const txt = (bt === null && bz === null) ? "zero field" :
+    `B\u22a5 ${(bt || 0).toFixed(1)} nT, Bz ${(bz || 0).toFixed(1)} nT, |B| ${Math.hypot(bt || 0, bz || 0).toFixed(1)} nT`;
+  $("fieldtag").textContent = txt;
+  if ($("bmag")) $("bmag").textContent = bt === null && bz === null ? "" : `|B| ${Math.hypot(bt || 0, bz || 0).toFixed(1)} nT`;
+}
+
+function changeSp(name, v, isCommit = false) {
+  sprows[name].num.value = (+v).toFixed(spDigits(sprows[name].p));
+  pendingSp = Object.assign(pendingSp || {}, { [name]: +v });
+  send(isCommit);
+}
+
 function showCouplings(cs) {
   for (const c of cs) {
     const r = rows[c.key]; if (!r) continue;
@@ -221,14 +304,14 @@ async function send(isCommit = false, extra = {}) {
   if (refining) return;
   if (inflight) { if (isCommit) send.commitLater = true; return; }
   inflight = true;
-  const values = pending; pending = null;
+  const values = pending, spectrum_values = pendingSp; pending = null; pendingSp = null;
   const doCommit = isCommit || send.commitLater; send.commitLater = false;
   try {
-    const res = await api("/api/evaluate", Object.assign({ values, view, commit: doCommit, analysis: $("live").checked }, extra));
+    const res = await api("/api/evaluate", Object.assign({ values, spectrum_values, view, commit: doCommit, analysis: $("live").checked }, extra));
     render(res); setErr("");
   } catch (e) { setErr(e.message); }
   inflight = false;
-  if (pending) send();
+  if (pending || pendingSp) send();
 }
 
 function render(res) {
@@ -240,6 +323,7 @@ function render(res) {
   $("t-rel").textContent = s.relative.toFixed(4); delta($("d-rel"), s.relative, b.relative);
   $("t-ms").textContent = (1000 * res.seconds).toFixed(0) + " ms";
   showCouplings(res.couplings);
+  showSpectrum(res.spectrum_parameters);
   const pk = (res.residual_peaks || []).filter(p => p.frequency_hz >= view[0] && p.frequency_hz <= view[1]);
   $("t-peaks").textContent = res.residual_peaks ? pk.length : "off";
   $("d-peaks").textContent = res.residual_peaks ? pk.filter(p => p.assignable).length + " assignable" : "";
@@ -442,6 +526,8 @@ async function init() {
   state = await api("/api/state");
   $("specname").textContent = state.spectrum + " (" + state.components.join(", ") + ")";
   buildRows();
+  buildSpectrumRows();
+  showSpectrum(state.spectrum_parameters);
   let v = [Math.max(state.extent[0], state.ranges[0][0]), Math.min(state.extent[1], state.ranges[state.ranges.length - 1][1])];
   try { const s = JSON.parse(localStorage.getItem("jtuner.view." + state.spectrum)); if (s) v = s; } catch (e) {}
   const pre = $("presets");

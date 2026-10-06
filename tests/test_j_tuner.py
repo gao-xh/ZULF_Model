@@ -561,3 +561,29 @@ class FieldRenameTests(unittest.TestCase):
         self.assertEqual(new, {"phase_delay": -0.004, "field_transverse_ut": 0.037, "field_z_ut": 0.045})
         self.assertEqual(fj.remap_family_rates({"field_transverse_ut": 0.01}, [1.0], [2.0, 3.0]),
                          {"field_transverse_ut": 0.01})
+
+
+class TunerSpectrumParameterTests(unittest.TestCase):
+    def test_spectrum_sliders_use_display_units_and_change_the_model(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            prob = fj.build_problem(_args(tmp, ["--fit-field", "--field-start", "0.03,0.05"]))
+            s = jt.TuningSession(prob)
+            params = {p["name"]: p for p in s.spectrum_parameters()}
+            self.assertEqual(params["field_transverse_ut"]["unit"], "nT")
+            self.assertAlmostEqual(params["field_transverse_ut"]["value"], 30.0, places=6)
+            rate = next(p for p in params.values() if p["group"] == "rates")
+            self.assertTrue(rate["log"])
+            before = s.evaluate([110.0, 260.0], analysis=False)["spectrum"]["model_re"]
+            s.set_spectrum({"field_z_ut": 80.0, rate["name"]: 2.5, "phase_delay": 1.0})
+            i = lambda n: s._spectrum_index(n)
+            self.assertAlmostEqual(s.z[i("field_z_ut")], 0.08)
+            self.assertAlmostEqual(np.exp(s.z[i(rate["name"])]), 2.5)
+            self.assertAlmostEqual(s.z[i("phase_delay")], 1e-3)
+            after = s.evaluate([110.0, 260.0], analysis=False)
+            self.assertGreater(np.max(np.abs(np.asarray(after["spectrum"]["model_re"]) - np.asarray(before))), 0)
+            shown = {p["name"]: p["value"] for p in after["spectrum_parameters"]}
+            self.assertAlmostEqual(shown["field_z_ut"], 80.0)
+            s.set_spectrum({"field_z_ut": 1e6})                      # clipped to the bound (1 uT)
+            self.assertLessEqual(s.z[i("field_z_ut")], 1.0)
