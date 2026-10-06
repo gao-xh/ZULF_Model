@@ -30,9 +30,10 @@ from matplotlib.collections import LineCollection  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
 from .api import TOOLS, StudioAPI, serve  # noqa: E402
+from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
-COMPONENT_COLORS = ["#d1495b", "#3b6fb6", "#2a9d5c", "#e08a2c", "#8e5ac8", "#7a7a7a"]
+COMPONENT_COLORS = ISOTOPOLOGUE
 
 AI_SETUP_GUIDE = """
 <h3>Setting up the AI assistant</h3>
@@ -94,14 +95,14 @@ class ValueSlider(QWidget):
         grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(0)
         self.name = QLabel(label)
-        self.name.setMinimumWidth(110)
+        self.name.setMinimumWidth(96)
         self.spin = QDoubleSpinBox()
         self.spin.setDecimals(decimals)
         self.spin.setRange(min(lo, value), max(hi, value))
         self.spin.setSingleStep(10 ** -min(decimals, 2))
         self.spin.setKeyboardTracking(False)
         self.spin.setSuffix(f" {unit}" if unit else "")
-        self.spin.setMinimumWidth(110)
+        self.spin.setMinimumWidth(104)
         self.coarse = QSlider(Qt.Horizontal)
         self.coarse.setRange(0, 1000)
         grid.addWidget(self.name, 0, 0)
@@ -112,7 +113,8 @@ class ValueSlider(QWidget):
             self.fine = QSlider(Qt.Horizontal)
             self.fine.setRange(-500, 500)
             fl = QLabel(f"fine +-{fine:g}")
-            fl.setStyleSheet("color: gray; font-size: 10px")
+            fl.setObjectName("fine")
+            self.fine.setObjectName("fineSlider")
             grid.addWidget(fl, 1, 0)
             grid.addWidget(self.fine, 1, 1)
             self.fine.sliderPressed.connect(lambda: setattr(self, "_anchor", self.spin.value()))
@@ -190,9 +192,9 @@ class Console(QWidget):
         self.interp = code.InteractiveConsole(namespace)
         lay = QVBoxLayout(self)
         self.out = QPlainTextEdit(readOnly=True)
-        self.out.setFont(MONO)
+        self.out.setObjectName("mono")
         self.inp = QLineEdit()
-        self.inp.setFont(MONO)
+        self.inp.setObjectName("mono")
         self.inp.setPlaceholderText(">>> python (session, api, np); e.g. session.set_field(40, 45)")
         lay.addWidget(self.out)
         lay.addWidget(self.inp)
@@ -228,10 +230,10 @@ class Terminal(QWidget):
         self.session = session
         lay = QVBoxLayout(self)
         self.out = QPlainTextEdit(readOnly=True)
-        self.out.setFont(MONO)
+        self.out.setObjectName("mono")
         row = QHBoxLayout()
         self.inp = QLineEdit()
-        self.inp.setFont(MONO)
+        self.inp.setObjectName("mono")
         self.inp.setPlaceholderText(f"$ shell command in {ROOT} (zsh), e.g. git status, python scripts/fit_monitor.py runs/studio/fits --text")
         self.stop_btn = QPushButton("Stop")
         self.clear_btn = QPushButton("Clear")
@@ -286,6 +288,9 @@ class StudioWindow(QMainWindow):
         self.api = StudioAPI(session)
         self.setWindowTitle("ZULF Studio")
         self.resize(1500, 950)
+        self.theme_mode = "auto"
+        self.t = LIGHT
+        self.apply_theme()
         self.bridge = Bridge()
         self.bridge.changed.connect(self.on_changed)
         self.bridge.logged.connect(self.on_logged)
@@ -312,7 +317,8 @@ class StudioWindow(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidget(left)
         scroll.setWidgetResizable(True)
-        scroll.setMinimumWidth(470)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setMinimumWidth(500)
 
         center = QWidget()
         cl = QVBoxLayout(center)
@@ -327,12 +333,11 @@ class StudioWindow(QMainWindow):
         self.lock_scale.setToolTip("freeze the display scale of the simulation (automatic: least squares on |spectrum|)")
         self.lock_scale.toggled.connect(lambda on: self._guard(self.session.lock_scale, on))
         self.field_label = QLabel()
-        self.field_label.setStyleSheet("font-weight: 600")
-        for w in (QLabel("view"), self.view_lo, QLabel("-"), self.view_hi, QLabel("Hz   part"), self.part,
-                  self.show_sticks, self.show_trace, self.lock_scale):
+        self.field_label.setObjectName("badge")
+        for w in (QLabel("View"), self.view_lo, QLabel("to"), self.view_hi, QLabel("Hz"), QLabel("   Part"), self.part,
+                  QLabel("  "), self.show_sticks, self.show_trace, self.lock_scale):
             bar.addWidget(w)
         bar.addStretch(1)
-        bar.addWidget(self.field_label)
         self.fig = Figure(figsize=(8, 6), layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
         cl.addLayout(bar)
@@ -349,7 +354,7 @@ class StudioWindow(QMainWindow):
         self.tabs.addTab(self._fit_tab(), "Fit")
         self.tabs.addTab(self._figure_tab(), "Figure")
         self.log_view = QPlainTextEdit(readOnly=True)
-        self.log_view.setFont(MONO)
+        self.log_view.setObjectName("mono")
         self.log_view.setMaximumBlockCount(5000)
         self.tabs.addTab(self.log_view, "Log")
         self.tabs.addTab(Terminal(session), "Terminal")
@@ -364,8 +369,28 @@ class StudioWindow(QMainWindow):
         main = QSplitter(Qt.Horizontal)
         main.addWidget(scroll)
         main.addWidget(right)
-        main.setSizes([480, 1020])
-        self.setCentralWidget(main)
+        main.setSizes([510, 990])
+        header = QWidget(objectName="header")
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(16, 10, 16, 10)
+        title = QLabel("ZULF Studio", objectName="title")
+        self.subtitle = QLabel(objectName="subtitle")
+        hl.addWidget(title)
+        hl.addSpacing(12)
+        hl.addWidget(self.subtitle)
+        hl.addStretch(1)
+        hl.addWidget(self.field_label)
+        root = QWidget(objectName="root")
+        rl = QVBoxLayout(root)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(0)
+        rl.addWidget(header)
+        body = QWidget()
+        bl = QVBoxLayout(body)
+        bl.setContentsMargins(10, 8, 10, 6)
+        bl.addWidget(main)
+        rl.addWidget(body, 1)
+        self.setCentralWidget(root)
         self._menu()
         for e in session.read_log(200):
             self.on_logged(e)
@@ -390,7 +415,7 @@ class StudioWindow(QMainWindow):
         row.addWidget(QLabel("N-H/O-H"))
         row.addWidget(self.exchange)
         self.spec_edit = QPlainTextEdit()
-        self.spec_edit.setFont(MONO)
+        self.spec_edit.setObjectName("mono")
         self.spec_edit.setFixedHeight(92)
         build = QPushButton("Build")
         build.clicked.connect(self.build_structure)
@@ -470,7 +495,7 @@ class StudioWindow(QMainWindow):
         hint = QLabel("The display phase only rotates the shown data; the simulation is a quick Lorentzian look. "
                       "Use Fit for the model rendered through the data processing.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: gray; font-size: 10px")
+        hint.setObjectName("hint")
         lay.addWidget(hint)
         return box
 
@@ -550,7 +575,7 @@ class StudioWindow(QMainWindow):
             form.addRow(label, wid)
         btns = QHBoxLayout()
         self.f_start = QPushButton("Start fit")
-        self.f_start.setStyleSheet("font-weight: 600")
+        self.f_start.setObjectName("primary")
         self.f_stop = QPushButton("Stop")
         self.f_apply = QPushButton("Apply result")
         self.f_load = QPushButton("Load run ...")
@@ -573,7 +598,7 @@ class StudioWindow(QMainWindow):
         self.trace_slider.setEnabled(False)
         self.trace_slider.valueChanged.connect(lambda i: self._guard(self.session.trace_frame, i))
         self.trace_info = QPlainTextEdit(readOnly=True)
-        self.trace_info.setFont(MONO)
+        self.trace_info.setObjectName("mono")
         apply_frame = QPushButton("Copy this frame's couplings to the sliders")
         apply_frame.clicked.connect(lambda: self._guard(self.session.trace_frame, self.trace_slider.value(), True))
         right.addWidget(self.trace_slider)
@@ -613,7 +638,7 @@ class StudioWindow(QMainWindow):
             form.addRow(label, wid)
         btns = QHBoxLayout()
         self.g_make = QPushButton("Generate figure")
-        self.g_make.setStyleSheet("font-weight: 600")
+        self.g_make.setObjectName("primary")
         self.g_export = QPushButton("Export ...")
         self.g_open = QPushButton("Open folder")
         for b in (self.g_make, self.g_export, self.g_open):
@@ -697,14 +722,14 @@ class StudioWindow(QMainWindow):
             row.addWidget(wdg)
         row.addWidget(self.ai_creds, 1)
         self.ai_log = QPlainTextEdit(readOnly=True)
-        self.ai_log.setFont(MONO)
+        self.ai_log.setObjectName("mono")
         self.ai_prompt = QPlainTextEdit()
         self.ai_prompt.setFixedHeight(64)
         self.ai_prompt.setPlaceholderText("e.g. auto-phase the data, then scan J(C1,HC1) from 136.2 to 136.4 Hz and set the "
                                           "value with the smallest rms residual  (Ctrl+Enter to send)")
         btns = QHBoxLayout()
         self.ai_send = QPushButton("Send")
-        self.ai_send.setStyleSheet("font-weight: 600")
+        self.ai_send.setObjectName("primary")
         stop = QPushButton("Stop")
         new = QPushButton("New conversation")
         self.ai_send.clicked.connect(self.ai_ask)
@@ -795,7 +820,7 @@ class StudioWindow(QMainWindow):
         hint = ("credentials found" if ok else
                 f"no credentials: set {self._ai_key_variable()} (Setup guide)")
         self.ai_creds.setText(hint)
-        self.ai_creds.setStyleSheet("color: %s" % ("#2a8a52" if ok else "#c0392b"))
+        self.ai_creds.setStyleSheet("color: %s" % (self.t["good"] if ok else self.t["bad"]))
         self.assistant = None                      # a new provider or model starts a new conversation
 
     def _ai_new(self):
@@ -829,7 +854,7 @@ class StudioWindow(QMainWindow):
 
     def _api_tab(self):
         w = QPlainTextEdit(readOnly=True)
-        w.setFont(MONO)
+        w.setObjectName("mono")
         if self.api_server is None:
             w.setPlainText("API server off (start with --api-port PORT).")
             return w
@@ -846,7 +871,29 @@ class StudioWindow(QMainWindow):
         w.setPlainText("\n".join(lines))
         return w
 
+    def apply_theme(self, mode=None):
+        """Light or dark style sheet and plot colours; "auto" follows the system appearance."""
+        if mode is not None:
+            self.theme_mode = mode
+        dark = self.theme_mode == "dark"
+        if self.theme_mode == "auto":
+            try:
+                dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
+            except AttributeError:
+                dark = False
+        self.t = DARK if dark else LIGHT
+        QApplication.instance().setStyleSheet(stylesheet(self.t))
+        if hasattr(self, "fig"):
+            self.fig.set_facecolor(self.t["panel"])
+            self._ai_provider_changed() if hasattr(self, "ai_creds") else None
+            self.schedule()
+
     def _menu(self):
+        v = self.menuBar().addMenu("&View")
+        for text, mode in (("Theme: follow system", "auto"), ("Theme: light", "light"), ("Theme: dark", "dark")):
+            a = QAction(text, self)
+            a.triggered.connect(lambda _=False, m=mode: self.apply_theme(m))
+            v.addAction(a)
         m = self.menuBar().addMenu("&File")
         for text, key, fn in (("Load series ...", "Ctrl+O", self.load_series), ("Load fit run ...", "Ctrl+R", self.load_run),
                               ("Export ...", "Ctrl+E", self.export), ("Generate figure", "Ctrl+G", self.make_figure)):
@@ -927,6 +974,9 @@ class StudioWindow(QMainWindow):
             f"B\u22a5 {bt:.1f} nT   Bz {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT"
         self.b_mag.setText(f"|B| = {math.hypot(bt, bz):.1f} nT   (FWHM {s.rate_per_s / math.pi:.3f} Hz)")
         self.field_label.setText(txt)
+        name = s.spec.get("compound") or s.spec.get("motif") or ""
+        comps = ", ".join(c["label"] for c in s.components())
+        self.subtitle.setText(f"{name}   \u00b7   {comps}" + (f"   \u00b7   data: {s.data['label']}" if s.data else ""))
         for spin, v in ((self.view_lo, s.view[0]), (self.view_hi, s.view[1])):
             spin.blockSignals(True)
             spin.setValue(v)
@@ -1001,16 +1051,20 @@ class StudioWindow(QMainWindow):
         pick = (lambda re, im: np.asarray(re) if part == "re" else np.asarray(im) if part == "im"
                 else np.hypot(re, im))
         f = np.asarray(sim["f"])
+        t = self.t
+        style = matplotlib.rc_context(matplotlib_style(t))
+        style.__enter__()
         self.fig.clear()
+        self.fig.set_facecolor(t["panel"])
         has_data = "data_re" in sim
         rows = [3, 1, 1] if has_data else [3, 1]
         axes = self.fig.subplots(len(rows), 1, sharex=True, gridspec_kw={"height_ratios": rows})
         ax = axes[0]
         if has_data:
             d = pick(sim["data_re"], sim["data_im"])
-            ax.plot(f, d, color="black", lw=0.8, label=s.data["label"])
+            ax.plot(f, d, color=t["data"], lw=0.8, label=f"experiment ({s.data['label']})")
         m = pick(sim["sim_re"], sim["sim_im"])
-        ax.plot(f, m, color="#d1495b", lw=1.0, label="simulation (Lorentzian)")
+        ax.plot(f, m, color=t["sim"], lw=1.3, alpha=0.9, label="simulation (quick look)")
         tr = s.trace if self.show_trace.isChecked() else None
         if tr is not None and s.trace_index >= 0:
             ft = tr["f"]
@@ -1018,32 +1072,31 @@ class StudioWindow(QMainWindow):
             ph = np.exp(1j * (np.radians(s.data_phase_deg) + 2 * np.pi * ft * 1e-3 * s.data_delay_ms))
             mod = tr["models"][s.trace_index] * ph
             mt = mod.real if part == "re" else mod.imag if part == "im" else np.abs(mod)
-            ax.plot(ft[sel], mt[sel], color="#2a9d5c", lw=1.0,
+            ax.plot(ft[sel], mt[sel], color=t["trace"], lw=1.2,
                     label=f"fit trace frame {s.trace_index + 1} (objective "
                           f"{tr['meta']['frames'][s.trace_index]['objective']:.4g})")
-        ax.legend(loc="upper left", fontsize=8, frameon=False)
-        bt, bz = s.field_nt
-        ax.set_title(f"{s.spec.get('compound', s.spec.get('motif', ''))}:  "
-                     + ("zero field" if bt == bz == 0 else f"$B_\\perp$ {bt:.1f} nT, $B_z$ {bz:.1f} nT")
-                     + f",  rate {s.rate_per_s:.3g} 1/s", fontsize=10, loc="left")
+        ax.legend(loc="upper right")
+        ax.set_ylabel("signal")
         if has_data:
-            axes[1].plot(f, d - m, color="gray", lw=0.7)
-            axes[1].axhline(0, color="#cccccc", lw=0.6)
-            axes[1].set_ylabel("residual", fontsize=8)
+            axes[1].plot(f, d - m, color=t["resid"], lw=0.7)
+            axes[1].axhline(0, color=t["line2"], lw=0.6)
+            axes[1].set_ylabel("residual")
         sax = axes[-1]
         if self.show_sticks.isChecked():
             labels = [c["label"] for c in s.components()]
             segs, cols = [], []
             for r in sim["lines"]:
                 segs.append([(r["frequency_hz"], 0), (r["frequency_hz"], r["relative"])])
-                cols.append(COMPONENT_COLORS[labels.index(r["component"]) % 6] if r["component"] in labels else "k")
-            sax.add_collection(LineCollection(segs, colors=cols, linewidths=1.2))
-            sax.set_ylim(0, 1.05)
-        sax.set_ylabel("lines", fontsize=8)
+                cols.append(COMPONENT_COLORS[labels.index(r["component"]) % 6] if r["component"] in labels else t["muted"])
+            sax.add_collection(LineCollection(segs, colors=cols, linewidths=1.6))
+            sax.set_ylim(0, 1.08)
+        sax.grid(False)
+        sax.set_yticks([])
+        sax.spines["left"].set_visible(False)
+        sax.set_ylabel("lines")
         sax.set_xlim(*s.view)
         sax.set_xlabel("frequency (Hz)")
-        for a in axes:
-            a.tick_params(labelsize=8)
+        style.__exit__(None, None, None)
         self.canvas.draw_idle()
         self.fill_lines(sim["lines"])
         msg = (f"simulation {1e3 * sim['seconds']:.0f} ms, {len(sim['lines'])} lines in view, scale {sim['scale']:.4g}"
