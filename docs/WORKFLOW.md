@@ -228,6 +228,17 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
     4. **Model-line passes** (`--model-line-passes N`): the model's own line envelope joins the signal-weighting
        cores and the best solution is refit. Compare runs by
        fit.json["model_line_passes"]["objective_original_weights"].
+    Tools for these steps:
+    - `--family-edges auto`: edges from the start vector's line clusters (gaps > 1.5 Hz) and from the sharp data
+      peaks (each line under one gets its own family). The edges used are printed and recorded in fit.json.
+    - `--from-joint` remaps the decay rates when the previous fit used other edges, so changing edges does not
+      restart the rates.
+    - `--tie-rates REGEX` gives the matching components one decay rate for all their families, so a species
+      cannot hide a predicted line by broadening it (for example `'^P2:'` for a second species).
+    - `--component-search-hold-gains` (`local_fit(hold_gains=True)`): window costs are the window part of the
+      whole objective.
+    - `scripts/snapshot_fit.py RUN OUT.json`: the best vector of a running or killed run as a `--from-joint`
+      start.
 12. Tests of a fitted parameter's sign or of a regime:
     - flip it (for example every 2J(C,H)) and refit everything, then compare objectives;
     - for N-H exchange, check the predicted natural-abundance 15N-H lines against the data before accepting a
@@ -283,3 +294,6 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME
     python scripts/j_tuner.py <the fit_joint_series options of the fit> --fit runs/processed/NAME/fit.json
     python scripts/fit_monitor.py runs/processed            # live view of running fits (or --text)
+    python scripts/plot_runs.py OUT.png runs/processed/A runs/processed/B --zooms "186,196;196,204"   # compare runs
+    python scripts/plot_components.py runs/processed/NAME OUT.png --band 176,216   # every component alone
+    python scripts/snapshot_fit.py runs/processed/NAME snap.json   # best monitor vector -> --from-joint file

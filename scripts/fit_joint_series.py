@@ -90,6 +90,95 @@ def _rate_policy(base, args):
     return dataclasses.replace(base, policy=policy)
 
 
+def remap_family_rates(params, old_edges, new_edges):
+    """Spectrum parameters of a fit made with rate-family edges `old_edges`, for a model with `new_edges`: every
+    new family takes the decay rate of the old family that contains its centre (the outer families: a point
+    0.5 Hz beyond the outermost new edge; one new family: the middle of the old edges). Other parameters are
+    copied. `old_edges` None (a fit that did not record its edges) or equal edges: no change."""
+    out = dict(params)
+    if old_edges is None:
+        return out
+    old = np.asarray(old_edges, float)
+    new = np.asarray(new_edges, float)
+    if len(old) == len(new) and np.allclose(old, new):
+        return out
+    if len(new):
+        bounds = np.concatenate([[new[0] - 1.0], new, [new[-1] + 1.0]])
+        centres = 0.5 * (bounds[:-1] + bounds[1:])
+    else:
+        centres = np.array([0.5 * (old[0] + old[-1]) if len(old) else 0.0])
+    source = np.searchsorted(old, centres, side="right")
+    import re
+    rate = re.compile(r"^(c\d+)\.log_rate(\d+)$")
+    components = sorted({m.group(1) for m in (rate.match(k) for k in params) if m})
+    for key in [k for k in out if rate.match(k)]:
+        del out[key]
+    for c in components:
+        for k, src in enumerate(source):
+            name = f"{c}.log_rate{int(src)}"
+            if name in params:
+                out[f"{c}.log_rate{k}"] = params[name]
+    return out
+
+
+def edges_from_lines(lines_hz, sharp_hz=(), gap_hz=1.5, min_separation_hz=0.2, match_hz=0.5, min_spacing_hz=0.25):
+    """Rate-family edges from model line positions (the rule behind the hand-chosen edges of the amine fits, D46):
+    1. an edge in the middle of every gap wider than gap_hz between neighbouring lines (one family per cluster);
+    2. for every sharp data peak with a model line within match_hz: edges halfway to that line's neighbours (if
+       they are more than min_separation_hz away), so the line gets a family of its own and its own decay rate;
+    3. edges closer than min_spacing_hz are merged (their mean). Returns sorted edges (Hz)."""
+    f = np.unique(np.asarray(lines_hz, float))
+    if len(f) < 2:
+        return []
+    edges = [0.5 * (a + b) for a, b in zip(f[:-1], f[1:]) if b - a > gap_hz]
+    for p in np.asarray(sharp_hz, float):
+        i = int(np.argmin(np.abs(f - p)))
+        if abs(f[i] - p) > match_hz:
+            continue
+        if i > 0 and f[i] - f[i - 1] > min_separation_hz:
+            edges.append(0.5 * (f[i - 1] + f[i]))
+        if i < len(f) - 1 and f[i + 1] - f[i] > min_separation_hz:
+            edges.append(0.5 * (f[i] + f[i + 1]))
+    edges = sorted(edges)
+    merged = []
+    for e in edges:
+        if merged and e - merged[-1][-1] < min_spacing_hz:
+            merged[-1].append(e)
+        else:
+            merged.append([e])
+    return [float(np.mean(g)) for g in merged]
+
+
+def auto_family_edges(joint, z, s=0, min_relative=0.02, sharp_width_hz=0.8, prominence=0.05, **rule):
+    """Edges for --family-edges auto: the model lines of spectrum s at z (every component, relative amplitude
+    |gain a| >= min_relative of that component's strongest line, inside the fit range) and the sharp peaks of the
+    data (|y|, prominence >= prominence x max, width at half prominence < sharp_width_hz), through
+    edges_from_lines. Returns (edges, lines, sharp peaks)."""
+    from scipy.signal import find_peaks, peak_widths
+    f = joint.forwards[s]
+    x = joint.spectrum_vector(z, s)
+    values = f.p.values(x)
+    gains = np.asarray(f.predict(x).gains)
+    lo, hi = float(f.f.min()), float(f.f.max())
+    lines = []
+    for c, system in enumerate(f.p.systems(values)):
+        tl = f.transitions(values, c, system)
+        if not len(tl) or c >= len(gains):
+            continue
+        w = np.abs(gains[c] * tl.amplitudes)
+        if not w.max() > 0:
+            continue
+        keep = (w >= min_relative * w.max()) & (tl.frequencies_hz >= lo) & (tl.frequencies_hz <= hi)
+        lines.extend(tl.frequencies_hz[keep].tolist())
+    y = np.abs(np.asarray(f.y))
+    peaks, props = find_peaks(y, prominence=prominence * float(y.max()))
+    sharp = []
+    if len(peaks):
+        width = peak_widths(y, peaks, rel_height=0.5)[0] * float(np.median(np.diff(f.f)))
+        sharp = [float(f.f[k]) for k, w_hz in zip(peaks, width) if w_hz < sharp_width_hz]
+    return edges_from_lines(lines, sharp, **rule), sorted(lines), sharp
+
+
 def monotone_profile(w: np.ndarray):
     """c (n,) rising from 0 to 1 and dc/dw (n, n-1) for the softmax step shares e^w / sum e^w."""
     e = np.exp(w - w.max())
@@ -139,7 +228,8 @@ def exchangeable_labels(fragment):
 class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
-    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=()):
+    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=(),
+                 tie_rates=""):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
         for p in self.params:                      # couplings held at their structure values (--free-couplings)
@@ -147,6 +237,20 @@ class JointSeries:
                 for n in model.coupling_names.get(key, []):
                     if n in p.parameters:
                         p.parameters[n].free = False
+        self.tied_rate_components = []
+        if tie_rates:
+            # --tie-rates: every rate family of a matching component follows its family 0 (one decay rate for the
+            # whole component, e.g. a second species whose rate families must not hide lines)
+            import re
+            pattern = re.compile(tie_rates)
+            self.tied_rate_components = [c for c, label in enumerate(model.component_labels) if pattern.search(label)]
+            if not self.tied_rate_components:
+                raise ValueError(f"--tie-rates {tie_rates!r} matches no component of {model.component_labels}")
+            for p in self.params:
+                for c in self.tied_rate_components:
+                    names = [n for n in p.order if n.startswith(f"c{c}.log_rate")]
+                    if len(names) > 1:
+                        p.tie(names[0], *names[1:])
         if exchange:
             for p in self.params:
                 add_nh_exchange(p, model, exchange["labels"], exchange["start"], exchange["bounds"])
@@ -525,15 +629,23 @@ class JointSeries:
         return {"frequency_hz": float(frequency_hz), "lines": lines, "couplings": effect}
 
     def local_fit(self, z, s, window_hz, couplings, locals_=(), lower=None, upper=None, starts=None, max_nfev=100,
-                  margin_hz=2.0):
+                  margin_hz=2.0, hold_gains=False):
         """Targeted local refinement: fit only spectrum s inside window_hz = (lo, hi), with only the named couplings
         (leaders, e.g. the split-type couplings of peak_sources) and spectrum parameters (e.g. the rate family holding
         those lines) free; everything else held at z. Fast: a forward model of the window points alone that renders
         and differentiates only the transitions within window +- margin_hz (farther lines add only their tails;
         gains, phase and background are solved again on the window). `starts`: list of dicts {name: start value}
-        (default: z itself). Returns [(local cost, z)] sorted, each z a full vector for a global refit."""
+        (default: z itself). Returns [(local cost, z)] sorted, each z a full vector for a global refit.
+
+        hold_gains: gains, phase and background stay at the global solution at z, and the cost is the full
+        objective's residual on the window points (its own weights and norm). The local cost is then the window
+        part of the whole objective, not a cost with re-solved amplitudes that overstates the gain. Lines outside
+        window +- margin_hz enter as their contribution at z (a constant offset); Jacobian by finite differences."""
         f = self.forwards[s]
         lo_w, hi_w = float(window_hz[0]), float(window_hz[1])
+        if hold_gains:
+            return self._local_fit_held(z, s, (lo_w, hi_w), couplings, locals_, lower, upper, starts, max_nfev,
+                                        margin_hz)
         obs_w = f.obs.restricted([(lo_w, hi_w)])
         fw = MixtureForward(self.params[s], obs_w, f.protocol, self.settings.gain_model,
                             self.settings.background_order, self.settings.band_weighting,
@@ -573,6 +685,55 @@ class JointSeries:
                 p0[names.index(n)] = v
             p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
             sol = least_squares(res, p0, jac=jac, bounds=(lo, hi), x_scale="jac", max_nfev=max_nfev,
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10)
+            out.append((float(2 * sol.cost), full(sol.x)))
+        out.sort(key=lambda t: t[0])
+        return out
+
+    def _local_index(self, s, couplings, locals_):
+        zi = []
+        for n in couplings:
+            k = self.coupling.index(n)
+            zi.append(k * self.m + (self.node_of[s] if self.shape == "free" else 0))
+        for n in locals_:
+            zi.append(self.ntheta + self.shared.index(n) if n in self.shared else self.nt + s * self.nl + self.local.index(n))
+        return np.asarray(zi, int)
+
+    def _local_fit_held(self, z, s, window_hz, couplings, locals_, lower, upper, starts, max_nfev, margin_hz):
+        import copy
+        f = self.forwards[s]
+        x0 = self.spectrum_vector(z, s)
+        ref = f.predict(x0)
+        gains, background = np.asarray(ref.gains), np.asarray(ref.background)
+        r_full = np.asarray(f.predict(x0, fixed_gains=gains, fixed_background=background).residual)
+        idx = np.flatnonzero((f.f >= window_hz[0]) & (f.f <= window_hz[1]))
+        nf = len(f.f)
+        rows = np.concatenate([idx, idx + nf]) if len(r_full) == 2 * nf else idx
+        fw = copy.copy(f)                                   # same weights and norm; only nearby lines rendered
+        fw.line_band_hz = (window_hz[0] - margin_hz, window_hz[1] + margin_hz)
+        fw.jacobian_only = None
+        fw._last = None
+        offset = r_full[rows] - np.asarray(fw.predict(x0, fixed_gains=gains, fixed_background=background).residual)[rows]
+        zi = self._local_index(s, couplings, locals_)
+        lo = lower[zi] if lower is not None else np.full(len(zi), -np.inf)
+        hi = upper[zi] if upper is not None else np.full(len(zi), np.inf)
+
+        def full(p):
+            zz = z.copy()
+            zz[zi] = p
+            return zz
+
+        def res(p):
+            r = fw.predict(self.spectrum_vector(full(p), s), fixed_gains=gains, fixed_background=background).residual
+            return np.asarray(r)[rows] + offset
+        out = []
+        names = list(couplings) + list(locals_)
+        for st in (starts or [{}]):
+            p0 = z[zi].copy()
+            for n, v in st.items():
+                p0[names.index(n)] = v
+            p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
+            sol = least_squares(res, p0, bounds=(lo, hi), x_scale=1.0, diff_step=1e-6, max_nfev=max_nfev,
                                 ftol=1e-10, xtol=1e-10, gtol=1e-10)
             out.append((float(2 * sol.cost), full(sol.x)))
         out.sort(key=lambda t: t[0])
@@ -821,9 +982,9 @@ def _component_windows(joint, z, s, min_line=0.05, gap_hz=3.0, dominance=0.8):
 
 
 def _cs_local(start):
-    joint, s, window, names, rates, lower, upper, max_nfev, z = _CS_TASK
+    joint, s, window, names, rates, lower, upper, max_nfev, z, hold_gains = _CS_TASK
     return joint.local_fit(z, s, window, names, locals_=rates, lower=lower, upper=upper, starts=[start],
-                           max_nfev=max_nfev)[0]
+                           max_nfev=max_nfev, hold_gains=hold_gains)[0]
 
 
 def component_search(joint, prob, z, args, stage):
@@ -853,13 +1014,15 @@ def component_search(joint, prob, z, args, stage):
                 continue
             fams = set(np.searchsorted(edges, np.linspace(lo, hi, 200), side="right").tolist()) if len(edges) \
                 else {0}
-            rates = [n for n in joint.local if n.startswith(f"c{c}.log_rate") and int(n.split("log_rate")[1]) in fams]
+            rates = [n for n in joint.local if n.startswith(f"c{c}.log_rate") and
+                     (int(n.split("log_rate")[1]) in fams or c in joint.tied_rate_components)]
             current = {n: float(joint.coupling_values(z, joint.coupling.index(n))[joint.node_of[s]]) for n in names}
             starts = [{}]
             for _ in range(args.component_search_starts):
                 starts.append({n: float(rng.uniform(v - one_bond, v + one_bond) if abs(v) >= 50.0
                                         else rng.uniform(lo_box, hi_box)) for n, v in current.items()})
-            _CS_TASK = (joint, s, (lo, hi), names, rates, prob.lower, prob.upper, args.component_search_nfev, z)
+            _CS_TASK = (joint, s, (lo, hi), names, rates, prob.lower, prob.upper, args.component_search_nfev, z,
+                        bool(getattr(args, "component_search_hold_gains", False)))
             if args.workers > 1:
                 import multiprocessing
                 with multiprocessing.get_context("fork").Pool(args.workers) as pool:
@@ -949,6 +1112,22 @@ def _solve_start(z):
 
 
 def build_problem(args):
+    """The fit problem of the command line. --family-edges auto: the problem is first built with one rate family,
+    the edges are read from its start vector (auto_family_edges: line clusters and sharp data lines), and the
+    problem is rebuilt with them (args.family_edges then holds the edges used)."""
+    if str(getattr(args, "family_edges", "")).strip().lower() == "auto":
+        import copy
+        first = copy.copy(args)
+        first.family_edges = ""
+        p = _build_problem(first)
+        edges, lines, sharp = auto_family_edges(p.joint, p.z0)
+        args.family_edges = ",".join(f"{e:.3f}" for e in edges)
+        print(f"--family-edges auto: {len(edges)} edges from {len(lines)} model lines and {len(sharp)} sharp data "
+              f"peaks: {args.family_edges}", flush=True)
+    return _build_problem(args)
+
+
+def _build_problem(args):
     """The fitting problem of a command line: observations, model, JointSeries (weights, priors, missing-peak
     rows), the start vector z0 and the bounds. Shared by main and scripts/j_tuner.py."""
     import regression_confirmed as reg
@@ -1038,7 +1217,7 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         exchange = {"labels": labels, "start": args.nh_exchange, "bounds": (lo_k, hi_k)}
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
                         shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape,
-                        exchange=exchange, fixed=fixed_keys)
+                        exchange=exchange, fixed=fixed_keys, tie_rates=getattr(args, "tie_rates", ""))
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
         raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
@@ -1083,9 +1262,13 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] if key_of[n] in previous["couplings"]
                            else table[i, k] for k, n in enumerate(joint.coupling)] for i, s in enumerate(rows)])
     if args.from_joint:
-        # decay rates and delays of spectra already in the previous fit (same id)
+        # decay rates and delays of spectra already in the previous fit (same id); rates remapped when the
+        # previous fit used other family edges (recorded in fit.json since 2026-10-06)
+        edges_now = joint.params[0].policy.family_edges_hz
         for e, x in zip(series, xs0):
-            for n, v in previous.get("spectrum_parameters", {}).get(e["id"], {}).items():
+            spectrum = remap_family_rates(previous.get("spectrum_parameters", {}).get(e["id"], {}),
+                                          previous.get("family_edges_hz"), edges_now)
+            for n, v in spectrum.items():
                 if n in joint.col:
                     x[joint.col[n]] = v
     z0 = joint.pack(table, xs0)
@@ -1153,7 +1336,8 @@ def make_parser():
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
     ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
-                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue)")
+                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue), or "
+                    "'auto': edges from the start vector's line clusters and the sharp data lines (auto_family_edges)")
     ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
@@ -1168,6 +1352,9 @@ def make_parser():
                          "the first centre), 'end' searches from the best solution and refits globally if it wins")
     ap.add_argument("--component-search-starts", type=int, default=30, help="random starts per window")
     ap.add_argument("--component-search-nfev", type=int, default=30, help="max_nfev of each window fit")
+    ap.add_argument("--component-search-hold-gains", action="store_true",
+                    help="window fits keep gains, phase and background at the global solution (cost = the window "
+                         "part of the whole objective) instead of solving them on the window")
     ap.add_argument("--component-search-keep", type=int, default=6, help="distinct window solutions scored")
     ap.add_argument("--component-search-box", default="-8,13,7",
                     help="small couplings uniform in lo,hi; one-bond couplings current +- the third value (Hz)")
@@ -1205,6 +1392,8 @@ def make_parser():
     ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
                     "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
     ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
+    ap.add_argument("--tie-rates", default="", help="regex on component labels (e.g. '^P2:'): every rate family of "
+                    "a matching component shares one decay rate (its family 0)")
     ap.add_argument("--model-line-passes", type=int, default=0,
                     help="after the fit: refits with the best model's own lines (envelope above "
                          "--model-line-threshold noise sigma) added to the signal-weighting cores, so model lines "
@@ -1267,6 +1456,11 @@ def main():
     from run_log import RunLog
     run_log = RunLog(Path(args.out), "fit_joint_series")
     prob = build_problem(args)
+    if "--family-edges" in sys.argv[:-1]:                 # record the edges actually used (auto -> numbers)
+        i = sys.argv.index("--family-edges")
+        if sys.argv[i + 1].strip().lower() == "auto":
+            sys.argv[i + 1] = args.family_edges
+            run_log.argv = list(sys.argv)
     series, left_out, lo, hi, obs, model = prob.series, prob.left_out, prob.lo, prob.hi, prob.obs, prob.model
     settings, joint, key_of, centre, xs0, z0 = (prob.settings, prob.joint, prob.key_of, prob.centre, prob.xs0,
                                                 prob.z0)
@@ -1434,7 +1628,8 @@ def main():
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
-              "component_search": component_record, "model_line_passes": model_line_record}
+              "component_search": component_record, "model_line_passes": model_line_record,
+              "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz]}
     for k, n in enumerate(joint.coupling):
         block = slice(k * joint.m, (k + 1) * joint.m)
         values = joint.coupling_values(z, k)

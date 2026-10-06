@@ -265,14 +265,17 @@ Use occasionally or as the last step, not inside every fit.
      - A model line where the data show none, sharp because it shares a rate family with sharp lines, needs a
        family edge between them. Ethylenediamine: a false 177.5 Hz line sat in the family of the 190 / 192 Hz
        pair; an edge at 185 Hz removed it.
-  2. **Narrow rate families** around a sharp line that shares a family with broad ones. Remap the old rates
-     onto the new edges (each new family takes the rate of the old family containing it).
+  2. **Narrow rate families** around a sharp line that shares a family with broad ones. `--family-edges auto`
+     applies this rule; `--from-joint` remaps the old rates onto new edges (each new family takes the rate of the
+     old family containing it).
      - Triethylamine, edges 120.8 / 121.2 / 121.6 Hz: 0.049 -> 0.038.
      - Ethylenediamine, edge 198.3 Hz: 0.0066 -> 0.0051.
      - The couplings barely move. Report the edges; they are nuisance parameters.
   3. **Second species** with a free ratio: a `--structure` list of two copies of the motif.
      - Seed it away from species 1. A copy of species 1 has zero gain and no gradient (a saddle). When seeds stay
        at the old objective, grid the second species' couplings directly with the gains solved.
+     - Check it with `--tie-rates '^P2:'` (one rate for the species): rate families must not be what hides its
+       unobserved lines.
      - Ethylenediamine: 0.045 -> 0.0068 with ratio 0.26. Isopropylamine: no gain (-1.4 %).
   4. **Model-line passes** (`--model-line-passes 2`): model lines at full weight. Compare runs by
      fit.json["model_line_passes"]["objective_original_weights"]; the scores use the new weights.

@@ -57,8 +57,12 @@ def load_fit(prob, fit):
             continue
         table[:, k] = [c["J_at_x"][r] for r in rows]
     xs = [x.copy() for x in prob.xs0]
+    from fit_joint_series import remap_family_rates
+    edges_now = joint.params[0].policy.family_edges_hz
     for e, x in zip(prob.series, xs):
-        for n, v in fit.get("spectrum_parameters", {}).get(e["id"], {}).items():
+        spectrum = remap_family_rates(fit.get("spectrum_parameters", {}).get(e["id"], {}), fit.get("family_edges_hz"),
+                                      edges_now)
+        for n, v in spectrum.items():
             if n in joint.col:
                 x[joint.col[n]] = v
     prob.z0 = np.clip(joint.pack(table, xs), prob.lower + 1e-9, prob.upper - 1e-9)
