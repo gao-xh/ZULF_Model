@@ -1,7 +1,7 @@
 """Regression over the confirmed samples: blind search (skeleton found?) and known-structure fit (chi2, time, 1J,
 phase). Run after every change to zulf_hypothesis or the solver and compare with the previous run.
 
-    ZULF_DATA_DIR=/path/to/fids python scripts/regression_confirmed.py --mode known --out runs/regression/NAME
+    ZULF_DATA_DIR=/path/to/data python scripts/regression_confirmed.py --mode known --out runs/regression/NAME
     options: --mode known|blind|both, --samples id1,id2, --workers 4
 
 Writes OUT/summary.json and OUT/summary.md, plus the automatic report of every fit (OUT/<id>_known*, _blind*).
@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from zulf_core.io import find_data_file                                     # noqa: E402
 from zulf_core.render.acquisition import Acquisition                        # noqa: E402
 from zulf_core.solver import ObservedSpectrum                               # noqa: E402
 from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
@@ -32,7 +33,7 @@ DELAY = tuple(float(x) for x in (_bounds.split(",") if isinstance(_bounds, str) 
 
 
 def observed_for(sample, proc, data_dir):
-    x = np.load(Path(data_dir) / sample["file"]).astype(float)
+    x = np.load(find_data_file(data_dir, sample["file"])).astype(float)
     acq = Acquisition(proc["sampling_rate_hz"], len(x), start_sample=proc["start_sample"],
                       stop_sample=proc["stop_sample"], sg_window=proc["sg_window"], sg_order=proc["sg_order"],
                       remove_mean=proc["remove_mean"], apodization_rate_per_s=proc["apodization_rate_per_s"])
@@ -122,7 +123,7 @@ def main():
             continue
         if args.processing == "dataset":
             proc = dict(cfg["processing"], **({"window_mode": args.window_mode} if args.window_mode else {}))
-            data = process_dataset(np.load(Path(data_dir) / sample["file"]).astype(float), proc["sampling_rate_hz"],
+            data = process_dataset(np.load(find_data_file(data_dir, sample["file"])).astype(float), proc["sampling_rate_hz"],
                                    sample["id"], defaults=proc, phase_criterion=None)
             data.save_record(str(out / f"{sample['id']}_processing.json"))
             obs = data.observed
