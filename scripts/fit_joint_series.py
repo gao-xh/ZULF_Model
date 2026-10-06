@@ -90,6 +90,37 @@ def _rate_policy(base, args):
     return dataclasses.replace(base, policy=policy)
 
 
+def remap_family_rates(params, old_edges, new_edges):
+    """Spectrum parameters of a fit made with rate-family edges `old_edges`, for a model with `new_edges`: every
+    new family takes the decay rate of the old family that contains its centre (the outer families: a point
+    0.5 Hz beyond the outermost new edge; one new family: the middle of the old edges). Other parameters are
+    copied. `old_edges` None (a fit that did not record its edges) or equal edges: no change."""
+    out = dict(params)
+    if old_edges is None:
+        return out
+    old = np.asarray(old_edges, float)
+    new = np.asarray(new_edges, float)
+    if len(old) == len(new) and np.allclose(old, new):
+        return out
+    if len(new):
+        bounds = np.concatenate([[new[0] - 1.0], new, [new[-1] + 1.0]])
+        centres = 0.5 * (bounds[:-1] + bounds[1:])
+    else:
+        centres = np.array([0.5 * (old[0] + old[-1]) if len(old) else 0.0])
+    source = np.searchsorted(old, centres, side="right")
+    import re
+    rate = re.compile(r"^(c\d+)\.log_rate(\d+)$")
+    components = sorted({m.group(1) for m in (rate.match(k) for k in params) if m})
+    for key in [k for k in out if rate.match(k)]:
+        del out[key]
+    for c in components:
+        for k, src in enumerate(source):
+            name = f"{c}.log_rate{int(src)}"
+            if name in params:
+                out[f"{c}.log_rate{k}"] = params[name]
+    return out
+
+
 def monotone_profile(w: np.ndarray):
     """c (n,) rising from 0 to 1 and dc/dw (n, n-1) for the softmax step shares e^w / sum e^w."""
     e = np.exp(w - w.max())
@@ -1083,9 +1114,13 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] if key_of[n] in previous["couplings"]
                            else table[i, k] for k, n in enumerate(joint.coupling)] for i, s in enumerate(rows)])
     if args.from_joint:
-        # decay rates and delays of spectra already in the previous fit (same id)
+        # decay rates and delays of spectra already in the previous fit (same id); rates remapped when the
+        # previous fit used other family edges (recorded in fit.json since 2026-10-06)
+        edges_now = joint.params[0].policy.family_edges_hz
         for e, x in zip(series, xs0):
-            for n, v in previous.get("spectrum_parameters", {}).get(e["id"], {}).items():
+            spectrum = remap_family_rates(previous.get("spectrum_parameters", {}).get(e["id"], {}),
+                                          previous.get("family_edges_hz"), edges_now)
+            for n, v in spectrum.items():
                 if n in joint.col:
                     x[joint.col[n]] = v
     z0 = joint.pack(table, xs0)
@@ -1434,7 +1469,8 @@ def main():
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
-              "component_search": component_record, "model_line_passes": model_line_record}
+              "component_search": component_record, "model_line_passes": model_line_record,
+              "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz]}
     for k, n in enumerate(joint.coupling):
         block = slice(k * joint.m, (k + 1) * joint.m)
         values = joint.coupling_values(z, k)

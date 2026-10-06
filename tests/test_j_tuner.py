@@ -300,3 +300,37 @@ class GroupIndexTests(unittest.TestCase):
             expected = int(np.flatnonzero(np.isclose(j[heavy], value))[0])
             self.assertEqual(group_index(model, "HN1", c), expected, label)
             self.assertNotEqual(group_index(model, "HN2", c), expected, label)
+
+
+class RateRemapTests(unittest.TestCase):
+    def test_new_families_take_the_rate_of_the_old_family_at_their_centre(self):
+        # old edges 180: families (-180) (180-); new edges 150, 180, 220: centres 149.5, 165, 200, 220.5
+        old = {"c0.log_rate0": 0.1, "c0.log_rate1": 0.2, "c1.log_rate0": 1.1, "c1.log_rate1": 1.2, "phase_delay": 3e-3}
+        new = fj.remap_family_rates(old, [180.0], [150.0, 180.0, 220.0])
+        self.assertEqual(new, {"c0.log_rate0": 0.1, "c0.log_rate1": 0.1, "c0.log_rate2": 0.2, "c0.log_rate3": 0.2,
+                               "c1.log_rate0": 1.1, "c1.log_rate1": 1.1, "c1.log_rate2": 1.2, "c1.log_rate3": 1.2,
+                               "phase_delay": 3e-3})
+        # fewer families: edges 150, 180, 220 -> 200 (centres 199.5, 200.5): old families 2 and 3
+        back = fj.remap_family_rates(new, [150.0, 180.0, 220.0], [200.0])
+        self.assertEqual({k: v for k, v in back.items() if k.startswith("c0")}, {"c0.log_rate0": 0.2, "c0.log_rate1": 0.2})
+        self.assertEqual(fj.remap_family_rates(old, None, [150.0]), old)        # edges not recorded: unchanged
+        self.assertEqual(fj.remap_family_rates(old, [180.0], [180.0]), old)     # same edges: unchanged
+
+    def test_from_joint_loads_rates_across_different_edges(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, _ = _problem(tmp)
+            labels = prob.model.component_labels
+            fit = {"x": [1.0], "couplings": {}, "family_edges_hz": [180.0],
+                   "spectrum_parameters": {"synthetic": {f"c{c}.log_rate{k}": 0.3 + c + 0.1 * k
+                                                         for c in range(len(labels)) for k in range(2)}}}
+            json.dump(fit, open(tmp / "old.json", "w"))
+            p = fj.build_problem(_args(tmp, ["--family-edges", "150,180,220", "--from-joint", str(tmp / "old.json")]))
+            j = p.joint
+            for c in range(len(labels)):
+                got = [float(p.z0[j.nt + j.local.index(f"c{c}.log_rate{k}")]) for k in range(4)]
+                np.testing.assert_allclose(got, [0.3 + c, 0.3 + c, 0.4 + c, 0.4 + c])
+            # and j_tuner.load_fit does the same
+            p2 = fj.build_problem(_args(tmp, ["--family-edges", "150,180,220"]))
+            jt.load_fit(p2, fit)
+            np.testing.assert_allclose(p2.z0[p2.joint.nt:], p.z0[j.nt:])
