@@ -70,19 +70,20 @@ Experimental inputs are read-only and never committed.
 ## Data
 
 Experimental data is not in git. On the local machine of the owner it is stored under
-`~/research/zulf/data/` (layout, rules and inventory with sha256 in its `README.md`):
+`~/research/zulf/data/` (layout, rules and inventory with sha256 in its `README.md`). Every file sits in a
+measurement folder (`<YYYY-MM-DD>-<compound>`, or `<compound>-<sample id>` when the date is unknown), created
+first under each area:
 
 | Folder | Contents |
 | --- | --- |
-| `original/<YYYY-MM-DD>-<compound>/` | Instrument output of one run, every scan (NMRduino `<n>.dat`, `<n>.ini`), read-only |
-| `raw/fids/` | Averaged FIDs as received, flat, original names (`<id>-<name>.npy`); this is `ZULF_DATA_DIR` |
-| `raw/selected-scans/<YYYY-MM-DD>-<compound>/` | Scan subsets from the legacy ScanSelector, as received |
-| `raw/spectra/<source>/` | Processed spectra from other groups or software, as received |
-| `processed/<YYYY-MM-DD>-<compound>/` | Data products of our code (scan-selection records and their averages) |
+| `original/<measurement>/` | Instrument output of one run, every scan (NMRduino `<n>.dat`, `<n>.ini`), as given, read-only |
+| `raw/<measurement>/` | Other received data, original names: averaged FID `<id>-<name>.npy`, `selected-scans/` (legacy ScanSelector), `spectra/` (other groups or software) |
+| `processed/<measurement>/` | Data products of our code (scan-selection records and their averages) |
 
-`ZULF_DATA_DIR` is not set globally; pass it per command, e.g.
-`ZULF_DATA_DIR=~/research/zulf/data/raw/fids python scripts/regression_confirmed.py ...`.
-Cloud sessions have no copy of the data (docs/HANDOFF.md, "Data").
+`ZULF_DATA_DIR` points at `raw/` and is passed per command, e.g.
+`ZULF_DATA_DIR=~/research/zulf/data/raw python scripts/regression_confirmed.py ...`; the scripts find each
+FID by file name in any subfolder (`zulf_core.io.find_data_file`, exactly one match required). Cloud sessions
+have no copy of the data (docs/HANDOFF.md, "Data").
 
 ## Status
 

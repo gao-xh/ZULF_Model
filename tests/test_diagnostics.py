@@ -1,9 +1,11 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 
 from zulf_core.diagnostics import diagnose_fid, fit_exponentials, plateau_end
-from zulf_core.io import decode_dat
+from zulf_core.io import decode_dat, find_data_file
 
 
 def synthetic_fid(fs=4000.0, points=40000, seed=0):
@@ -53,3 +55,22 @@ class DiagnosticsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FindDataFileTests(unittest.TestCase):
+    def test_direct_nested_missing_and_ambiguous(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "top.npy").write_bytes(b"x")
+            (root / "2026-10-01-pyridine").mkdir()
+            (root / "2026-10-01-pyridine" / "abc-average_fid.npy").write_bytes(b"x")
+            for run in ("a", "b"):
+                (root / run).mkdir()
+                (root / run / "twice.npy").write_bytes(b"x")
+            self.assertEqual(find_data_file(root, "top.npy"), root / "top.npy")
+            self.assertEqual(find_data_file(root, "abc-average_fid.npy"),
+                             root / "2026-10-01-pyridine" / "abc-average_fid.npy")
+            with self.assertRaises(FileNotFoundError):
+                find_data_file(root, "missing.npy")
+            with self.assertRaises(FileNotFoundError):
+                find_data_file(root, "twice.npy")

@@ -20,6 +20,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from zulf_core.io import find_data_file                  # noqa: E402
 from zulf_processing import load_fid, process_dataset   # noqa: E402
 
 FREQS = (125.0, 200.0, 250.0)
@@ -45,7 +46,7 @@ def main():
     summary = {}
     for s in cfg["samples"]:
         sid = s["id"]
-        fid = load_fid(data / s["file"])
+        fid = load_fid(find_data_file(data, s["file"]))
         rows = {}
         others = [k for k in ref if k != sid]
         if sid in ref and others:
