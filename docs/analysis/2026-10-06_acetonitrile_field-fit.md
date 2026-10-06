@@ -126,4 +126,4 @@ Conditional numerical result for one 13CH3 model with a uniform static field and
   (physics.exchange) is zero-field only at first.
 - What "ms1" and "LF" in the run name mean (asked).
 
-Commit: (this file's commit)
+Commit: e6053de (analysis); code 913bce5, 4fbac0a (field fit)
