@@ -348,3 +348,35 @@ class AssistantTests(unittest.TestCase):
         sim_out = next(i for i in requests[2]["input"] if isinstance(i, dict) and i.get("call_id") == "c2")["output"]
         self.assertNotIn("sim_re", sim_out)                                 # arrays summarised for the model
         self.assertIn("points", json.loads(sim_out))
+
+
+class AssistantSetupTests(unittest.TestCase):
+    def test_session_key_is_used_and_never_logged(self):
+        try:
+            import os
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PySide6.QtWidgets import QApplication
+            from zulf_studio.app import StudioWindow
+        except ImportError:
+            self.skipTest("PySide6 not installed")
+        import os
+        app = QApplication.instance() or QApplication([])
+        saved = {k: os.environ.pop(k, None) for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")}
+        try:
+            s = session(METHYL)
+            w = StudioWindow(s)
+            app.processEvents()
+            secret = "sk-ant-test-0123456789"
+            w.ai_key.setText(secret)
+            w._ai_use_key()
+            self.assertEqual(os.environ.get("ANTHROPIC_API_KEY"), secret)
+            self.assertEqual(w.ai_key.text(), "")
+            self.assertIn("credentials found", w.ai_creds.text())
+            self.assertFalse(any(secret in e["message"] for e in s.read_log(1000)))
+            w._ai_forget_key()
+            self.assertNotIn("ANTHROPIC_API_KEY", os.environ)
+            w.close()
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v

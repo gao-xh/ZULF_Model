@@ -21,7 +21,7 @@ from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence, QPixma
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QSplitter,
-                               QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -33,6 +33,42 @@ from .api import TOOLS, StudioAPI, serve  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
 COMPONENT_COLORS = ["#d1495b", "#3b6fb6", "#2a9d5c", "#e08a2c", "#8e5ac8", "#7a7a7a"]
+
+AI_SETUP_GUIDE = """
+<h3>Setting up the AI assistant</h3>
+<p>The assistant sends your request to a language model, which then operates this session with the Studio
+tools (every call is shown here and in the Log tab). Using it needs API access, billed per token and separate
+from a Claude or ChatGPT subscription. Ask your lab or university first: an organisation may already have an
+API account.</p>
+<h4>1. Get a key</h4>
+<ul>
+<li><b>Anthropic (Claude)</b>: platform.claude.com - sign in, add a payment method under Billing, create a key
+under API Keys (it starts with <code>sk-ant-</code>). Default model <code>claude-opus-5-5</code>
+($4 / $20 per million input / output tokens; a session of a few dozen tool calls costs about 1-3 USD).</li>
+<li><b>OpenAI (e.g. Codex)</b>: create an API key in the OpenAI platform and pick a model your account offers;
+type its name in the model field (or set <code>OPENAI_MODEL</code>).</li>
+</ul>
+<h4>2. Give the key to Studio (one of these)</h4>
+<ul>
+<li><b>Easiest</b>: paste it into "API key (this session only)" below and press "Use for this session".
+It stays in memory until Studio closes: not saved, not logged.</li>
+<li><b>Before starting Studio</b>, in iTerm2:<br>
+<code>export ANTHROPIC_API_KEY=sk-ant-...</code> (or <code>export OPENAI_API_KEY=...</code>), then start Studio
+from that same terminal: <code>python scripts/zulf_studio.py ...</code></li>
+<li><b>Anthropic login profile</b>: <code>ant auth login</code> stores a profile that the Claude library reads
+on its own (also while Studio is open). It needs the <code>ant</code> command-line tool, which is not installed
+on this Mac.</li>
+</ul>
+<p><b>Not</b> in the Terminal tab of Studio: each command there runs in its own shell, so an
+<code>export</code> there does not reach Studio.</p>
+<h4>3. Use it</h4>
+<p>Choose the provider and model, write a request (Ctrl+Enter sends), for example
+<i>"auto-phase the data, then scan J(C1,HC1) from 136.2 to 136.4 Hz and set the value with the smallest rms
+residual"</i>. Stop ends the loop after the current step; New conversation forgets the history; "max steps" limits
+the tool calls per request.</p>
+<p>Never put a key into code, configuration files or the repository (it is public). Full guide:
+docs/STUDIO.md.</p>
+"""
 MONO = QFont("Menlo", 11)
 
 
@@ -679,26 +715,69 @@ class StudioWindow(QMainWindow):
         send_key.setShortcut(QKeySequence("Ctrl+Return"))
         send_key.triggered.connect(self.ai_ask)
         self.ai_prompt.addAction(send_key)
+        setup_row = QHBoxLayout()
+        self.ai_guide_btn = QPushButton("Setup guide")
+        self.ai_guide_btn.setCheckable(True)
+        self.ai_key = QLineEdit()
+        self.ai_key.setEchoMode(QLineEdit.Password)
+        self.ai_key.setPlaceholderText("API key (this session only: not saved, not logged)")
+        use_key = QPushButton("Use for this session")
+        forget_key = QPushButton("Forget")
+        check = QPushButton("Check")
+        use_key.clicked.connect(self._ai_use_key)
+        forget_key.clicked.connect(self._ai_forget_key)
+        check.clicked.connect(self._ai_provider_changed)
+        for wdg in (self.ai_guide_btn, self.ai_key, use_key, forget_key, check):
+            setup_row.addWidget(wdg)
+        setup_row.setStretch(1, 1)
+        self.ai_guide = QTextBrowser()
+        self.ai_guide.setHtml(AI_SETUP_GUIDE)
+        self.ai_guide.setVisible(False)
+        self.ai_guide_btn.toggled.connect(self.ai_guide.setVisible)
         lay.addLayout(row)
-        lay.addWidget(self.ai_log, 1)
+        lay.addLayout(setup_row)
+        lay.addWidget(self.ai_guide, 3)
+        lay.addWidget(self.ai_log, 2)
         lay.addWidget(self.ai_prompt)
         lay.addLayout(btns)
         self._ai_provider_changed()
+        if not self._ai_has_credentials():
+            self.ai_guide_btn.setChecked(True)      # first time: show how to set it up
         return w
+
+    def _ai_key_variable(self):
+        return "ANTHROPIC_API_KEY" if self.ai_provider.currentData() == "anthropic" else "OPENAI_API_KEY"
+
+    def _ai_has_credentials(self):
+        if self.ai_provider.currentData() == "anthropic":
+            return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+                        or Path.home().joinpath(".config", "anthropic").exists())
+        return bool(os.environ.get("OPENAI_API_KEY"))
+
+    def _ai_use_key(self):
+        key = self.ai_key.text().strip()
+        if not key:
+            return
+        os.environ[self._ai_key_variable()] = key        # this process only; never written anywhere
+        self.ai_key.clear()
+        self.session.log(f"{self._ai_key_variable()} set for this session (not saved)", "ai")
+        self._ai_provider_changed()
+
+    def _ai_forget_key(self):
+        os.environ.pop(self._ai_key_variable(), None)
+        self.session.log(f"{self._ai_key_variable()} removed from this session", "ai")
+        self._ai_provider_changed()
 
     def _ai_provider_changed(self):
         prov = self.ai_provider.currentData()
         if prov == "anthropic":
             if not self.ai_model.text() or not self.ai_model.text().startswith("claude"):
                 self.ai_model.setText("claude-opus-5-5")
-            ok = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
-                      or Path.home().joinpath(".config", "anthropic").exists())
-            hint = "credentials found" if ok else "no ANTHROPIC_API_KEY / ant auth login found"
-        else:
-            if self.ai_model.text().startswith("claude"):
-                self.ai_model.setText(os.environ.get("OPENAI_MODEL", ""))
-            ok = bool(os.environ.get("OPENAI_API_KEY"))
-            hint = "OPENAI_API_KEY found" if ok else "no OPENAI_API_KEY in the environment"
+        elif self.ai_model.text().startswith("claude"):
+            self.ai_model.setText(os.environ.get("OPENAI_MODEL", ""))
+        ok = self._ai_has_credentials()
+        hint = ("credentials found" if ok else
+                f"no credentials: set {self._ai_key_variable()} (Setup guide)")
         self.ai_creds.setText(hint)
         self.ai_creds.setStyleSheet("color: %s" % ("#2a8a52" if ok else "#c0392b"))
         self.assistant = None                      # a new provider or model starts a new conversation

@@ -118,9 +118,15 @@ university) may already have an API account; ask its administrator first.
   uses a few hundred thousand tokens, about 1-3 USD with Opus 5.5.
 - OpenAI: create an API key in the OpenAI platform and choose a model available to the account.
 
-Keys: set them in the shell that starts Studio (`export ANTHROPIC_API_KEY=...` for that session) or use
-`ant auth login`. Never write a key into code, configs or the repository (this repository is public). Studio
-never stores keys.
+Giving Studio the key (the AI assistant tab has the same guide under "Setup guide"):
+- paste it into "API key (this session only)" and press "Use for this session": it stays in Studio's memory until
+  Studio closes (not saved, not logged); "Forget" removes it; "Check" re-reads the credentials;
+- or set it in the shell before starting Studio (`export ANTHROPIC_API_KEY=...`, `export OPENAI_API_KEY=...`) and
+  start Studio from that shell;
+- or (Anthropic) `ant auth login`, a stored profile the library reads by itself (needs the `ant` command-line
+  tool, not installed on the owner's Mac).
+An `export` in the Studio Terminal tab does not work: each command there runs in its own shell. Never write a key
+into code, configs or the repository (this repository is public).
 
 ## Python use without the window
 
