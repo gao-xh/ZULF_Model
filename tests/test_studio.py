@@ -68,7 +68,7 @@ class DisplayScaleTests(unittest.TestCase):
             tmp = Path(d)
             f = np.arange(120.0, 290.0, 0.01)
             g = 0.3
-            y = sum(1j * a * g / (g - 1j * (f - f0)) for a, f0 in ((1.0, 136.3), (0.8, 272.6)))
+            y = sum(1j * a * g / (g + 1j * (f - f0)) for a, f0 in ((1.0, 136.3), (0.8, 272.6)))
             np.save(tmp / "f.npy", f)
             np.save(tmp / "y.npy", y)
             json.dump([{"id": "x", "x": 1.0, "freq": str(tmp / "f.npy"), "values": str(tmp / "y.npy"),
@@ -87,6 +87,35 @@ class DisplayScaleTests(unittest.TestCase):
             self.assertEqual(s.simulate()["scale"], locked)
             s.lock_scale(False)
             self.assertNotEqual(s.simulate()["scale"], locked)
+
+
+class AutoPhaseTests(unittest.TestCase):
+    def test_known_phase_and_delay_are_recovered(self):
+        # Data = simulation x exp(-i (phi + 2 pi f tau)) (+ noise): the display must apply +phi, +tau.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            s = session(METHYL, d)
+            s.set_linewidth(1.0)
+            f = np.arange(120.0, 290.0, 0.01)
+            g = 1.0 / (2 * np.pi)
+            sim = sum(a * g / (g + 1j * (f - f0)) for a, f0 in ((1.0, 136.0), (0.8, 272.0)))
+            phi, tau = np.radians(40.0), 1.2e-3
+            rng = np.random.default_rng(1)
+            data = sim * np.exp(-1j * (phi + 2 * np.pi * f * tau)) + 0.002 * (rng.normal(size=len(f)) +
+                                                                            1j * rng.normal(size=len(f)))
+            np.save(tmp / "f.npy", f)
+            np.save(tmp / "y.npy", data)
+            json.dump([{"id": "x", "x": 1.0, "freq": str(tmp / "f.npy"), "values": str(tmp / "y.npy"),
+                        "ranges": [[125, 150], [255, 290]]}], open(tmp / "s.json", "w"))
+            s.load_spectrum(series=str(tmp / "s.json"))
+            r = s.auto_phase("model")
+            self.assertAlmostEqual(r["phase_deg"], 40.0, delta=0.5)
+            self.assertAlmostEqual(r["delay_ms"], 1.2, delta=0.01)
+            self.assertGreater(r["match"], 0.9)
+            s.set_display(phase_deg=0.0, delay_ms=1.2)
+            r = s.auto_phase("data", fit_delay=False)                      # model-free, delay held at the truth
+            self.assertAlmostEqual((r["phase_deg"] - 40.0 + 90) % 180 - 90, 0.0, delta=2.0)   # modulo pi
+            self.assertEqual(r["delay_ms"], 1.2)
 
 
 class FitPlumbingTests(unittest.TestCase):

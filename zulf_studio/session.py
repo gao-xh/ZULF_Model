@@ -5,8 +5,8 @@ isotopologues with fixed abundance ratios, exchangeable protons decoupled ("fast
 change rebuilds the model and recomputes the transitions exactly (zulf_core.physics.compute_transitions with
 the static field of the session, D47), so the spectrum follows the sliders in real time for small molecules.
 
-The displayed spectrum is a sum of complex Lorentzian lines (one decay rate for every line). It is a quick
-look, not the fit model: a fit (fit_joint_series, started from the session) renders the model through the
+The displayed spectrum is a sum of complex Lorentzian lines a gamma / (gamma + i (f - f_k)), gamma = rate / 2 pi
+(the sign convention of the processed spectra, numpy FFT exp(-2 pi i f t); one decay rate). It is a quick look, not the fit model: a fit (fit_joint_series, started from the session) renders the model through the
 same processing as the data, and its trace frames are shown as they were computed.
 
 Units: couplings in Hz, field components in nT (B transverse to the detection axis, and B along it), decay
@@ -287,6 +287,62 @@ class StudioSession:
         self._changed("display")
         return {"part": self.display, "phase_deg": self.data_phase_deg, "delay_ms": self.data_delay_ms}
 
+    def auto_phase(self, method: str = "model", fit_delay: bool = True, delay_range_ms=None,
+                   view: Optional[List[float]] = None) -> dict:
+        """Display phase (degrees) and delay (ms) of the loaded data, on top of its own phasing.
+
+        method "model": the phase0 and delay that best match the current simulation in the view (data x
+        exp(i(phase0 + 2 pi f delay)) closest to a positive multiple of the simulation: delay on a 0.005 ms grid,
+        phase0 in closed form); needs the lines roughly in place. method "data": model-free,
+        zulf_core.render.phasing.estimate_phase on the data in the view (phase of the strongest peaks against
+        frequency, modulo pi; the overall sign follows the peak weight). fit_delay=False keeps the delay. Default
+        delay range: +-3 ms (model), +-0.5 ms (data: with lines at J and 2J, delays about 1 / (2 J) apart are
+        nearly equivalent for a model-free criterion, so a wide range lands on an alias)."""
+        if self.data is None:
+            raise ValueError("no data loaded")
+        if method not in ("model", "data"):
+            raise ValueError("method must be 'model' or 'data'")
+        if delay_range_ms is None:
+            delay_range_ms = (-3.0, 3.0) if method == "model" else (-0.5, 0.5)
+        with self.lock:
+            lo, hi = view or self.view
+            fd = self.data["freq"]
+            sel = (fd >= lo) & (fd <= hi)
+            ranges = self.data.get("ranges") or []
+            if ranges:
+                sel &= np.any([(fd >= r[0]) & (fd <= r[1]) for r in ranges], axis=0)
+            f, d = fd[sel], self.data["values"][sel]
+            if method == "data":
+                from zulf_core.render.phasing import estimate_phase
+                rng = (-1e-3 * delay_range_ms[1], -1e-3 * delay_range_ms[0]) if fit_delay else \
+                    (-1e-3 * self.data_delay_ms, -1e-3 * self.data_delay_ms)
+                est = estimate_phase(d, f, delay_range_s=rng, delay_step_s=5e-6 if fit_delay else 1.0)
+                phase, delay = -np.degrees(est["phase0_rad"]), -1e3 * est["delay_s"]
+                quality = 1.0 - est["misfit"]
+            else:
+                gamma = self.rate_per_s / (2 * np.pi)
+                sim = np.zeros(len(f), complex)
+                for r in self.lines(view=(lo - 20, hi + 20)):
+                    sim += r["amplitude"] * gamma / (gamma + 1j * (f - r["frequency_hz"]))
+                w = np.conj(sim) * d
+                taus = (np.arange(delay_range_ms[0], delay_range_ms[1] + 1e-9, 0.005) if fit_delay
+                        else np.array([self.data_delay_ms]))
+                best = None
+                for chunk in np.array_split(taus, max(1, len(taus) // 200)):
+                    a = np.exp(2j * np.pi * np.outer(1e-3 * chunk, f)) @ w
+                    k = int(np.argmax(np.abs(a)))
+                    if best is None or abs(a[k]) > abs(best[1]):
+                        best = (float(chunk[k]), a[k])
+                delay, amp = best
+                phase = -np.degrees(np.angle(amp))
+                quality = float(abs(amp) / max(np.linalg.norm(sim) * np.linalg.norm(d), 1e-300))
+            phase = float((phase + 180.0) % 360.0 - 180.0)
+            self.data_phase_deg, self.data_delay_ms = phase, float(delay)
+        self.log(f"auto phase ({method}{'' if fit_delay else ', delay held'}): phase {phase:.1f} deg, "
+                 f"delay {delay:.3f} ms, match {quality:.3f}")
+        self._changed("display")
+        return {"phase_deg": phase, "delay_ms": float(delay), "method": method, "match": quality}
+
     def lock_scale(self, lock: bool = True, value: Optional[float] = None):
         """Freeze the display scale of the simulation at `value` (default: the current automatic scale), or
         release it (lock=False)."""
@@ -351,7 +407,7 @@ class StudioSession:
             sim = np.zeros(len(f), complex)
             for r in lines:
                 if abs(r["frequency_hz"] - 0.5 * (lo + hi)) <= 0.5 * (hi - lo) + 40 * gamma + 1:
-                    sim += r["amplitude"] * gamma / (gamma - 1j * (f - r["frequency_hz"]))
+                    sim += r["amplitude"] * gamma / (gamma + 1j * (f - r["frequency_hz"]))
             part = self.display
             scale = 1.0
             if self.scale_lock is not None:

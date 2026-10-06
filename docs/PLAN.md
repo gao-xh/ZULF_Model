@@ -397,7 +397,8 @@ tall lines and barely sees it.
       0.044): the field start matters (try several, as in the analysis).
 - [x] Studio display scale continuous (least squares on the magnitudes, lock option) and figures from Studio
       (paper_figure.py: sampling rate and phase from the series entry, PNG/PDF/SVG/caption, manual-parameter
-      label; series entries record source_fid). D49; tests/test_studio.py DisplayScaleTests, FigureTests.
+      label; series entries record source_fid), auto phase of the shown data (model / data). D49;
+      tests/test_studio.py DisplayScaleTests, FigureTests, AutoPhaseTests.
 - [ ] Studio: field-start grid for fits; rate families in the quick-look simulation; MCP wrapper of the API.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)

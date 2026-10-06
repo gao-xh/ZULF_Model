@@ -66,6 +66,11 @@ TOOLS: Dict[str, tuple] = {
     "set_view": ("set_view", "Frequency window in Hz.", _obj({"lo": NUM, "hi": NUM}, ["lo", "hi"])),
     "set_display": ("set_display", "Shown part of the spectra ('re', 'im', 'abs') and an extra display phase of the "
                     "data (degrees) and delay (ms).", _obj({"part": STR, "phase_deg": NUM, "delay_ms": NUM})),
+    "auto_phase": ("auto_phase", "Set the display phase (deg) and delay (ms) of the data automatically: method "
+                   "'model' (best match to the current simulation; lines roughly in place) or 'data' (model-free, "
+                   "peak phases against frequency). fit_delay=false keeps the delay.",
+                   _obj({"method": {"type": "string", "enum": ["model", "data"]}, "fit_delay": {"type": "boolean"},
+                         "delay_range_ms": {"type": "array", "items": NUM}})),
     "lock_scale": ("lock_scale", "Freeze the display scale of the simulation (lock=true; value optional, default the "
                    "current automatic scale) or release it (lock=false). Automatic: least squares on the magnitudes.",
                    _obj({"lock": {"type": "boolean"}, "value": NUM})),

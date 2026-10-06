@@ -411,12 +411,32 @@ class StudioWindow(QMainWindow):
         self.delay.value_changed.connect(lambda v: self.session.set_display(delay_ms=v))
         lay.addWidget(self.phase)
         lay.addWidget(self.delay)
+        auto = QHBoxLayout()
+        self.auto_method = QComboBox()
+        self.auto_method.addItem("match the simulation", "model")
+        self.auto_method.addItem("data only (peak phases)", "data")
+        self.auto_delay = QCheckBox("also delay", checked=True)
+        auto_btn = QPushButton("Auto phase")
+        auto_btn.setToolTip("model: phase and delay that best match the current simulation (lines roughly in place); "
+                            "data: model-free (strongest peaks), delay within +-0.5 ms")
+        auto_btn.clicked.connect(self.auto_phase)
+        zero = QPushButton("Reset")
+        zero.clicked.connect(lambda: self.session.set_display(phase_deg=0.0, delay_ms=0.0))
+        for wdg in (auto_btn, self.auto_method, self.auto_delay, zero):
+            auto.addWidget(wdg)
+        lay.addLayout(auto)
         hint = QLabel("The display phase only rotates the shown data; the simulation is a quick Lorentzian look. "
                       "Use Fit for the model rendered through the data processing.")
         hint.setWordWrap(True)
         hint.setStyleSheet("color: gray; font-size: 10px")
         lay.addWidget(hint)
         return box
+
+    def auto_phase(self):
+        r = self._guard(self.session.auto_phase, self.auto_method.currentData(), self.auto_delay.isChecked())
+        if r:
+            self.statusBar().showMessage(f"auto phase ({r['method']}): {r['phase_deg']:.1f} deg, {r['delay_ms']:.3f} ms, "
+                                         f"match {r['match']:.3f}", 8000)
 
     def rebuild_couplings(self):
         while self.coupling_lay.count():
@@ -729,6 +749,8 @@ class StudioWindow(QMainWindow):
         self.lock_scale.setChecked(s.scale_lock is not None)
         self.lock_scale.blockSignals(False)
         self.data_label.setText(s.data["label"] if s.data else "none")
+        self.phase.set_value(s.data_phase_deg)
+        self.delay.set_value(s.data_delay_ms)
         self.exchange.blockSignals(True)
         self.exchange.setCurrentText(s.exchange)
         self.exchange.blockSignals(False)

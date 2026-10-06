@@ -813,6 +813,15 @@ Two requests of Xuehan (handed over from a read-only session):
   as a raw FID to process with the 4 kHz recipe). Studio asks for the FID when a series has none.
 - Tests: FigureTests (a 136 Hz line of a 2 kHz FID appears at 136 Hz in the display spectrum; a full Studio
   figure of a synthetic 2 kHz series, files and caption).
+- Auto phase of the shown data (`auto_phase`, button in the data panel): "model" finds the phase0 and delay
+  that best match the current simulation (delay grid +-3 ms, phase0 in closed form); "data" is model-free
+  (zulf_core.render.phasing.estimate_phase), delay within +-0.5 ms by default because for lines at J and 2J
+  delays about 1 / (2 J) apart are equivalent for it (a +-3 ms search landed 3.5 ms off on synthetic data).
+  Acetonitrile: model -17.7 deg, 0.365 ms on top of the series phasing (the 4 kHz calibration). Test:
+  AutoPhaseTests (known phase and delay).
+- Fixed on the way: the quick-look Lorentzian had the conjugate sign of the processed spectra (numpy FFT
+  convention: a gamma / (gamma + i (f - f_k))); the real part was unaffected, the imaginary part and any complex
+  match were wrong.
 
 ## Open questions
 
