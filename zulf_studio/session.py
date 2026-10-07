@@ -68,7 +68,7 @@ class FitJob:
         self.starts_finished = 0
         self.last_line = ""
         self._log, self._done = log, done
-        env = dict(**__import__("os").environ, OMP_NUM_THREADS="1")
+        env = {**__import__("os").environ, "OMP_NUM_THREADS": "1"}   # one BLAS thread per worker (an inherited value is replaced)
         self.proc = subprocess.Popen(argv, cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      text=True, bufsize=1, env=env)
         self.thread = threading.Thread(target=self._read, daemon=True)
