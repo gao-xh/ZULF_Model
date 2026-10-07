@@ -155,3 +155,14 @@ phenomenological effective parameters, not a microscopic relaxation model.
 Relabelling equivalent or identical-nucleus spins does not change the physics.
 Comparisons of systems always search over permutations that preserve isotopes;
 canonical orderings are conveniences for training targets only.
+
+## Reduced coupling constants
+
+The reduced coupling constant K_AB = 4 pi^2 J_AB / (h gamma_A gamma_B) removes the gyromagnetic ratios from a
+scalar coupling (gamma in rad s^-1 T^-1); with the registry's gamma / (2 pi) = g in Hz/T it is
+K = J / (h g_A g_B). Unit: 1e19 N A^-2 m^-3 (= 1e19 T^2 J^-1). A negative gamma (15N) flips the sign of J, not
+of K. Zero-field line frequencies depend on J only; gamma enters the amplitudes (preparation, detection) and
+field terms. `zulf_core.nuclei.reduced_coupling`, `coupling_from_reduced` and `convert_coupling` (J for other
+isotopes at equal K: 15N -> 14N factor -0.713, 1H -> 2H factor 0.1535) neglect the primary isotope effect on K
+(of order 1 %): converted values are starts or priors, not results. fit_joint_series writes K next to J
+(fit.json "K_at_x" with "nuclei"; J_table.csv).

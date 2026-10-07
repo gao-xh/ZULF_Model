@@ -1649,7 +1649,10 @@ def main():
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
               "component_search": component_record, "model_line_passes": model_line_record,
-              "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz]}
+              "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz],
+              "reduced_coupling_unit": "1e19 N A^-2 m^-3"}
+    from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling
+    p0 = joint.params[0]
     for k, n in enumerate(joint.coupling):
         block = slice(k * joint.m, (k + 1) * joint.m)
         values = joint.coupling_values(z, k)
@@ -1661,6 +1664,11 @@ def main():
                          ("increasing" if z[block][1] > 0 else "decreasing"),
             "change_hz": float(values[-1] - values[0]) if joint.shape == "free" else float(z[block][1]),
             "prior_centre": centre[n] if abs(centre[n]) < 50 else None}
+        prm = p0.parameters[n]                       # the coupling's two nuclei, for K = 4 pi^2 J / (h gamma gamma)
+        nuclei = [p0.layouts[prm.component].group_nuclei[g] for g in prm.detail]
+        result["couplings"][key_of.get(n, n)].update({
+            "nuclei": nuclei,
+            "K_at_x": [reduced_coupling(v, *nuclei) / REDUCED_COUPLING_UNIT for v in values]})
     if left_out is not None:
         result["left_out"] = {"id": left_out["id"], "x": left_out["x"],
                               **predict_left_out(joint, z, left_out, (lo, hi), key_of, settings, real_only=args.real_only)}
@@ -1674,10 +1682,12 @@ def main():
     with open(out / "J_table.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["coupling", "direction"] + [f"J at x={x:.3f} (Hz)" for x in joint.nodes] +
-                   [f"std at x={x:.3f} (Hz)" for x in joint.nodes] + ["prior centre (Hz)"])
+                   [f"std at x={x:.3f} (Hz)" for x in joint.nodes] + ["prior centre (Hz)", "nuclei"] +
+                   [f"K at x={x:.3f} (1e19 N A-2 m-3)" for x in joint.nodes])
         for key, c in result["couplings"].items():
             w.writerow([key, c["direction"]] + [round(v, 3) for v in c["J_at_x"]] +
-                       [round(v, 3) for v in c["J_std_at_x"]] + [c["prior_centre"]])
+                       [round(v, 3) for v in c["J_std_at_x"]] + [c["prior_centre"], "-".join(c["nuclei"])] +
+                       [round(v, 4) for v in c["K_at_x"]])
     try:
         import matplotlib
         matplotlib.use("Agg")

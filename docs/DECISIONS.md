@@ -845,6 +845,20 @@ conditional numerical results.
 - Tests: AssistantTests (fake provider clients, no network: tool calls reach the session, unknown tools come
   back as errors, simulate results are summarised).
 
+## D51. Reduced coupling constants K next to J (2026-10-07)
+
+Xuehan asked for the coupling with the gyromagnetic ratios removed. K = 4 pi^2 J / (h gamma_A gamma_B)
+(docs/CONVENTIONS.md) is now:
+- written by fit_joint_series for every coupling: fit.json couplings gain "nuclei" and "K_at_x" (unit in
+  "reduced_coupling_unit": 1e19 N A^-2 m^-3); J_table.csv gains the columns "nuclei" and "K at x" at the end
+  (earlier columns unchanged);
+- available as `zulf_core.nuclei.reduced_coupling`, `coupling_from_reduced`, `convert_coupling` for starts and
+  priors of other isotopes: 15N literature couplings -> 14N (the 14N model, PLAN Phase 3e), 1H -> 2H (labelled
+  samples). The primary isotope effect on K (about 1 %) is neglected; converted values are not results.
+- Using K in the J-to-structure likelihood (Phase 7) is open for discussion.
+Tests: tests/test_spinsystem.py ReducedCouplingTests (CODATA gammas, independent formula); tests/test_j_tuner.py
+RunToolsTests (K and nuclei in fit.json for C-H and H-H couplings).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

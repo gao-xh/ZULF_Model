@@ -494,6 +494,9 @@ verification data before adoption.
 - [ ] Route B as a GNN over the whole network; compare with A.
 - [ ] Per-coupling sigma from the fit uncertainty; 15N and 13C-13C observations.
 - [ ] Readout on a structure-free J network from the hypothesis pipeline (closes spectrum -> J -> structure).
+- [x] Reduced coupling constants K (D51): K next to J in fit.json and J_table.csv; conversion functions for
+      15N -> 14N and 1H -> 2H starts (zulf_core.nuclei). Tests: ReducedCouplingTests, RunToolsTests.
+- [ ] Discuss (Xuehan): K instead of J in the route A / B likelihoods (one scale for C-H, N-H, C-N couplings).
 
 ## Experimental data inventory (user Google Drive, "Metabolites/Low Gamma")
 

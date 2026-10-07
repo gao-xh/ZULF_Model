@@ -87,3 +87,34 @@ REGISTRY = NucleusRegistry(DEFAULT_NUCLEI)
 def get_registry() -> NucleusRegistry:
     """Return the process-wide default registry."""
     return REGISTRY
+
+
+# ---- reduced coupling constants ---------------------------------------------------------------
+# K_AB = 4 pi^2 J_AB / (h gamma_A gamma_B) removes the gyromagnetic ratios from a scalar coupling, leaving the
+# electronic part: couplings of different nuclei (C-H, N-H, C-N) can be compared, and a coupling measured with one
+# isotope converts to another (15N -> 14N, 1H -> 2H). With gamma / (2 pi) = g in Hz/T this is K = J / (h g_A g_B).
+# Converted values neglect the primary isotope effect on K (of order 1 %): use them as starts or priors, then fit.
+
+PLANCK_J_S = 6.62607015e-34              # exact (SI 2019)
+REDUCED_COUPLING_UNIT = 1.0e19           # literature unit of K: 1e19 N A^-2 m^-3 (= 1e19 T^2 J^-1)
+
+
+def _g_hz_per_t(symbol: str, registry: "NucleusRegistry" = None) -> float:
+    return (registry or REGISTRY).gamma(symbol) * 1.0e6
+
+
+def reduced_coupling(j_hz: float, nucleus_a: str, nucleus_b: str, registry: "NucleusRegistry" = None) -> float:
+    """Reduced coupling constant K (N A^-2 m^-3) of a coupling J (Hz) between nuclei A and B."""
+    return float(j_hz) / (PLANCK_J_S * _g_hz_per_t(nucleus_a, registry) * _g_hz_per_t(nucleus_b, registry))
+
+
+def coupling_from_reduced(k: float, nucleus_a: str, nucleus_b: str, registry: "NucleusRegistry" = None) -> float:
+    """Coupling J (Hz) between nuclei A and B for a reduced coupling K (N A^-2 m^-3)."""
+    return float(k) * PLANCK_J_S * _g_hz_per_t(nucleus_a, registry) * _g_hz_per_t(nucleus_b, registry)
+
+
+def convert_coupling(j_hz: float, pair_from: Tuple[str, str], pair_to: Tuple[str, str],
+                     registry: "NucleusRegistry" = None) -> float:
+    """J of the same bond path for other isotopes at equal K, e.g. J(15N,1H) -> J(14N,1H) (factor -0.713) or
+    J(13C,1H) -> J(13C,2H) (factor 0.1535)."""
+    return coupling_from_reduced(reduced_coupling(j_hz, *pair_from, registry=registry), *pair_to, registry=registry)

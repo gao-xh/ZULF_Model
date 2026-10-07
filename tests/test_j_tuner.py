@@ -506,6 +506,13 @@ class RunToolsTests(unittest.TestCase):
                            env={**__import__("os").environ, "OMP_NUM_THREADS": "1"})
             fit = json.load(open(out / "fit.json"))
             self.assertEqual(fit["family_edges_hz"], [150.0, 200.0])
+            from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling
+            pairs = {k: tuple(c["nuclei"]) for k, c in fit["couplings"].items()}
+            self.assertEqual(pairs["J(HC1,HC2)"], ("1H", "1H"))           # shared H-H coupling
+            self.assertIn("13C", pairs["J(C1,HC1)"])
+            for c in fit["couplings"].values():                            # K = J / (h g_A g_B), per node
+                self.assertAlmostEqual(c["K_at_x"][0] * REDUCED_COUPLING_UNIT,
+                                       reduced_coupling(c["J_at_x"][0], *c["nuclei"]), delta=1e-9 * 1e21)
             run = run_problem.load_run(out)
             j = run.prob.joint
             for k, n in enumerate(j.coupling):
