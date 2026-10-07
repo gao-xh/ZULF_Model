@@ -152,3 +152,19 @@ class RouteBTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReducedCouplingModeTests(unittest.TestCase):
+    def test_k_mode_is_isotope_invariant_and_equals_j_for_13c_1h(self):
+        from zulf_core.nuclei import get_registry
+        from zulf_model.structure.edge_model import EdgeModel, features
+        r = get_registry().gamma("2H") / get_registry().gamma("1H")
+        np.testing.assert_array_equal(features(-4.5, "CH", (2, 3), "K"), features(-4.5, "CH", (2, 3), "J"))
+        np.testing.assert_allclose(features(-4.5 * r, "CH", (2, 3), "K", ("13C", "2H")),
+                                   features(-4.5, "CH", (2, 3), "K"), rtol=1e-6)
+        np.testing.assert_allclose(features(7.0 * r * r, "HH", (2, 3), "K", ("2H", "2H")),
+                                   features(7.0, "HH", (2, 3), "K"), rtol=1e-6)
+        self.assertFalse(np.allclose(features(7.0, "HH", (2, 3), "K"), features(7.0, "HH", (2, 3), "J")))
+        m = EdgeModel([(np.zeros((12, 6)), np.zeros(6))], {}, {"CH": np.ones(6) / 6, "HH": np.ones(6) / 6}, mode="K")
+        self.assertEqual(EdgeModel.from_dict(m.to_dict()).mode, "K")
+        self.assertEqual(EdgeModel.from_dict({k: v for k, v in m.to_dict().items() if k != "mode"}).mode, "J")

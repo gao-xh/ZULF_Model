@@ -859,6 +859,16 @@ Xuehan asked for the coupling with the gyromagnetic ratios removed. K = 4 pi^2 J
 Tests: tests/test_spinsystem.py ReducedCouplingTests (CODATA gammas, independent formula); tests/test_j_tuner.py
 RunToolsTests (K and nuclei in fit.json for C-H and H-H couplings).
 
+## D52. Route B input mode: J (default) or K (2026-10-07)
+
+`zulf_model.structure.edge_model` gains an input mode (`EdgeModel.mode`, saved with the model; files without it
+load as "J"). Mode "K" feeds the equivalent 13C-1H coupling at equal K (13C-1H rows unchanged, other pairs
+rescaled by their gyromagnetic ratios); per-row isotopes can be given (`features(..., nuclei=...)`,
+`accuracy(..., nuclei=...)`). Measured (docs/analysis/2026-10-07_j-to-structure_j-vs-k.md): equal performance on
+13C / 1H data, and K alone transfers to deuterated couplings (0.843 against 0.298 for J). J stays the default;
+K is to be used once labelled-isotope or N-coupling observations enter (decision with Xuehan). Test:
+tests/test_j_structure.py ReducedCouplingModeTests.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

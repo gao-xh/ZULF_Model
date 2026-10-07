@@ -1368,3 +1368,6 @@ skills under `skills/`; this file keeps the history.
   (D47, new `--fit-field`) and rate families: 0.044, residual 0.21; |B| about 0.06 uT (B_transverse 0.037, Bz 0.045),
   1J 136.28 Hz; even / odd halves agree within 0.007 Hz and 3 nT. Field-sensitive lines decay faster (field
   inhomogeneity). docs/analysis/2026-10-06_acetonitrile_field-fit.md
+- 2026-10-07: route B on J vs on K (3 seeds): equal on 13C / 1H data (bond-count accuracy 0.844 vs 0.843,
+  synthetic top-1 0.91 both, real networks all rank 1); on deuterated couplings, untrained, K keeps 0.843 while J
+  falls to 0.298 (below the 0.322 majority baseline). docs/analysis/2026-10-07_j-to-structure_j-vs-k.md
