@@ -891,6 +891,23 @@ known field the data fix gamma.
 Tests: tests/test_solver.py GammaFitTests, tests/test_j_tuner.py GammaOptionTests; physics, search, derivative,
 exchange and solver suites unchanged (70 tests).
 
+## D54. Labelling hypotheses for samples of unknown labelling (2026-10-07)
+
+Blind samples may be enriched (15N) or in D2O (exchangeable protons as 2H). Labelling is part of the hypothesis
+and the data rank it:
+- `ProtonGroup.isotope` ("1H" default, "2H"); the builder builds proton groups with their isotope. Fragments
+  without it serialise as before.
+- `labeling.deuterate_exchangeable(fragment)`: exchangeable groups (flagged, or on N / O / S, the exchange
+  variants' rule) become 2H, their couplings converted at equal K (D51).
+- `labeling.labeling_variants(fragment, mode)`, modes natural, 15N (N sites at 0.98, up to two labels),
+  2H-exchange, unknown (every one that applies). `fit.fit_structure_labelings` fits each with fit_structure and
+  ranks the best fits on one scale (chi2 over the common overdispersion, plus the criterion penalty);
+  analyze_sample.py `--labeling`, labelings.json, one report per labelling.
+- Limit: in fast exchange the exchangeable protons are decoupled whether 1H or 2H, so those two hypotheses tie.
+- Measured on synthetic methylamine (slow exchange, three truths): natural, 15N and 2H-exchange each recovered,
+  the runner-up worse by at least 8.5e4 in BIC. Test: tests/test_hypothesis.py LabelingHypothesisTests (15N truth,
+  about 3.5 min).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

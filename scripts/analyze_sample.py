@@ -62,6 +62,9 @@ def main():
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--structure", default="")
+    ap.add_argument("--labeling", default="natural", choices=["natural", "15N", "2H-exchange", "unknown"],
+                    help="isotope labelling of the sample for --structure (D54); unknown: fit every applicable "
+                         "labelling and rank them on one scale")
     ap.add_argument("--phase", default="", help="phase criterion for the processed spectrum: calibration (default "
                     "when the config has phase_calibration), entropy or lines")
     ap.add_argument("--delay-bounds", default="", help="instrument prior for the fitted delay in s, 'lo,hi'")
@@ -88,8 +91,19 @@ def main():
         import regression_confirmed as reg
         spec = json.loads(args.structure)
         spec.setdefault("compound", args.id)
-        fit = fit_structure(reg.structure_for(spec), obs, fit_settings(workers=args.workers, phase_delay_bounds_s=DELAY),
-                            report=str(out / "structure"), route="both")
+        settings = fit_settings(workers=args.workers, phase_delay_bounds_s=DELAY)
+        if args.labeling == "natural":
+            fit = fit_structure(reg.structure_for(spec), obs, settings, report=str(out / "structure"), route="both")
+        else:
+            from zulf_hypothesis.fit import fit_structure_labelings
+            cmp = fit_structure_labelings(reg.structure_for(spec), obs, args.labeling, settings=settings,
+                                          report=str(out / "structure"), route="both")
+            print(f"{args.id}: labelling hypotheses (common scale, conditional on this structure):")
+            for row in cmp.rows:
+                print(f"  {row['labeling']:12s} {row['model'][:50]:50s} {row['variant']:6s} d={row['delta']:10.1f} "
+                      f"k={row['k']}")
+            json.dump(cmp.rows, open(out / "labelings.json", "w"), indent=1)
+            fit = cmp.fits[cmp.best]
         table, best = fit.table(), fit.best
     else:
         ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))

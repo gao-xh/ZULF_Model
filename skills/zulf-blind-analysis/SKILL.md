@@ -56,6 +56,19 @@ starting; follow the same observation -> inference -> test -> outcome format.
 - Log each step in docs/ANALYSIS_LOG.md as it happens, and update the skill
   when it teaches something reusable.
 
+## Isotope labelling (D53, D54)
+
+- Ask the sample provider whether the sample is labelled (15N, 2H, 13C) or in D2O: it does not reveal the
+  structure, and labelling is deliberate. Natural abundance means 13C (1.1 %) and weaker 15N (0.37 %); 2H is not
+  visible.
+- Unknown labelling: `analyze_sample.py --structure ... --labeling unknown` fits natural abundance, 15N enrichment
+  (if the structure has N) and deuterated exchangeable protons (if it has N-H / O-H) and ranks them on one scale
+  (labelings.json). In fast exchange the 1H and 2H hypotheses fit identically (decoupled either way): a tie, not a
+  result.
+- A spin-1/2 heteronucleus can be named from the data in a known field: fit its gamma (`fit_joint_series --field
+  ... --fit-gamma 13C`, `gamma_identification`); a change of spin (1H / 2H, 15N / 14N) needs the hypothesis
+  comparison above.
+
 ## Report format
 
 1. Processing and assumptions (sampling rate, crop, SG, window).

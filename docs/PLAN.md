@@ -388,6 +388,8 @@ tall lines and barely sees it.
 - [ ] Analytic field derivatives (Zeeman directions in physics.derivatives) instead of central differences.
 - [ ] Field in the global pattern search (solver.search) and in scripts/line_table.py.
 - [ ] Acetonitrile open lines: 83-85, 154.1, about 627 Hz; nitrile 13C isotopologue below 22 Hz; 14N.
+- [x] Labelling hypotheses (D54): ProtonGroup.isotope, deuterate_exchangeable, labeling_variants,
+      fit_structure_labelings, analyze_sample.py --labeling; synthetic methylamine natural / 15N / 2H all recovered.
 - [x] Fitted gyromagnetic ratio in a known field (D53): Protocol.gamma_overrides, fit_gamma / field_fixed,
       fit_joint_series --field / --fit-gamma, gamma_identification; tests GammaFitTests, GammaOptionTests.
 - [x] J tuner: live sliders for spectrum parameters (field in nT, decay rates on a log scale, delay in ms;

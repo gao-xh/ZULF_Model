@@ -66,3 +66,48 @@ class Labeling:
     def to_dict(self) -> Dict:
         return {"mode": self.mode, "isotopes": dict(self.isotopes), "sites": {k: dict(v) for k, v in self.sites.items()},
                 "max_labels": self.max_labels, "primary_fraction": self.primary_fraction}
+
+
+# ---- labelling hypotheses for blind samples (D54) ------------------------------------------------------------
+LABELING_MODES = ("natural", "15N", "2H-exchange", "unknown")
+
+
+def deuterate_exchangeable(fragment, name: Optional[str] = None):
+    """The fragment with its exchangeable proton groups as 2H (a sample in D2O); couplings to them are converted
+    at equal reduced coupling K (J x g_2H / g_1H per deuterated partner, D51). None without exchangeable groups."""
+    from dataclasses import replace
+    from zulf_core.nuclei import convert_coupling
+    from .fit import exchangeable_groups              # flagged, or on N / O / S (the exchange variants' rule)
+    deut = set(exchangeable_groups(fragment))
+    if not deut:
+        return None
+    couplings = {}
+    for key, value in fragment.couplings.items():
+        n = len(set(key) & deut)
+        couplings[key] = value if n == 0 else convert_coupling(value, ("1H", "1H"),
+                                                               ("2H", "1H") if n == 1 else ("2H", "2H"))
+    protons = tuple(replace(p, isotope="2H") if p.label in deut else p for p in fragment.protons)
+    return replace(fragment, name=name or f"{fragment.name} [2H exchange]", protons=protons, couplings=couplings)
+
+
+def labeling_variants(fragment, mode: str = "unknown", enrichment: float = 0.98):
+    """[(name, fragment, Labeling)] of the labelling hypotheses to fit for a sample whose labelling is `mode`:
+    "natural" (natural abundance), "15N" (N sites enriched to `enrichment`), "2H-exchange" (exchangeable protons
+    deuterated), "unknown" (every one that applies to this fragment: 15N needs an N site, 2H an exchangeable
+    proton group)."""
+    if mode not in LABELING_MODES:
+        raise ValueError(f"labelling mode must be one of {LABELING_MODES}")
+    out = []
+    if mode in ("natural", "unknown"):
+        out.append(("natural", fragment, Labeling.natural()))
+    has_n = any(s.element == "N" for s in fragment.sites)
+    if mode == "15N" or (mode == "unknown" and has_n):
+        if not has_n:
+            raise ValueError("15N labelling needs a nitrogen site in the fragment")
+        out.append(("15N", fragment, Labeling.enriched(isotopes={"15N": enrichment}, max_labels=2)))
+    deuterated = deuterate_exchangeable(fragment)
+    if mode == "2H-exchange" or (mode == "unknown" and deuterated is not None):
+        if deuterated is None:
+            raise ValueError("2H exchange labelling needs exchangeable protons in the fragment")
+        out.append(("2H-exchange", deuterated, Labeling.natural()))
+    return out
