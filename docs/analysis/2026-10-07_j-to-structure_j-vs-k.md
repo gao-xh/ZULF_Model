@@ -48,4 +48,4 @@ HH rows 0.500).
 - The primary isotope effect on K is not modelled.
 - Route A (rule likelihood) is unchanged (J ranges per element pair).
 
-Commit: (this file's commit)
+Commit: 14a2e6c
