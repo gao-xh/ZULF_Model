@@ -2,7 +2,7 @@
 
 - Data: synthetic generator pairs (configs/couplings_v1.json, 13C / 1H); the four real amine J networks
   (configs/j_networks). No experimental spectra.
-- Question: does route B learn better from K (D51) than from J? (Xuehan: "K和J学习对比".)
+- Question: does route B learn better from K (D51) than from J? (Xuehan asked for a learning comparison of K and J.)
 - Code: 444f93c plus the K input mode of zulf_model.structure.edge_model (EdgeModel.mode, D52) and
   scripts/j_k_learning_comparison.py.
 
