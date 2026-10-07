@@ -118,3 +118,16 @@ def convert_coupling(j_hz: float, pair_from: Tuple[str, str], pair_to: Tuple[str
     """J of the same bond path for other isotopes at equal K, e.g. J(15N,1H) -> J(14N,1H) (factor -0.713) or
     J(13C,1H) -> J(13C,2H) (factor 0.1535)."""
     return coupling_from_reduced(reduced_coupling(j_hz, *pair_from, registry=registry), *pair_to, registry=registry)
+
+
+def nearest_nuclei(gamma_hz_per_ut: float, spin=None, registry: "NucleusRegistry" = None):
+    """Registered nuclei ordered by |gamma - fitted| / |fitted| (optionally only those of one spin), as
+    [(symbol, gamma, relative difference)]: names the nucleus a fitted gyromagnetic ratio points to (D53)."""
+    reg = registry or REGISTRY
+    rows = []
+    for s in reg.symbols():
+        if spin is not None and reg.spin(s) != Fraction(spin):
+            continue
+        g = reg.gamma(s)
+        rows.append((s, g, abs(g - gamma_hz_per_ut) / max(abs(gamma_hz_per_ut), 1e-12)))
+    return sorted(rows, key=lambda r: r[2])

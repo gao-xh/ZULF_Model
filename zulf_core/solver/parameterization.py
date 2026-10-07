@@ -58,6 +58,13 @@ class ParameterPolicy:
     field_axes: Tuple[str, ...] = ("transverse", "z")
     field_bounds_ut: Tuple[float, float] = (0.0, 1.0)
     initial_field_ut: Tuple[float, float] = (0.02, 0.02)     # (transverse, z) starts
+    field_fixed: bool = False                                  # hold the field at initial_field_ut (a known field)
+    # Fitted gyromagnetic ratios (D53): gamma / (2 pi) in Hz/uT of the named nuclei as free parameters, used by the
+    # field term and the gamma weights. Only meaningful with a known (fixed) field: the splittings scale with
+    # gamma B, so gamma and a free field trade against each other.
+    fit_gamma: Tuple[str, ...] = ()
+    gamma_bounds_hz_per_ut: Tuple[float, float] = (-50.0, 50.0)
+    initial_gamma: Tuple[Tuple[str, float], ...] = ()          # starts (default: the registry value)
     # Nuisance terms rendered through the same operator; linear amplitudes are real and unconstrained.
     # {"kind": "exponential", "rate_bounds_per_s": [lo, hi], "initial_rate_per_s": r}
     # {"kind": "damped_sinusoid", "frequency_bounds_hz": [lo, hi], "initial_frequency_hz": f,
@@ -131,7 +138,15 @@ class Parameterization:
                 if axis not in ("transverse", "z"):
                     raise ValueError(f"Unknown field axis '{axis}' (use 'transverse' and/or 'z').")
                 start = float(np.clip(policy.initial_field_ut[0 if axis == "transverse" else 1], lo, hi))
-                params.append(Parameter(f"field_{axis}_ut", start, lo, hi, True, "field", -1, (axis,)))
+                params.append(Parameter(f"field_{axis}_ut", start, lo, hi, not policy.field_fixed, "field", -1,
+                                        (axis,)))
+        if policy.fit_gamma:
+            from ..nuclei import get_registry
+            lo, hi = policy.gamma_bounds_hz_per_ut
+            starts = dict(policy.initial_gamma)
+            for symbol in policy.fit_gamma:
+                start = float(np.clip(starts.get(symbol, get_registry().gamma(symbol)), lo, hi))
+                params.append(Parameter(f"gamma_{symbol}", start, lo, hi, True, "gamma", -1, (symbol,)))
         for i, term in enumerate(policy.nuisance):
             kind = term.get("kind")
             if kind in ("exponential", "damped_sinusoid"):
@@ -252,6 +267,16 @@ class Parameterization:
 
     def phase_delay(self, values: Dict[str, float]) -> float:
         return values.get("phase_delay", 0.0)
+
+    def gamma_overrides(self, values: Dict[str, float]) -> Dict[str, float]:
+        """{symbol: gamma / (2 pi) in Hz/uT} of the fitted gyromagnetic ratios (empty without them); a value at
+        zero is kept 1e-6 away from it (zero gamma has no field term and no signal)."""
+        out = {}
+        for n, p in self.parameters.items():
+            if p.kind == "gamma":
+                g = float(values.get(n, p.value))
+                out[p.detail[0]] = g if abs(g) >= 1e-6 else (1e-6 if g >= 0 else -1e-6)
+        return out
 
     def has_field(self) -> bool:
         return any(p.kind == "field" for p in self.parameters.values())

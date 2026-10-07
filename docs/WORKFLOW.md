@@ -122,6 +122,9 @@ Code: scripts/fit_joint_series.JointSeries, zulf_core.solver.parameterization.
   is stationary at zero field, so give nonzero starts (`--field-start transverse,z`) and try several, since the
   coupling multistart does not perturb spectrum parameters. Report the fitted field with the result (D19).
   `scripts/line_table.py` still lists zero-field lines.
+- Unknown heteronucleus (D53): with a known field (`--field transverse,z`, held fixed) free its gamma
+  (`--fit-gamma 13C --gamma-start ...`); fit.json `gamma_identification` names the nearest registered nucleus.
+  Start from several candidate gammas (13C 10.71, 15N -4.32, 31P 17.24 Hz/uT); compare objectives.
 
 ## 7. Search
 

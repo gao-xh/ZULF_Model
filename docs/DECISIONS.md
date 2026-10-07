@@ -869,6 +869,28 @@ rescaled by their gyromagnetic ratios); per-row isotopes can be given (`features
 K is to be used once labelled-isotope or N-coupling observations enter (decision with Xuehan). Test:
 tests/test_j_structure.py ReducedCouplingModeTests.
 
+## D53. Fitted gyromagnetic ratio in a known field: naming the heteronucleus from the data (2026-10-07)
+
+In a blind test the isotopes may be unknown. Zero-field line positions depend on J only, so a 13C line and a
+15N line with another J can sit at the same place; a field splits lines by amounts proportional to the
+gyromagnetic ratios of the coupled nuclei (a 13C-1H line by (g_H + g_C) B / 2 in a transverse field), so in a
+known field the data fix gamma.
+- `Protocol.gamma_overrides` (default empty): gamma per nucleus for the field term and the gamma weights;
+  `zeeman()` takes the protocol's gamma; transitions, derivatives and the brute-force reference use it.
+- `ParameterPolicy.fit_gamma` / `initial_gamma` / `gamma_bounds_hz_per_ut` (parameters `gamma_<symbol>`, central-
+  difference Jacobian) and `field_fixed` (hold the field at `initial_field_ut`: the known field). gamma and a free
+  field trade against each other, so fit gamma only with a known field (from a reference sample, or from lines of
+  known nuclei).
+- fit_joint_series `--field transverse,z` (known, fixed) and `--fit-gamma 13C [--gamma-start ...]`; fit.json
+  `gamma_identification` lists the nearest registered nuclei of the same spin.
+- Spin-1/2 heteronuclei (13C, 15N, 19F, 31P) are told apart this way; a change of spin (1H vs 2H, 15N vs 14N) is a
+  different spin system and is decided by comparing hypotheses (labelling option of the search).
+- Measured: synthetic 13C-1H and 15N-1H pairs in 0.1 uT (brute-force data), a 13C-labelled model with gamma free
+  ends at the true gamma (13C from a start of 8.0; 15N, -4.316, from -3.0). Acetonitrile with the field held at
+  its fitted value: gamma 11.04 from a start of 8.0, nearest 13C (3 %; 31P 56 %, 15N 139 %).
+Tests: tests/test_solver.py GammaFitTests, tests/test_j_tuner.py GammaOptionTests; physics, search, derivative,
+exchange and solver suites unchanged (70 tests).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

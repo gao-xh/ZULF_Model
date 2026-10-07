@@ -440,3 +440,50 @@ class FieldFitTests(unittest.TestCase):
         fitted = refine(start, obs, RefineSettings(policy=ParameterPolicy(fit_field=True, fit_phase_delay=False),
                                                    starts=1))
         self.assertGreater(plain.relative_residual, 10 * fitted.relative_residual)
+
+
+class GammaFitTests(unittest.TestCase):
+    """Fitted gyromagnetic ratio in a known field (D53): data from brute-force propagation with registry gammas."""
+
+    @staticmethod
+    def observation(isotopes, j_hz, field_ut, rate=1.0):
+        from zulf_core.physics.protocol import Protocol
+        from zulf_core.physics.transitions import reference_signal
+        acq = Acquisition(1000.0, 4000, start_sample=40, sg_window=101, sg_order=2)
+        t = acq.times()
+        j = np.array([[0.0, j_hz], [j_hz, 0.0]])
+        fid = 50.0 * reference_signal(SpinSystem(isotopes, j), t, Protocol(field_ut=field_ut)) * np.exp(-rate * t)
+        return ObservedSpectrum.from_fid(fid, acq, [(abs(j_hz) - 12.0, abs(j_hz) + 12.0)])
+
+    def fit(self, obs, j_start, gamma_start, field=(0.1, 0.0)):
+        policy = ParameterPolicy(fit_field=True, field_fixed=True, initial_field_ut=field, fit_gamma=("13C",),
+                                 initial_gamma=(("13C", gamma_start),), fit_phase_delay=False)
+        j = np.array([[0.0, j_start], [j_start, 0.0]])
+        start = Interpretation((Component(SpinSystem(("13C", "1H"), j)),))
+        return refine(start, obs, RefineSettings(policy=policy, starts=1))
+
+    def test_13c_is_recovered_from_a_wrong_start(self):
+        from zulf_core.nuclei import get_registry, nearest_nuclei
+        res = self.fit(self.observation(("13C", "1H"), 140.0, (0.1, 0.0, 0.0)), 139.8, 8.0)
+        self.assertAlmostEqual(res.parameters["gamma_13C"], get_registry().gamma("13C"), delta=0.05)
+        self.assertEqual(nearest_nuclei(res.parameters["gamma_13C"], spin="1/2")[0][0], "13C")
+        self.assertAlmostEqual(res.parameters["field_transverse_ut"], 0.1)        # the known field stays fixed
+
+    def test_a_15n_line_is_named_by_its_fitted_gamma(self):
+        # The truth is 15N-1H (J -90 Hz, negative gamma); the model is a 13C-1H pair with gamma free.
+        from zulf_core.nuclei import get_registry, nearest_nuclei
+        res = self.fit(self.observation(("15N", "1H"), -90.0, (0.1, 0.0, 0.0)), -89.8, -3.0)
+        self.assertAlmostEqual(res.parameters["gamma_13C"], get_registry().gamma("15N"), delta=0.05)
+        self.assertEqual(nearest_nuclei(res.parameters["gamma_13C"], spin="1/2")[0][0], "15N")
+        self.assertLess(res.relative_residual, 1e-3)
+
+    def test_default_protocol_has_no_overrides(self):
+        from zulf_core.physics.protocol import Protocol
+        p = Protocol()
+        self.assertEqual(p.gamma_overrides, ())
+        self.assertNotIn("gamma_overrides", p.to_dict())
+        q = p.with_gamma({"13C": 9.0})
+        self.assertEqual(q.gamma("13C"), 9.0)
+        self.assertEqual(Protocol.from_dict(q.to_dict()), q)
+        with self.assertRaises(ValueError):
+            p.with_gamma({"13C": 0.0})

@@ -166,3 +166,10 @@ field terms. `zulf_core.nuclei.reduced_coupling`, `coupling_from_reduced` and `c
 isotopes at equal K: 15N -> 14N factor -0.713, 1H -> 2H factor 0.1535) neglect the primary isotope effect on K
 (of order 1 %): converted values are starts or priors, not results. fit_joint_series writes K next to J
 (fit.json "K_at_x" with "nuclei"; J_table.csv).
+
+## Gyromagnetic ratios in the protocol
+
+`Protocol.gamma(symbol)` is the gamma / (2 pi) (Hz/uT) used by the field term and by "gamma" preparation and
+detection weights: the registry value unless `Protocol.gamma_overrides` names the nucleus (D53). Default
+protocols have no overrides and serialise as before. A fitted gamma is meaningful only in a known field
+(splittings scale with gamma B); `zulf_core.nuclei.nearest_nuclei` names the nucleus it points to.

@@ -239,7 +239,9 @@ class MixtureForward:
     def protocol_for(self, values: Dict[str, float]) -> Protocol:
         """The protocol of this evaluation: the fixed one, with the fitted field when the parameterization has one."""
         field_ut = self.p.field_ut(values) if hasattr(self.p, "field_ut") else None
-        return self.protocol if field_ut is None else self.protocol.with_field(field_ut)
+        protocol = self.protocol if field_ut is None else self.protocol.with_field(field_ut)
+        gammas = self.p.gamma_overrides(values) if hasattr(self.p, "gamma_overrides") else {}
+        return protocol.with_gamma(gammas) if gammas else protocol
 
     def transitions(self, values: Dict[str, float], c: int, system) -> "TransitionList":
         """Transition list of component c: static, or with chemical exchange of its exchanging groups
@@ -712,8 +714,8 @@ class MixtureForward:
 
         The derivative of the model at fixed linear coefficients is analytic for
         couplings (eigen-derivatives, physics.derivatives), decay rates and the
-        phase delay; Gaussian widths, field components and nuisance parameters
-        use central differences of their columns only. With A the directions the linear
+        phase delay; Gaussian widths, field components, gyromagnetic ratios and
+        nuisance parameters use central differences of their columns only. With A the directions the linear
         solve absorbs (component amplitudes, the shared phase, background and
         nuisance amplitudes) and r the residual,
 

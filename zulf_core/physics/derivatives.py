@@ -141,7 +141,7 @@ def transition_derivatives(system: SpinSystem, pairs: Sequence[Tuple[int, int]],
         for i, j in nonzero:
             h = h + gj[i, j] * pair_ops[(i, j)]
         if protocol.has_field:
-            h = h + zeeman(site_ops, [sym for sym, _, _ in nodes], protocol.field_ut)
+            h = h + zeeman(site_ops, [sym for sym, _, _ in nodes], protocol.field_ut, protocol.gamma)
         rho = sum(p * ops[2] for p, ops in zip(prep, site_ops))
         det = sum(dw * ops[2] for dw, ops in zip(detw, site_ops))
         ks = [pair_ops[p] for p in pairs]

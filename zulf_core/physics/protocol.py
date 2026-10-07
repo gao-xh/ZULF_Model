@@ -42,9 +42,17 @@ class Protocol:
     normalize_by_dimension: bool = True
     time_origin_s: float = 0.0
     field_ut: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    # gamma / (2 pi) in Hz/uT replacing the registry value of a nucleus, as ((symbol, gamma), ...): used by the
+    # Zeeman term and by "gamma" preparation and detection weights (D53, fitted gamma in a known field). Empty:
+    # registry values, the default.
+    gamma_overrides: Tuple[Tuple[str, float], ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, "pulses", tuple(self.pulses))
+        overrides = tuple(sorted((str(s), float(g)) for s, g in dict(self.gamma_overrides).items()))
+        if any(g == 0.0 for _, g in overrides):
+            raise ValueError("a gamma override must be nonzero")
+        object.__setattr__(self, "gamma_overrides", overrides)
         field_ut = tuple(float(v) for v in self.field_ut)
         if len(field_ut) != 3:
             raise ValueError("field_ut must have three components (Bx, By, Bz).")
@@ -53,10 +61,16 @@ class Protocol:
             if isinstance(weights, str) and weights != "gamma":
                 raise ValueError("Weights must be 'gamma' or a mapping nucleus -> weight.")
 
-    @staticmethod
-    def _weight(weights: Weights, symbol: str) -> float:
+    def gamma(self, symbol: str) -> float:
+        """gamma / (2 pi) in Hz/uT of a nucleus under this protocol (override, else the registry value)."""
+        for s, g in self.gamma_overrides:
+            if s == symbol:
+                return g
+        return get_registry().gamma(symbol)
+
+    def _weight(self, weights: Weights, symbol: str) -> float:
         if weights == "gamma":
-            return get_registry().gamma(symbol)
+            return self.gamma(symbol)
         return float(weights.get(symbol, 0.0))
 
     def preparation_weight(self, symbol: str) -> float:
@@ -79,10 +93,21 @@ class Protocol:
         data["field_ut"] = tuple(float(v) for v in field_ut)
         return Protocol.from_dict(data)
 
+    def with_gamma(self, overrides) -> "Protocol":
+        """The protocol with gamma overrides {symbol: gamma / (2 pi) in Hz/uT} added (replacing earlier ones)."""
+        data = self.to_dict()
+        merged = dict(self.gamma_overrides)
+        merged.update({str(s): float(g) for s, g in dict(overrides).items()})
+        data["gamma_overrides"] = sorted(merged.items())
+        return Protocol.from_dict(data)
+
     def to_dict(self) -> dict:
         data = asdict(self)
         data["pulses"] = [asdict(p) for p in self.pulses]
         data["field_ut"] = list(self.field_ut)
+        data["gamma_overrides"] = [list(p) for p in self.gamma_overrides]
+        if not data["gamma_overrides"]:
+            del data["gamma_overrides"]             # default protocols serialise as before
         return data
 
     @classmethod
@@ -93,6 +118,8 @@ class Protocol:
         data["pulses"] = tuple(Pulse(**p) for p in data.get("pulses", ()))
         if "field_ut" in data:
             data["field_ut"] = tuple(data["field_ut"])
+        if "gamma_overrides" in data:
+            data["gamma_overrides"] = tuple(tuple(p) for p in data["gamma_overrides"])
         return cls(**data)
 
     @classmethod

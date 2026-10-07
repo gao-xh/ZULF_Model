@@ -99,6 +99,22 @@ def _rate_policy(base, args):
             print("warning: a field start of exactly 0 has zero gradient and stays there (D47)")
         policy = dataclasses.replace(policy, fit_field=True, field_axes=axes, field_bounds_ut=(lo, hi),
                                      initial_field_ut=start)
+    if getattr(args, "field", ""):
+        if getattr(args, "fit_field", False):
+            raise SystemExit("--field (a known, fixed field) and --fit-field exclude each other")
+        bt, bz = (float(v) for v in args.field.split(","))
+        policy = dataclasses.replace(policy, fit_field=True, field_fixed=True, field_axes=("transverse", "z"),
+                                     field_bounds_ut=(0.0, max(1.0, 2 * bt, 2 * bz)), initial_field_ut=(bt, bz))
+    if getattr(args, "fit_gamma", ""):
+        symbols = tuple(v.strip() for v in args.fit_gamma.split(",") if v.strip())
+        starts = [float(v) for v in args.gamma_start.split(",")] if args.gamma_start else []
+        if starts and len(starts) != len(symbols):
+            raise SystemExit("--gamma-start needs one value per --fit-gamma nucleus")
+        if not getattr(args, "field", ""):
+            print("warning: --fit-gamma without a known --field: gamma and a fitted field trade against each other")
+        lo, hi = (float(v) for v in args.gamma_bounds.split(","))
+        policy = dataclasses.replace(policy, fit_gamma=symbols, gamma_bounds_hz_per_ut=(lo, hi),
+                                     initial_gamma=tuple(zip(symbols, starts)))
     return dataclasses.replace(base, policy=policy)
 
 
@@ -1360,6 +1376,10 @@ def make_parser():
     ap.add_argument("--field-axes", default="transverse,z", help="fitted field components: transverse and/or z")
     ap.add_argument("--field-bounds", default="0,1", help="lo,hi of each fitted field component (uT)")
     ap.add_argument("--field-start", default="0.02,0.02", help="start transverse,z (uT); not 0 (zero gradient there)")
+    ap.add_argument("--field", default="", help="known static field transverse,z (uT), held fixed (D53)")
+    ap.add_argument("--fit-gamma", default="", help="nuclei whose gamma is fitted, e.g. 13C (needs --field; D53)")
+    ap.add_argument("--gamma-start", default="", help="start gamma / 2 pi per --fit-gamma nucleus (Hz/uT)")
+    ap.add_argument("--gamma-bounds", default="-50,50", help="lo,hi of fitted gamma / 2 pi (Hz/uT)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
                     help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
     ap.add_argument("--nh-exchange", type=float, default=0.0,
@@ -1678,6 +1698,18 @@ def main():
                                                        **{n: float(z[joint.nt + si * joint.nl + i])
                                                           for i, n in enumerate(joint.local)}}
                                      for si in range(joint.ns)}
+    from zulf_core.nuclei import get_registry, nearest_nuclei
+    gamma_fit = {}                                   # fitted gyromagnetic ratios and the nuclei they point to (D53)
+    for sid, sp in result["spectrum_parameters"].items():
+        for name, value in sp.items():
+            if name.startswith("gamma_"):
+                spin = get_registry().spin(name[len("gamma_"):])      # candidates of the model nucleus's spin
+                gamma_fit.setdefault(sid, {})[name[len("gamma_"):]] = {
+                    "fitted_hz_per_ut": value,
+                    "nearest": [{"nucleus": s, "gamma_hz_per_ut": g, "relative_difference": d}
+                                for s, g, d in nearest_nuclei(value, spin=spin)[:3]]}
+    if gamma_fit:
+        result["gamma_identification"] = gamma_fit
     json.dump(result, open(out / "fit.json", "w"), indent=1)
     with open(out / "J_table.csv", "w", newline="") as fh:
         w = csv.writer(fh)

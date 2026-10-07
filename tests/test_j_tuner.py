@@ -594,3 +594,18 @@ class TunerSpectrumParameterTests(unittest.TestCase):
             self.assertAlmostEqual(shown["field_z_ut"], 80.0)
             s.set_spectrum({"field_z_ut": 1e6})                      # clipped to the bound (1 uT)
             self.assertLessEqual(s.z[i("field_z_ut")], 1.0)
+
+
+class GammaOptionTests(unittest.TestCase):
+    def test_known_field_and_fitted_gamma_options(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            j = fj.build_problem(_args(tmp, ["--field", "0.05,0.02", "--fit-gamma", "13C", "--gamma-start", "9.5"])).joint
+            p = j.params[0]
+            self.assertFalse(p.parameters["field_transverse_ut"].free)            # the known field is held
+            self.assertEqual(p.parameters["field_z_ut"].value, 0.02)
+            self.assertIn("gamma_13C", j.local)
+            self.assertEqual(p.parameters["gamma_13C"].value, 9.5)
+            with self.assertRaises(SystemExit):
+                fj.build_problem(_args(tmp, ["--field", "0.05,0.02", "--fit-field"]))
