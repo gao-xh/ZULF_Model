@@ -609,3 +609,27 @@ class GammaOptionTests(unittest.TestCase):
             self.assertEqual(p.parameters["gamma_13C"].value, 9.5)
             with self.assertRaises(SystemExit):
                 fj.build_problem(_args(tmp, ["--field", "0.05,0.02", "--fit-field"]))
+
+
+class PrecisionOptionTests(unittest.TestCase):
+    def test_precision_stop_on_a_joint_fit(self):
+        # Reference: the same fit run to the tolerances (--precision 0); the precision stop must fire, use fewer
+        # evaluations and give the couplings within the requested precision of the reference.
+        from scipy.optimize import least_squares
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            out = {}
+            for p in ("0", "0.01"):
+                prob = fj.build_problem(_args(tmp, ["--precision", p]))
+                j = prob.joint
+                self.assertEqual(j.precision_hz, float(p))
+                stop = j.stop_at_precision()
+                z0 = np.clip(prob.z0 + 0.3 * (np.arange(len(prob.z0)) < j.nt), prob.lower + 1e-9, prob.upper - 1e-9)
+                sol = least_squares(j.residual, z0, jac=j.jacobian, bounds=(prob.lower, prob.upper), x_scale="jac",
+                                    max_nfev=300, ftol=1e-10, xtol=1e-10, gtol=1e-10, callback=stop)
+                out[p] = (sol.nfev, j.all_couplings(sol.x), stop.stopped)
+            self.assertFalse(out["0"][2])
+            self.assertTrue(out["0.01"][2])
+            self.assertLessEqual(out["0.01"][0], out["0"][0])       # savings measured on real data (D55)
+            np.testing.assert_allclose(out["0.01"][1], out["0"][1], atol=0.01)

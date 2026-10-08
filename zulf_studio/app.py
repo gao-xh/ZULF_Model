@@ -1,7 +1,7 @@
 """ZULF Studio window (PySide6): live sliders, plot, line table, fitting with a progress slider, log, terminal,
 Python console and the AI API, all on one StudioSession.
 
-    python scripts/zulf_studio.py [--structure JSON] [--series SERIES.json] [--fit RUN_DIR] [--api-port 8766]
+    python scripts/run_studio.py [--structure JSON] [--series SERIES.json] [--fit RUN_DIR] [--api-port 8766]
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ Without Remember it stays in memory until Studio closes. Never written to a file
 (also from the Keychain).</li>
 <li><b>Before starting Studio</b>, in iTerm2:<br>
 <code>export ANTHROPIC_API_KEY=sk-ant-...</code> (or <code>export OPENAI_API_KEY=...</code>), then start Studio
-from that same terminal: <code>python scripts/zulf_studio.py ...</code></li>
+from that same terminal: <code>python scripts/run_studio.py ...</code></li>
 <li><b>Anthropic login profile</b>: <code>ant auth login</code> stores a profile that the Claude library reads
 on its own (also while Studio is open). It needs the <code>ant</code> command-line tool, which is not installed
 on this Mac.</li>
@@ -564,12 +564,19 @@ class StudioWindow(QMainWindow):
         self.f_workers = QSpinBox(minimum=1, maximum=os.cpu_count() or 8, value=min(4, os.cpu_count() or 4))
         self.f_nfev = QSpinBox(minimum=10, maximum=5000, value=300, singleStep=50)
         self.f_trace = QSpinBox(minimum=0, maximum=400, value=40)
+        self.f_precision = QComboBox()
+        for text, value in (("0.1 Hz", 0.1), ("0.01 Hz (default)", 0.01), ("0.001 Hz", 0.001), ("0.0001 Hz", 0.0001),
+                            ("run to the tolerances", 0.0)):
+            self.f_precision.addItem(text, value)
+        self.f_precision.setCurrentIndex(1)
+        self.f_precision.setToolTip("the fit stops when every coupling changes by less than this (and the fit no "
+                                    "longer improves); also the decimals reported")
         self.f_field = QCheckBox("fit the static field (starts from the sliders)", checked=True)
         self.f_edges = QLineEdit(placeholderText="e.g. 135.5,137.2,200 or auto (empty: one rate per isotopologue)")
         self.f_rates = QLineEdit("0.2,15")
         self.f_extra = QLineEdit(placeholderText="extra fit_joint_series options, e.g. --model-line-passes 1")
         for label, wid in (("starts", self.f_starts), ("workers", self.f_workers), ("max evaluations", self.f_nfev),
-                           ("trace frames", self.f_trace), ("", self.f_field), ("rate families", self.f_edges),
+                           ("trace frames", self.f_trace), ("coupling precision", self.f_precision), ("", self.f_field), ("rate families", self.f_edges),
                            ("rate bounds (1/s)", self.f_rates), ("extra", self.f_extra)):
             form.addRow(label, wid)
         btns = QHBoxLayout()
@@ -999,6 +1006,7 @@ class StudioWindow(QMainWindow):
         extra = self.f_extra.text().split()
         self._guard(self.session.start_fit, starts=self.f_starts.value(), workers=self.f_workers.value(),
                     max_nfev=self.f_nfev.value(), trace=self.f_trace.value(), fit_field=self.f_field.isChecked(),
+                    precision=self.f_precision.currentData(),
                     family_edges=self.f_edges.text().strip(), rate_bounds=self.f_rates.text().strip() or "0.2,15",
                     extra_args=extra)
         self.tabs.setCurrentIndex(1)

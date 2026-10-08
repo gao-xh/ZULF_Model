@@ -487,3 +487,37 @@ class GammaFitTests(unittest.TestCase):
         self.assertEqual(Protocol.from_dict(q.to_dict()), q)
         with self.assertRaises(ValueError):
             p.with_gamma({"13C": 0.0})
+
+
+class PrecisionTests(unittest.TestCase):
+    """Coupling precision stop (D55): data with known couplings (exact model, no noise)."""
+
+    def test_precision_controls_when_the_fit_stops(self):
+        from zulf_core.solver.convergence import decimals_for
+        truth = methyl_isotopologue()
+        obs = observe([truth], [3.0 * np.exp(0.7j)])
+        start = Interpretation((Component(perturbed(truth, 1.0)),))
+        runs = {}
+        for p in (0.0, 0.01, 0.001):
+            res = refine(start, obs, RefineSettings(starts=1, precision_hz=p, continuation_rates_per_s=(0.0,), guard_continuation=False))
+            err = best_permutation(truth, res.interpretation.components[0].system).max_abs_error_hz
+            runs[p] = (res.evaluations, err)
+        self.assertLess(runs[0.01][1], 0.01)               # couplings within the requested precision
+        self.assertLess(runs[0.001][1], 0.001)
+        self.assertLessEqual(runs[0.01][0], runs[0.001][0])     # coarser precision: no more evaluations
+        self.assertLessEqual(runs[0.001][0], runs[0.0][0])      # 0 runs to the tolerances (the old behaviour)
+        self.assertEqual([decimals_for(p) for p in (0.01, 0.001, 0.0, 0.05)], [3, 4, 3, 3])
+
+    def test_callback_rule(self):
+        from types import SimpleNamespace as NS
+        from zulf_core.solver.convergence import CouplingPrecision
+        stop = CouplingPrecision(lambda x: x, 0.01, patience=2)
+        steps = [([1.0], 10.0), ([1.5], 5.0), ([1.505], 5.0), ([1.506], 5.0)]
+        with self.assertRaises(StopIteration):
+            for x, cost in steps:
+                stop(NS(x=np.array(x), cost=cost))
+        self.assertEqual(stop.iterations, 4)
+        moving = CouplingPrecision(lambda x: x, 0.01, patience=2)       # the cost still falls: keep going
+        for x, cost in [([1.0], 10.0), ([1.001], 9.0), ([1.002], 8.0)]:
+            moving(NS(x=np.array(x), cost=cost))
+        self.assertFalse(moving.stopped)

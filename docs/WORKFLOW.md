@@ -117,6 +117,9 @@ Code: scripts/fit_joint_series.JointSeries, zulf_core.solver.parameterization.
   Isopropylamine: one rate per isotopologue 0.146, three per isotopologue 0.107, one per line cluster 0.050,
   couplings within 0.16 Hz; the 2J-band lines decay about twice as fast as the J band.
 - Per-entry fit ranges in a series file (e.g. to leave out mains harmonics at 120 and 240 Hz).
+- Coupling precision (`--precision`, D55; default 0.01 Hz): a fit stops when every coupling moves by less than this
+  and the objective no longer improves; 0.001 for fine structure, 0 to run to the tolerances as before. Sets the
+  decimals of J_table.csv.
 - Static field (`--fit-field`, D47; default zero field): for measurements in a nonzero field (fringe field,
   residual shield field). Two parameters, `field_transverse_ut` and `field_z_ut` (>= 0, `--field-bounds`); the signal
   is stationary at zero field, so give nonzero starts (`--field-start transverse,z`) and try several, since the

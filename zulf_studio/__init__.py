@@ -1,6 +1,6 @@
 """ZULF Studio: real-time zero-field spectrum simulator with fitting, a desktop window and an API for AI agents.
 
-    python scripts/zulf_studio.py [--structure JSON] [--series runs/series/NAME/series.json] [--api-port 8766]
+    python scripts/run_studio.py [--structure JSON] [--series runs/series/NAME/series.json] [--api-port 8766]
 
 Layers (each usable without the next):
 - `session.StudioSession`: the state (structure, couplings, field, line width, loaded spectrum, fit jobs, fit

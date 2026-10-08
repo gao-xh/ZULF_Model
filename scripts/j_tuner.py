@@ -351,7 +351,8 @@ class TuningSession:
                 try:
                     p0 = np.clip(z_start[idx], lo + 1e-9, hi - 1e-9)
                     least_squares(res, p0, jac=jac, bounds=(lo, hi), x_scale="jac", max_nfev=max_nfev,
-                                  ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                                  ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                                  callback=j.stop_at_precision(lambda p: j.all_couplings(full(p))))
                     job["message"] = "converged or reached max_nfev"
                 except StopRefine:
                     job["message"] = "stopped"

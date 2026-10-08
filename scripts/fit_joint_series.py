@@ -421,6 +421,17 @@ class JointSeries:
     def theta(self, z, k):
         return z[k * self.m:(k + 1) * self.m]
 
+    precision_hz = 0.01                  # coupling precision at which fits stop (D55; 0: run to the tolerances)
+
+    def all_couplings(self, z):
+        """Every coupling value of the vector (Hz), all nodes, in one array (for the precision stop)."""
+        return np.concatenate([self.coupling_values(z, k) for k in range(self.nc)]) if self.nc else np.zeros(0)
+
+    def stop_at_precision(self, couplings_of=None):
+        """least_squares callback that stops at self.precision_hz (zulf_core.solver.convergence)."""
+        from zulf_core.solver.convergence import CouplingPrecision
+        return CouplingPrecision(couplings_of or self.all_couplings, self.precision_hz)
+
     def coupling_values(self, z, k):
         th = self.theta(z, k)
         if self.shape == "free":
@@ -716,7 +727,8 @@ class JointSeries:
                 p0[names.index(n)] = v
             p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
             sol = least_squares(res, p0, jac=jac, bounds=(lo, hi), x_scale="jac", max_nfev=max_nfev,
-                                ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                                callback=self.stop_at_precision(lambda p: self.all_couplings(full(p))))
             out.append((float(2 * sol.cost), full(sol.x)))
         out.sort(key=lambda t: t[0])
         return out
@@ -765,7 +777,8 @@ class JointSeries:
                 p0[names.index(n)] = v
             p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
             sol = least_squares(res, p0, bounds=(lo, hi), x_scale=1.0, diff_step=1e-6, max_nfev=max_nfev,
-                                ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                                callback=self.stop_at_precision(lambda p: self.all_couplings(full(p))))
             out.append((float(2 * sol.cost), full(sol.x)))
         out.sort(key=lambda t: t[0])
         return out
@@ -898,7 +911,8 @@ def _residual_peak_stage(joint, solutions, lower, upper, args):
             joint.res_windows = windows
             joint.peak_smooth = args.peak_smooth if joint.peaks is not None else 0.0
             zz = least_squares(joint.residual, zz, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                               max_nfev=args.max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+                               max_nfev=args.max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                               callback=joint.stop_at_precision()).x
             print(f"residual peaks: candidate {ci} round {rnd}: {sum(p['assignable'] for p in report)} assignable "
                   f"of {len(report)}", flush=True)
         windows, report = joint.find_residual_peaks(zz, **opts)
@@ -951,7 +965,7 @@ def _coordinate_scan(joint, z, lower, upper, max_nfev, cycles=2, half_width=4.0,
             z = z.copy()
             z[blk] += best_v - z[i]
         z = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                          max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+                          max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10, callback=joint.stop_at_precision()).x
     return z
 
 
@@ -1126,7 +1140,8 @@ def _solve_start(z):
                 lo_h[blk] = z[blk] - 1e-9
                 hi_h[blk] = z[blk] + 1e-9
         z = least_squares(joint.residual, np.clip(z, lo_h, hi_h), jac=joint.jacobian, bounds=(lo_h, hi_h),
-                          x_scale="jac", max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+                          x_scale="jac", max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                          callback=joint.stop_at_precision()).x
         z = np.clip(z, lower + 1e-9, upper - 1e-9)
     if scan:
         joint.trace_label = "coordinate scan"
@@ -1135,7 +1150,7 @@ def _solve_start(z):
         joint.set_smoothing(sigma)
         joint.trace_label = f"smoothing {sigma:g} Hz" if sigma else "fit"
         sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                            max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                            max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10, callback=joint.stop_at_precision())
         z = sol.x
     if tracing:
         return float(2 * sol.cost), sol.x, joint.trace
@@ -1249,6 +1264,7 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
                         shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape,
                         exchange=exchange, fixed=fixed_keys, tie_rates=getattr(args, "tie_rates", ""))
+    joint.precision_hz = float(getattr(args, "precision", 0.01))
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
         raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
@@ -1376,6 +1392,9 @@ def make_parser():
     ap.add_argument("--field-axes", default="transverse,z", help="fitted field components: transverse and/or z")
     ap.add_argument("--field-bounds", default="0,1", help="lo,hi of each fitted field component (uT)")
     ap.add_argument("--field-start", default="0.02,0.02", help="start transverse,z (uT); not 0 (zero gradient there)")
+    ap.add_argument("--precision", type=float, default=0.01,
+                    help="coupling precision in Hz at which a fit stops (default 0.01; e.g. 0.001 for finer fits; "
+                         "0: run to the tolerances or --max-nfev as before D55). Also sets the reported decimals")
     ap.add_argument("--field", default="", help="known static field transverse,z (uT), held fixed (D53)")
     ap.add_argument("--fit-gamma", default="", help="nuclei whose gamma is fitted, e.g. 13C (needs --field; D53)")
     ap.add_argument("--gamma-start", default="", help="start gamma / 2 pi per --fit-gamma nucleus (Hz/uT)")
@@ -1670,7 +1689,7 @@ def main():
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
               "component_search": component_record, "model_line_passes": model_line_record,
               "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz],
-              "reduced_coupling_unit": "1e19 N A^-2 m^-3"}
+              "reduced_coupling_unit": "1e19 N A^-2 m^-3", "precision_hz": joint.precision_hz}
     from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling
     p0 = joint.params[0]
     for k, n in enumerate(joint.coupling):
@@ -1716,9 +1735,11 @@ def main():
         w.writerow(["coupling", "direction"] + [f"J at x={x:.3f} (Hz)" for x in joint.nodes] +
                    [f"std at x={x:.3f} (Hz)" for x in joint.nodes] + ["prior centre (Hz)", "nuclei"] +
                    [f"K at x={x:.3f} (1e19 N A-2 m-3)" for x in joint.nodes])
+        from zulf_core.solver.convergence import decimals_for
+        nd = decimals_for(joint.precision_hz)
         for key, c in result["couplings"].items():
-            w.writerow([key, c["direction"]] + [round(v, 3) for v in c["J_at_x"]] +
-                       [round(v, 3) for v in c["J_std_at_x"]] + [c["prior_centre"], "-".join(c["nuclei"])] +
+            w.writerow([key, c["direction"]] + [round(v, nd) for v in c["J_at_x"]] +
+                       [round(v, nd) for v in c["J_std_at_x"]] + [c["prior_centre"], "-".join(c["nuclei"])] +
                        [round(v, 4) for v in c["K_at_x"]])
     try:
         import matplotlib

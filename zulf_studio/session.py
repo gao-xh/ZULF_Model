@@ -44,7 +44,8 @@ DEFAULT_SPEC = {"compound": "acetonitrile", "chain": {"groups": [["C1", "C", 3],
 # fit_joint_series options of the amine and acetonitrile analyses (docs/WORKFLOW.md)
 FIT_DEFAULTS = {"starts": 8, "workers": 4, "max_nfev": 300, "trace": 40, "fit_field": True, "family_edges": "",
                 "rate_bounds": "0.2,15", "signal_threshold": 2.5, "signal_taper": 4.0, "peak_penalty": 5.0,
-                "peak_smooth": 0.03, "peak_min_sigma": 3.0, "component_search": "both", "extra_args": []}
+                "peak_smooth": 0.03, "peak_min_sigma": 3.0, "component_search": "both", "precision": 0.01,
+                "extra_args": []}
 
 
 def _resolve(path) -> Path:
@@ -472,7 +473,8 @@ class StudioSession:
                 "--peak-smooth", str(o["peak_smooth"]), "--peak-min-sigma", str(o["peak_min_sigma"]),
                 "--starts", str(int(o["starts"])), "--workers", str(int(o["workers"])),
                 "--max-nfev", str(int(o["max_nfev"])), "--trace", str(int(o["trace"])),
-                "--component-search", str(o["component_search"]), "--out", str(out)]
+                "--component-search", str(o["component_search"]), "--precision", str(float(o["precision"])),
+                "--out", str(out)]
         if o["fit_field"]:
             bt, bz = (v if v > 0 else 20.0 for v in self.field_nt)      # zero field has zero gradient (D47)
             argv += ["--fit-field", "--field-start", f"{1e-3 * bt},{1e-3 * bz}"]

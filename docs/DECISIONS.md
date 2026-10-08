@@ -908,6 +908,26 @@ and the data rank it:
   the runner-up worse by at least 8.5e4 in BIC. Test: tests/test_hypothesis.py LabelingHypothesisTests (15N truth,
   about 3.5 min).
 
+## D55. Coupling precision option: fits stop when the couplings are settled (2026-10-07)
+
+Every least-squares call used ftol = xtol = gtol = 1e-10 and usually ran to max_nfev. Xuehan asked for a precision
+option, 0.01 Hz by default, finer (e.g. 0.001 Hz) on request.
+- `zulf_core.solver.convergence.CouplingPrecision`, a least_squares callback: stop when for 2 consecutive accepted
+  steps every coupling moved by less than the precision and the cost fell by less than 1e-6 of itself (so rates,
+  field and phase that still improve the fit keep it going). precision 0 = the old behaviour.
+- fit_joint_series `--precision` (default 0.01; all full and local least-squares runs; fit.json "precision_hz";
+  J_table decimals = digits of the precision + 1), `RefineSettings.precision_hz` (default 0.01; refine and every
+  search built on it), the J tuner refinement, Studio (Fit tab "coupling precision", API option `precision`).
+- Measured, acetonitrile field model from the default start: 30 evaluations to the tolerances, 17 at 0.01 Hz and
+  at 0.001 Hz, same objective (0.047761) and J (136.28237 Hz) to the digits shown. Near an optimum the couplings
+  converge fast, so 0.01 and 0.001 often stop together; the option bounds the work on slow, flat problems.
+- Changes the default of existing runs: fits now stop at 0.01 Hz instead of running to max_nfev. Reproduce older
+  runs with `--precision 0`.
+- Fixed on the way: scripts/zulf_studio.py shadowed the package zulf_studio whenever scripts/ came first on the
+  import path (test modules, scripts); renamed to scripts/run_studio.py.
+Tests: tests/test_solver.py PrecisionTests (stop rule; couplings within the precision), tests/test_j_tuner.py
+PrecisionOptionTests (the stop fires on a joint fit, couplings within 0.01 Hz of the run to the tolerances).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

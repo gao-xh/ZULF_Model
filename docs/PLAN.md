@@ -388,13 +388,15 @@ tall lines and barely sees it.
 - [ ] Analytic field derivatives (Zeeman directions in physics.derivatives) instead of central differences.
 - [ ] Field in the global pattern search (solver.search) and in scripts/line_table.py.
 - [ ] Acetonitrile open lines: 83-85, 154.1, about 627 Hz; nitrile 13C isotopologue below 22 Hz; 14N.
+- [x] Coupling precision option (D55): fits stop at --precision (default 0.01 Hz; 0.001 finer; 0 = old); refine,
+      fit_joint_series, J tuner, Studio. Acetonitrile: 17 instead of 30 evaluations, same result.
 - [x] Labelling hypotheses (D54): ProtonGroup.isotope, deuterate_exchangeable, labeling_variants,
       fit_structure_labelings, analyze_sample.py --labeling; synthetic methylamine natural / 15N / 2H all recovered.
 - [x] Fitted gyromagnetic ratio in a known field (D53): Protocol.gamma_overrides, fit_gamma / field_fixed,
       fit_joint_series --field / --fit-gamma, gamma_identification; tests GammaFitTests, GammaOptionTests.
 - [x] J tuner: live sliders for spectrum parameters (field in nT, decay rates on a log scale, delay in ms;
       tests/test_j_tuner.py TunerSpectrumParameterTests; commit 0035e2b).
-- [x] ZULF Studio (D48, zulf_studio/, scripts/zulf_studio.py; tests/test_studio.py): real-time simulator with
+- [x] ZULF Studio (D48, zulf_studio/, scripts/run_studio.py; tests/test_studio.py): real-time simulator with
       field and line-width sliders, overlay of a processed spectrum, line table and export, fit_joint_series from
       the sliders with a trace (progress) slider, log, terminal, Python console, JSON API for AI agents.
       First use: a 4-start acetonitrile fit from a 20 / 60 nT field start ended in a worse basin (0.158 against

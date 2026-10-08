@@ -7,10 +7,10 @@ an interface through which AI models can drive it. Design: D48 and D49 (docs/DEC
 ## Start
 
     conda activate zulf
-    python scripts/zulf_studio.py                                       # acetonitrile, zero field
-    python scripts/zulf_studio.py --series runs/series/acn/series.json --fit runs/processed/acn_field_fam2
-    python scripts/zulf_studio.py --structure '{"motif": "N-ethyl (Et3N)", "one_bond": {"C1": 131, "C2": 125}}'
-    python scripts/zulf_studio.py --no-gui --series runs/series/acn/series.json     # API only, no window
+    python scripts/run_studio.py                                       # acetonitrile, zero field
+    python scripts/run_studio.py --series runs/series/acn/series.json --fit runs/processed/acn_field_fam2
+    python scripts/run_studio.py --structure '{"motif": "N-ethyl (Et3N)", "one_bond": {"C1": 131, "C2": 125}}'
+    python scripts/run_studio.py --no-gui --series runs/series/acn/series.json     # API only, no window
 
 Options: `--series` a processed spectrum (`scripts/make_series_entry.py` writes it), `--fit` a fit run to apply
 (couplings, field, decay rate, trace), `--api-port` (default 8766; -1 switches the API off; a port in use falls
@@ -41,7 +41,7 @@ Bottom tabs:
 - **Lines**: every transition (isotopologue, frequency, amplitude, relative); Export writes parameters.json,
   lines.csv, spectrum.csv and figure.png.
 - **Fit**: runs `scripts/fit_joint_series.py` in the background from the current couplings and field (starts,
-  workers, evaluations, trace frames, field on/off, rate families, rate bounds, extra options). Apply result
+  workers, evaluations, trace frames, coupling precision (0.01 Hz default, D55), field on/off, rate families, rate bounds, extra options). Apply result
   copies couplings, field and decay rate into the sliders. **Fit progress**: drag through the trace frames
   (objective and couplings along the fit path); "Copy this frame's couplings" sets them. The field start
   matters: try several (D47).
