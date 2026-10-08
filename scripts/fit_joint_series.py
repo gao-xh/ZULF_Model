@@ -1769,12 +1769,16 @@ def main():
             y = o.values
             if o.real_only:
                 pred, y = pred.real, y.real
-            else:                              # complex data (unphased): compare magnitudes in the figure
-                pred, y = np.abs(pred), np.abs(y)
-            m = np.abs(y).max()
-            ax.plot(o.frequencies_hz, y / m, color="#222222", lw=0.8, label="experiment")
-            ax.plot(o.frequencies_hz, pred / m, color="#d1495b", lw=0.9, label="simulation")
-            ax.plot(o.frequencies_hz, (y - pred) / m - 0.35, color="#999999", lw=0.6, label="residual")
+            else:                              # complex data: real part after the model's overall phase, so data
+                rot = np.exp(-1j * np.angle(np.sum(pred * np.abs(pred))))   # and model are shown absorptive
+                pred, y = (pred * rot).real, (y * rot).real
+            fq = np.asarray(o.frequencies_hz, float)
+            gap = np.r_[False, np.diff(fq) > 3 * np.median(np.diff(fq))]   # no lines across unfitted gaps
+            fq, y, pred = (np.insert(v.astype(float), np.flatnonzero(gap), np.nan) for v in (fq, y, pred))
+            m = np.nanmax(np.abs(y))
+            ax.plot(fq, y / m, color="#222222", lw=0.8, label="experiment")
+            ax.plot(fq, pred / m, color="#d1495b", lw=0.9, label="simulation")
+            ax.plot(fq, (y - pred) / m - 0.6, color="#999999", lw=0.6, label="residual")
             ax.set_title(f"{series[s]['id']} (x = {joint.xs[s]:.2f}): relative residual "
                          f"{result['data_region_residuals'][series[s]['id']]:.3f}", fontsize=9, loc="left")
             ax.set_yticks([])
