@@ -1376,3 +1376,6 @@ skills under `skills/`; this file keeps the history.
   Field fit (about 0.035 uT, same in both halves): 1J 125.6 / 140.8 Hz, 2J(C,H) about -5.5 Hz, 3J(H,H) 9.4 Hz
   (above the usual 7 Hz, not trusted yet); residual 0.42; fitted delay 1.6 ms from the edge (8 kHz sequence
   uncalibrated). docs/analysis/2026-10-08_ethanol_field-fit.md
+- 2026-10-08: isopropanol 70 % rubbing alcohol (8333 Hz, 9301 scans) and rate families for all three samples:
+  fields 41-51 nT (ethanol, depends on the delay), 54 nT (isopropanol), 59 nT (acetonitrile, reproduced).
+  Isopropanol 1J 142.0 / 126.5 Hz, residual 0.47. docs/analysis/2026-10-08_ethanol_field-fit.md

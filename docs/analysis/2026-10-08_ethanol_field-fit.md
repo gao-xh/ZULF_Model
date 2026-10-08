@@ -100,6 +100,36 @@ minima Bz 0.11-0.125 uT (0.396) and B_t 0.17 / Bz 0.79 uT (0.312). This reproduc
 result. With the same model (one rate, free delay) ethanol gives B_t 0.019, Bz 0.029 uT (|B| 35 nT): the two
 runs differ by about 23 nT in |B|, mostly in Bz.
 
+### Rate families for all three samples, and isopropanol (Xuehan: add rate families to every fit)
+
+Isopropanol: run `70per_isopropyl_alcohol_rubbing_alcohol_ULF` (9301 scans 0-9300, 2026-09-17 12:06 to
+2026-09-20 18:29, 8333 Hz, same sequence as ethanol); `original/` and `processed/` folder
+`2026-09-17-isopropanol-70pct-rubbing-alcohol-ulf`, z5 keeps 8577 scans. Series `runs/series/isopropanol`
+(record 7.5 s, ranges 63.8-81.5, 86-99, 115-119.7, 120.5-154.1, 238-258 Hz; the 83 Hz feature left out); model
+`{"motif": "isopropyl", "one_bond": {"C1": 141.0, "C2": 126.0}}`, fast OH exchange, `--range 60,260`.
+
+Rate families: acetonitrile with the edges of 2026-10-06 (135.5, 137.2, 200 Hz, from the one-rate field fit);
+ethanol and isopropanol with `--family-edges auto` from their best one-rate field fit (ethanol 18 edges,
+isopropanol 9; the edges used are in each RUN_LOG.md).
+
+| Run | Objective | Residual | B transverse (nT) | B z (nT) | abs(B) (nT) | delay (ms) | Couplings (Hz) |
+|---|---|---|---|---|---|---|---|
+| acn_rerun_fam2 | 0.0439 | 0.211 | 37.1 | 45.3 | 59 | -4.12 | 1J 136.28 (reproduces 2026-10-06) |
+| ethanol_fam_auto | 0.108 | 0.334 | 22.3 | 34.2 | 41 | -2.46 | 1J 125.70 / 140.93, 2J -5.63 / -4.42, 3J(H,H) 9.05 |
+| ethanol_fam_auto_edge (delay bounds -4.2,-3.0 ms) | 0.126 | 0.357 | 19.1 | 47.2 | 51 | -3.0 (bound) | 1J 125.46 / 140.86, 2J -5.24 / -4.95, 3J(H,H) 9.11 |
+| ipa_zf (one rate) | 0.505 | 0.663 | - | - | - | -3.73 | |
+| ipa_field (one rate, best of 3 starts) | 0.431 | 0.632 | 36.3 | 37.7 | 52 | -1.76 | |
+| ipa_fedge (one rate, delay bounds) | 0.440 | 0.639 | 36.0 | 38.4 | 53 | -3.0 (bound) | |
+| ipa_fam_auto | 0.232 | 0.471 | 40.5 | 35.7 | 54 | -1.93 | 1J(CH) 142.02, 1J(CH3) 126.51, 2J -4.15 / -3.64, 3J(H,H) 5.91, J(C2,HC3) 3.35 |
+
+With rate families the fields are 41-51 nT (ethanol), 54 nT (isopropanol) and 59 nT (acetonitrile); the
+ethanol value depends on the delay (41 nT free, 51 nT near the edge), so the 8 kHz delay calibration is the
+open point for the field. Ethanol 3J(H,H) stays at 9.1 Hz with families. Isopropanol: 1J(CH3) 126.5 Hz,
+1J(CH) 142.0 Hz; misfit left at 120-122 Hz and 253-258 Hz.
+
+Figures (scripts/paper_figure.py; the detail panels now share one scale, a804beb / 462d052 / 4197b97 fixed the
+spectra.png and paper_figure display): runs/figures/{acn_full,ipa_full,ethanol_full,ethanol_fam_full}.png.
+
 ## Conclusion
 
 Conditional numerical result for one ethyl model with a uniform static field:
