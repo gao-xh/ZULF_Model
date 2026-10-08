@@ -112,6 +112,14 @@ docs/analysis/2026-10-01_blake-pyridine_data-consistency.md).
   a line present in every dataset is instrumental. Known here: 60 Hz and
   harmonics, 294.0, 322.9, 442.9, 922.9 Hz. Exclude them from fit ranges with
   small gaps (for example ranges 62-119, 121-179, 181-293, 295-320 Hz).
+- Fit the whole spectrum, not only the bands where the data have lines
+  (`make_series_entry.py` default since 2026-10-08): a model line in an
+  unfitted gap is not penalised, and with rate families its rate can run to
+  the lower bound. Ethanol 2026-09-13: ranges 198-221 and 244-260 Hz let the
+  model put tall sharp lines at 232-236 Hz where the data are empty. Check the
+  whole-spectrum figure (scripts/paper_figure.py) for model lines outside the
+  fit ranges. The 83 Hz dispersive feature of the NMRduino runs (acetonitrile,
+  ethanol, isopropanol) is excluded with `--exclude 81.5,86`.
 - Below about 100 Hz there is baseline leakage and structured background, and
   a slow 1.6-3 Hz decaying oscillation after the baseline exponentials in
   every dataset. Compare any low-frequency feature with a no-signal dataset

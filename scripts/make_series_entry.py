@@ -1,14 +1,17 @@
 """Average FID -> processed complex spectrum + one-entry series file for fit_joint_series / j_tuner.
 
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id ethylenediamine --out runs/series/eda
-        [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--ranges 85,119.6;120.4,179.6]
-        [--sampling-rate HZ] [--grid 20,380]
+        [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--ranges 85,119.6;120.4,179.6 | bands]
+        [--exclude 81.5,86] [--sampling-rate HZ] [--grid 20,380]
 
 Recipe of the isopropylamine / amine analyses (docs/analysis/2026-10-03_isopropylamine_complex-fit.md): crop from
 `--crop` s for `--record` s, exponential window, zero fill, phase from the instrument calibration of
-configs/confirmed_samples.json (phase0 at the switching edge + delay offset). Without --ranges the fit ranges are the
-bands where the smoothed |spectrum| exceeds 5 noise levels (noise from 330-380 Hz), widened by 3 Hz, with the mains
-harmonics (n x 60.06 Hz) and the instrument lines of the config +-0.4 Hz left out; check them on OUT/phased.png.
+configs/confirmed_samples.json (phase0 at the switching edge + delay offset). Without --ranges the fit range is the
+whole grid with the mains harmonics (n x 60.06 Hz) and the instrument lines of the config +-0.4 Hz and the --exclude
+intervals left out, so model lines where the data are empty are rejected by the fit (ranges taken from the data
+alone let an ethanol fit put strong lines in an unfitted gap, 2026-10-08). `--ranges bands` keeps only the bands
+where the smoothed |spectrum| exceeds 5 noise levels (noise from 330-380 Hz), widened by 3 Hz; check the ranges on
+OUT/phased.png.
 Writes OUT/frequency.npy, OUT/amplitude.npy (complex), OUT/series.json (with "source_fid", the FID it came from, for
 figures) and OUT/phased.png.
 """
@@ -24,6 +27,20 @@ sys.path.insert(0, str(ROOT))
 from zulf_core.render.phasing import correction_phasor, reference_delay_s  # noqa: E402
 from zulf_processing import find_sampling_rate, plan_for_dataset, process_dataset  # noqa: E402
 from zulf_processing.diagnostics import switching_edge                     # noqa: E402
+
+
+def whole_ranges(lo, hi, lines, exclude=()):
+    """The whole grid lo-hi as fit ranges, minus +-0.4 Hz around the power-line harmonics and instrument lines and
+    minus the `exclude` intervals: a model line where the data are empty is then seen and rejected by the fit."""
+    cuts = sorted([(v - 0.4, v + 0.4) for v in lines if lo < v < hi] + [tuple(e) for e in exclude])
+    out, a = [], lo
+    for c0, c1 in cuts:
+        if c0 > a:
+            out.append([round(float(a), 2), round(float(c0), 2)])
+        a = max(a, c1)
+    if a < hi:
+        out.append([round(float(a), 2), round(float(hi), 2)])
+    return out
 
 
 def auto_ranges(f, r, lines, threshold=5.0, noise_band=(330.0, 380.0), lo=20.0, hi=380.0):
@@ -66,7 +83,9 @@ def main():
     ap.add_argument("--record", type=float, default=8.0, help="record length (s)")
     ap.add_argument("--apodization", type=float, default=0.3, help="exponential window (1/s)")
     ap.add_argument("--zero-fill", type=int, default=3)
-    ap.add_argument("--ranges", default="", help="lo,hi;lo,hi;... fit ranges (Hz); default: automatic")
+    ap.add_argument("--ranges", default="", help="lo,hi;lo,hi;... fit ranges (Hz); default: the whole grid minus "
+                    "the power-line and instrument lines; 'bands': only the bands above 5 noise levels")
+    ap.add_argument("--exclude", default="", help="lo,hi;... left out of the default ranges (e.g. 81.5,86)")
     args = ap.parse_args()
     cfg = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
     cal = cfg["phase_calibration"]
@@ -84,8 +103,13 @@ def main():
     phi0 = np.radians(cal["phase0_deg"])
     r = ds.spectrum * correction_phasor(f, phi0, -(edge + acq.time_origin_s) + reference_delay_s(acq))
     lines = [60.06 * k for k in range(1, 7)] + [float(v) for v in cfg.get("instrument_lines_hz", []) if v % 60]
-    ranges = ([[float(v) for v in q.split(",")] for q in args.ranges.split(";")] if args.ranges
-              else auto_ranges(f, r, lines, lo=grid[0], hi=grid[1]))
+    if args.ranges == "bands":
+        ranges = auto_ranges(f, r, lines, lo=grid[0], hi=grid[1])
+    elif args.ranges:
+        ranges = [[float(v) for v in q.split(",")] for q in args.ranges.split(";")]
+    else:
+        exclude = [[float(v) for v in q.split(",")] for q in args.exclude.split(";")] if args.exclude else []
+        ranges = whole_ranges(grid[0], grid[1], lines, exclude)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     np.save(out / "frequency.npy", f)

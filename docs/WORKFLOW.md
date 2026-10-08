@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges).
 
 ## Map
 
@@ -114,6 +114,7 @@ flowchart TD
 
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME \
         [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--grid 20,380] [--sampling-rate HZ]
+        [--exclude lo,hi]
 
 Processing (time domain; details and settings in section 1 below):
 - Diagnostics first: the switching edge (half height), the ringing end (near 50 ms on the NMRduino), the signal
@@ -155,8 +156,10 @@ Key algorithms:
   weighted circular mean of the doubled angles.
 - AsLS baseline (Eilers and Boelens 2005, display only): minimise sum w (y - z)^2 + lam sum (second difference
   of z)^2 with asymmetric weights, lam = (smooth_hz / step)^4 so the setting is grid-independent.
-- Fit ranges: bands where the smoothed |spectrum| exceeds 5 noise levels (noise from 330-380 Hz), widened by 3 Hz,
-  mains harmonics (n x 60.06 Hz) and instrument lines +-0.4 Hz removed.
+- Fit ranges: the whole grid (default 20-380 Hz, `--grid`) minus +-0.4 Hz around the mains harmonics
+  (n x 60.06 Hz) and instrument lines and minus `--exclude` intervals; a model line where the data are empty is
+  then rejected by the fit. `--ranges bands` keeps only the bands above 5 noise levels (noise from 330-380 Hz),
+  widened by 3 Hz.
 
 Checks: look at `phased.png` before fitting; `zulf-model diagnose AVERAGE.npy 0.ini` and
 `scripts/validate_processing.py` compare processing and phase choices.
