@@ -181,6 +181,32 @@ flowchart LR
 - Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).
 - Output couplings carry K next to J (D51).
 
+Loss function (what least_squares minimises; JointSeries.residual, MixtureForward.predict; section 5 below):
+
+    L(theta) = sum_s [ ||r_s||^2  +  sum_p rho_sp^2  +  (a ||r_s restricted to residual-peak windows||)^2 ]
+               + sum_k ( (mean J_k - mu_k) sqrt(w_prior) / (sigma_k norm) )^2
+
+    r_s     = W_s (M_s(theta, c_hat) - Y_s) / norm_s, real and imaginary parts stacked (real only for
+              processed spectra from elsewhere), one block per spectrum s of the series
+    W_s     = w_i / sigma_noise: sigma_noise robust (1.4826 MAD); w_i = 1 at data peak cores (narrow features above
+              --signal-threshold, default 4 sigma), Gaussian fall-off (--signal-taper, default 2 Hz), floor 0.2 far
+              from lines; optional x (peak height / max)^-p (--signal-height-power, small peaks count more)
+    norm_s  = ||W_s Y_s||, so a perfect fit has L = 0 and the empty model L = 1 per spectrum
+    c_hat   = argmin over the linear parameters (complex gains or shared phase with real amplitudes, per-band
+              background polynomial, linear by default, nuisance terms) of ||r_s||, solved exactly at every evaluation (variable
+              projection); theta = couplings, decay rates, delay, field, gamma
+    rho_sp  = lambda min( max_{|f - f_p| <= 0.15 Hz} r_s(f), 0 )   missing-peak row of data peak top p
+              (--peak-penalty lambda; zero while the model reaches the data top; --dip-penalty for negative tops);
+              while optimising the max and min are smooth: m = t log sum exp(r / t), rho = -lambda t softplus(-m / t),
+              t = --peak-smooth x the peak height; ranking uses the hard rows
+    a       = residual-peak strength (--residual-peaks), mu_k, sigma_k = coupling priors (--prior-sigma-hh/-ch,
+              --prior-weight); both off by default
+
+- Reported "objective" = L at the solution (hard rows). Optional coarse-to-fine smoothing replaces r_s by S r_s
+  (the same Gaussian kernel on data and model).
+- The blind search (W5) scores hypotheses on one common yardstick instead: chi2 on the data cores and
+  BIC = chi2 + k ln N.
+
 Key algorithms (sections 3-9 below give the detail):
 - Spin physics: zero-field Hamiltonian H = 2 pi sum J_ab I_a . I_b, block diagonal in collective-spin and total-M
   sectors; eigen-decomposition gives the transitions; sudden-drop protocol: gamma-weighted preparation and
