@@ -1,10 +1,188 @@
-# Fitting workflow and algorithms (known structure, processed or raw ZULF spectra)
+# Workflows
+
+How ZULF data and models are used, from instrument scans to couplings and structures. The map below shows every
+workflow; each section after it gives the steps, the command and the documents behind it. The fit of a known
+structure (W3) is described in full detail in the second part of this file, sections 1-10.
+
+**Keep this file current** (AGENTS.md): a change that adds, removes or reorders a step a person or agent runs
+(a script, a route, an option default, an output file) updates the matching diagram and command here in the same
+commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node labels name the script or module.
+
+Last reviewed: 2026-10-08 (D56).
+
+## Map
+
+```mermaid
+flowchart TD
+    scans["Instrument scans<br/>data/original (read-only)"]
+    avg["W1 average and screen scans<br/>average_scans.py"]
+    fid["Averaged FID<br/>data/raw or data/processed"]
+    proc["W2 process and phase<br/>make_series_entry.py, zulf_processing"]
+    spec["Complex spectrum + series.json<br/>runs/series/NAME"]
+    known{"Structure known?"}
+    fit["W3 known-structure fit<br/>fit_joint_series.py"]
+    blind["W4 blind analysis<br/>analyze_sample.py"]
+    jnet["Fitted couplings J, K<br/>fit.json, J_table.csv"]
+    j2s["W5 J network to structure<br/>j_structure.py: A, B-J, B-K"]
+    report["Figures, analysis log, report<br/>paper_figure.py, docs/analysis"]
+    studio["W6 ZULF Studio<br/>run_studio.py (interactive, AI API)"]
+    nn["W7 learned candidate model<br/>zulf-model train / propose<br/>(built, not yet trained)"]
+
+    scans --> avg --> fid --> proc --> spec --> known
+    known -- yes --> fit --> jnet
+    known -- no --> blind --> jnet
+    jnet --> j2s
+    j2s -. candidate structures .-> fit
+    jnet --> report
+    spec --> studio
+    studio -. runs .-> fit
+    nn -. candidate hints .-> blind
+```
+
+Solid arrows: the path in use. Dashed arrows: optional or planned links.
+
+| Workflow | Input | Output | Main command | Details |
+|---|---|---|---|---|
+| W1 scans to FID | instrument run folder | average FID, half averages, scan metrics | `scripts/average_scans.py` | below; skills/zulf-fid-processing |
+| W2 FID to spectrum | average FID | complex spectrum, series.json, fit ranges | `scripts/make_series_entry.py` | sections 1-2; skills/zulf-phasing |
+| W3 known-structure fit | spectrum + structure | couplings with uncertainties, fit.json | `scripts/fit_joint_series.py` | sections 3-10 |
+| W4 blind analysis | FID, no structure | ranked hypotheses and labellings | `scripts/analyze_sample.py` | skills/zulf-blind-analysis |
+| W5 J network to structure | fitted couplings | ranked heavy-atom graphs (A, B-J, B-K) | `scripts/j_structure.py` | docs/J_TO_STRUCTURE.md |
+| W6 interactive | spectrum, optional fit | sliders, fits, figures, AI-driven session | `scripts/run_studio.py` | docs/STUDIO.md |
+| W7 learned candidates | generator configs | trained spectrum -> candidate model | `zulf-model train` | docs/PLAN.md Phases 1, 2, 4 |
+
+## W1. Instrument scans to an averaged FID
+
+```mermaid
+flowchart LR
+    run["data/original/MEAS<br/>n.dat, n.ini"] --> avg["average_scans.py<br/>decode, screen (robust z)"]
+    avg --> out["average_fid.npy<br/>average_even / odd.npy<br/>scans.json, scans.png"]
+```
+
+    python scripts/average_scans.py ~/research/zulf/data/original/MEAS ~/research/zulf/data/processed/MEAS \
+        [--exclude-z 3]
+
+- The run folder is read-only; averages made by our code go to `data/processed/MEAS/`. Received averages (other
+  tools, other groups) are in `data/raw/MEAS/`.
+- The even / odd half averages are disjoint scans for held-out checks of a fit.
+
+## W2. Averaged FID to a processed spectrum
+
+```mermaid
+flowchart LR
+    fid["average_fid.npy"] --> diag["diagnostics<br/>crop after ringing, window, zero fill"]
+    diag --> phase["phase<br/>switching edge + calibration"]
+    phase --> ranges["fit ranges<br/>signal bands, mains harmonics out"]
+    ranges --> entry["runs/series/NAME<br/>series.json, phased.png"]
+```
+
+    python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME
+
+- Check `phased.png` before fitting. Details and pitfalls: sections 1 and 2 below.
+- `zulf-model diagnose AVERAGE.npy 0.ini` and `scripts/validate_processing.py` check processing choices.
+
+## W3. Fit of a known structure
+
+```mermaid
+flowchart LR
+    s["series.json<br/>+ structure motif"] --> m["spin-system model<br/>isotopologues, exchange"]
+    m --> f["fit_joint_series.py<br/>multi-start, rate families,<br/>field, gamma, precision"]
+    f --> d["band_diagnosis.py<br/>line_table.py, j_tuner.py"]
+    d -- misfit --> f
+    f --> u["reliability:<br/>half averages, held-out"]
+    u --> r["fit.json, J_table.csv (J and K)<br/>paper_figure.py, analysis log"]
+```
+
+    python scripts/fit_joint_series.py --series runs/series/NAME/series.json --structure '{"motif": ...}' \
+        [--fit-field] [--field t,z --fit-gamma 13C] [--precision 0.01] --out runs/processed/NAME
+
+- Steps, algorithms, settings and pitfalls: sections 3-10 below; a full command at the end of this file.
+- Field: zero field by default; `--fit-field` fits the transverse and z components (D47); with a known field
+  `--fit-gamma` names a heteronucleus (D53).
+- Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).
+- Output couplings carry K next to J (D51).
+
+## W4. Blind analysis of a new sample
+
+```mermaid
+flowchart LR
+    fid["FID"] --> p["standard processing<br/>overview figure"]
+    p --> h["hypotheses<br/>fragments, motifs;<br/>labelling with a motif"]
+    h --> s["search: fit every hypothesis<br/>BIC, held-out rescoring"]
+    s --> r["blind.md / labelings.json<br/>ranked table"]
+    r -. best structure .-> w3["W3 refined fit"]
+```
+
+    python scripts/analyze_sample.py FID.npy --id SAMPLE [--workers 4]                      # blind search
+    python scripts/analyze_sample.py FID.npy --id SAMPLE --structure '{"motif": "ethyl", ...}' \
+        [--labeling unknown]                                                                 # candidate motif
+
+- Labelling (D54, with `--structure`): `natural` (default), `15N`, `2H-exchange`, or `unknown` (every applicable
+  labelling, ranked on one scale).
+- Results are conditional candidates: report the ranking, margins and flags, not one assignment.
+
+## W5. Fitted J network to structure candidates
+
+```mermaid
+flowchart LR
+    j["observation JSON<br/>units, protons, couplings,<br/>isotopes"] --> a["route A<br/>rule ranges"]
+    j --> bj["route B-J<br/>MLP on J"]
+    j --> bk["route B-K<br/>MLP on K"]
+    a --> c["three rankings<br/>agree / differ"]
+    bj --> c
+    bk --> c
+```
+
+    python scripts/j_structure_benchmark.py            # once: trains runs/models/j_edges_J.json and _K.json
+    python scripts/j_structure.py OBS.json --explain 1 [--out ranking.json]
+
+- All three routes run every time (D56). With 2H or 15N in the sample, B-K is the isotope-independent one.
+- A network from a fit of the true structure is biased toward it; see docs/J_TO_STRUCTURE.md.
+
+## W6. Interactive work in ZULF Studio
+
+```mermaid
+flowchart LR
+    u["person"] --> app["Studio window<br/>sliders, fit tab, figures"]
+    ai["AI agent / assistant"] --> api["JSON API 127.0.0.1:8766"]
+    app --> sess["StudioSession"]
+    api --> sess
+    sess --> fit["fit_joint_series.py jobs"]
+    sess --> fig["paper_figure.py figures"]
+```
+
+    python scripts/run_studio.py --series runs/series/NAME/series.json [--fit runs/processed/NAME]
+
+- Real-time simulation (structure, couplings, field, line width), auto phase, fits with a progress slider,
+  figure export, log and terminal; AI keys in the macOS Keychain or environment only (docs/STUDIO.md).
+
+## W7. Learned candidate model (built, not yet trained)
+
+```mermaid
+flowchart LR
+    g["generator<br/>graphs, J rules, isotopologues"] --> r["render pipeline<br/>noise, processing"]
+    r --> sh["prerendered shards"]
+    sh --> t["train<br/>CNN set / CNN+Transformer"]
+    t --> pr["propose candidates"]
+    pr --> ref["refine with zulf_core<br/>held-out ranking"]
+```
+
+    zulf-model prerender configs/run_cnn_set_phased_v1.json runs/shards/phased --count 200000 --workers 8
+    zulf-model train configs/run_cnn_set_v1.json
+    python scripts/smoke_pipeline.py                  # generate -> train -> propose -> refine, small
+
+- Status: code and CPU verification runs only; the full training and the frozen test sets are open
+  (docs/PLAN.md). Not part of any result yet.
+
+---
+
+## W3 in detail: fitting a known structure (processed or raw ZULF spectra)
 
 This is the working record of how a ZULF spectrum (or a concentration series) is turned into fitted couplings
 with honest uncertainties, as practised on the Blake pyridine series and on isopropylamine (October 2026). It
 names every step, the algorithm behind it, the code that does it, the settings that worked, and the pitfalls that
 were found. Each analysis keeps its own log under docs/analysis/; this file is the method. Update it when a step
-changes (AGENTS.md: keep the record current).
+changes (AGENTS.md: keep the workflow current).
 
 Overview:
 
@@ -20,7 +198,7 @@ Overview:
       9. reliability and uncertainty budget
      10. report (figures with display-only baseline, trace viewer, analysis log, commit)
 
-## 1. Diagnostics and processing (per data set)
+### 1. Diagnostics and processing (per data set)
 
 Code: zulf_processing (process_dataset, plan_for_dataset, diagnostics.switching_edge, diagnose_raw);
 skill skills/zulf-fid-processing (checklist "Tune the parameters for every new FID set").
@@ -39,7 +217,7 @@ skill skills/zulf-fid-processing (checklist "Tune the parameters for every new F
   -0.21 of the height at 0.1 s). Fit with the model rendered through the same processing instead of flattening
   them (AsLS on the data biased 1J(C4,H4) of pyridine by -3.5 Hz).
 
-## 2. Phase
+### 2. Phase
 
 Code: zulf_processing.phase (calibrated_phase), zulf_core.render.phasing; skill skills/zulf-phasing.
 
@@ -50,7 +228,7 @@ Code: zulf_processing.phase (calibrated_phase), zulf_core.render.phasing; skill 
   shared) is fitted; with the data phased at the edge the fitted delay should stay near the edge (pyridine:
   -1.9 to -4.5 ms against -3.2 ms; a free per-spectrum delay that jumps signals another problem).
 
-## 3. Structure to spin-system model
+### 3. Structure to spin-system model
 
 Code: zulf_hypothesis (motifs, fragments, builder.build_model, fit.exchange_variants); scripts/regression_confirmed
 (structure_for); scripts/fit_processed_spectrum.override_couplings.
@@ -65,7 +243,7 @@ Code: zulf_hypothesis (motifs, fragments, builder.build_model, fit.exchange_vari
   and free those that move lines by more than a line width (isopropylamine: methyl-methyl 4J(H,H), fitted
   +0.19 Hz).
 
-## 4. Forward model
+### 4. Forward model
 
 Code: zulf_core.physics (Hamiltonian, sectors, transitions), zulf_core.render (Renderer, acquisition operator,
 NUFFT), zulf_core.solver.forward.MixtureForward.
@@ -85,7 +263,7 @@ NUFFT), zulf_core.solver.forward.MixtureForward.
 - Speed switches (for local work): `MixtureForward.line_band_hz` renders and differentiates only transitions in a
   band; `MixtureForward.jacobian_only` computes only chosen Jacobian columns.
 
-## 5. Objective
+### 5. Objective
 
 Code: zulf_core.solver.forward (weighting), scripts/fit_joint_series.JointSeries (residual, rows).
 
@@ -102,7 +280,7 @@ Code: zulf_core.solver.forward (weighting), scripts/fit_joint_series.JointSeries
 - Residual-peak rows (`--residual-peaks S`, section 8): a spread-out residual hardly affects the couplings, a
   localized one marks a structural mismatch; such windows are weighted in an outer loop.
 
-## 6. Parameterization
+### 6. Parameterization
 
 Code: scripts/fit_joint_series.JointSeries, zulf_core.solver.parameterization.
 
@@ -129,7 +307,7 @@ Code: scripts/fit_joint_series.JointSeries, zulf_core.solver.parameterization.
   (`--fit-gamma 13C --gamma-start ...`); fit.json `gamma_identification` names the nearest registered nucleus.
   Start from several candidate gammas (13C 10.71, 15N -4.32, 31P 17.24 Hz/uT); compare objectives.
 
-## 7. Search
+### 7. Search
 
 Code: scripts/fit_joint_series (main, _solve_start, _coordinate_scan).
 
@@ -142,7 +320,7 @@ Code: scripts/fit_joint_series (main, _solve_start, _coordinate_scan).
 - Optional coarse-to-fine smoothing schedule and coordinate grid scans for barriers along single couplings.
 - Ranking always on the hard objective (hard missing-peak rows; residual-peak rows on one common window set).
 
-## 8. Fine structure: from a misfit to the couplings that cause it
+### 8. Fine structure: from a misfit to the couplings that cause it
 
 Code: zulf_core.physics.lines (line_table), scripts/line_table.py, JointSeries.find_residual_peaks,
 JointSeries.peak_sources, JointSeries.local_fit, the residual-peak stage in fit_joint_series.
@@ -255,7 +433,7 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
     - for N-H exchange, check the predicted natural-abundance 15N-H lines against the data before accepting a
       slow-exchange gain.
 
-## 9. Reliability and uncertainty budget
+### 9. Reliability and uncertainty budget
 
 Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine analysis
 (docs/analysis/2026-10-02_blake-pyridine_fid-joint-fit.md).
@@ -271,7 +449,7 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
   refitted from the reference (check that the recovered solution scores at or below the truth). The recovery
   part dominates; it does not cover a model error.
 
-## 10. Report
+### 10. Report
 
 - Figures of complex fits: real part (and imaginary), with the same data-derived AsLS baseline subtracted from
   data and model for display only (the residual is unchanged).
@@ -289,7 +467,7 @@ Code: scripts/reliability_series.py; scratchpad budget scripts of the pyridine a
   open points, commit), an index row in docs/analysis/README.md, a line in docs/ANALYSIS_LOG.md, PLAN updated,
   reusable lessons in the matching skill.
 
-## Typical command (one spectrum, complex, rate families, fine structure)
+### Typical command (one spectrum, complex, rate families, fine structure)
 
     python scripts/fit_joint_series.py --series series.json --real-only false --shape free --exchange fast \
       --range 85,265 --structure '{"motif": "(CH3)2CH-NH2", "one_bond": {"C1": 133, "C2": 125, "N1": -65}}' \

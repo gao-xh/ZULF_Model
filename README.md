@@ -92,5 +92,5 @@ have no copy of the data (docs/HANDOFF.md, "Data").
 ## Status
 
 Start with `docs/HANDOFF.md` (state as of 2026-10-05: data, current results, how to fit a known structure, open
-work), then `docs/PLAN.md` and `docs/WORKFLOW.md`. Results from the solver are conditional numerical
+work), then `docs/WORKFLOW.md` (map of every workflow) and `docs/PLAN.md`. Results from the solver are conditional numerical
 candidates, reported with their flags, residuals and held-out scores.

@@ -78,6 +78,7 @@ line first, so the other lines see it after their next `git fetch` and pick a di
      branch, i.e. after step 1; if it is rejected, `main` moved in between: repeat step 1.
    - with review: open a pull request from the branch into `main` and merge it on GitHub.
 3. Update `docs/PLAN.md` (item done, measured result, commit) in the same merge.
+4. If a step a person or agent runs changed, `docs/WORKFLOW.md` (map, workflow section, command) is updated.
 
 Never force-push `main` and never rewrite history on a branch someone else uses (no rebase, amend or
 `push --force` there).

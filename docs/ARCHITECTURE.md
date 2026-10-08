@@ -55,7 +55,7 @@ docs (`physics.transitions`, `render.phasing`, `solver.search`) refer to
 
 ## Package map
 
-The fitting workflow and its algorithms, step by step: docs/WORKFLOW.md.
+The workflows (map W1-W7) and the fitting algorithms, step by step: docs/WORKFLOW.md.
 
 
 | Module | Responsibility | Depends on |

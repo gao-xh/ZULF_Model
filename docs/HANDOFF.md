@@ -4,7 +4,7 @@ State of the project, the work in flight and how to continue. Read in this order
 1. `AGENTS.md` (rules);
 2. `docs/ARCHITECTURE.md` (interfaces);
 3. `docs/PLAN.md` (ledger);
-4. `docs/WORKFLOW.md` (how a known-structure fit is done, step by step).
+4. `docs/WORKFLOW.md` (map of every workflow W1-W7, then how a known-structure fit is done, step by step).
 
 `docs/ANALYSIS_LOG.md` is the running lab notebook, with one log per analysis in `docs/analysis/` (index:
 `docs/analysis/README.md`). `docs/DECISIONS.md` (D1-D46) gives the reasons. The previous handoff (2026-09-28)
