@@ -2,7 +2,7 @@
 
 How ZULF data and models are used, from instrument scans to couplings and structures. The map below shows every
 workflow; each section after it gives the steps, the command and the documents behind it. The fit of a known
-structure (W3) is described in full detail in the second part of this file, sections 1-10.
+structure (W3, or W4 in Studio) is described in full detail in the second part of this file, sections 1-10.
 
 **Keep this file current** (AGENTS.md): a change that adds, removes or reorders a step a person or agent runs
 (a script, a route, an option default, an output file) updates the matching diagram and command here in the same
@@ -20,35 +20,43 @@ flowchart TD
     proc["W2 process and phase<br/>make_series_entry.py, zulf_processing"]
     spec["Complex spectrum + series.json<br/>runs/series/NAME"]
     known{"Structure known?"}
-    fit["W3 known-structure fit<br/>fit_joint_series.py"]
-    blind["W4 blind analysis<br/>analyze_sample.py"]
+    blind["W5 blind analysis<br/>analyze_sample.py"]
     jnet["Fitted couplings J, K<br/>fit.json, J_table.csv"]
-    j2s["W5 J network to structure<br/>j_structure.py: A, B-J, B-K"]
+    j2s["W6 J network to structure<br/>j_structure.py: A, B-J, B-K"]
     report["Figures, analysis log, report<br/>paper_figure.py, docs/analysis"]
-    studio["W6 ZULF Studio<br/>run_studio.py (interactive, AI API)"]
     nn["W7 learned candidate model<br/>zulf-model train / propose<br/>(built, not yet trained)"]
 
+    subgraph known_fit["Known-structure fit: one engine, two ways to drive it"]
+        fit["W3 command line<br/>fit_joint_series.py"]
+        studio["W4 ZULF Studio<br/>run_studio.py: sliders, live simulation,<br/>fit jobs, figures, AI API"]
+        studio -- starts fit jobs --> fit
+        fit -. loads results, trace .-> studio
+    end
+
     scans --> avg --> fid --> proc --> spec --> known
-    known -- yes --> fit --> jnet
-    known -- no --> blind --> jnet
+    known -- yes --> known_fit
+    known -- no --> blind
+    blind -. best structure .-> known_fit
+    fit --> jnet
+    blind --> jnet
     jnet --> j2s
-    j2s -. candidate structures .-> fit
+    j2s -. candidate structures .-> known_fit
     jnet --> report
-    spec --> studio
-    studio -. runs .-> fit
+    studio --> report
     nn -. candidate hints .-> blind
 ```
 
-Solid arrows: the path in use. Dashed arrows: optional or planned links.
+Solid arrows: the path in use. Dashed arrows: optional or planned links. W3 and W4 are the same fit (Studio runs
+fit_joint_series.py and reads its fit.json back); Studio adds manual tuning, live simulation and figures.
 
 | Workflow | Input | Output | Main command | Details |
 |---|---|---|---|---|
 | W1 scans to FID | instrument run folder | average FID, half averages, scan metrics | `scripts/average_scans.py` | below; skills/zulf-fid-processing |
 | W2 FID to spectrum | average FID | complex spectrum, series.json, fit ranges | `scripts/make_series_entry.py` | sections 1-2; skills/zulf-phasing |
 | W3 known-structure fit | spectrum + structure | couplings with uncertainties, fit.json | `scripts/fit_joint_series.py` | sections 3-10 |
-| W4 blind analysis | FID, no structure | ranked hypotheses and labellings | `scripts/analyze_sample.py` | skills/zulf-blind-analysis |
-| W5 J network to structure | fitted couplings | ranked heavy-atom graphs (A, B-J, B-K) | `scripts/j_structure.py` | docs/J_TO_STRUCTURE.md |
-| W6 interactive | spectrum, optional fit | sliders, fits, figures, AI-driven session | `scripts/run_studio.py` | docs/STUDIO.md |
+| W4 the same, interactive | spectrum, optional fit | tuned or fitted parameters, fits, figures | `scripts/run_studio.py` | docs/STUDIO.md |
+| W5 blind analysis | FID, no structure | ranked hypotheses and labellings | `scripts/analyze_sample.py` | skills/zulf-blind-analysis |
+| W6 J network to structure | fitted couplings | ranked heavy-atom graphs (A, B-J, B-K) | `scripts/j_structure.py` | docs/J_TO_STRUCTURE.md |
 | W7 learned candidates | generator configs | trained spectrum -> candidate model | `zulf-model train` | docs/PLAN.md Phases 1, 2, 4 |
 
 ## W1. Instrument scans to an averaged FID
@@ -102,7 +110,27 @@ flowchart LR
 - Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).
 - Output couplings carry K next to J (D51).
 
-## W4. Blind analysis of a new sample
+## W4. The same fit, interactive: ZULF Studio
+
+```mermaid
+flowchart LR
+    u["person"] --> app["Studio window<br/>sliders, fit tab, figures"]
+    ai["AI agent / assistant"] --> api["JSON API 127.0.0.1:8766"]
+    app --> sess["StudioSession"]
+    api --> sess
+    sess --> fit["fit_joint_series.py jobs"]
+    sess --> fig["paper_figure.py figures"]
+```
+
+    python scripts/run_studio.py --series runs/series/NAME/series.json [--fit runs/processed/NAME]
+
+- Studio is a front end of W3, not a later step: its fit jobs are fit_joint_series.py runs (same options, same
+  fit.json), and a command-line fit can be loaded into it (`--fit`, trace slider). Use it to look, tune by hand,
+  start and watch fits, phase and make figures; record results as for W3.
+- Real-time simulation (structure, couplings, field, line width), auto phase, fits with a progress slider,
+  figure export, log and terminal; AI keys in the macOS Keychain or environment only (docs/STUDIO.md).
+
+## W5. Blind analysis of a new sample
 
 ```mermaid
 flowchart LR
@@ -110,7 +138,7 @@ flowchart LR
     p --> h["hypotheses<br/>fragments, motifs;<br/>labelling with a motif"]
     h --> s["search: fit every hypothesis<br/>BIC, held-out rescoring"]
     s --> r["blind.md / labelings.json<br/>ranked table"]
-    r -. best structure .-> w3["W3 refined fit"]
+    r -. best structure .-> w3["W3 / W4 refined fit"]
 ```
 
     python scripts/analyze_sample.py FID.npy --id SAMPLE [--workers 4]                      # blind search
@@ -121,7 +149,7 @@ flowchart LR
   labelling, ranked on one scale).
 - Results are conditional candidates: report the ranking, margins and flags, not one assignment.
 
-## W5. Fitted J network to structure candidates
+## W6. Fitted J network to structure candidates
 
 ```mermaid
 flowchart LR
@@ -138,23 +166,6 @@ flowchart LR
 
 - All three routes run every time (D56). With 2H or 15N in the sample, B-K is the isotope-independent one.
 - A network from a fit of the true structure is biased toward it; see docs/J_TO_STRUCTURE.md.
-
-## W6. Interactive work in ZULF Studio
-
-```mermaid
-flowchart LR
-    u["person"] --> app["Studio window<br/>sliders, fit tab, figures"]
-    ai["AI agent / assistant"] --> api["JSON API 127.0.0.1:8766"]
-    app --> sess["StudioSession"]
-    api --> sess
-    sess --> fit["fit_joint_series.py jobs"]
-    sess --> fig["paper_figure.py figures"]
-```
-
-    python scripts/run_studio.py --series runs/series/NAME/series.json [--fit runs/processed/NAME]
-
-- Real-time simulation (structure, couplings, field, line width), auto phase, fits with a progress slider,
-  figure export, log and terminal; AI keys in the macOS Keychain or environment only (docs/STUDIO.md).
 
 ## W7. Learned candidate model (built, not yet trained)
 
