@@ -57,6 +57,24 @@ on 1J(C2,H2), 0.5 Hz on 2J(C2,H1).
 Figures: runs/series/ethanol/phased.png, runs/processed/ethanol_*/spectra.png,
 ~/research/zulf/data/processed/2026-09-13-ethanol-70pct-rubbing-alcohol-ulf/all-scans/scans.png.
 
+### Field compared with the acetonitrile run (Xuehan: the field should be the same)
+
+Same settings as ethanol_field, 16 starts:
+
+| Run | Field (uT) | Objective | Residual | 3J(H,H) |
+|---|---|---|---|---|
+| ethanol_acnfield: field held at the acetonitrile value | B_t 0.0371, Bz 0.0453 (fixed) | 0.283 | 0.530 | 9.85 |
+| ethanol_field_acnstart: fitted, started there | B_t 0.0192, Bz 0.0289 | 0.170 | 0.416 | 9.45 |
+| ethanol_field_hh7: fitted, 3J(H,H) prior 7 +- 0.5 Hz | B_t 0.0192, Bz 0.0289 | 0.170 | 0.416 | 9.45 |
+| ethanol_field_oh: OH kept (slow exchange) | B_t 0.000, Bz 0.051 | 0.297 | 0.510 | 7.49 |
+
+The acetonitrile field (|B| 59 nT) fits clearly worse than the fitted 35 nT (objective 0.283 against 0.170);
+started at the acetonitrile value the fit returns to the same 35 nT, and both halves give it within 1 nT. The two
+runs differ in date (2026-09-13 against 09-28), sequence (8333 Hz against 2000 Hz) and run name (ULF against
+LF). Caveat: the ethanol fit is not noise-limited (residual 0.42 against a noise-only estimate of about 0.15;
+acetonitrile 0.21 against 0.20), so a model error may bias the field. The OH in slow exchange fits worse; fast
+exchange stays.
+
 ## Conclusion
 
 Conditional numerical result for one ethyl model with a uniform static field:
