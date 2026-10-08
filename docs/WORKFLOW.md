@@ -181,52 +181,108 @@ flowchart LR
 - Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).
 - Output couplings carry K next to J (D51).
 
+Model: spin Hamiltonian, signal and rendered spectrum (docs/CONVENTIONS.md; zulf_core.physics, section 4 below):
+
+```math
+H = \sum_{i<j} J_{ij}\, \mathbf{I}_i \cdot \mathbf{I}_j \;-\; \sum_{n} \gamma_n\, \mathbf{B} \cdot \mathbf{I}_n
+\qquad (\text{in Hz}; \ \mathbf{B} = 0 \text{ by default})
+```
+
+```math
+\rho(0) \propto \sum_i \gamma_i I_{z,i}, \qquad D = \sum_i \gamma_i I_{z,i}, \qquad
+\rho(t) = e^{-2\pi i H t}\, \rho(0)\, e^{2\pi i H t}, \qquad s(t) = \operatorname{Tr}\!\big[\rho(t)\, D\big]
+```
+
+```math
+s(t) = \sum_k \operatorname{Re}\!\big( A_k\, e^{2\pi i f_k t} \big), \qquad f_k = E_m - E_n > 0, \qquad
+A_k \propto \langle n | \rho(0) | m \rangle \langle m | D | n \rangle
+```
+
+```math
+M_s(\theta, c) = \mathcal{P}\Big[ \sum_{q} c_q \sum_{k \in q} A_k\, e^{2\pi i f_k (t + \delta) - R_k t} \Big]
+  + \sum_{b} \mathbb{1}_b(f)\, \phi(f) \sum_{j=0}^{n_{\mathrm{bg}}} c_{bj}\, P_j\big(u_b(f)\big)
+```
+
+- $H$: spin Hamiltonian in frequency units (Hz), evolution $e^{-2\pi i H t}$; block diagonal in collective-spin and
+  total-$M$ sectors, so it is diagonalised sector by sector. $J_{ij}$: scalar coupling between spins $i$ and $j$
+  (Hz). $\mathbf{I}_i$: spin operator of spin (or collective spin) $i$. $\gamma_n$: gyromagnetic ratio
+  $\gamma/2\pi$ of nucleus $n$ (Hz/uT; registry value, or fitted, D53). $\mathbf{B}$: static field (uT); only its
+  transverse magnitude and $|B_z|$ are observable (D47).
+- $\rho(0)$, $D$: sudden-drop protocol, preparation and detection both weighted by $\gamma$ along $z$.
+  $s(t)$: detected signal. $E_m$, $E_n$: eigenvalues of $H$ (Hz); $f_k$: line frequency; $A_k$: complex line
+  amplitude (per molecule: traces divided by the Hilbert-space dimension).
+- $M_s$: model spectrum of spectrum $s$. $q$: component (isotopologue, molecule) with complex gain $c_q$;
+  $\delta$: delay of the signal start; $R_k$: decay rate of line $k$ (its rate family, plus an exchange rate
+  where modelled). $\mathcal{P}$: the processing operator of W2 (drift removal, crop, mean removal, window, zero
+  fill, Fourier sum on the fit grid, phase reference), the same for data and model. $b$: fit band;
+  $\mathbb{1}_b$: 1 inside band $b$; $c_{bj}$: complex background coefficients of order $j \le n_{\mathrm{bg}}$
+  (1 by default in the known-structure fits); $P_j$: Legendre polynomial; $u_b(f) \in [-1, 1]$: frequency scaled
+  across band $b$; $\phi(f)$: the phase correction of the data, so the background is smooth in the record's own
+  frame (where baseline leftovers are smooth).
+- Reduced coupling reported next to $J$ (D51): $K_{AB} = J_{AB} / (h\, g_A g_B)$, $g = \gamma/2\pi$ in Hz/T.
+
 Loss function (what least_squares minimises; JointSeries.residual, MixtureForward.predict; section 5 below):
 
 ```math
 L(\theta) = \sum_{s} \Big[ \lVert r_s \rVert^2 + \sum_{p} \rho_{sp}^2 + a^2 \lVert r_s \rVert_{\mathcal{R}_s}^2 \Big]
-  + \sum_{k} \Big( \frac{\bar{J}_k - \mu_k}{\sigma_k} \cdot \frac{\sqrt{w_{\mathrm{prior}}}}{\mathrm{norm}} \Big)^2
+  + \sum_{k} \Big( \frac{\bar{J}_k - \mu_k}{\sigma_k} \cdot \frac{\sqrt{w_{\mathrm{prior}}}}{\bar{n}} \Big)^2
 ```
 
 ```math
-r_s = \frac{W_s \big( M_s(\theta, \hat{c}_s) - Y_s \big)}{\lVert W_s Y_s \rVert}, \qquad
-\hat{c}_s = \arg\min_{c} \big\lVert W_s \big( M_s(\theta, c) - Y_s \big) \big\rVert, \qquad
-W_{s,ii} = \frac{w_i}{\sigma_{\mathrm{noise}}}
+r_s = \frac{W_s \big( M_s(\theta, \hat{c}_s) - Y_s \big)}{n_s}, \qquad n_s = \lVert W_s Y_s \rVert, \qquad
+\hat{c}_s = \arg\min_{c} \big\lVert W_s \big( M_s(\theta, c) - Y_s \big) \big\rVert
 ```
 
 ```math
-w_i = 0.2 + 0.8 \exp\!\Big( -\frac{d_i^2}{2 \tau^2} \Big), \qquad
-\rho_{sp} = \lambda \min\Big( \max_{|f - f_p| \le 0.15\,\mathrm{Hz}} r_s(f),\; 0 \Big)
+W_{s,ii} = \frac{w_i}{\sigma_{\mathrm{noise}}}, \qquad
+w_i = \Big[ 0.2 + 0.8 \exp\!\Big( -\frac{d_i^2}{2 \tau^2} \Big) \Big] \Big( \frac{h_i}{h_{\max}} \Big)^{-q}
 ```
 
 ```math
-\text{smooth version while optimising:}\quad
-m = t \log \sum_{|f - f_p| \le 0.15\,\mathrm{Hz}} e^{r_s(f)/t}, \qquad
-\rho_{sp} = -\lambda\, t\, \operatorname{softplus}(-m/t), \qquad t = \kappa\, h_p
+\rho_{sp} = \lambda \min\Big( \max_{|f - f_p| \le \epsilon} r_s(f),\; 0 \Big)
+\quad \text{(hard, for ranking)}
 ```
 
-- $s$: spectrum of the series; $r_s$ stacks real and imaginary parts (real only for processed spectra from
-  elsewhere). Normalised so a perfect fit gives $L = 0$ and the empty model $L = 1$ per spectrum.
-- $\theta$: the nonlinear parameters (couplings, decay rates, delay, field, gamma). $\hat{c}_s$: the linear ones
-  (complex gains or a shared phase with real amplitudes, per-band background polynomial, linear by default,
-  nuisance terms), solved exactly at every evaluation (variable projection).
-- $\sigma_{\mathrm{noise}}$: robust noise (1.4826 MAD). $d_i$: distance to the nearest data peak core (narrow
-  features above `--signal-threshold`, default 4 sigma); $\tau$ = `--signal-taper` (default 2 Hz); optional factor
-  (peak height / max)$^{-q}$ with `--signal-height-power` q.
-- $\rho_{sp}$: missing-peak row of data peak top $f_p$ with height $h_p$; zero while the model reaches the data
-  top. $\lambda$ = `--peak-penalty`, $\kappa$ = `--peak-smooth`, `--dip-penalty` for negative tops; ranking uses
-  the hard rows.
-- $a$ = residual-peak strength on the windows $\mathcal{R}_s$ (`--residual-peaks`); $\mu_k, \sigma_k$ = coupling
-  priors on the series mean $\bar{J}_k$ (`--prior-sigma-hh/-ch`, `--prior-weight`); both off by default.
-- Reported "objective" = $L$ at the solution (hard rows). Optional coarse-to-fine smoothing replaces $r_s$ by
-  $S r_s$ (the same Gaussian kernel on data and model).
-- The blind search (W5) scores hypotheses on one common yardstick instead: $\chi^2$ on the data cores and
-  $\mathrm{BIC} = \chi^2 + k \ln N$.
+```math
+m = t \log \sum_{|f - f_p| \le \epsilon} e^{r_s(f)/t}, \qquad
+\rho_{sp} = -\lambda\, t\, \operatorname{softplus}(-m/t), \qquad \operatorname{softplus}(x) = \log(1 + e^{x}),
+\qquad t = \kappa\, h_p \quad \text{(smooth, while optimising)}
+```
+
+Every symbol:
+- $L$: the objective; the value reported as "objective" is $L$ at the solution with the hard rows.
+- $\theta$: the nonlinear parameters the optimiser moves: couplings $J_{ij}$, decay rates $R$, delay $\delta$,
+  field $\mathbf{B}$ and gamma when fitted. $c$: the linear parameters (gains $c_q$ or a shared phase with real
+  amplitudes, background $c_{bj}$, nuisance terms); $\hat{c}_s$: their exact least-squares solution at every
+  evaluation (variable projection), so they never enter $\theta$.
+- $s$: spectrum of the series (one for a single spectrum); $i$: frequency point of the fit ranges, at
+  frequency $f_i$; $p$: data peak top; $k$: coupling that has a prior.
+- $Y_s$: the processed, phased complex data spectrum on the fit ranges. $M_s$: the model spectrum above.
+- $r_s$: the weighted, normalised residual vector, real and imaginary parts stacked (real part only for spectra
+  processed elsewhere). $\lVert \cdot \rVert$: Euclidean norm over those entries. $n_s$: norm of the weighted data,
+  so a perfect fit gives $L = 0$ and the empty model $L = 1$ per spectrum.
+- $W_s$: diagonal weight matrix. $\sigma_{\mathrm{noise}}$: robust noise level (1.4826 x median absolute
+  deviation of the narrow-feature excess). $w_i$: relative weight in $[0.2, 1]$. $d_i$: distance (Hz) from $f_i$
+  to the nearest data peak core in its band (cores: narrow features above `--signal-threshold`, default 4
+  $\sigma_{\mathrm{noise}}$). $\tau$: `--signal-taper` (default 2 Hz). $h_i / h_{\max}$: height of the nearest
+  peak over the band maximum (at least 0.1); $q$: `--signal-height-power` (default 0, factor 1).
+- $\rho_{sp}$: missing-peak row of data peak top $p$; zero while the model reaches the data top, negative when it
+  stays below. $f_p$: position of the peak top; $h_p$: its height; $\epsilon$: `--peak-tolerance` (default
+  0.15 Hz); $\lambda$: `--peak-penalty` (0 = off); for negative data tops (dips) the residual is mirrored and
+  $\lambda$ = `--dip-penalty`. $m$: soft maximum of $r_s$ in the window; $t$: its smoothing scale; $\kappa$:
+  `--peak-smooth` (0 = hard rows throughout).
+- $a$: residual-peak strength and $\mathcal{R}_s$: the windows around assignable residual peaks
+  (`--residual-peaks`, 0 = off); $\lVert r_s \rVert_{\mathcal{R}_s}$: the norm over those points only.
+- $\bar{J}_k$: mean of coupling $k$ over the series; $\mu_k$, $\sigma_k$: prior mean and width
+  (`--prior-sigma-hh`, `--prior-sigma-ch`); $w_{\mathrm{prior}}$: `--prior-weight` (0 = off); $\bar{n}$: mean of
+  $n_s$ over the series.
+- Optional coarse-to-fine smoothing replaces $r_s$ by $S r_s$ (the same Gaussian kernel on data and model).
+- The blind search (W5) scores hypotheses on a common yardstick instead: $\chi^2$ on the data cores and
+  $\mathrm{BIC} = \chi^2 + n_{\mathrm{par}} \ln N$ ($n_{\mathrm{par}}$ free parameters, $N$ data points).
 
 Key algorithms (sections 3-9 below give the detail):
-- Spin physics: zero-field Hamiltonian H = 2 pi sum J_ab I_a . I_b, block diagonal in collective-spin and total-M
-  sectors; eigen-decomposition gives the transitions; sudden-drop protocol: gamma-weighted preparation and
-  detection. A static field adds -sum gamma B . I (D47); intermediate exchange uses a Liouville model (D45).
+- Spin physics: the Hamiltonian and protocol above, diagonalised per collective-spin and total-M sector; transition
+  lists do not depend on line widths and are cached (TransitionCache) while rates and gains change. Intermediate exchange uses a Liouville model (D45).
 - Rendering: each transition is a damped complex exponential synthesised on the acquisition times by a type-1
   NUFFT (Gaussian gridding, relative error about 1e-12) and pushed through `process_record`, so the model carries
   the crop wings, window and record length of the data.
