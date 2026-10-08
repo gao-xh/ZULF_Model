@@ -36,9 +36,9 @@ flowchart TD
     scans --> avg --> fid --> proc --> spec --> known
     known -- yes --> known_fit
     known -- no --> blind
-    blind -. best structure .-> known_fit
+    blind -- ranked candidate structures --> known_fit
+    blind -. structure-free J network, planned .-> j2s
     fit --> jnet
-    blind --> jnet
     jnet --> j2s
     j2s -. candidate structures .-> known_fit
     jnet --> report
@@ -46,7 +46,8 @@ flowchart TD
     nn -. candidate hints .-> blind
 ```
 
-Solid arrows: the path in use. Dashed arrows: optional or planned links. W3 and W4 are the same fit (Studio runs
+Solid arrows: the path in use. Dashed arrows: optional or planned links. Couplings worth reporting come only from a
+fit (W3 / W4): the blind analysis ranks hypotheses with coarse settings and hands its best candidates to that fit. W3 and W4 are the same fit (Studio runs
 fit_joint_series.py and reads its fit.json back); Studio adds manual tuning, live simulation and figures.
 
 | Workflow | Input | Output | Main command | Details |
@@ -138,7 +139,7 @@ flowchart LR
     p --> h["hypotheses<br/>fragments, motifs;<br/>labelling with a motif"]
     h --> s["search: fit every hypothesis<br/>BIC, held-out rescoring"]
     s --> r["blind.md / labelings.json<br/>ranked table"]
-    r -. best structure .-> w3["W3 / W4 refined fit"]
+    r -- best candidates --> w3["W3 / W4 refined fit<br/>reported couplings"]
 ```
 
     python scripts/analyze_sample.py FID.npy --id SAMPLE [--workers 4]                      # blind search
@@ -148,6 +149,9 @@ flowchart LR
 - Labelling (D54, with `--structure`): `natural` (default), `15N`, `2H-exchange`, or `unknown` (every applicable
   labelling, ranked on one scale).
 - Results are conditional candidates: report the ranking, margins and flags, not one assignment.
+- The output is a ranking of hypotheses (blind.md, blind.json), not a coupling table: the search uses coarse
+  settings to compare many structures. Refit the best candidates with W3 / W4 to get couplings to report.
+  Feeding a structure-free J network from this search into W6 is planned (PLAN Phase 7).
 
 ## W6. Fitted J network to structure candidates
 
