@@ -209,13 +209,19 @@ def main():
     ax0.text(wide[1], 1.1, f"v  {MAINS_HZ:g} Hz power-line harmonics", ha="right", va="center", fontsize=8.5, color=MUTED)
     for a, b in segs:
         ax0.add_patch(plt.Rectangle((a, off0 - 0.12), b - a, 1.2 - off0, fc="none", ec=GRID, lw=0.8, ls="--"))
-    ax0.text(0.0, 1.03, f"a  {args.title + ', ' if args.title else ''}whole spectrum, {wide[0]:g}-{wide[1]:g} Hz",
+    sp0 = dict(zip(j.local, z[j.nt:j.nt + j.nl]))
+    sp0.update(dict(zip(j.shared, z[j.ntheta:j.ntheta + len(j.shared)])))
+    bt0, bz0 = sp0.get("field_transverse_ut"), sp0.get("field_z_ut")
+    field_label = ("zero field" if bt0 is None and bz0 is None else
+                   f"B_perp {1e3 * (bt0 or 0):.0f} nT, Bz {1e3 * (bz0 or 0):.0f} nT, "
+                   f"|B| {1e3 * np.hypot(bt0 or 0, bz0 or 0):.0f} nT")
+    ax0.text(0.0, 1.03, f"a  {args.title + ', ' if args.title else ''}{field_label}; whole spectrum, "
+             f"{wide[0]:g}-{wide[1]:g} Hz",
              transform=ax0.transAxes, fontsize=11, fontweight="bold", color=INK)
     # (b) detail panels, overlaid
     inner = outer[1].subgridspec(1, len(segs), width_ratios=[b - a for a, b in segs], wspace=0.035)
     axes = [fig.add_subplot(inner[0, i]) for i in range(len(segs))]
-    first = (f >= segs[0][0]) & (f <= segs[0][1])
-    scale = max(float(np.max(yc[first])), 1e-30)
+    scale = sc0                       # one scale for every detail panel: the largest data value in any of them
     off = -1.18 if args.stacked_detail else 0.0
     for i, (ax, (a, b)) in enumerate(zip(axes, segs)):
         sl = (f >= a) & (f <= b)
