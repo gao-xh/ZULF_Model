@@ -23,8 +23,8 @@ from .diagnostics import RawDiagnostics, diagnose_raw, signal_extent, switching_
 from .plan import ProcessingPlan, plan_for_dataset
 from .phase import PHASE_CRITERIA, PhaseResult, calibrated_phase, phase_dataset, register_phase_criterion
 from .dataset import ProcessedDataset, process_dataset
-from .raw import load_fid, read_settings
+from .raw import find_sampling_rate, load_fid, read_settings, scale_sample_settings
 
 __all__ = ["anchor_spline_baseline", "asls_baseline", "asls_two_sided", "line_mask", "RawDiagnostics", "diagnose_raw", "signal_extent", "switching_edge", "ProcessingPlan", "plan_for_dataset",
            "PHASE_CRITERIA", "PhaseResult", "calibrated_phase", "phase_dataset", "register_phase_criterion", "ProcessedDataset",
-           "process_dataset", "load_fid", "read_settings"]
+           "process_dataset", "load_fid", "read_settings", "find_sampling_rate", "scale_sample_settings"]

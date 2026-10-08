@@ -6,7 +6,7 @@
 Without --structure: blind search (propose_hypotheses + search_hypotheses) with the settings used for the
 confirmed samples; with --structure: fit_structure (every exchange regime and variant, fit-phased route too).
 Processing: zulf_processing.process_dataset per dataset (defaults from configs/confirmed_samples.json
-"processing"; crop after this dataset's ringing; phase per dataset). Writes OUT/processing.{png,json}, OUT/overview.png,
+"processing", sample counts rescaled to the sampling rate of scans.json / .ini next to the FID or --sampling-rate; crop after this dataset's ringing; phase per dataset). Writes OUT/processing.{png,json}, OUT/overview.png,
 OUT/blind.{json,md,png} or OUT/structure.{json,md,png} (+ _phased), and prints the ranked table.
 """
 import argparse
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from zulf_core.render.acquisition import Acquisition, evaluate_spectrum, process_record   # noqa: E402
-from zulf_processing import load_fid, process_dataset                                      # noqa: E402
+from zulf_processing import find_sampling_rate, load_fid, process_dataset, scale_sample_settings  # noqa: E402
 from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
                              search_hypotheses, write_report)
 
@@ -68,8 +68,14 @@ def main():
     ap.add_argument("--phase", default="", help="phase criterion for the processed spectrum: calibration (default "
                     "when the config has phase_calibration), entropy or lines")
     ap.add_argument("--delay-bounds", default="", help="instrument prior for the fitted delay in s, 'lo,hi'")
+    ap.add_argument("--sampling-rate", type=float, default=None, help="Hz; default: scans.json or .ini next to the "
+                    "FID, else the config (4 kHz sequence)")
     args = ap.parse_args()
     proc = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
+    fs, fs_source = ((args.sampling_rate, "--sampling-rate") if args.sampling_rate
+                     else find_sampling_rate(args.fid, proc["sampling_rate_hz"]))
+    print(f"{args.id}: sampling rate {fs:.6g} Hz ({fs_source})")
+    proc = scale_sample_settings(proc, fs)
     global DELAY
     bounds = args.delay_bounds or proc.get("phase_delay_bounds_s")
     DELAY = tuple(float(x) for x in (bounds.split(",") if isinstance(bounds, str) else bounds)) if bounds else None
@@ -78,7 +84,7 @@ def main():
     x = load_fid(args.fid)
     # per-dataset processing (zulf_processing, D44): plan with reasons, switching edge, per-dataset phase
     criterion = args.phase or ("calibration" if proc.get("phase_calibration") else "entropy")
-    data = process_dataset(x, proc["sampling_rate_hz"], args.id, defaults=proc, phase_criterion=criterion)
+    data = process_dataset(x, fs, args.id, defaults=proc, phase_criterion=criterion)
     data.figure(str(out / "processing.png"))
     data.save_record(str(out / "processing.json"))
     obs, acq = data.observed, data.plan.acquisition()

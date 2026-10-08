@@ -2,6 +2,7 @@
 
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id ethylenediamine --out runs/series/eda
         [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--ranges 85,119.6;120.4,179.6]
+        [--sampling-rate HZ] [--grid 20,380]
 
 Recipe of the isopropylamine / amine analyses (docs/analysis/2026-10-03_isopropylamine_complex-fit.md): crop from
 `--crop` s for `--record` s, exponential window, zero fill, phase from the instrument calibration of
@@ -21,7 +22,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from zulf_core.render.phasing import correction_phasor, reference_delay_s  # noqa: E402
-from zulf_processing import plan_for_dataset, process_dataset              # noqa: E402
+from zulf_processing import find_sampling_rate, plan_for_dataset, process_dataset  # noqa: E402
 from zulf_processing.diagnostics import switching_edge                     # noqa: E402
 
 
@@ -58,7 +59,9 @@ def main():
     ap.add_argument("--fid", required=True)
     ap.add_argument("--id", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--sampling-rate", type=float, default=4000.0)
+    ap.add_argument("--sampling-rate", type=float, default=None,
+                    help="Hz; default: scans.json or .ini next to the FID, else 4000")
+    ap.add_argument("--grid", default="20,380", help="lo,hi of the processed frequency grid (Hz)")
     ap.add_argument("--crop", type=float, default=0.1, help="record start (s)")
     ap.add_argument("--record", type=float, default=8.0, help="record length (s)")
     ap.add_argument("--apodization", type=float, default=0.3, help="exponential window (1/s)")
@@ -67,13 +70,14 @@ def main():
     args = ap.parse_args()
     cfg = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
     cal = cfg["phase_calibration"]
-    fs = args.sampling_rate
+    fs = args.sampling_rate or find_sampling_rate(args.fid, 4000.0)[0]
+    grid = [float(v) for v in args.grid.split(",")]
     y = np.load(args.fid).astype(float)
     edge = switching_edge(y, fs)["edge_time_s"] + cal["delay_offset_s"]
     start = int(round(args.crop * fs))
     plan = plan_for_dataset(len(y), fs, None, {"start_sample": start, "stop_sample": start + int(round(args.record * fs)),
                                                "zero_fill": args.zero_fill,
-                                               "apodization_rate_per_s": args.apodization, "ranges": [[20.0, 380.0]]})
+                                               "apodization_rate_per_s": args.apodization, "ranges": [grid]})
     ds = process_dataset(y, fs, plan=plan, phase_criterion=None)
     acq = plan.acquisition()
     f = ds.frequencies_hz
@@ -81,7 +85,7 @@ def main():
     r = ds.spectrum * correction_phasor(f, phi0, -(edge + acq.time_origin_s) + reference_delay_s(acq))
     lines = [60.06 * k for k in range(1, 7)] + [float(v) for v in cfg.get("instrument_lines_hz", []) if v % 60]
     ranges = ([[float(v) for v in q.split(",")] for q in args.ranges.split(";")] if args.ranges
-              else auto_ranges(f, r, lines))
+              else auto_ranges(f, r, lines, lo=grid[0], hi=grid[1]))
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     np.save(out / "frequency.npy", f)
@@ -95,7 +99,8 @@ def main():
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(2, 1, figsize=(16, 8))
-        for a, (lo, hi) in zip(ax, ((20, 200), (200, 380))):
+        mid = 0.5 * (grid[0] + grid[1])
+        for a, (lo, hi) in zip(ax, ((grid[0], mid), (mid, grid[1]))):
             s = (f > lo) & (f < hi)
             a.plot(f[s], r.real[s], "k", lw=0.6, label="real")
             a.plot(f[s], r.imag[s], c="0.7", lw=0.5, label="imag")

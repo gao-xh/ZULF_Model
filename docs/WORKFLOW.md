@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data).
 
 ## Map
 
@@ -113,11 +113,12 @@ flowchart TD
 ```
 
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME \
-        [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3]
+        [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--grid 20,380] [--sampling-rate HZ]
 
 Processing (time domain; details and settings in section 1 below):
 - Diagnostics first: the switching edge (half height), the ringing end (near 50 ms on the NMRduino), the signal
-  extent. Sampling rate from the data or the ini file.
+  extent. Sampling rate from scans.json or the .ini next to the FID (`--sampling-rate` overrides; sequences run
+  at 2000, 4000 or 8333 Hz, and a wrong rate scales every frequency); sample-count defaults are rescaled to it.
 - Drift removal: a Savitzky-Golay low-pass on the full record, subtracted before the crop (the slow baseline of
   the FID; a time-domain baseline correction).
 - Crop after the ringing (usually 0.1 s) for a record of about the signal extent (e.g. 8 s); mean removal;

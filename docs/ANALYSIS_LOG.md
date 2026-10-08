@@ -1371,3 +1371,8 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-07: route B on J vs on K (3 seeds): equal on 13C / 1H data (bond-count accuracy 0.844 vs 0.843,
   synthetic top-1 0.91 both, real networks all rank 1); on deuterated couplings, untrained, K keeps 0.843 while J
   falls to 0.298 (below the 0.322 majority baseline). docs/analysis/2026-10-07_j-to-structure_j-vs-k.md
+- 2026-10-08: ethanol 70 % rubbing alcohol, ULF run (8333 Hz, 8869 scans; step in scan quality at scan 6000).
+  analyze_sample.py had assumed 4000 Hz (frequencies x0.48): sampling rate now read from scans.json / .ini.
+  Field fit (about 0.035 uT, same in both halves): 1J 125.6 / 140.8 Hz, 2J(C,H) about -5.5 Hz, 3J(H,H) 9.4 Hz
+  (above the usual 7 Hz, not trusted yet); residual 0.42; fitted delay 1.6 ms from the edge (8 kHz sequence
+  uncalibrated). docs/analysis/2026-10-08_ethanol_field-fit.md

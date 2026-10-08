@@ -216,3 +216,31 @@ class AslsBaselineTests(unittest.TestCase):
         inner = (f > 140) & (f < 200)
         self.assertLess(np.sqrt(np.mean((z - base)[inner] ** 2)), 0.02)
         self.assertLess(w[np.argmin(np.abs(f - 172.0))], 0.01)        # a negative line is excluded
+
+
+class SamplingRateTests(unittest.TestCase):
+    """The NMRduino sequences run at 2000, 4000 or 8333 Hz; a FID processed at the wrong rate has every frequency
+    scaled (an 8333 Hz ethanol run read as 4000 Hz put its 2J band at 120 Hz)."""
+
+    def test_rate_from_record_then_ini_then_default(self):
+        import json
+        import tempfile
+        from zulf_processing import find_sampling_rate
+        with tempfile.TemporaryDirectory() as tmp:
+            fid = Path(tmp) / "average_fid.npy"
+            with self.assertRaises(ValueError):
+                find_sampling_rate(fid)
+            self.assertEqual(find_sampling_rate(fid, 4000.0), (4000.0, "default"))
+            (Path(tmp) / "0.ini").write_text("[NMRduino]\nDeviceType=Teensy Pulse 4\nSampleRate=2000\n")
+            self.assertEqual(find_sampling_rate(fid, 4000.0)[0], 2000.0)
+            (Path(tmp) / "scans.json").write_text(json.dumps({"sampling_rate_hz": 8333.333333333334}))
+            self.assertAlmostEqual(find_sampling_rate(fid, 4000.0)[0], 8333.333333333334)
+
+    def test_sample_settings_keep_their_times(self):
+        from zulf_processing import scale_sample_settings
+        base = {"sampling_rate_hz": 4000.0, "start_sample": 200, "stop_sample": 4200, "sg_window": 201, "zero_fill": 4}
+        self.assertEqual(scale_sample_settings(base, 4000.0), base)
+        fast = scale_sample_settings(base, 8000.0)
+        self.assertEqual((fast["start_sample"], fast["stop_sample"], fast["sg_window"], fast["zero_fill"]),
+                         (400, 8400, 403, 4))
+        self.assertEqual(fast["sg_window"] % 2, 1)
