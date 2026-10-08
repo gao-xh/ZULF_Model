@@ -75,6 +75,21 @@ LF). Caveat: the ethanol fit is not noise-limited (residual 0.42 against a noise
 acetonitrile 0.21 against 0.20), so a model error may bias the field. The OH in slow exchange fits worse; fast
 exchange stays.
 
+### Field refit (Xuehan: fit the field again)
+
+1. Start grid (ethanol_fgrid_<t>_<z>, 8 starts each, transverse 0.005 / 0.04 / 0.08 x z 0.02 / 0.06 / 0.12 uT):
+   5 of 9 return the same best solution (objective 0.1698, B_t 0.0192, Bz 0.0289 uT, delay -1.81 ms,
+   3J(H,H) 9.45 Hz). Other minima: B_t 0, Bz 0.067 uT (0.229; delay -3.76 ms, 3J(H,H) 7.14 Hz); B_t 0.08-0.10
+   uT (0.297-0.323).
+2. Delay held near the edge (`--phase-delay-bounds=-4.2,-3.0`, ethanol_fedge_*, four field starts incl. the
+   acetonitrile value): every start gives B_t 0.0198, Bz 0.0316 uT (|B| 37 nT), objective 0.211, 3J(H,H)
+   8.99 Hz; the delay sits on the bound -3.0 ms. Halves: B_t 0.0194 / 0.0203, Bz 0.0292 / 0.0311 uT.
+
+The field is about 35-37 nT (B_t about 0.020, Bz about 0.030 uT) whether the delay is free or held near the
+edge, in both halves and from every start near it; the acetonitrile value (59 nT) is not a minimum here. The
+Bz-only 67 nT minimum with the physical 3J(H,H) is worse in both settings. The fit pushes the delay away from
+the edge, so the delay / phase of the 8 kHz sequence and 3J(H,H) stay open.
+
 ## Conclusion
 
 Conditional numerical result for one ethyl model with a uniform static field:
