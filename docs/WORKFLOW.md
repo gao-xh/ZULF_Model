@@ -7,6 +7,8 @@ structure (W3, or W4 in Studio) is described in full detail in the second part o
 **Keep this file current** (AGENTS.md): a change that adds, removes or reorders a step a person or agent runs
 (a script, a route, an option default, an output file) updates the matching diagram and command here in the same
 commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node labels name the script or module.
+An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
+(writes runs/workflow/index.html; regenerate it after editing this file).
 
 Last reviewed: 2026-10-08 (D56; processing, phase and baseline in W2).
 
