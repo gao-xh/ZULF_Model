@@ -90,6 +90,16 @@ edge, in both halves and from every start near it; the acetonitrile value (59 nT
 Bz-only 67 nT minimum with the physical 3J(H,H) is worse in both settings. The fit pushes the delay away from
 the edge, so the delay / phase of the 8 kHz sequence and 3J(H,H) stay open.
 
+### Acetonitrile rerun with the same field start grid (Xuehan: run acetonitrile again)
+
+Current code (sampling rate 2000 Hz now read from scans.json; edge 3.785 ms as before), series
+`runs/series/acn_rerun`, the one-rate settings of docs/analysis/2026-10-06_acetonitrile_field-fit.md, the same
+9 field starts as ethanol (runs/processed/acn_rerun_*): zero field 0.5816 (unchanged); best 0.1979-0.1992 from
+4 of 9 starts, B_t 0.030, Bz 0.050-0.053 uT (|B| 58 nT), 1J 136.28 Hz, delay -4.1 ms (edge + 0.3 ms); other
+minima Bz 0.11-0.125 uT (0.396) and B_t 0.17 / Bz 0.79 uT (0.312). This reproduces the 2026-10-06 one-rate
+result. With the same model (one rate, free delay) ethanol gives B_t 0.019, Bz 0.029 uT (|B| 35 nT): the two
+runs differ by about 23 nT in |B|, mostly in Bz.
+
 ## Conclusion
 
 Conditional numerical result for one ethyl model with a uniform static field:
