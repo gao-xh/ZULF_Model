@@ -8,7 +8,7 @@ structure (W3, or W4 in Studio) is described in full detail in the second part o
 (a script, a route, an option default, an output file) updates the matching diagram and command here in the same
 commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node labels name the script or module.
 
-Last reviewed: 2026-10-08 (D56).
+Last reviewed: 2026-10-08 (D56; processing, phase and baseline in W2).
 
 ## Map
 
@@ -17,13 +17,13 @@ flowchart TD
     scans["Instrument scans<br/>data/original (read-only)"]
     avg["W1 average and screen scans<br/>average_scans.py"]
     fid["Averaged FID<br/>data/raw or data/processed"]
-    proc["W2 process and phase<br/>make_series_entry.py, zulf_processing"]
+    proc["W2 processing: drift, crop, window, FFT<br/>phase: edge delay + calibration<br/>baseline: modelled, not subtracted<br/>make_series_entry.py"]
     spec["Complex spectrum + series.json<br/>runs/series/NAME"]
     known{"Structure known?"}
     blind["W5 blind analysis<br/>analyze_sample.py"]
     jnet["Fitted couplings J, K<br/>fit.json, J_table.csv"]
     j2s["W6 J network to structure<br/>j_structure.py: A, B-J, B-K"]
-    report["Figures, analysis log, report<br/>paper_figure.py, docs/analysis"]
+    report["Figures (display-only baseline),<br/>analysis log, report<br/>paper_figure.py, docs/analysis"]
     nn["W7 learned candidate model<br/>zulf-model train / propose<br/>(built, not yet trained)"]
 
     subgraph known_fit["Known-structure fit: one engine, two ways to drive it"]
@@ -53,7 +53,7 @@ fit_joint_series.py and reads its fit.json back); Studio adds manual tuning, liv
 | Workflow | Input | Output | Main command | Details |
 |---|---|---|---|---|
 | W1 scans to FID | instrument run folder | average FID, half averages, scan metrics | `scripts/average_scans.py` | below; skills/zulf-fid-processing |
-| W2 FID to spectrum | average FID | complex spectrum, series.json, fit ranges | `scripts/make_series_entry.py` | sections 1-2; skills/zulf-phasing |
+| W2 FID to spectrum | average FID | processed, phased complex spectrum, series.json, fit ranges | `scripts/make_series_entry.py` | sections 1-2, 4, 10; skills/zulf-fid-processing, zulf-phasing |
 | W3 known-structure fit | spectrum + structure | couplings with uncertainties, fit.json | `scripts/fit_joint_series.py` | sections 3-10 |
 | W4 the same, interactive | spectrum, optional fit | tuned or fitted parameters, fits, figures | `scripts/run_studio.py` | docs/STUDIO.md |
 | W5 blind analysis | FID, no structure | ranked hypotheses and labellings | `scripts/analyze_sample.py` | skills/zulf-blind-analysis |
@@ -75,27 +75,74 @@ flowchart LR
   tools, other groups) are in `data/raw/MEAS/`.
 - The even / odd half averages are disjoint scans for held-out checks of a fit.
 
-## W2. Averaged FID to a processed spectrum
+## W2. Averaged FID to a processed spectrum: processing, phase, baseline
 
 ```mermaid
-flowchart LR
-    fid["average_fid.npy"] --> diag["diagnostics<br/>crop after ringing, window, zero fill"]
-    diag --> phase["phase<br/>switching edge + calibration"]
-    phase --> ranges["fit ranges<br/>signal bands, mains harmonics out"]
+flowchart TD
+    fid["average_fid.npy + ini"] --> diag["diagnostics<br/>switching edge, ringing end,<br/>signal extent"]
+    subgraph time["time domain (zulf_processing, one rule per series)"]
+        drift["drift removal<br/>SG filter on the full record"]
+        crop["crop after the ringing<br/>record length"]
+        win["mean removal,<br/>exponential window, zero fill"]
+        drift --> crop --> win
+    end
+    diag --> drift
+    win --> fft["FFT: complex spectrum"]
+    subgraph phase["phase"]
+        p1["first order: delay at<br/>this FID's switching edge"]
+        p0["zero order: instrument calibration<br/>or data-only symmetry estimate"]
+    end
+    fft --> p1 --> p0
+    p0 --> ranges["fit ranges<br/>signal bands, mains harmonics out"]
     ranges --> entry["runs/series/NAME<br/>series.json, phased.png"]
+    subgraph baseline["baseline: never subtracted before a fit"]
+        bfit["in the fit: model through the same<br/>processing + per-band background polynomial"]
+        bdisp["for figures only: anchor spline,<br/>then AsLS under the line clusters"]
+    end
+    entry --> bfit
+    entry -.-> bdisp
+    bfit -. "residual phase and delay refined in the fit" .-> p0
 ```
 
-    python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME
+    python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME \
+        [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3]
 
-- Check `phased.png` before fitting. Details and pitfalls: sections 1 and 2 below.
-- `zulf-model diagnose AVERAGE.npy 0.ini` and `scripts/validate_processing.py` check processing choices.
+Processing (time domain; details and settings in section 1 below):
+- Diagnostics first: the switching edge (half height), the ringing end (near 50 ms on the NMRduino), the signal
+  extent. Sampling rate from the data or the ini file.
+- Drift removal: a Savitzky-Golay low-pass on the full record, subtracted before the crop (the slow baseline of
+  the FID; a time-domain baseline correction).
+- Crop after the ringing (usually 0.1 s) for a record of about the signal extent (e.g. 8 s); mean removal;
+  exponential window (0.3 1/s usual); zero fill 3; FFT.
+- One processing rule for every spectrum of a series. `zulf_core.render.acquisition.process_record` is the only
+  implementation of these steps; data and model both pass through it (AGENTS.md).
+
+Phase (section 2 below; skills/zulf-phasing):
+- First order: the delay at this FID's own switching edge plus the instrument offset.
+- Zero order: the instrument calibration of the sequence (configs/confirmed_samples.json) or a data-only estimate
+  by peak symmetry, checked against a model spectrum.
+- The fit then refines a residual zero-order phase (shared-phase gain) and the delay; a fitted delay far from the
+  edge signals another problem.
+- Studio (W4): auto phase against the current simulation ("model") or from the data alone ("data"), for display.
+
+Baseline (frequency domain):
+- Not subtracted from the data before a fit. The crop gives every line oscillating wings and a rolling baseline;
+  the model is rendered through the same processing, so it carries them, and a per-band background polynomial
+  is solved inside every fit evaluation (section 4). AsLS on the data before fitting biased 1J(C4,H4) of
+  pyridine by -3.5 Hz.
+- For figures only: `zulf_processing.anchor_spline_baseline` (spline through anchor points away from the lines)
+  and then AsLS under the line clusters (`asls_baseline`), the same steps for data and model; the residual is
+  unchanged (section 10, scripts/paper_figure.py).
+
+Checks: look at `phased.png` before fitting; `zulf-model diagnose AVERAGE.npy 0.ini` and
+`scripts/validate_processing.py` compare processing and phase choices.
 
 ## W3. Fit of a known structure
 
 ```mermaid
 flowchart LR
-    s["series.json<br/>+ structure motif"] --> m["spin-system model<br/>isotopologues, exchange"]
-    m --> f["fit_joint_series.py<br/>multi-start, rate families,<br/>field, gamma, precision"]
+    s["series.json<br/>+ structure motif"] --> m["spin-system model<br/>isotopologues, exchange<br/>through the same processing"]
+    m --> f["fit_joint_series.py<br/>multi-start, rate families, field, gamma,<br/>precision; gains, residual phase, delay,<br/>background polynomial per band"]
     f --> d["band_diagnosis.py<br/>line_table.py, j_tuner.py"]
     d -- misfit --> f
     f --> u["reliability:<br/>half averages, held-out"]
