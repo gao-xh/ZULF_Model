@@ -213,7 +213,7 @@ def main():
     sp0.update(dict(zip(j.shared, z[j.ntheta:j.ntheta + len(j.shared)])))
     bt0, bz0 = sp0.get("field_transverse_ut"), sp0.get("field_z_ut")
     field_label = ("zero field" if bt0 is None and bz0 is None else
-                   f"B_perp {1e3 * (bt0 or 0):.0f} nT, Bz {1e3 * (bz0 or 0):.0f} nT, "
+                   f"B transverse {1e3 * (bt0 or 0):.0f} nT, B z {1e3 * (bz0 or 0):.0f} nT, "
                    f"|B| {1e3 * np.hypot(bt0 or 0, bz0 or 0):.0f} nT")
     ax0.text(0.0, 1.03, f"a  {args.title + ', ' if args.title else ''}{field_label}; whole spectrum, "
              f"{wide[0]:g}-{wide[1]:g} Hz",
