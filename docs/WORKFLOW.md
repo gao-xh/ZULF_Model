@@ -183,29 +183,45 @@ flowchart LR
 
 Loss function (what least_squares minimises; JointSeries.residual, MixtureForward.predict; section 5 below):
 
-    L(theta) = sum_s [ ||r_s||^2  +  sum_p rho_sp^2  +  (a ||r_s restricted to residual-peak windows||)^2 ]
-               + sum_k ( (mean J_k - mu_k) sqrt(w_prior) / (sigma_k norm) )^2
+```math
+L(\theta) = \sum_{s} \Big[ \lVert r_s \rVert^2 + \sum_{p} \rho_{sp}^2 + a^2 \lVert r_s \rVert_{\mathcal{R}_s}^2 \Big]
+  + \sum_{k} \Big( \frac{\bar{J}_k - \mu_k}{\sigma_k} \cdot \frac{\sqrt{w_{\mathrm{prior}}}}{\mathrm{norm}} \Big)^2
+```
 
-    r_s     = W_s (M_s(theta, c_hat) - Y_s) / norm_s, real and imaginary parts stacked (real only for
-              processed spectra from elsewhere), one block per spectrum s of the series
-    W_s     = w_i / sigma_noise: sigma_noise robust (1.4826 MAD); w_i = 1 at data peak cores (narrow features above
-              --signal-threshold, default 4 sigma), Gaussian fall-off (--signal-taper, default 2 Hz), floor 0.2 far
-              from lines; optional x (peak height / max)^-p (--signal-height-power, small peaks count more)
-    norm_s  = ||W_s Y_s||, so a perfect fit has L = 0 and the empty model L = 1 per spectrum
-    c_hat   = argmin over the linear parameters (complex gains or shared phase with real amplitudes, per-band
-              background polynomial, linear by default, nuisance terms) of ||r_s||, solved exactly at every evaluation (variable
-              projection); theta = couplings, decay rates, delay, field, gamma
-    rho_sp  = lambda min( max_{|f - f_p| <= 0.15 Hz} r_s(f), 0 )   missing-peak row of data peak top p
-              (--peak-penalty lambda; zero while the model reaches the data top; --dip-penalty for negative tops);
-              while optimising the max and min are smooth: m = t log sum exp(r / t), rho = -lambda t softplus(-m / t),
-              t = --peak-smooth x the peak height; ranking uses the hard rows
-    a       = residual-peak strength (--residual-peaks), mu_k, sigma_k = coupling priors (--prior-sigma-hh/-ch,
-              --prior-weight); both off by default
+```math
+r_s = \frac{W_s \big( M_s(\theta, \hat{c}_s) - Y_s \big)}{\lVert W_s Y_s \rVert}, \qquad
+\hat{c}_s = \arg\min_{c} \big\lVert W_s \big( M_s(\theta, c) - Y_s \big) \big\rVert, \qquad
+W_{s,ii} = \frac{w_i}{\sigma_{\mathrm{noise}}}
+```
 
-- Reported "objective" = L at the solution (hard rows). Optional coarse-to-fine smoothing replaces r_s by S r_s
-  (the same Gaussian kernel on data and model).
-- The blind search (W5) scores hypotheses on one common yardstick instead: chi2 on the data cores and
-  BIC = chi2 + k ln N.
+```math
+w_i = 0.2 + 0.8 \exp\!\Big( -\frac{d_i^2}{2 \tau^2} \Big), \qquad
+\rho_{sp} = \lambda \min\Big( \max_{|f - f_p| \le 0.15\,\mathrm{Hz}} r_s(f),\; 0 \Big)
+```
+
+```math
+\text{smooth version while optimising:}\quad
+m = t \log \sum_{|f - f_p| \le 0.15\,\mathrm{Hz}} e^{r_s(f)/t}, \qquad
+\rho_{sp} = -\lambda\, t\, \operatorname{softplus}(-m/t), \qquad t = \kappa\, h_p
+```
+
+- $s$: spectrum of the series; $r_s$ stacks real and imaginary parts (real only for processed spectra from
+  elsewhere). Normalised so a perfect fit gives $L = 0$ and the empty model $L = 1$ per spectrum.
+- $\theta$: the nonlinear parameters (couplings, decay rates, delay, field, gamma). $\hat{c}_s$: the linear ones
+  (complex gains or a shared phase with real amplitudes, per-band background polynomial, linear by default,
+  nuisance terms), solved exactly at every evaluation (variable projection).
+- $\sigma_{\mathrm{noise}}$: robust noise (1.4826 MAD). $d_i$: distance to the nearest data peak core (narrow
+  features above `--signal-threshold`, default 4 sigma); $\tau$ = `--signal-taper` (default 2 Hz); optional factor
+  (peak height / max)$^{-q}$ with `--signal-height-power` q.
+- $\rho_{sp}$: missing-peak row of data peak top $f_p$ with height $h_p$; zero while the model reaches the data
+  top. $\lambda$ = `--peak-penalty`, $\kappa$ = `--peak-smooth`, `--dip-penalty` for negative tops; ranking uses
+  the hard rows.
+- $a$ = residual-peak strength on the windows $\mathcal{R}_s$ (`--residual-peaks`); $\mu_k, \sigma_k$ = coupling
+  priors on the series mean $\bar{J}_k$ (`--prior-sigma-hh/-ch`, `--prior-weight`); both off by default.
+- Reported "objective" = $L$ at the solution (hard rows). Optional coarse-to-fine smoothing replaces $r_s$ by
+  $S r_s$ (the same Gaussian kernel on data and model).
+- The blind search (W5) scores hypotheses on one common yardstick instead: $\chi^2$ on the data cores and
+  $\mathrm{BIC} = \chi^2 + k \ln N$.
 
 Key algorithms (sections 3-9 below give the detail):
 - Spin physics: zero-field Hamiltonian H = 2 pi sum J_ab I_a . I_b, block diagonal in collective-spin and total-M

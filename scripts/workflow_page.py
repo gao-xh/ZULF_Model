@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MERMAID_CDN = "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"
+MATHJAX_CDN = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"      # SVG output: no fonts or CSS to load
 STATUS = {"W1": "in use", "W2": "in use", "W3": "in use", "W4": "interactive", "W5": "in use", "W6": "in use",
           "W7": "not trained"}
 
@@ -29,11 +30,11 @@ def blocks(lines):
     i = 0
     while i < len(lines):
         line = lines[i]
-        if line.startswith("```mermaid"):
+        if line.startswith("```mermaid") or line.startswith("```math"):
             j = i + 1
             while not lines[j].startswith("```"):
                 j += 1
-            yield "mermaid", "\n".join(lines[i + 1:j])
+            yield line[3:].strip(), "\n".join(lines[i + 1:j])
             i = j + 1
         elif line.startswith("    "):
             j = i
@@ -83,7 +84,9 @@ def render_blocks(lines) -> str:
             algo_title = None
             continue
         algo_title = None
-        if kind == "mermaid":
+        if kind == "math":
+            out.append(f'<div class="math">\\[{html.escape(payload, quote=False)}\\]</div>')
+        elif kind == "mermaid":
             out.append(f'<div class="diagram"><pre class="mermaid">{html.escape(payload, quote=False)}</pre></div>')
         elif kind == "command":
             out.append(f'<pre class="cmd"><code>{html.escape(payload, quote=False)}</code></pre>')
@@ -131,7 +134,10 @@ def build(source: Path, mermaid_cdn: bool) -> str:
         body_html.append(
             f'<section id="{sid}" class="flow"><header><span class="key">{key}</span>'
             f'<h2>{inline(title)}</h2><span class="chip {cls}">{status}</span></header>{render_blocks(body)}</section>')
-    script = (f'<script src="{MERMAID_CDN}"></script><script>mermaid.initialize({{startOnLoad: true, '
+    mathjax = ('<script>window.MathJax = {tex: {inlineMath: [["$", "$"]], displayMath: [["\\\\[", "\\\\]"]]}, '
+               'svg: {fontCache: "global"}};</script>'
+               f'<script src="{MATHJAX_CDN}"></script>') if "```math" in text or "$" in text else ""
+    script = mathjax + (f'<script src="{MERMAID_CDN}"></script><script>mermaid.initialize({{startOnLoad: true, '
               f'theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "neutral"}});</script>'
               if mermaid_cdn else "")
     return PAGE.format(intro=render_blocks(intro), reviewed=inline(reviewed), nav=nav, body="\n".join(body_html),
@@ -193,6 +199,8 @@ pre.cmd code {{ background: none; padding: 0; font-size: inherit; }}
 ul {{ margin: 0; padding-left: 20px; display: grid; gap: 4px; }}
 p {{ margin: 0; max-width: 78ch; }}
 .label {{ font-weight: 600; color: var(--accent); margin-right: 4px; }}
+.math {{ overflow-x: auto; padding: 4px 0; font-size: 15px; }}
+.math mjx-container {{ margin: 6px 0 !important; }}
 .algo {{ border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 8px; }}
 .algo h3 {{ margin: 0; font: 500 12px var(--mono); letter-spacing: .06em; color: var(--muted); }}
 .algo h3 span {{ text-transform: uppercase; color: var(--accent); }}
