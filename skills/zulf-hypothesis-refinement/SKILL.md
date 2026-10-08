@@ -188,8 +188,13 @@ is not evidence.
 
 ## Compute practice
 
-- Parallel fits: `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1`, at most one
-  process per core; order queues so hypotheses run before long model lists.
+- Parallel fits: `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1`, and on macOS
+  `VECLIB_MAXIMUM_THREADS=1` (numpy uses Accelerate, about 20 threads per
+  process by default); at most one process per core; order queues so
+  hypotheses run before long model lists. fit_joint_series.py sets all of
+  them to 1 unless the environment sets them (six fits with 3-4 workers each
+  reached load 95 on 10 cores, 2026-10-08). Count the workers of every running
+  fit before starting another.
 - Stop runs by PID (process and children), saved when the run starts. Never
   select processes by command-line text (`pkill -f`, `ps | grep | kill`): the
   calling shell's own command line contains the same text and gets killed.

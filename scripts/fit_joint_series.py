@@ -28,10 +28,17 @@ import argparse
 import csv
 import dataclasses
 import json
+import os
 import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+
+# One BLAS thread per process (before numpy loads): the fitter parallelises over starts with worker processes, and
+# several fits often run at once; Accelerate's default threads per process overloaded the machine (load 95 on 10
+# cores, 2026-10-08). An explicit setting in the environment wins.
+for _var in ("VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
 
 import numpy as np
 from scipy.special import expit
@@ -397,6 +404,91 @@ class JointSeries:
                 grads.append((np.array([w[j]]), np.array([sg * st])) if v < 0 else (np.zeros(0, int), np.zeros(0)))
         return np.array(rows), grads
 
+    def set_guard_penalty(self, strength, k_sigma=3.0, margin_hz=2.0, bin_hz=1.0, guard_range=None, smooth=0.5,
+                          half_width_hz=5.0, grids=None, tolerance=0.2):
+        """Guard rows (D57): the model may not put a peak where the data have no line. Guard points are the points
+        of the processed grid (inside `guard_range`, default the whole grid) farther than `margin_hz` from every data
+        line region (the signal cores of the whole grid, 4 noise sigma) and from every fully weighted fitted
+        point; with fit ranges of a few bands most of the guard lies outside the fit ranges, with the whole grid it
+        is the empty part of the spectrum. `grids`: per spectrum (frequencies, values) of the whole processed grid
+        (the observations hold only the fit ranges; default: the observations). Per bin of `bin_hz` one row
+
+            strength * t softplus((max_bin ((1 - tolerance) E - D) - k_sigma sigma) / t) / (sigma norm),
+            t = smooth * sigma,
+
+        E the model line envelope (MixtureForward.model_envelope with the solved gains, smooth profiles), D the
+        local data magnitude (max of abs(data) within +-0.5 Hz: line tails and noise are allowed under the model),
+        `tolerance` the share of E not counted (E adds lines without their phases and so exceeds the coherent model
+        where lines partly cancel, e.g. between dispersive tails),
+        sigma the noise of the whole grid, norm the spectrum's residual norm (residual units of a fully weighted
+        point). A bin without a model peak above k_sigma noise costs nothing; the data in the guard never enter.
+        strength 0 = off."""
+        from zulf_core.solver.forward import signal_regions
+        self.guard_strength = float(strength)
+        self.guard = None
+        if not strength:
+            return
+        self.guard_settings = dict(k_sigma=float(k_sigma), smooth=float(smooth), half_width_hz=float(half_width_hz),
+                                   tolerance=float(tolerance))
+        self.guard = []
+        for s, f in enumerate(self.forwards):
+            fg, yg = grids[s] if grids else (f.obs.frequencies_hz, f.obs.values)
+            fg, yg = np.asarray(fg, float), np.asarray(yg)
+            cores, sigma = signal_regions(fg, yg, np.zeros(len(fg), int), 4.0)
+            protected = fg[cores]
+            if f.data_signal_mask is not None:            # data cores of the fit (not the model-line pass)
+                protected = np.r_[protected, f.f[f.data_signal_mask]]
+            protected = np.sort(protected)
+            lo, hi = guard_range if guard_range else (fg.min(), fg.max())
+            keep = (fg >= lo) & (fg <= hi)
+            if len(protected):
+                i = np.clip(np.searchsorted(protected, fg), 1, len(protected))
+                near = np.minimum(np.abs(fg - protected[i - 1]), np.abs(fg - protected[np.minimum(i, len(protected) - 1)]))
+                keep &= near > margin_hz
+            # data magnitude allowed under the model: local max of abs(data) within +-0.5 Hz (line tails, noise)
+            from scipy.ndimage import maximum_filter1d
+            step = float(np.median(np.diff(fg)))
+            ceiling = maximum_filter1d(np.abs(yg), size=2 * int(round(0.5 / step)) + 1)[keep]
+            pts = fg[keep]
+            bins = np.floor((pts - lo) / bin_hz).astype(int)
+            _, first = np.unique(bins, return_index=True)
+            groups = np.split(np.arange(len(pts)), first[1:]) if len(pts) else []
+            self.guard.append({"f": pts, "groups": groups, "sigma": float(sigma), "norm": float(f.norm),
+                               "ceiling": ceiling})
+
+    def _guard_values(self, s, x, gains):
+        """Guard rows of spectrum s at spectrum vector x with fixed gains."""
+        g, st = self.guard[s], self.guard_settings
+        if not len(g["f"]):
+            return np.zeros(0)
+        f = self.forwards[s]
+        e = f.model_envelope(f.p.values(x), gains, st["half_width_hz"], frequencies=g["f"], taper=True)
+        excess = (1.0 - st["tolerance"]) * e - g["ceiling"]
+        emax = np.array([excess[idx].max() for idx in g["groups"]])
+        t = st["smooth"] * g["sigma"]
+        return self.guard_strength * t * np.logaddexp(0.0, (emax - st["k_sigma"] * g["sigma"]) / t) \
+            / (g["sigma"] * g["norm"])
+
+    def _guard_rows(self, s, x, gains, jacobian=False):
+        """Rows, and with `jacobian` d rows / d x by forward differences over every free parameter of the spectrum,
+        the gains solved again at every step (they come from the fit ranges and move with every parameter, the delay
+        too). Only while a row is active (a model peak above the threshold); otherwise the rows and their derivatives
+        are zero and cost nothing. The row count is fixed."""
+        rows = self._guard_values(s, x, gains)
+        if not jacobian:
+            return rows
+        jac = np.zeros((len(rows), len(x)))
+        floor = 1e-6 * self.guard_strength / max(self.guard[s]["norm"], 1e-30)
+        if not len(rows) or rows.max() <= floor:
+            return rows, jac
+        f = self.forwards[s]
+        for i in range(len(x)):
+            h = 1e-8 + 1e-7 * abs(x[i])           # small: line tops are sharp (curvature error of the step)
+            xp = x.copy()
+            xp[i] += h
+            jac[:, i] = (self._guard_values(s, xp, f.predict(xp).gains) - rows) / h
+        return rows, jac
+
     def set_smoothing(self, sigma_hz):
         """Coarse-to-fine continuation: compare Gaussian-smoothed spectra. The same kernel K (sigma_hz, over the
         points' frequencies, rows normalised) acts on data and model, so K (model - data) is compared; in residual
@@ -515,10 +607,14 @@ class JointSeries:
         values = [self.coupling_values(z, k) for k in range(self.nc)]
         parts = []
         for s, f in enumerate(self.forwards):
-            r = f.predict(self.spectrum_vector(z, s, values)).residual
+            xs_ = self.spectrum_vector(z, s, values)
+            pred = f.predict(xs_)
+            r = pred.residual
             parts.append(self._smooth(s, r))
             if self.peaks is not None:
                 parts.append(self._peak_rows(s, r)[0])
+            if getattr(self, "guard", None) is not None:
+                parts.append(self._guard_rows(s, xs_, pred.gains))
             if self.res_windows is not None and len(self.res_windows[s]):
                 parts.append(self.res_strength * r[self.res_windows[s]])
         ks, mean, scale = self.priors
@@ -545,9 +641,23 @@ class JointSeries:
             for i, n in enumerate(self.local):
                 out[:, self.nt + s * self.nl + i] = js[:, self.col[n]]
             blocks.append(self._smooth(s, out))
+            pred = None
             if self.peaks is not None:
-                _, grads = self._peak_rows(s, f.predict(self.spectrum_vector(z, s, values)).residual)
+                pred = f.predict(self.spectrum_vector(z, s, values))
+                _, grads = self._peak_rows(s, pred.residual)
                 blocks.append(np.array([c @ out[idx] for idx, c in grads]).reshape(len(grads), len(z)))
+            if getattr(self, "guard", None) is not None:
+                xs_ = self.spectrum_vector(z, s, values)
+                pred = pred or f.predict(xs_)
+                _, gj = self._guard_rows(s, xs_, pred.gains, jacobian=True)
+                gout = np.zeros((gj.shape[0], len(z)))
+                for k, n in enumerate(self.coupling):
+                    gout[:, k * self.m:(k + 1) * self.m] = np.outer(gj[:, self.col[n]], dvals[k][self.node_of[s]])
+                for i, n in enumerate(self.shared):
+                    gout[:, self.ntheta + i] = gj[:, self.col[n]]
+                for i, n in enumerate(self.local):
+                    gout[:, self.nt + s * self.nl + i] = gj[:, self.col[n]]
+                blocks.append(gout)
             if self.res_windows is not None and len(self.res_windows[s]):
                 blocks.append(self.res_strength * out[self.res_windows[s]])
         ks, _, scale = self.priors
@@ -1332,6 +1442,21 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
     joint.set_priors(ks, mean, sigma, args.prior_weight)
     joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance, min_sigma=args.peak_min_sigma,
                            smooth=args.peak_smooth, dips=args.dip_penalty, max_width_hz=args.peak_max_width or None)
+    grids = []
+    for e in series:
+        if "fid" in e:
+            import regression_confirmed as reg
+            config = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
+            o_full = reg.observed_for({"file": Path(e["fid"]).name}, config, str(Path(e["fid"]).parent))
+            grids.append((o_full.frequencies_hz, o_full.values))
+        else:
+            grids.append((np.load(e["freq"]).astype(float), _values(e, args.real_only)))
+    joint.set_guard_penalty(args.guard_penalty, args.guard_sigma, args.guard_margin, args.guard_bin,
+                            tuple(float(v) for v in args.guard_range.split(",")) if args.guard_range else None,
+                            grids=grids)
+    if joint.guard is not None:
+        print("guard rows: " + ", ".join(f"{len(g['groups'])} bins over {len(g['f'])} points" for g in joint.guard),
+              flush=True)
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     return SimpleNamespace(series=series, left_out=left_out, lo=lo, hi=hi, obs=obs, model=model,
@@ -1368,6 +1493,13 @@ def make_parser():
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
     ap.add_argument("--signal-height-power", type=float, default=0.0,
                     help="extra weight (local peak height / max)^-power: small peaks count more (0 = off)")
+    ap.add_argument("--guard-penalty", type=float, default=5.0,
+                    help="guard rows (D57): strength against model peaks where the data have no line, outside the "
+                         "fit ranges and in the empty parts of the grid (0 = off)")
+    ap.add_argument("--guard-sigma", type=float, default=3.0, help="guard: model envelope allowed up to this many noise sigma")
+    ap.add_argument("--guard-margin", type=float, default=2.0, help="guard: Hz kept free around data lines and fitted lines")
+    ap.add_argument("--guard-bin", type=float, default=1.0, help="guard: one row per bin of this width (Hz)")
+    ap.add_argument("--guard-range", default="", help="guard: lo,hi (Hz); default the whole processed grid")
     ap.add_argument("--peak-penalty", type=float, default=0.0,
                     help="missing-peak rows: strength per data peak top whose model stays below the data (0 = off)")
     ap.add_argument("--peak-prominence", type=float, default=0.12,
@@ -1678,6 +1810,10 @@ def main():
               "start_solutions": start_tables,
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "signal_height_power": settings.signal_height_power,
+              "guard_penalty": {"strength": args.guard_penalty, "k_sigma": args.guard_sigma,
+                                "margin_hz": args.guard_margin, "bin_hz": args.guard_bin,
+                                "range": args.guard_range or None,
+                                "bins": [len(g["groups"]) for g in joint.guard] if joint.guard else []},
               "peak_penalty": {"strength": args.peak_penalty, "prominence": args.peak_prominence,
                                "tolerance_hz": args.peak_tolerance, "min_sigma": args.peak_min_sigma,
                                "tops": [len(t) for t in joint.peaks] if joint.peaks else [],

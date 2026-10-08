@@ -948,6 +948,31 @@ Xuehan asked for K to be added to the J -> structure readout without replacing J
 Tests: tests/test_j_structure.py BothModesTests (isotopes reach the likelihood, carbon first; K invariant under
 1H -> 2H and J not; the CLI writes routes A, B-J, B-K and reports missing models).
 
+## D57. Guard rows: no model peak where the data have no line (2026-10-08)
+
+- Problem: fit ranges taken from the data alone leave gaps where a model line costs nothing. Ethanol 2026-09-13
+  (ranges 198-221 and 244-260 Hz, field and automatic rate families): the model put tall sharp lines at
+  232-236 Hz, where the data are empty; the rate family of those lines ran to its lower bound.
+- Owner's decisions: keep both modes, fitting the whole grid (make_series_entry default since a14d15b) and fitting
+  a few bands; in both the loss carries a penalty against model peaks where the data have none.
+- fit_joint_series: one guard row per bin (`--guard-bin`, 1 Hz) over the processed grid minus `--guard-margin`
+  (2 Hz) around the data line regions and the fully weighted fitted points: strength t softplus((max over the bin
+  of 0.8 E - D - k sigma) / t) / (sigma norm), t = 0.5 sigma. E: model line envelope with the solved gains
+  (MixtureForward.model_envelope, smooth profiles: tapered at +-5 Hz and rendered at one reference frequency;
+  the hard cut and the median-frequency profile jumped when a line crossed the cut or two rate families met at a
+  bound); D: largest data magnitude within +-0.5 Hz; 0.2 of E not counted (E ignores phases and exceeds the
+  coherent model between partly cancelling lines); k: `--guard-sigma` (3); strength `--guard-penalty`
+  (default 5, 0 = off). The full grid comes from the series entry (the observations hold only the fit ranges).
+- Jacobian: forward differences of the guard rows over every free parameter, gains solved again at each step
+  (they come from the fit ranges and move with every parameter and the delay; with fixed gains the derivatives
+  had the wrong sign for field and delay), step 1e-8 + 1e-7 abs(x) (line tops are sharp). Only while a row is
+  active; otherwise rows and derivatives are zero.
+- Not in reliability_series.py, j_tuner.py and the studio yet (they build JointSeries without guard rows).
+- Known, older: a coupling that moves a line across an automatic rate-family edge changes its rate in a step
+  (the objective jumps); seen in the ethanol checks, not changed here.
+Tests: tests/test_joint_series.py test_guard_rows_penalise_model_peaks_where_the_data_are_empty (quiet where the
+data have the lines, active only at the empty bins, Jacobian against central differences, continuity).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

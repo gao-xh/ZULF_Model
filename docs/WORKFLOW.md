@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57).
 
 ## Map
 
@@ -228,7 +228,8 @@ M_s(\theta, c) = \mathcal{P}\Big[ \sum_{q} c_q \sum_{k \in q} A_k\, e^{2\pi i f_
 Loss function (what least_squares minimises; JointSeries.residual, MixtureForward.predict; section 5 below):
 
 ```math
-L(\theta) = \sum_{s} \Big[ \lVert r_s \rVert^2 + \sum_{p} \rho_{sp}^2 + a^2 \lVert r_s \rVert_{\mathcal{R}_s}^2 \Big]
+L(\theta) = \sum_{s} \Big[ \lVert r_s \rVert^2 + \sum_{p} \rho_{sp}^2 + \sum_{b} \gamma_{sb}^2
+  + a^2 \lVert r_s \rVert_{\mathcal{R}_s}^2 \Big]
   + \sum_{k} \Big( \frac{\bar{J}_k - \mu_k}{\sigma_k} \cdot \frac{\sqrt{w_{\mathrm{prior}}}}{\bar{n}} \Big)^2
 ```
 
@@ -253,6 +254,13 @@ m = t \log \sum_{|f - f_p| \le \epsilon} e^{r_s(f)/t}, \qquad
 \qquad t = \kappa\, h_p \quad \text{(smooth, while optimising)}
 ```
 
+```math
+\gamma_{sb} = \frac{\lambda_g\, t_g}{\sigma\, n_s}
+  \operatorname{softplus}\!\Big( \frac{\max_{f \in b} \big[ (1 - \eta) E_s(f) - D_s(f) \big] - k_g \sigma}{t_g} \Big),
+\qquad t_g = 0.5\, \sigma
+\quad \text{(guard, D57)}
+```
+
 Every symbol:
 - $L$: the objective; the value reported as "objective" is $L$ at the solution with the hard rows.
 - $\theta$: the nonlinear parameters the optimiser moves: couplings $J_{ij}$, decay rates $R$, delay $\delta$,
@@ -275,6 +283,15 @@ Every symbol:
   0.15 Hz); $\lambda$: `--peak-penalty` (0 = off); for negative data tops (dips) the residual is mirrored and
   $\lambda$ = `--dip-penalty`. $m$: soft maximum of $r_s$ in the window; $t$: its smoothing scale; $\kappa$:
   `--peak-smooth` (0 = hard rows throughout).
+- $\gamma_{sb}$: guard row of bin $b$ (D57): the model may not put a peak where the data have no line. Bins of
+  `--guard-bin` (default 1 Hz) over the guard points: the whole processed grid (or `--guard-range`) minus
+  `--guard-margin` (default 2 Hz) around the data line regions (4 $\sigma$ on the whole grid) and the fully
+  weighted fitted points; with fit ranges of a few bands most of the guard lies outside them, with the whole
+  grid it is the empty part. $E_s(f)$: the model line envelope (sum of line magnitudes with the solved gains,
+  phases ignored); $D_s(f)$: the largest data magnitude within $\pm 0.5$ Hz (line tails and noise allowed);
+  $\eta = 0.2$: the share of $E$ not counted (it exceeds the coherent model where lines partly cancel);
+  $k_g$: `--guard-sigma` (default 3); $\sigma$: noise of the whole grid; $\lambda_g$: `--guard-penalty` (default
+  5, 0 = off). Zero while the model stays under the data there; the data in the guard never enter otherwise.
 - $a$: residual-peak strength and $\mathcal{R}_s$: the windows around assignable residual peaks
   (`--residual-peaks`, 0 = off); $\lVert r_s \rVert_{\mathcal{R}_s}$: the norm over those points only.
 - Prior term: a Gaussian prior (maximum a posteriori) that penalises a coupling for leaving a fixed reference value,

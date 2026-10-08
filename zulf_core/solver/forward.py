@@ -278,7 +278,8 @@ class MixtureForward:
             return np.zeros(len(self.f), bool)
         return self.model_envelope(values, gains) > threshold * self.noise_sigma
 
-    def model_envelope(self, values: Dict[str, float], gains: np.ndarray, half_width_hz: float = 20.0) -> np.ndarray:
+    def model_envelope(self, values: Dict[str, float], gains: np.ndarray, half_width_hz: float = 20.0,
+                       frequencies: Optional[np.ndarray] = None, taper: bool = False) -> np.ndarray:
         """Incoherent line envelope of the model on the fitted grid, read from the transition lists (no peak picking).
 
             E(f) = sum_k abs(g_c a_k) P_R(f - f_k)
@@ -288,12 +289,19 @@ class MixtureForward:
         cut at `half_width_hz`. Line phases are ignored, so E marks every place
         the model puts signal: isolated lines of either sign, many broad
         overlapping lines, and holes where lines cancel in the coherent sum. At
-        an isolated line E equals the rendered peak magnitude.
+        an isolated line E equals the rendered peak magnitude. `frequencies` (sorted)
+        evaluates E there instead of on the fitted grid, e.g. on a guard region
+        outside the fit ranges (fit_joint_series --guard-penalty). `taper` brings
+        each profile smoothly to zero over the outer 30 % of +-half_width_hz, so E
+        is continuous in the line positions (the hard cut jumps by the profile's
+        value at the cut when a grid point crosses it; an optimiser needs E smooth)
+        and renders every profile at one reference frequency (the grid median).
         """
         from ..render.renderer import _per_transition
         from ..physics.transitions import TransitionList
-        envelope = np.zeros(len(self.f))
-        if not len(self.f):
+        grid = self.f if frequencies is None else np.asarray(frequencies, float)
+        envelope = np.zeros(len(grid))
+        if not len(grid):
             return envelope
         spacing = float(np.median(np.diff(self.f))) if len(self.f) > 1 else 1.0
         step = spacing / 4
@@ -313,15 +321,20 @@ class MixtureForward:
                 members = np.flatnonzero((rates == r) & (weight > 0))
                 if not len(members):
                     continue
-                f0 = float(np.median(tl.frequencies_hz[members]))
+                # smooth mode: one reference frequency for every profile (the median line of a rate group jumps
+                # when two families reach the same rate, e.g. both at a bound, and the groups merge)
+                f0 = float(np.median(grid)) if taper else float(np.median(tl.frequencies_hz[members]))
                 pair = self.renderer.render_pair(TransitionList(np.array([f0]), np.array([1.0 + 0j])), float(r),
                                                  f0 + offsets, delay, sigma)
                 profile = np.abs(pair[:, 0])
-                lo = np.searchsorted(self.f, tl.frequencies_hz[members] - half_width_hz)
-                hi = np.searchsorted(self.f, tl.frequencies_hz[members] + half_width_hz, side="right")
+                if taper:
+                    u = np.clip((np.abs(offsets) - 0.7 * half_width_hz) / (0.3 * half_width_hz), 0.0, 1.0)
+                    profile = profile * np.cos(0.5 * np.pi * u) ** 2
+                lo = np.searchsorted(grid, tl.frequencies_hz[members] - half_width_hz)
+                hi = np.searchsorted(grid, tl.frequencies_hz[members] + half_width_hz, side="right")
                 for k, i0, i1 in zip(members, lo, hi):
                     if i1 > i0:
-                        envelope[i0:i1] += weight[k] * np.interp(self.f[i0:i1] - tl.frequencies_hz[k], offsets,
+                        envelope[i0:i1] += weight[k] * np.interp(grid[i0:i1] - tl.frequencies_hz[k], offsets,
                                                                  profile, left=0.0, right=0.0)
         return envelope
 

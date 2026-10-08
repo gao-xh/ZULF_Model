@@ -250,6 +250,48 @@ class JointSeriesTests(unittest.TestCase):
                                        for e in np.eye(len(zz))])
             self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0), msg=str(smooth))
 
+    def test_guard_rows_penalise_model_peaks_where_the_data_are_empty(self):
+        # D57: fit range 100-200 Hz; the model also has lines at 249-264 Hz. With those lines in the data the guard
+        # is quiet there (data line regions are protected); with empty data there the guard rows are active at
+        # those bins only, continuous, and their Jacobian (gains solved again) matches central differences.
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.05)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 300.0)], record=acq)
+        p = settings.parameterize(model.interpretation)
+        sig = np.asarray(MixtureForward(p, clean, gain_model=settings.gain_model, background=-1,
+                                        band_weighting="none", **_signal_kwargs(settings)).predict(
+            p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model)
+        rng = np.random.default_rng(5)
+        noise = 2e-3 * np.abs(sig).max() * (rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)))
+        empty = np.where(f > 200.0, 0.0, sig) + noise
+        for data, active in ((sig + noise, False), (empty, True)):
+            obs = ObservedSpectrum.from_spectrum(f, data, [(100.0, 200.0)], record=acq)
+            joint = JointSeries(model, settings, [obs], [1.0], shape="free")
+            joint.set_guard_penalty(5.0, grids=[(f, data)])
+            table, xs = self._table(joint)
+            z = joint.pack(table, xs)
+            x = joint.spectrum_vector(z, 0)
+            g = joint.guard[0]
+            self.assertGreater(len(g["groups"]), 50)
+            for line in (129.1, 130.8, 146.8):                    # data lines inside the fit range are protected
+                self.assertGreater(np.abs(g["f"] - line).min(), 2.0)
+            rows = joint._guard_rows(0, x, joint.forwards[0].predict(x).gains)
+            centres = np.array([g["f"][idx].mean() for idx in g["groups"]])
+            hot = centres[rows > 0.05 * 5.0 / joint.forwards[0].norm]
+            if not active:
+                self.assertEqual(len(hot), 0, msg=str(hot))
+                continue
+            self.assertTrue(len(hot) > 0 and np.all((hot > 245.0) & (hot < 268.0)), msg=str(hot))
+            jac = joint.jacobian(z)[-len(rows):]
+            h = 1e-6
+            numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e))[-len(rows):] / (2 * h)
+                                       for e in np.eye(len(z))])
+            self.assertLess(np.abs(jac - numeric).max(), 1e-3 * np.abs(numeric).max())
+            small = joint.residual(z + 1e-9)[-len(rows):] - joint.residual(z)[-len(rows):]
+            self.assertLess(np.abs(small).max(), 1e-5 * np.abs(rows).max())               # continuous
+
     def test_line_band_and_local_fit(self):
         # a line band that holds every line changes nothing; a narrow one keeps the Jacobian exact (finite
         # differences); the local fit recovers a coupling shift from one window
