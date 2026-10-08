@@ -71,7 +71,18 @@ def blocks(lines):
 
 def render_blocks(lines) -> str:
     out = []
+    algo_title = None                      # a "Key algorithms ..." paragraph: its list becomes one boxed block
     for kind, payload in blocks(lines):
+        if kind == "paragraph" and payload.startswith("Key algorithms"):
+            algo_title = payload.rstrip(":")
+            continue
+        if algo_title and kind == "list":
+            head = inline(algo_title).replace("Key algorithms", "<span>Key algorithms</span>", 1)
+            out.append(f'<div class="algo"><h3>{head}</h3><ul>' + "".join(f"<li>{inline(t)}</li>" for t in payload)
+                       + "</ul></div>")
+            algo_title = None
+            continue
+        algo_title = None
         if kind == "mermaid":
             out.append(f'<div class="diagram"><pre class="mermaid">{html.escape(payload, quote=False)}</pre></div>')
         elif kind == "command":
@@ -182,6 +193,10 @@ pre.cmd code {{ background: none; padding: 0; font-size: inherit; }}
 ul {{ margin: 0; padding-left: 20px; display: grid; gap: 4px; }}
 p {{ margin: 0; max-width: 78ch; }}
 .label {{ font-weight: 600; color: var(--accent); margin-right: 4px; }}
+.algo {{ border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 8px; }}
+.algo h3 {{ margin: 0; font: 500 12px var(--mono); letter-spacing: .06em; color: var(--muted); }}
+.algo h3 span {{ text-transform: uppercase; color: var(--accent); }}
+.algo li {{ font-size: 14px; }}
 .table-wrap {{ overflow-x: auto; }}
 table {{ border-collapse: collapse; width: 100%; font-size: 13.5px; }}
 th, td {{ text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }}

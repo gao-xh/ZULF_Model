@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; processing, phase and baseline in W2).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow).
 
 ## Map
 
@@ -77,6 +77,12 @@ flowchart LR
   tools, other groups) are in `data/raw/MEAS/`.
 - The even / odd half averages are disjoint scans for held-out checks of a fit.
 
+Key algorithms:
+- Scan screening: per scan, the RMS deviation from the mean of all scans (each detrended) and the late-record
+  noise; robust z = (value - median) / (1.4826 MAD); scans above `--exclude-z` are left out and the mean is
+  recomputed once without them.
+- Half averages by scan position (even / odd), so the two halves share drift but not noise.
+
 ## W2. Averaged FID to a processed spectrum: processing, phase, baseline
 
 ```mermaid
@@ -136,6 +142,21 @@ Baseline (frequency domain):
   and then AsLS under the line clusters (`asls_baseline`), the same steps for data and model; the residual is
   unchanged (section 10, scripts/paper_figure.py).
 
+Key algorithms:
+- Switching edge: half height between the start plateau and the first extremum (2-20 ms), interpolated between
+  samples (NMRduino: edge at 3.41-3.51 ms). Minus the edge time is the first-order phase delay.
+- Drift removal: Savitzky-Golay smoothing (default window 201 samples, order 2) on the full record with mirrored
+  edges, subtracted (`process_record`).
+- Spectrum: finite-record Fourier sum on the requested grid (`evaluate_spectrum`, FFT when the grid allows it).
+- Phase convention: multiply by exp(-i (phase0 + 2 pi f (delay + crop reference))) (`phase_correct`).
+- Data-only phase (`estimate_phase`): at the strongest peaks the window-summed complex value has phase
+  phase0 + 2 pi f (reference + delay) modulo pi (lines may be negative); delay on a grid, phase0 from the
+  weighted circular mean of the doubled angles.
+- AsLS baseline (Eilers and Boelens 2005, display only): minimise sum w (y - z)^2 + lam sum (second difference
+  of z)^2 with asymmetric weights, lam = (smooth_hz / step)^4 so the setting is grid-independent.
+- Fit ranges: bands where the smoothed |spectrum| exceeds 5 noise levels (noise from 330-380 Hz), widened by 3 Hz,
+  mains harmonics (n x 60.06 Hz) and instrument lines +-0.4 Hz removed.
+
 Checks: look at `phased.png` before fitting; `zulf-model diagnose AVERAGE.npy 0.ini` and
 `scripts/validate_processing.py` compare processing and phase choices.
 
@@ -147,7 +168,7 @@ flowchart LR
     m --> f["fit_joint_series.py<br/>multi-start, rate families, field, gamma,<br/>precision; gains, residual phase, delay,<br/>background polynomial per band"]
     f --> d["band_diagnosis.py<br/>line_table.py, j_tuner.py"]
     d -- misfit --> f
-    f --> u["reliability:<br/>half averages, held-out"]
+    f --> u["reliability budget<br/>noise, near-equivalent solutions,<br/>processing variants, recovery"]
     u --> r["fit.json, J_table.csv (J and K)<br/>paper_figure.py, analysis log"]
 ```
 
@@ -159,6 +180,27 @@ flowchart LR
   `--fit-gamma` names a heteronucleus (D53).
 - Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).
 - Output couplings carry K next to J (D51).
+
+Key algorithms (sections 3-9 below give the detail):
+- Spin physics: zero-field Hamiltonian H = 2 pi sum J_ab I_a . I_b, block diagonal in collective-spin and total-M
+  sectors; eigen-decomposition gives the transitions; sudden-drop protocol: gamma-weighted preparation and
+  detection. A static field adds -sum gamma B . I (D47); intermediate exchange uses a Liouville model (D45).
+- Rendering: each transition is a damped complex exponential synthesised on the acquisition times by a type-1
+  NUFFT (Gaussian gridding, relative error about 1e-12) and pushed through `process_record`, so the model carries
+  the crop wings, window and record length of the data.
+- Variable projection: complex gains (or a shared phase with real amplitudes), per-band background polynomials
+  and nuisance terms are solved by linear least squares inside every evaluation; the optimiser sees couplings,
+  decay rates, delay, field and gamma only.
+- Optimiser: scipy `least_squares` (trust-region reflective, bounds, analytic Jacobian, x_scale "jac"), many
+  starts in parallel processes; the precision callback stops when couplings move by less than `--precision`
+  and the cost no longer falls (D55).
+- Objective: signal-weighted complex residual plus missing-peak rows (soft max / soft hinge while optimising,
+  hard rows for ranking) and optional coupling priors and residual-peak rows.
+- Decay-rate families: one rate per frequency family of each isotopologue's lines (`--family-edges`).
+- Fine structure: line table with dJ derivatives, peak sources, residual peaks, local fits of the couplings that
+  move the lines of one band, then a global refit (section 8).
+- Reliability: linearised errors are 10-30 x too small; the budget adds the spread of near-equivalent solutions
+  (3 % set), processing variants and a recovery test on synthetic data with the real residual (section 9).
 
 ## W4. The same fit, interactive: ZULF Studio
 
@@ -180,13 +222,21 @@ flowchart LR
 - Real-time simulation (structure, couplings, field, line width), auto phase, fits with a progress slider,
   figure export, log and terminal; AI keys in the macOS Keychain or environment only (docs/STUDIO.md).
 
+Key algorithms:
+- Live simulation from the same spin physics as W3 (model cached per structure), drawn as complex Lorentzians
+  a gamma / (gamma + i (f - f_k)) with one decay rate: a quick look, not the processed forward model of a fit.
+- Display scale by least squares on magnitudes (can be locked, so it does not jump while sliding).
+- Auto phase "model": delay on a 0.005 ms grid, phase0 in closed form, so the data best match a positive multiple
+  of the simulation; "data": the W2 data-only estimate.
+
 ## W5. Blind analysis of a new sample
 
 ```mermaid
 flowchart LR
     fid["FID"] --> p["standard processing<br/>overview figure"]
-    p --> h["hypotheses<br/>fragments, motifs;<br/>labelling with a motif"]
-    h --> s["search: fit every hypothesis<br/>BIC, held-out rescoring"]
+    p --> g["group candidates per band<br/>X-Hn line patterns"]
+    g --> h["fragment enumeration<br/>covers, trees, motifs;<br/>labelling with a motif"]
+    h --> s["search: refine every hypothesis<br/>common chi2 yardstick, BIC,<br/>checks, extension moves"]
     s --> r["blind.md / labelings.json<br/>ranked table"]
     r -- best candidates --> w3["W3 / W4 refined fit<br/>reported couplings"]
 ```
@@ -201,6 +251,20 @@ flowchart LR
 - The output is a ranking of hypotheses (blind.md, blind.json), not a coupling table: the search uses coarse
   settings to compare many structures. Refit the best candidates with W3 / W4 to get couplings to report.
   Feeding a structure-free J network from this search into W6 is planned (PLAN Phase 7).
+
+Key algorithms:
+- Group candidates: an isolated X-Hn group has lines at fixed multiples of 1J (XH: J; XH2: 3J/2; XH3: J and 2J,
+  0.8 : 1); every band peak taken as every pattern line fixes a J, and the other lines are checked as observed,
+  unobservable or missing.
+- Fragment enumeration: smallest covers of the bands by group candidates, then every tree over the groups
+  (Pruefer sequences) plus isolated parts and symmetric methyl doubling; longer-range couplings from a prior by
+  bond distance.
+- Search: each hypothesis refined in amplitude variants (free, fixed, ratios) and exchange regimes; one common
+  yardstick (chi2 on the data cores) and BIC = chi2 + k ln N; checks per result; extension moves accepted only if
+  the BIC improves by at least 6; fits with an isotopologue switched off rank last.
+- Global pattern search (zulf_core.solver.search): a phase-insensitive magnitude objective over the whole
+  parameter box proposes starts, since local refinement converges only near the right line pattern.
+- Labelling (D54): every labelling refitted, then all rescored on one common scale.
 
 ## W6. Fitted J network to structure candidates
 
@@ -220,6 +284,17 @@ flowchart LR
 - All three routes run every time (D56). With 2H or 15N in the sample, B-K is the isotope-independent one.
 - A network from a fit of the true structure is biased toward it; see docs/J_TO_STRUCTURE.md.
 
+Key algorithms:
+- Candidates: every connected graph over the carbon copies and up to two unseen atoms X, with degree caps, at most
+  one ring and up to two double or triple bonds; copies of a unit kept equivalent and distinct units distinct by
+  Weisfeiler-Lehman colours; isomorphic graphs merged.
+- Score: sum over couplings of log p(J | bond count) + log prior (unseen atom -1, ring -2, double bond -1.5,
+  triple -3, missing valence -3); bond count = C-C distance + 1 (C-H) or + 2 (H-H); 1J enters through the
+  hybridization of its carbon.
+- Route A: literature ranges convolved with the fit sigma. Route B: MLP p(bond count | J, kind, proton counts)
+  turned into a likelihood by Bayes, p(class | J) / p(class); mode K feeds the equivalent 13C-1H coupling
+  J g_13C g_1H / (g_A g_B), so it is unchanged under 1H -> 2H.
+
 ## W7. Learned candidate model (built, not yet trained)
 
 ```mermaid
@@ -237,6 +312,15 @@ flowchart LR
 
 - Status: code and CPU verification runs only; the full training and the frozen test sets are open
   (docs/PLAN.md). Not part of any result yet.
+
+Key algorithms:
+- Encoder: a 1D CNN that downsamples the spectrum into tokens, each with Fourier features of its absolute
+  frequency (frequency is physical information in ZULF spectra).
+- Set model (DETR style): component slots cross-attend to the tokens; trained with Hungarian matching between
+  slots and true components; groups predicted in canonical order, so magnetic equivalence is part of the output.
+- Transformer: decodes the token grammar BOS (COMP weight groups SEP J tokens)+ EOS by beam search restricted to
+  the grammar; soft targets over neighbouring J bins and a within-bin regression head.
+- Evaluation always matches interpretations by permutation (`spinsystem.best_permutation`).
 
 ---
 
