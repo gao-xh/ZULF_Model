@@ -320,9 +320,11 @@ Use occasionally or as the last step, not inside every fit.
 ## From a fitted J network to a structure (Phase 7, docs/J_TO_STRUCTURE.md)
 
 - Write the fitted couplings as an observation, following configs/j_networks/*.json. It needs units (13C sites
-  with proton count and copies), proton groups, and J(unit, group) / J(group, group).
-- Rank with route A: `python scripts/j_structure.py OBS.json --explain 1`. Add route B with
-  `--model runs/models/j_edges_v1.json`; train it first with `scripts/j_structure_benchmark.py --model ...`.
+  with proton count and copies), proton groups, and J(unit, group) / J(group, group). Mark non-default isotopes
+  with `isotopes` (e.g. `{"HN": "2H"}` for a group exchanged in D2O).
+- Rank: `python scripts/j_structure.py OBS.json --explain 1` runs route A and route B in both modes, J and K
+  (D56); train the two route B models once with `python scripts/j_structure_benchmark.py` (runs/models).
+  When the routes disagree on the best structure and the sample has 2H or 15N, trust B-K.
 - Read the margin.
   - A margin equal to a prior difference (1.0, 2.0) with equal log L means the J values cannot separate the two
     graphs. This typically happens when an unseen atom X is placed differently, or a ring passes through X

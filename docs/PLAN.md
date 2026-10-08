@@ -504,7 +504,9 @@ verification data before adoption.
       15N -> 14N and 1H -> 2H starts (zulf_core.nuclei). Tests: ReducedCouplingTests, RunToolsTests.
 - [x] Route B on J vs K (D52; docs/analysis/2026-10-07_j-to-structure_j-vs-k.md): equal on 13C / 1H data; K alone
       transfers to deuterated couplings (0.843 vs 0.298). scripts/j_k_learning_comparison.py.
-- [ ] Decide with Xuehan when route B switches to K (labelled samples, N couplings); route A unchanged.
+- [x] Route B in both modes every run, J and K side by side (D56): one model file per mode, `isotopes` in the
+      observation, scripts/j_structure.py prints A, B-J, B-K. Tests: BothModesTests.
+- [ ] 15N units and N couplings in the J observation (needed for K to matter on 15N-labelled samples).
 
 ## Experimental data inventory (user Google Drive, "Metabolites/Low Gamma")
 

@@ -16,6 +16,8 @@ Input mode (`EdgeModel.mode`): "J" (the coupling in Hz, default) or "K" (the red
 the equivalent 13C-1H coupling J (g_13C g_1H) / (g_A g_B) so that 13C-1H rows are identical in both modes). A kind
 names the elements of a pair (CH: carbon-hydrogen, HH: hydrogen-hydrogen); the isotopes default to 13C and 1H and
 can be given per row (`nuclei`), e.g. 2H for deuterated samples, where only the K mode keeps the trained scale.
+Both modes run side by side (D56): `ROUTE_B_MODES`, one model file per mode (`model_path`, `load_route_b`), and the
+likelihood takes the isotopes of each coupling from the observation (`nuclei=`, passed by rank_structures).
 
 The classifier only knows the coupling rules it was trained on (configs/couplings_v1.json): on synthetic
 observations from the same rules it has an advantage over route A; the real J networks are the fair comparison.
@@ -36,6 +38,7 @@ KIND_NUCLEI = {"CH": ("13C", "1H"), "HH": ("1H", "1H")}      # default isotopes 
 K_REFERENCE = ("13C", "1H")
 N_H = 4                          # proton counts 0..3 one-hot
 HYBRIDS = ("sp3", "sp2", "sp")
+ROUTE_B_MODES = ("J", "K")       # route B runs once per mode, every time (D56)
 
 
 def model_value(j: float, kind: str, mode: str = "J", nuclei: Optional[Tuple[str, str]] = None) -> float:
@@ -238,26 +241,36 @@ class LearnedLikelihood:
     """likelihood(j, kind, bonds, sigma, h) for rank_structures: p(bonds | J, kind, h) / p(bonds | kind, h), with a
     floor. sigma is not used (the training noise sets the width)."""
 
+    accepts_nuclei = True                         # rank_structures passes the isotopes of each coupling
+
     def __init__(self, model: EdgeModel, floor: float = 1e-3):
         self.model, self.floor = model, floor
         self._cache: Dict[tuple, np.ndarray] = {}
         if model.hybrid_weights is not None:      # without the head, rank_structures uses its rule 1J likelihood
             self.hybrid = self._hybrid
 
-    def ratios(self, j: float, kind: str, h: Tuple[int, int]) -> np.ndarray:
-        key = (round(j, 6), kind, tuple(h))
+    @property
+    def mode(self) -> str:
+        return self.model.mode
+
+    def ratios(self, j: float, kind: str, h: Tuple[int, int], nuclei: Optional[Tuple[str, str]] = None) -> np.ndarray:
+        nuclei = tuple(nuclei) if nuclei else None
+        key = (round(j, 6), kind, tuple(h), nuclei)
         if key not in self._cache:
-            p = self.model.predict(features(j, kind, h, self.model.mode))[0]
+            p = self.model.predict(features(j, kind, h, self.model.mode, nuclei))[0]
             prior = self.model.class_prior(kind, tuple(h))
             self._cache[key] = (p + self.floor) / (prior + self.floor)
         return self._cache[key]
 
-    def __call__(self, j: float, kind: str, bonds: int, sigma: float = 0.1, h=(0, 0)) -> float:
-        return float(self.ratios(j, kind, h)[min(bonds, MAX_BONDS) - 1])
+    def __call__(self, j: float, kind: str, bonds: int, sigma: float = 0.1, h=(0, 0),
+                 nuclei: Optional[Tuple[str, str]] = None) -> float:
+        """nuclei: the isotopes of the pair (carbon, proton for CH); used in mode K, ignored in mode J."""
+        return float(self.ratios(j, kind, h, nuclei)[min(bonds, MAX_BONDS) - 1])
 
-    def _hybrid(self, j: float, hyb: str, sigma: float = 0.1, h=(0, 0)) -> float:
+    def _hybrid(self, j: float, hyb: str, sigma: float = 0.1, h=(0, 0),
+                nuclei: Optional[Tuple[str, str]] = None) -> float:
         """p(hyb | 1J, h) / p(hyb | h)."""
-        p = self.model.predict_hybrid(hybrid_features(j, h[0], self.model.mode))[0]
+        p = self.model.predict_hybrid(hybrid_features(j, h[0], self.model.mode, nuclei))[0]
         prior = self.model.hybrid_prior.get(int(h[0]), np.full(len(HYBRIDS), 1.0 / len(HYBRIDS)))
         k = HYBRIDS.index(hyb)
         return float((p[k] + self.floor) / (prior[k] + self.floor))
@@ -269,3 +282,23 @@ def accuracy(model: EdgeModel, rows: Iterable, nuclei: Optional[Dict[str, Tuple[
     x = np.stack([features(j, kind, h, model.mode, (nuclei or {}).get(kind)) for j, kind, h, _ in rows])
     pred = model.predict(x).argmax(axis=1) + 1
     return float(np.mean(pred == np.array([b for *_, b in rows])))
+
+
+def model_path(model_dir, mode: str):
+    """File of the route B model of one input mode: <model_dir>/j_edges_<mode>.json."""
+    from pathlib import Path
+    return Path(model_dir) / f"j_edges_{mode}.json"
+
+
+def load_route_b(model_dir, modes: Sequence[str] = ROUTE_B_MODES) -> Dict[str, "LearnedLikelihood"]:
+    """{mode: LearnedLikelihood} for every mode whose model file exists in model_dir (missing modes are left out)."""
+    import json
+    out = {}
+    for mode in modes:
+        path = model_path(model_dir, mode)
+        if path.exists():
+            model = EdgeModel.from_dict(json.loads(path.read_text()))
+            if model.mode != mode:
+                raise ValueError(f"{path} holds a mode {model.mode} model")
+            out[mode] = LearnedLikelihood(model)
+    return out

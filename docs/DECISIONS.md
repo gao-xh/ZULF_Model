@@ -855,7 +855,7 @@ Xuehan asked for the coupling with the gyromagnetic ratios removed. K = 4 pi^2 J
 - available as `zulf_core.nuclei.reduced_coupling`, `coupling_from_reduced`, `convert_coupling` for starts and
   priors of other isotopes: 15N literature couplings -> 14N (the 14N model, PLAN Phase 3e), 1H -> 2H (labelled
   samples). The primary isotope effect on K (about 1 %) is neglected; converted values are not results.
-- Using K in the J-to-structure likelihood (Phase 7) is open for discussion.
+- Using K in the J-to-structure likelihood (Phase 7) is open for discussion (D56: run next to J).
 Tests: tests/test_spinsystem.py ReducedCouplingTests (CODATA gammas, independent formula); tests/test_j_tuner.py
 RunToolsTests (K and nuclei in fit.json for C-H and H-H couplings).
 
@@ -927,6 +927,26 @@ option, 0.01 Hz by default, finer (e.g. 0.001 Hz) on request.
   import path (test modules, scripts); renamed to scripts/run_studio.py.
 Tests: tests/test_solver.py PrecisionTests (stop rule; couplings within the precision), tests/test_j_tuner.py
 PrecisionOptionTests (the stop fires on a joint fit, couplings within 0.01 Hz of the run to the tolerances).
+
+## D56. Route B runs in both input modes, J and K, every time (2026-10-08)
+
+Xuehan asked for K to be added to the J -> structure readout without replacing J, both run every time.
+- Route B has one model per input mode (`edge_model.ROUTE_B_MODES` = J, K): `<model dir>/j_edges_J.json` and
+  `j_edges_K.json` (`model_path`, `load_route_b`), trained on the same generator rows by
+  scripts/j_structure_benchmark.py (`--modes J,K`, `--model-dir`, default `runs/models`; existing files are
+  loaded unless `--retrain`; `--model FILE` still loads one file for the mode it holds).
+- scripts/j_structure.py ranks every observation with route A, B-J and B-K (`--routes A,J,K`), prints the three
+  rankings and whether they agree on the best structure, `--out` writes them as JSON. A missing model is reported.
+- J observations take optional `isotopes` ({unit or group: isotope}, default 13C / 1H). rank_structures passes the
+  isotopes of each coupling (`nuclei=`, carbon first for C-H) to a likelihood that declares `accepts_nuclei`
+  (LearnedLikelihood); route A ignores them and assumes 13C / 1H.
+- Measured: benchmark on 100 synthetic observations and the four amine networks, A / B-J / B-K identical (top-1
+  0.91, top-3 1.00; every amine rank 1; held-out bond-count accuracy J 0.852, K 0.849). N-ethylmethylamine with
+  HC3 as 2H (its couplings scaled by g_2H / g_1H): all three rank the truth first; log L of the truth A -43.4,
+  B-J 2.9, B-K 6.1 (only K reads the 2H couplings on the trained scale).
+- No 15N kinds yet (N is an unseen atom X in the candidates); K for N couplings needs N units first.
+Tests: tests/test_j_structure.py BothModesTests (isotopes reach the likelihood, carbon first; K invariant under
+1H -> 2H and J not; the CLI writes routes A, B-J, B-K and reports missing models).
 
 ## Open questions
 

@@ -168,3 +168,88 @@ class ReducedCouplingModeTests(unittest.TestCase):
         m = EdgeModel([(np.zeros((12, 6)), np.zeros(6))], {}, {"CH": np.ones(6) / 6, "HH": np.ones(6) / 6}, mode="K")
         self.assertEqual(EdgeModel.from_dict(m.to_dict()).mode, "K")
         self.assertEqual(EdgeModel.from_dict({k: v for k, v in m.to_dict().items() if k != "mode"}).mode, "J")
+
+
+class BothModesTests(unittest.TestCase):
+    """Route B runs in modes J and K side by side; the observation's isotopes reach the K likelihood (D56)."""
+
+    def _toy_rows(self):
+        rng = np.random.default_rng(0)
+        return ([(rng.uniform(120, 140), "CH", (1, 3), 1) for _ in range(300)]
+                + [(rng.uniform(-6, -2), "CH", (1, 3), 2) for _ in range(300)]
+                + [(rng.uniform(2, 8), "CH", (1, 3), 3) for _ in range(300)]
+                + [(rng.uniform(5, 9), "HH", (1, 3), 3) for _ in range(300)])
+
+    def test_isotopes_parsed_and_passed_to_the_likelihood(self):
+        data = {"units": {"C1": {"h": 1}, "C2": {"h": 3}}, "protons": {"HC1": ["C1", 0], "HC2": ["C2", 0]},
+                "couplings": {"J(C1,HC1)": 130.0, "J(HC2,C1)": -4.0, "J(HC1,HC2)": 7.0},
+                "isotopes": {"HC2": "2H"}}
+        obs = JObservation.from_dict(data)
+        self.assertEqual(obs.isotope("HC2"), "2H")
+        self.assertEqual(obs.isotope("HC1"), "1H")
+        self.assertEqual(obs.isotope("C1"), "13C")
+        self.assertTrue(obs.labelled())
+        self.assertFalse(JObservation.from_dict({k: v for k, v in data.items() if k != "isotopes"}).labelled())
+        seen = []
+
+        class Recorder:
+            accepts_nuclei = True
+
+            def __call__(self, j, kind, bonds, sigma=0.1, h=(0, 0), nuclei=None):
+                seen.append((j, kind, nuclei))
+                return 1.0
+
+        rank_structures(obs, max_unseen=0, likelihood=Recorder())
+        got = {(j, kind): nuc for j, kind, nuc in seen}
+        self.assertEqual(got[(130.0, "CH")], ("13C", "1H"))
+        self.assertEqual(got[(-4.0, "CH")], ("13C", "2H"))          # carbon first although the key names HC2 first
+        self.assertEqual(got[(7.0, "HH")], ("1H", "2H"))
+        rank_structures(obs, max_unseen=0)                          # route A takes no nuclei argument
+
+    def test_k_likelihood_is_isotope_invariant_and_j_is_not(self):
+        from zulf_core.nuclei import get_registry
+        from zulf_model.structure.edge_model import load_route_b, model_path
+        import tempfile
+        rows = self._toy_rows()
+        r = get_registry().gamma("2H") / get_registry().gamma("1H")
+        with tempfile.TemporaryDirectory() as tmp:
+            for mode in ("J", "K"):
+                model = train_edge_model(rows, hidden=(16,), epochs=80, seed=0, mode=mode)
+                model_path(tmp, mode).write_text(json.dumps(model.to_dict()))
+            liks = load_route_b(tmp)
+            self.assertEqual(sorted(liks), ["J", "K"])
+            self.assertEqual(liks["K"].mode, "K")
+            self.assertEqual(sorted(load_route_b(tmp, ("K", "X"))), ["K"])      # missing modes left out
+        k, j = liks["K"], liks["J"]
+        for bonds in (1, 2, 3):
+            self.assertAlmostEqual(k(-4.0 * r, "CH", bonds, 0.1, (1, 3), ("13C", "2H")),
+                                   k(-4.0, "CH", bonds, 0.1, (1, 3)), places=6)
+        # a deuterated 1J(C,D) of about 20 Hz: K reads it as the one-bond coupling it is, J does not
+        bonds_of = lambda lik: int(np.argmax(lik.model.predict(
+            features(130.0 * r, "CH", (1, 3), lik.mode, ("13C", "2H")))[0])) + 1
+        self.assertEqual(bonds_of(k), 1)
+        self.assertNotEqual(bonds_of(j), 1)
+
+    def test_cli_runs_every_route(self):
+        import subprocess
+        import sys
+        import tempfile
+        from zulf_model.structure.edge_model import model_path
+        rows = self._toy_rows()
+        with tempfile.TemporaryDirectory() as tmp:
+            for mode in ("J", "K"):
+                model = train_edge_model(rows, hidden=(8,), epochs=5, seed=0, mode=mode)
+                model_path(tmp, mode).write_text(json.dumps(model.to_dict()))
+            out = Path(tmp) / "ranking.json"
+            res = subprocess.run([sys.executable, str(ROOT / "scripts" / "j_structure.py"),
+                                  str(ROOT / "configs" / "j_networks" / "isopropylamine.json"),
+                                  "--model-dir", tmp, "--out", str(out)], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            report = json.loads(out.read_text())["isopropylamine"]
+            self.assertEqual(list(report["routes"]), ["A", "B-J", "B-K"])
+            self.assertTrue(report["routes"]["A"][0]["truth"])
+            res = subprocess.run([sys.executable, str(ROOT / "scripts" / "j_structure.py"),
+                                  str(ROOT / "configs" / "j_networks" / "isopropylamine.json"),
+                                  "--model-dir", str(Path(tmp) / "none")], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("no route B model for mode J, K", res.stdout)
