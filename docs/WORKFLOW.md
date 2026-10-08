@@ -273,9 +273,14 @@ Every symbol:
   `--peak-smooth` (0 = hard rows throughout).
 - $a$: residual-peak strength and $\mathcal{R}_s$: the windows around assignable residual peaks
   (`--residual-peaks`, 0 = off); $\lVert r_s \rVert_{\mathcal{R}_s}$: the norm over those points only.
-- $\bar{J}_k$: mean of coupling $k$ over the series; $\mu_k$, $\sigma_k$: prior mean and width
-  (`--prior-sigma-hh`, `--prior-sigma-ch`); $w_{\mathrm{prior}}$: `--prior-weight` (0 = off); $\bar{n}$: mean of
-  $n_s$ over the series.
+- Prior term: a Gaussian prior (maximum a posteriori) that penalises a coupling for leaving a fixed reference value,
+  not for the size of an optimiser step. $\bar{J}_k$: mean of coupling $k$ over the series (the value itself for
+  one spectrum); $\mu_k$: its reference, the structure's starting value (motif default, literature, or
+  `--structure` / `--couplings`), fixed during the fit; $\sigma_k$: allowed deviation, `--prior-sigma-hh` for
+  H-H and `--prior-sigma-ch` for C-H couplings (0 = no prior, the default); couplings with $|\mu_k| \ge 50$ Hz
+  (1J) never get one. $w_{\mathrm{prior}}$: `--prior-weight` (default 1); $\bar{n}$: mean of $n_s$ over the series,
+  so the term is on the scale of the normalised data term. A deviation of $\sigma_k$ costs as much as one data
+  point off by one noise level. Check a prior fit against single-spectrum fits without it (section 5).
 - Optional coarse-to-fine smoothing replaces $r_s$ by $S r_s$ (the same Gaussian kernel on data and model).
 - The blind search (W5) scores hypotheses on a common yardstick instead: $\chi^2$ on the data cores and
   $\mathrm{BIC} = \chi^2 + n_{\mathrm{par}} \ln N$ ($n_{\mathrm{par}}$ free parameters, $N$ data points).
