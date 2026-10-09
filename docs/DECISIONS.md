@@ -985,6 +985,20 @@ data have the lines, active only at the empty bins, Jacobian against central dif
   diagonalises exactly (the ZULF_NMR_Suite simulator used Spinach through MATLAB).
 - Plan and steps: PLAN Phase 8.
 
+## D59. One decay-rate family per data peak (2026-10-08)
+
+- Owner: "every peak its own decay rate", as an option of the fit. `--family-edges peaks` puts a family edge
+  midway between neighbouring data peaks (peak_family_edges: peaks of the magnitude smoothed by 0.15 Hz, higher
+  than the noise floor plus `--peak-family-sigma` (default 4) noise levels and with a prominence of 2, at least
+  0.5 Hz apart; robust noise on the points without data lines). A line on the tail of a neighbour counts by its
+  height, not its prominence (the 255.7 Hz ethanol line: 3.2 sigma prominence, 17 sigma above the floor).
+  `peaks+auto` merges these edges with the automatic ones (D46 rule); edges closer than 0.3 Hz merge.
+- Found while trying it on ethanol: narrowing the 256 Hz family shows the model line at 256.6 Hz against the data
+  at 255.8 Hz; the fit had broadened that family to its bound because the position is wrong. A rate cannot move
+  a line; per-peak families give the couplings and field the chance to.
+- Studio: the rate-family box offers peaks, auto, peaks+auto.
+Tests: tests/test_joint_series.py test_peak_family_edges_give_every_data_peak_its_own_family.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

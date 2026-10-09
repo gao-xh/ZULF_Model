@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; Studio jobs, files and machine load; Studio modes D58).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; Studio jobs, files and machine load; Studio modes D58).
 
 ## Map
 
@@ -186,6 +186,8 @@ flowchart LR
 - Field: zero field by default; `--fit-field` fits the transverse and z components (D47); with a known field
   `--fit-gamma` names a heteronucleus (D53).
 - Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).
+- Decay-rate families: `--family-edges` edges in Hz, `auto` (model line clusters, D46), `peaks` (one family per
+  data peak, D59) or `peaks+auto`.
 - Output couplings carry K next to J (D51).
 
 Model: spin Hamiltonian, signal and rendered spectrum (docs/CONVENTIONS.md; zulf_core.physics, section 4 below):

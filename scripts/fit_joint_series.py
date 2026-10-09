@@ -1271,16 +1271,49 @@ def build_problem(args):
     """The fit problem of the command line. --family-edges auto: the problem is first built with one rate family,
     the edges are read from its start vector (auto_family_edges: line clusters and sharp data lines), and the
     problem is rebuilt with them (args.family_edges then holds the edges used)."""
-    if str(getattr(args, "family_edges", "")).strip().lower() == "auto":
+    mode = str(getattr(args, "family_edges", "")).strip().lower()
+    if mode in ("auto", "peaks", "peaks+auto"):
         import copy
         first = copy.copy(args)
         first.family_edges = ""
         p = _build_problem(first)
-        edges, lines, sharp = auto_family_edges(p.joint, p.z0)
-        args.family_edges = ",".join(f"{e:.3f}" for e in edges)
-        print(f"--family-edges auto: {len(edges)} edges from {len(lines)} model lines and {len(sharp)} sharp data "
-              f"peaks: {args.family_edges}", flush=True)
+        edges, notes = [], []
+        if "auto" in mode:
+            auto, lines, sharp = auto_family_edges(p.joint, p.z0)
+            edges += list(auto)
+            notes.append(f"{len(auto)} from {len(lines)} model lines and {len(sharp)} sharp data peaks")
+        if "peaks" in mode:
+            pe, peaks = peak_family_edges(p.joint, k_sigma=getattr(args, "peak_family_sigma", 4.0))
+            edges += list(pe)
+            notes.append(f"{len(pe)} between {len(peaks)} data peaks")
+        merged = []
+        for e in sorted(edges):
+            if not merged or e - merged[-1] > 0.3:
+                merged.append(e)
+        args.family_edges = ",".join(f"{e:.3f}" for e in merged)
+        print(f"--family-edges {mode}: {len(merged)} edges ({'; '.join(notes)}): {args.family_edges}", flush=True)
     return _build_problem(args)
+
+
+def peak_family_edges(joint, s=0, smooth_hz=0.15, k_sigma=4.0, min_distance_hz=0.5):
+    """Edges for --family-edges peaks: one decay-rate family per data peak (owner 2026-10-08). The peaks of the
+    smoothed magnitude of spectrum s (Gaussian smooth_hz) higher than the noise floor plus k_sigma noise levels,
+    with a prominence of at least 2 noise levels, at least min_distance_hz apart (noise: robust spread on the
+    points without data lines), edges at the midpoints between neighbouring peaks. Returns (edges, peaks)."""
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.signal import find_peaks
+    f = joint.forwards[s]
+    fq, y = np.asarray(f.f, float), np.asarray(f.y)
+    step = float(np.median(np.diff(fq)))
+    m = gaussian_filter1d(np.abs(y), smooth_hz / step)
+    quiet = ~f.data_signal_mask if f.data_signal_mask is not None else np.ones(len(fq), bool)
+    q = m[quiet] if quiet.sum() > 10 else m
+    sigma = 1.4826 * float(np.median(np.abs(q - np.median(q))))         # robust: broad humps do not count
+    # tall above the noise floor, and a peak of its own (a line on the tail of a neighbour has a small prominence)
+    idx, _ = find_peaks(m, height=float(np.median(q)) + k_sigma * sigma, prominence=2.0 * sigma,
+                        distance=max(int(min_distance_hz / step), 1))
+    peaks = fq[idx]
+    return [0.5 * (a + b) for a, b in zip(peaks[:-1], peaks[1:])], peaks
 
 
 def _build_problem(args):
@@ -1514,9 +1547,13 @@ def make_parser():
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
+    ap.add_argument("--peak-family-sigma", type=float, default=4.0,
+                    help="--family-edges peaks: a data peak needs this many noise levels above the noise floor")
     ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
-                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue), or "
-                    "'auto': edges from the start vector's line clusters and the sharp data lines (auto_family_edges)")
+                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue), "
+                    "'auto': edges from the start vector's line clusters and the sharp data lines (auto_family_edges), "
+                    "'peaks': one family per data peak (edges midway between neighbouring data peaks, "
+                    "peak_family_edges), or 'peaks+auto': both")
     ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--fit-field", action="store_true",
@@ -1649,7 +1686,7 @@ def main():
     prob = build_problem(args)
     if "--family-edges" in sys.argv[:-1]:                 # record the edges actually used (auto -> numbers)
         i = sys.argv.index("--family-edges")
-        if sys.argv[i + 1].strip().lower() == "auto":
+        if sys.argv[i + 1].strip().lower() in ("auto", "peaks", "peaks+auto"):
             sys.argv[i + 1] = args.family_edges
             run_log.argv = list(sys.argv)
     series, left_out, lo, hi, obs, model = prob.series, prob.left_out, prob.lo, prob.hi, prob.obs, prob.model

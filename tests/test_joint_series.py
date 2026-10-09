@@ -292,6 +292,25 @@ class JointSeriesTests(unittest.TestCase):
             small = joint.residual(z + 1e-9)[-len(rows):] - joint.residual(z)[-len(rows):]
             self.assertLess(np.abs(small).max(), 1e-5 * np.abs(rows).max())               # continuous
 
+    def test_peak_family_edges_give_every_data_peak_its_own_family(self):
+        # three lines, the third on the tail of the second (small prominence, tall above the noise): one edge
+        # between every pair, none in the noise
+        from fit_joint_series import peak_family_edges
+        f = np.arange(100.0, 200.0, 0.05)
+        y = sum(a / (1 + 1j * (f - c) / w) for a, c, w in ((1.0, 120.0, 0.2), (1.0, 150.0, 0.8), (0.6, 152.5, 0.3)))
+        y = y + 0.003 * (np.random.default_rng(1).normal(size=len(f)) + 1j * np.random.default_rng(2).normal(size=len(f)))
+
+        class Fw:
+            pass
+        fw = Fw()
+        fw.f, fw.y, fw.data_signal_mask = f, y, np.abs(y) > 0.05
+
+        class J:
+            forwards = [fw]
+        edges, peaks = peak_family_edges(J())
+        np.testing.assert_allclose(peaks, [120.0, 150.0, 152.5], atol=0.1)
+        np.testing.assert_allclose(edges, [135.0, 151.25], atol=0.1)
+
     def test_line_band_and_local_fit(self):
         # a line band that holds every line changes nothing; a narrow one keeps the Jacobian exact (finite
         # differences); the local fit recovers a coupling shift from one window
