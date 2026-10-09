@@ -152,6 +152,16 @@ With the whole spectrum the direction is constrained: the field lies within abou
 0.03 Hz (3J): there the direction does not change the reported couplings. The earlier trade-off between the
 components (segment fits) came from the unfitted gaps, not from the physics.
 
+### One decay rate per data peak (D59; Xuehan: every peak its own decay)
+
+`--family-edges peaks` (38 data peaks, 37 edges) on the whole-grid series, from the couplings of
+ethanol_full_fam_0.04_0.04, one start, no component search, guard off (whole grid), field start 13.7 / 50.9 nT
+(runs/processed/ethanol_perpeak_fast2, 662 s): objective **0.129** (was 0.209), residual 0.365; B transverse 12.1,
+B z 64.8 nT (|B| 65.9 nT), delay -3.65 ms; 1J 125.459 / 141.677 Hz, 2J(C1,H2) -2.43, 2J(C2,H1) -5.11,
+3J(H,H) **7.22 Hz**; four 13C@C2 rates at bounds. The 256 Hz line now sits on the data (255.8 Hz): with its own
+family the couplings and field could move it. Overlay for slides: runs/figures/ethanol_overlay_perpeak.png
+(scripts/overlay_figure.py). One start only: not yet checked with several starts and the halves.
+
 ## Conclusion
 
 Conditional numerical result for one ethyl model with a uniform static field:
