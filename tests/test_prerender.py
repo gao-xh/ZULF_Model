@@ -15,6 +15,11 @@ from zulf_model.training.prerender import (PrerenderRequest, PrerenderedDataset,
                                            prerender, read_manifest)
 
 
+
+def _identity(item):
+    """collate_fn for the worker test: module level, so spawned workers (macOS) can pickle it."""
+    return item
+
 class PrerenderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -59,7 +64,7 @@ class PrerenderTests(unittest.TestCase):
         setup = TrainingSetup(str(self.config_path))
         for workers in (2, 5):
             data = as_torch_dataset(PrerenderedDataset(self.shards, repeat=False, shuffle=False))
-            loader = DataLoader(data, batch_size=None, num_workers=workers, collate_fn=lambda item: item)
+            loader = DataLoader(data, batch_size=None, num_workers=workers, collate_fn=_identity)
             scales = sorted(float(item["scale"]) for item in loader)
             reference = sorted(float(item["scale"]) for item in PrerenderedDataset(self.shards, repeat=False))
             self.assertEqual(scales, reference)

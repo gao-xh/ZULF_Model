@@ -228,14 +228,7 @@ class PrerenderedDataset:
 
 
 def as_torch_dataset(dataset: PrerenderedDataset):
-    """Wrap as a torch IterableDataset (torch imported lazily)."""
-    from torch.utils.data import IterableDataset
-
-    class _Wrapped(IterableDataset):
-        def __init__(self, inner):
-            self.inner = inner
-
-        def __iter__(self):
-            return iter(self.inner)
-
-    return _Wrapped(dataset)
+    """Wrap as a torch IterableDataset (torch imported lazily; the class lives at module level in
+    torch_dataset.py so spawned DataLoader workers can pickle it)."""
+    from .torch_dataset import TorchPrerenderedDataset
+    return TorchPrerenderedDataset(dataset)
