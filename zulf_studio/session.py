@@ -298,6 +298,13 @@ class StudioSession:
 
     # ---- model ---------------------------------------------------------------------------
     def _build(self):
+        if "spin_system" in self.spec:                # PLAN 8c: isotopes and a J matrix typed in
+            from .spin_model import CustomModel
+            self._model_cache = (None, CustomModel(self.spec))
+            if self.view is None:
+                js = [abs(v["value"]) for v in self.couplings() if abs(v["value"]) >= 50] or [10.0]
+                self.view = [max(0.0, 0.85 * min(js)), 2.15 * max(js)]
+            return
         fragment = fragment_from_spec(self.spec)
         if self.overrides:
             fragment = override_couplings(fragment, self.overrides)
@@ -313,6 +320,8 @@ class StudioSession:
 
     def couplings(self) -> List[dict]:
         fragment, model = self._model_cache
+        if fragment is None:
+            return model.couplings()
         from zulf_hypothesis.fragment import pair
         out, seen = [], set()
         for key in list(model.coupling_names) + [k for k in self.overrides if k not in model.coupling_names]:
@@ -354,6 +363,19 @@ class StudioSession:
         return self.state()
 
     def set_couplings(self, values: Dict[str, float]):
+        if "spin_system" in self.spec:
+            from .spin_model import set_values
+            with self.lock:
+                old = self.spec
+                self.spec = set_values(self.spec, values)
+                try:
+                    self._build()
+                except Exception:
+                    self.spec = old
+                    self._build()
+                    raise
+            self._changed("couplings")
+            return self.couplings()
         with self.lock:
             old = dict(self.overrides)
             for key, v in values.items():
@@ -589,6 +611,9 @@ class StudioSession:
     # ---- fitting -------------------------------------------------------------------------
     def fit_command(self, **options) -> List[str]:
         """fit_joint_series command for the loaded series, starting from the current couplings and field."""
+        if "spin_system" in self.spec:
+            raise ValueError("fits of a custom spin system are PLAN 8d (not yet available); simulate it, or fit "
+                             "a structure")
         if self.data is None or not self.data.get("series"):
             raise ValueError("load a series file (load_spectrum series=...) before fitting")
         o = dict(FIT_DEFAULTS, **options)
@@ -823,6 +848,35 @@ class StudioSession:
             self.trace, self.trace_index = None, -1
         self._changed("trace")
         return {"ok": True}
+
+    # ---- custom spin systems (PLAN 8c) ------------------------------------------------------
+    def spin_system_from_structure(self) -> dict:
+        """Turn the current structure into an editable spin system (every isotopologue a component with its
+        abundance weight and its numeric J matrix)."""
+        from .spin_model import from_structure_model
+        _, model = self._model_cache
+        name = self.spec.get("compound") or self.spec.get("motif") or "custom"
+        return self.set_structure(from_structure_model(model, name))
+
+    def load_model(self, path: str) -> dict:
+        """A model file (a structure or spin-system specification as JSON) or a ZULF_NMR_Suite molecule folder."""
+        p = _resolve(path)
+        if p.is_dir() or p.name == "structure.csv":
+            from .spin_model import read_suite_molecule
+            spec = read_suite_molecule(p)
+        else:
+            spec = json.loads(p.read_text())
+            spec = spec.get("structure", spec)
+        return self.set_structure(spec)
+
+    def save_model(self, path: str) -> dict:
+        p = _resolve(path)
+        if p.suffix != ".json":
+            p = p.with_name(p.name + ".json")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(self.spec, indent=1))
+        self.log(f"model saved: {p}")
+        return {"path": str(p)}
 
     # ---- task mode (D58) -----------------------------------------------------------------
     MODES = ("simulate", "process", "fit", "blind")

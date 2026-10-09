@@ -34,12 +34,11 @@ class SimulatePanel(QWidget):
         comp = QGroupBox("Model")
         cl = QVBoxLayout(comp)
         self.summary = QLabel()
-        self.summary.setWordWrap(True)
         cl.addWidget(self.summary)
-        note = QLabel("Quick look: complex Lorentzian lines with the decay rate of the left panel (FWHM = rate / pi). "
-                      "Exact rendering through an acquisition (window, zero fill, Gaussian broadening) is planned "
-                      "(PLAN 8e).", objectName="hint")
+        note = QLabel("Quick look: Lorentzian lines with one decay rate (FWHM = rate / pi).", objectName="hint")
         note.setWordWrap(True)
+        note.setToolTip("Exact rendering through an acquisition (window, zero fill, Gaussian broadening) is planned "
+                        "(PLAN 8e).")
         cl.addWidget(note)
         lay.addWidget(comp)
         out = QGroupBox("Export")
@@ -70,3 +69,6 @@ class SimulatePanel(QWidget):
             parts.append(f"<span style='color:{ISOTOPOLOGUE[i % 6]}'><b>{c['label']}</b></span>"
                          + (f" weight {ab:.3g}" if isinstance(ab, (int, float)) else "") + f", {n} lines")
         self.summary.setText("<br>".join(parts) + f"<br>{len(s.couplings())} couplings")
+        self.summary.setFixedHeight((len(parts) + 1) * self.summary.fontMetrics().lineSpacing() + 6)
+        self.layout().invalidate()                    # the card grows with the number of components
+        self.layout().activate()

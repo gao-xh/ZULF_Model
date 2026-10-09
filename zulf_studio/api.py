@@ -50,7 +50,10 @@ TOOLS: Dict[str, tuple] = {
     "list_motifs": ("list_motifs", "Registered structural motifs with typical one-bond couplings.", _obj({})),
     "set_structure": ("set_structure", "Set the molecule. spec is a structure specification: {'motif': NAME, "
                       "'one_bond': {SITE: Hz}} or {'compound': NAME, 'chain': {'groups': [[SITE, ELEMENT, N_H], ...], "
-                      "'bonds': [[A, B], ...]}, 'one_bond': {...}}. Resets coupling overrides unless keep_couplings.",
+                      "'bonds': [[A, B], ...]}, 'one_bond': {...}}, or a custom spin system {'spin_system': "
+                      "{'components': [{'name': N, 'isotopes': ['13C', '1H', ...], 'J': n x n matrix of Hz or "
+                      "variable names, 'weight': w}], 'variables': {name: Hz}}}. Resets coupling overrides unless "
+                      "keep_couplings.",
                       _obj({"spec": {"type": "object"}, "keep_couplings": {"type": "boolean"}}, ["spec"])),
     "set_couplings": ("set_couplings", "Set couplings by key 'J(a,b)' in Hz (site or proton-group labels; a new key "
                       "adds a coupling, e.g. a long-range one that makes another isotopologue visible).",
@@ -108,6 +111,12 @@ TOOLS: Dict[str, tuple] = {
     "export": ("export", "Write parameters.json, couplings.csv, lines.csv, spectrum.csv, a session file and the "
                "applied fit's fit.json / J_table.csv to a directory (default under the workspace).",
                _obj({"directory": STR})),
+    "spin_system_from_structure": ("spin_system_from_structure", "Turn the current structure into an editable "
+                                   "custom spin system (every isotopologue a component with its abundance weight; "
+                                   "equal couplings share a variable J1, J2, ...).", _obj({})),
+    "load_model": ("load_model", "Load a model: a JSON file holding a structure or spin-system specification, or a "
+                   "ZULF_NMR_Suite molecule folder (structure.csv).", _obj({"path": STR}, ["path"])),
+    "save_model": ("save_model", "Save the current model specification as JSON.", _obj({"path": STR}, ["path"])),
     "set_mode": ("set_mode", "Task mode of the window: simulate (model only), process (scans to spectrum), fit "
                  "(spectrum and a known model) or blind (blind analysis). The model is shared by every mode.",
                  _obj({"mode": {"type": "string", "enum": ["simulate", "process", "fit", "blind"]}}, ["mode"])),

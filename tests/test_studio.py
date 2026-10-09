@@ -650,3 +650,55 @@ class ProcessModeTests(unittest.TestCase):
         f = Path(tempfile.mkdtemp()) / "keep.json"
         f.write_text("[5, 2]")
         self.assertEqual(parse_scan_list(str(f)), {2, 5})
+
+
+class SpinSystemTests(unittest.TestCase):
+    """PLAN 8c: isotopes and a J matrix typed in, variables, components, Suite molecules."""
+
+    METHYL_SPIN = {"compound": "methyl", "spin_system": {"components": [
+        {"name": "M", "isotopes": ["13C", "1H", "1H", "1H"],
+         "J": [[0, "a", "a", "a"], ["a", 0, 0, 0], ["a", 0, 0, 0], ["a", 0, 0, 0]], "weight": 1.0}],
+        "variables": {"a": 136.0}}}
+
+    def test_methyl_matrix_gives_j_and_2j_and_the_variable_moves_both(self):
+        s = session()
+        s.set_structure(self.METHYL_SPIN)
+        np.testing.assert_allclose(sorted(l["frequency_hz"] for l in s.lines(0.01)), [136.0, 272.0], atol=1e-9)
+        self.assertEqual([c["key"] for c in s.couplings()], ["a"])
+        s.set_couplings({"a": 130.0})
+        np.testing.assert_allclose(sorted(l["frequency_hz"] for l in s.lines(0.01)), [130.0, 260.0], atol=1e-9)
+
+    def test_structure_converts_to_the_same_spectrum_with_shared_variables(self):
+        ethanol = {"compound": "ethanol", "chain": {"groups": [["C1", "C", 3], ["C2", "C", 2]],
+                                                    "bonds": [["C1", "C2"]]}, "one_bond": {"C1": 126.0, "C2": 141.0}}
+        s = session(ethanol)
+        before = [(round(l["frequency_hz"], 6), round(l["amplitude"], 6)) for l in s.lines(0.001)]
+        s.spin_system_from_structure()
+        after = [(round(l["frequency_hz"], 6), round(l["amplitude"], 6)) for l in s.lines(0.001)]
+        self.assertEqual(before, after)
+        self.assertEqual({c["key"]: c["value"] for c in s.couplings()},
+                         {"J1": 141.0, "J2": 126.0, "J3": 7.0, "J4": -4.5})
+
+    def test_entries_errors_and_suite_folders(self):
+        s = session()
+        two = {"spin_system": {"components": [{"name": "A", "isotopes": ["1H", "13C"], "J": [[0, 140.0], [140.0, 0]],
+                                               "weight": 2.0}], "variables": {}}}
+        s.set_structure(two)
+        self.assertEqual([c["key"] for c in s.couplings()], ["A:J(1,2)"])
+        s.set_couplings({"A:J(1,2)": 150.0})
+        self.assertAlmostEqual(max(l["frequency_hz"] for l in s.lines(0.01)), 150.0)
+        for bad in ({"spin_system": {"components": [{"name": "B", "isotopes": ["1H", "1H"], "J": [[0, "x"], ["x", 0]]}],
+                                     "variables": {}}},                       # a variable without a value
+                    {"spin_system": {"components": [{"name": "B", "isotopes": ["9Zz", "1H"], "J": [[0, 1], [1, 0]]}]}}):
+            with self.assertRaises(Exception):
+                s.set_structure(bad)
+        self.assertEqual(s.spec["spin_system"]["components"][0]["name"], "A")   # a failed change keeps the model
+        folder = Path(tempfile.mkdtemp()) / "HD"
+        folder.mkdir()
+        (folder / "structure.csv").write_text("1H,2H\n0.0,7.0\n7.0,0.0\n")
+        s.load_model(str(folder))
+        self.assertEqual(s.components()[0]["label"], "HD")
+        with self.assertRaises(ValueError):                                       # fits come with PLAN 8d
+            s.fit_command()
+        path = s.save_model(str(Path(s.workspace) / "hd"))["path"]
+        self.assertEqual(json.loads(Path(path).read_text())["spin_system"]["components"][0]["isotopes"], ["1H", "2H"])

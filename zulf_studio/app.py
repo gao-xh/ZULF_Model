@@ -39,6 +39,7 @@ from .session import SESSION_SUFFIX  # noqa: E402
 from .dialogs import ExportDialog, ImportDialog  # noqa: E402
 from .modes_ui import SimulatePanel  # noqa: E402
 from .process_ui import ProcessPanel, RecipeBox, ScansPanel  # noqa: E402
+from .spinsystem_ui import SpinSystemEditor  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
@@ -568,6 +569,7 @@ class StudioWindow(QMainWindow):
         self._restore_layout()
         self.update_title()
         self.apply_mode()
+        self._model_page("spin" if "spin_system" in self.session.spec else "structure")
         for e in session.read_log(200):
             self.on_logged(e)
         self.rebuild_couplings()
@@ -599,7 +601,7 @@ class StudioWindow(QMainWindow):
 
     def apply_mode(self):
         mode = self.session.mode
-        names = {"recipe": "FID and recipe", "data": "Data", "structure": "Structure", "couplings": "Couplings (Hz)",
+        names = {"recipe": "FID and recipe", "data": "Data", "structure": "Model", "couplings": "Couplings (Hz)",
                  "field": "Field and line width"}
         n = 0
         for key, sec in self.sections.items():
@@ -626,6 +628,27 @@ class StudioWindow(QMainWindow):
         self.schedule()
 
     def _structure_box(self):
+        """Model source (PLAN 8c): a structure (motif or chain JSON, isotopologues at natural abundance) or a
+        custom spin system (isotopes and a J matrix typed in)."""
+        outer = QWidget()
+        ol = QVBoxLayout(outer)
+        ol.setContentsMargins(0, 0, 0, 0)
+        switch = QWidget(objectName="modeBar")
+        sl = QHBoxLayout(switch)
+        sl.setContentsMargins(3, 3, 3, 3)
+        sl.setSpacing(2)
+        group = QButtonGroup(self)
+        self.model_buttons = {}
+        for key, text, tip in (("structure", "From structure", "a motif or chain; 13C isotopologues at natural "
+                                "abundance"), ("spin", "Spin system", "isotopes and a J matrix typed in")):
+            b = QPushButton(text, objectName="mode", checkable=True)
+            b.setToolTip(tip)
+            b.clicked.connect(lambda _=False, k=key: self._model_page(k))
+            group.addButton(b)
+            sl.addWidget(b)
+            self.model_buttons[key] = b
+        ol.addWidget(switch)
+        self.model_stack = QStackedWidget()
         box = QWidget()
         lay = QVBoxLayout(box)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -661,7 +684,21 @@ class StudioWindow(QMainWindow):
         r2.addWidget(self.exchange)
         lay.addLayout(r2)
         lay.addWidget(build)
-        return box
+        self.spin_editor = SpinSystemEditor(self.session, self)
+        self.model_stack.addWidget(box)
+        self.model_stack.addWidget(self.spin_editor)
+        ol.addWidget(self.model_stack)
+        return outer
+
+    def _model_page(self, key):
+        """Show the structure form or the spin-system editor (the model changes only with Build or Apply)."""
+        spin = key == "spin"
+        if spin:
+            self.spin_editor.load_from_session()
+        self.model_stack.setCurrentIndex(1 if spin else 0)
+        self.json_toggle.setVisible(not spin)
+        for k, b in self.model_buttons.items():
+            b.setChecked(k == key)
 
     def _motif_chosen(self, name):
         m = next((m for m in self.session.list_motifs() if m["name"] == name), None)
@@ -760,6 +797,8 @@ class StudioWindow(QMainWindow):
         while self.coupling_lay.count():
             w = self.coupling_lay.takeAt(0).widget()
             if w is not None:
+                w.hide()                                  # gone now; deleted when control returns to Qt
+                w.setParent(None)
                 w.deleteLater()
         self.coupling_rows = {}
         for c in self.session.couplings():
@@ -772,6 +811,9 @@ class StudioWindow(QMainWindow):
             row.show_fine(self.fine_toggle.isChecked())
             self.coupling_lay.addWidget(row)
             self.coupling_rows[c["key"]] = row
+        if "spin_system" in self.session.spec:          # spin system: couplings are edited in its matrix
+            self.components_label.setText("")
+            return
         add = QWidget()
         al = QHBoxLayout(add)
         al.setContentsMargins(0, 4, 0, 0)
@@ -1555,6 +1597,8 @@ class StudioWindow(QMainWindow):
             self.scans_panel.refresh()
             if event == "process_source" and self.session.mode == "process":
                 self.info_tabs.setCurrentWidget(self.scans_panel)
+        if event in ("structure", "session_opened"):
+            self._model_page("spin" if "spin_system" in self.session.spec else "structure")
         if event == "structure":
             self.rebuild_couplings()
         elif event == "couplings" and set(self.coupling_rows) != {c["key"] for c in self.session.couplings()}:
