@@ -1051,8 +1051,10 @@ tests/test_studio.py (model from a molecule, the Molecule card, no #RRGGBBAA col
   Near strong lines the two differ: at ethanol 118-125 Hz the crop's rolling baseline stayed in the data and
   left the model, which looked like a missing line at 120.7 Hz, although data and model agree there without any
   baseline (runs/figures comparison in docs/analysis/2026-10-09_ethanol_visual-fit.md).
-- Decision: method "shared" (default): the baseline is estimated on the data and subtracted from data and model
-  alike, so the residual is exactly that of the fit and the display adds no misfit. "separate" (the old way),
+- Decision: method "model" (default): one baseline estimated on the noise-free model (which carries the same
+  rolling baseline, rendered through the same processing) and subtracted from data and model alike, so the
+  residual is exactly that of the fit and the display adds no misfit. "shared" estimates that one baseline on the
+  data instead; its spline follows some noise, which then shows as ripples on the model. "separate" (the old way),
   "residual" (from data - model, on the data only) and "none" stay available (`--baseline` in paper_figure.py
   and overlay_figure.py). Display only, as before: fits never subtract a baseline (W2).
 Tests: tests/test_processing.py DisplayBaselineTests (shared keeps the residual; separate does not).

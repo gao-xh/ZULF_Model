@@ -9,9 +9,12 @@ wings between close lines. The residual data - model changes by the difference o
 
 method (owner, 2026-10-09: the separate baselines made data and model differ where they agreed before):
 - "separate": the steps above on data and on model, each its own baseline (the earlier figures);
-- "shared" (default since 2026-10-09): one baseline from the data, subtracted from data and model alike: the
-  residual is unchanged (ethanol 118-125 Hz: "separate" left the crop's rolling baseline in the data and took it
-  out of the model, which looked like a missing line; with "shared" the two agree, as without a baseline);
+- "model" (default since 2026-10-09): one baseline from the noise-free model (it carries the crop's rolling
+  baseline too, rendered through the same processing), subtracted from data and model alike: the residual is
+  unchanged and the model stays smooth (ethanol 118-125 Hz: "separate" left the rolling baseline in the data and
+  took it out of the model, which looked like a missing line);
+- "shared": the same, the baseline estimated on the data (its spline follows some noise, which then shows on
+  the model);
 - "residual": one baseline from the residual data - model (spline through anchors away from the lines),
   subtracted from the data only: the model is shown as the fit made it, the data lose only what varies slowly
   where the model has no line;
@@ -27,7 +30,7 @@ MAINS_HZ = 60.06
 
 
 def display_baseline(f, y, m, lines, protect_hz: float = 1.0, knots_hz: float = 1.5,
-                     lift_hz: float = 2.5, method: str = "shared") -> Tuple[np.ndarray, np.ndarray, list]:
+                     lift_hz: float = 2.5, method: str = "model") -> Tuple[np.ndarray, np.ndarray, list]:
     """Baseline-corrected data and model. `lines`: [(component, frequencies (Hz), relative amplitudes), ...]
     (lines below 3 % of their component and below 20 Hz are not protected). Returns (data, model, mains)."""
     from scipy.ndimage import gaussian_filter1d
@@ -48,12 +51,16 @@ def display_baseline(f, y, m, lines, protect_hz: float = 1.0, knots_hz: float = 
         b = anchor_spline_baseline(y - m, f, protect, knot_spacing_hz=knots_hz, k_sigma=np.inf)
         return y - b, m.copy(), mains
     taper = np.clip(gaussian_filter1d(line_mask(f, model_lines, lift_hz).astype(float), 1.0 / step), 0, 1)
+    if method == "model":                              # one baseline from the noise-free model, on both
+        b = anchor_spline_baseline(m, f, protect, knot_spacing_hz=knots_hz, k_sigma=np.inf)
+        b = b + taper * asls_baseline(m - b, f, smooth_hz=1.5, p=0.01)
+        return y - b, m - b, mains
     b = anchor_spline_baseline(y, f, protect, knot_spacing_hz=knots_hz)
     b = b + taper * asls_baseline(y - b, f, smooth_hz=1.5, p=0.01)
     if method == "shared":
         return y - b, m - b, mains
     if method != "separate":
-        raise ValueError(f"unknown baseline method {method!r} (separate, shared, residual, none)")
+        raise ValueError(f"unknown baseline method {method!r} (model, shared, separate, residual, none)")
     yc = y - b
     mc = m - anchor_spline_baseline(m, f, protect, knot_spacing_hz=knots_hz, k_sigma=np.inf)
     mc = mc - taper * asls_baseline(mc, f, smooth_hz=1.5, p=0.01)

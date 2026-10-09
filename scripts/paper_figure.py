@@ -113,7 +113,7 @@ def main():
     ap.add_argument("--protect", type=float, default=1.0)
     ap.add_argument("--knots", type=float, default=1.5)
     ap.add_argument("--lift", type=float, default=2.5)
-    ap.add_argument("--baseline", default="shared", choices=("shared", "separate", "residual", "none"),
+    ap.add_argument("--baseline", default="model", choices=("model", "shared", "separate", "residual", "none"),
                     help="display baseline: one from the data on both curves (shared), each its own (separate), "
                          "from the residual on the data (residual), or none")
     ap.add_argument("--stacked-detail", action="store_true", help="detail panels stacked instead of overlaid")

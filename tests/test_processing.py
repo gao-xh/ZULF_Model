@@ -229,8 +229,17 @@ class DisplayBaselineTests(unittest.TestCase):
         roll = 0.2 * np.sin(2 * np.pi * (f - 100.0) / 25.0)                  # slow baseline in both curves
         noise = 0.01 * np.random.default_rng(3).normal(size=len(f))
         y, m = model + roll + noise, model + roll
+        for method in ("model", "shared"):
+            yc, mc, _ = display_baseline(f, y, m, lines, method=method)
+            np.testing.assert_allclose(yc - mc, y - m, atol=1e-12)           # the residual is the fit's
+        other = model + roll + 0.01 * np.random.default_rng(4).normal(size=len(f))
+        _, mm1, _ = display_baseline(f, y, m, lines)                         # default "model": the shown model
+        _, mm2, _ = display_baseline(f, other, m, lines)                     # does not depend on the data noise
+        np.testing.assert_array_equal(mm1, mm2)
+        _, ms1, _ = display_baseline(f, y, m, lines, method="shared")       # "shared" prints the noise on it
+        _, ms2, _ = display_baseline(f, other, m, lines, method="shared")
+        self.assertGreater(np.abs(ms1 - ms2).max(), 1e-4)
         yc, mc, _ = display_baseline(f, y, m, lines, method="shared")
-        np.testing.assert_allclose(yc - mc, y - m, atol=1e-12)               # the residual is the fit's
         far = (np.abs(f - 120.0) > 3) & (np.abs(f - 140.0) > 3) & (f > 105) & (f < 155)
         self.assertLess(np.abs(mc[far]).max(), 0.05)                         # the roll is gone
         yc_s, mc_s, _ = display_baseline(f, y, m, lines, method="separate")

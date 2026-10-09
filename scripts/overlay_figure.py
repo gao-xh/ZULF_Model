@@ -35,7 +35,7 @@ def main():
     ap.add_argument("--sim-width", type=float, default=1.9, help="line width of the simulation")
     ap.add_argument("--figure", required=True)
     ap.add_argument("--formats", default="png,svg,pdf")
-    ap.add_argument("--baseline", default="shared", choices=("separate", "shared", "residual", "none"),
+    ap.add_argument("--baseline", default="model", choices=("model", "shared", "separate", "residual", "none"),
                     help="display baseline (zulf_processing.display_baseline): separate (data and model each "
                          "their own), shared (one from the data, on both), residual (from data - model, on the "
                          "data), none")
