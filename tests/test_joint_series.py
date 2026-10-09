@@ -311,6 +311,12 @@ class JointSeriesTests(unittest.TestCase):
         np.testing.assert_allclose(peaks, [120.0, 150.0, 152.5], atol=0.1)
         np.testing.assert_allclose(edges, [135.0, 151.25], atol=0.1)
 
+    def test_line_family_edges_separate_every_resolved_model_line(self):
+        from fit_joint_series import edges_between_lines
+        edges, groups = edges_between_lines([110.0, 100.1, 100.0, 105.0], min_distance_hz=0.25)
+        self.assertEqual(groups, [[100.0, 100.1], [105.0], [110.0]])   # 0.1 Hz apart: one family
+        np.testing.assert_allclose(edges, [102.55, 107.5])
+
     def test_line_band_and_local_fit(self):
         # a line band that holds every line changes nothing; a narrow one keeps the Jacobian exact (finite
         # differences); the local fit recovers a coupling shift from one window

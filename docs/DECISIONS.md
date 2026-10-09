@@ -999,6 +999,13 @@ data have the lines, active only at the empty bins, Jacobian against central dif
 - Studio: the rate-family box offers peaks, auto, peaks+auto.
 Tests: tests/test_joint_series.py test_peak_family_edges_give_every_data_peak_its_own_family.
 
+Amendment (2026-10-09, owner: "every line its own decay rate, from the simulation"): `--family-edges lines`
+puts the edges midway between neighbouring model lines of the start vector (|gain a| >= 5 % of the component's
+strongest line; lines closer than 0.25 Hz, which the data cannot resolve, share one family). 'peaks' finds
+families in the data and misses model lines whose data peak is weak: ethanol 120.87 Hz (13C@C1, relative 0.33)
+had no family of its own with 'peaks' (its data peak is about 6 sigma in magnitude) and one with 'lines'
+(38 families either way). Keywords combine with '+' (e.g. peaks+lines). Test: edges_between_lines.
+
 ## D60. Fits of a typed-in spin system (2026-10-08, PLAN 8c-8d)
 
 - Owner: besides structures, models given as isotopes and a J matrix (as in ZULF_NMR_Suite), simulated and

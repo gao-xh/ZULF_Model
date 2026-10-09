@@ -192,7 +192,7 @@ flowchart LR
   `--fit-gamma` names a heteronucleus (D53).
 - Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).
 - Decay-rate families: `--family-edges` edges in Hz, `auto` (model line clusters, D46), `peaks` (one family per
-  data peak, D59) or `peaks+auto`.
+  data peak, D59), `lines` (one family per model line, D59 amendment), or keywords joined with '+'.
 - Output couplings carry K next to J (D51).
 
 Model: spin Hamiltonian, signal and rendered spectrum (docs/CONVENTIONS.md; zulf_core.physics, section 4 below):

@@ -1057,11 +1057,14 @@ class StudioWindow(QMainWindow):
         for text, tip in (("one rate", "one decay rate per isotopologue (no families)"),
                           ("peaks", "every data peak its own decay rate"),
                           ("auto", "families from the model line clusters and sharp data lines"),
-                          ("peaks+auto", "both")):
+                          ("lines", "every model line its own decay rate (lines closer than 0.25 Hz share one)"),
+                          ("peaks+lines", "data peaks and model lines"),
+                          ("peaks+auto", "data peaks and model line clusters")):
             self.f_edges.addItem(text)
             self.f_edges.setItemData(self.f_edges.count() - 1, tip, Qt.ToolTipRole)
         self.f_edges.lineEdit().setPlaceholderText("one rate, peaks, auto, peaks+auto or Hz edges")
-        self.f_edges.setToolTip("decay-rate families: one rate = one rate per isotopologue; peaks = every data peak "
+        self.f_edges.setToolTip("decay-rate families: one rate = one rate per isotopologue; lines = every model line its own rate; "
+                                "peaks = every data peak "
                                 "its own rate; auto = model line clusters; or edges in Hz, e.g. 135.5,137.2,200")
         self.f_rates = QLineEdit("0.2,15")
         self.f_extra = QLineEdit(placeholderText="extra fit_joint_series options, e.g. --model-line-passes 1")

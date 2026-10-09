@@ -187,12 +187,9 @@ def edges_from_lines(lines_hz, sharp_hz=(), gap_hz=1.5, min_separation_hz=0.2, m
     return [float(np.mean(g)) for g in merged]
 
 
-def auto_family_edges(joint, z, s=0, min_relative=0.02, sharp_width_hz=0.8, prominence=0.05, **rule):
-    """Edges for --family-edges auto: the model lines of spectrum s at z (every component, relative amplitude
-    |gain a| >= min_relative of that component's strongest line, inside the fit range) and the sharp peaks of the
-    data (|y|, prominence >= prominence x max, width at half prominence < sharp_width_hz), through
-    edges_from_lines. Returns (edges, lines, sharp peaks)."""
-    from scipy.signal import find_peaks, peak_widths
+def model_lines(joint, z, s=0, min_relative=0.02):
+    """Frequencies of the model lines of spectrum s at z: every component's transitions with |gain a| at least
+    min_relative of that component's strongest line, inside the fit range."""
     f = joint.forwards[s]
     x = joint.spectrum_vector(z, s)
     values = f.p.values(x)
@@ -208,6 +205,38 @@ def auto_family_edges(joint, z, s=0, min_relative=0.02, sharp_width_hz=0.8, prom
             continue
         keep = (w >= min_relative * w.max()) & (tl.frequencies_hz >= lo) & (tl.frequencies_hz <= hi)
         lines.extend(tl.frequencies_hz[keep].tolist())
+    return sorted(lines)
+
+
+def edges_between_lines(lines, min_distance_hz=0.25):
+    """Edges midway between neighbouring lines; lines closer than min_distance_hz (not resolved) share one
+    family. Returns (edges, groups of lines)."""
+    groups = []
+    for x in sorted(lines):
+        if groups and x - groups[-1][-1] < min_distance_hz:
+            groups[-1].append(x)
+        else:
+            groups.append([x])
+    edges = [0.5 * (a[-1] + b[0]) for a, b in zip(groups, groups[1:])]
+    return edges, groups
+
+
+def line_family_edges(joint, z, s=0, min_relative=0.05, min_distance_hz=0.25):
+    """Edges for --family-edges lines: one decay-rate family per model line (owner 2026-10-09), the lines of the
+    start vector with |gain a| >= min_relative of their component's strongest line; lines closer than
+    min_distance_hz share a family. Unlike 'peaks' (data peaks) it also separates model lines whose data peak is
+    weak. Returns (edges, groups of lines)."""
+    return edges_between_lines(model_lines(joint, z, s, min_relative), min_distance_hz)
+
+
+def auto_family_edges(joint, z, s=0, min_relative=0.02, sharp_width_hz=0.8, prominence=0.05, **rule):
+    """Edges for --family-edges auto: the model lines of spectrum s at z (every component, relative amplitude
+    |gain a| >= min_relative of that component's strongest line, inside the fit range) and the sharp peaks of the
+    data (|y|, prominence >= prominence x max, width at half prominence < sharp_width_hz), through
+    edges_from_lines. Returns (edges, lines, sharp peaks)."""
+    from scipy.signal import find_peaks, peak_widths
+    f = joint.forwards[s]
+    lines = model_lines(joint, z, s, min_relative)
     y = np.abs(np.asarray(f.y))
     peaks, props = find_peaks(y, prominence=prominence * float(y.max()))
     sharp = []
@@ -1267,25 +1296,33 @@ def _solve_start(z):
     return float(2 * sol.cost), sol.x
 
 
+FAMILY_MODES = {"auto", "peaks", "lines"}       # --family-edges keywords, combinable with '+'
+
+
 def build_problem(args):
     """The fit problem of the command line. --family-edges auto: the problem is first built with one rate family,
     the edges are read from its start vector (auto_family_edges: line clusters and sharp data lines), and the
     problem is rebuilt with them (args.family_edges then holds the edges used)."""
     mode = str(getattr(args, "family_edges", "")).strip().lower()
-    if mode in ("auto", "peaks", "peaks+auto"):
+    parts = set(mode.split("+"))
+    if mode and parts <= FAMILY_MODES:
         import copy
         first = copy.copy(args)
         first.family_edges = ""
         p = _build_problem(first)
         edges, notes = [], []
-        if "auto" in mode:
+        if "auto" in parts:
             auto, lines, sharp = auto_family_edges(p.joint, p.z0)
             edges += list(auto)
             notes.append(f"{len(auto)} from {len(lines)} model lines and {len(sharp)} sharp data peaks")
-        if "peaks" in mode:
+        if "peaks" in parts:
             pe, peaks = peak_family_edges(p.joint, k_sigma=getattr(args, "peak_family_sigma", 4.0))
             edges += list(pe)
             notes.append(f"{len(pe)} between {len(peaks)} data peaks")
+        if "lines" in parts:
+            le, groups = line_family_edges(p.joint, p.z0)
+            edges += list(le)
+            notes.append(f"{len(le)} between {len(groups)} model lines (or unresolved groups)")
         merged = []
         for e in sorted(edges):
             if not merged or e - merged[-1] > 0.3:
@@ -1560,7 +1597,8 @@ def make_parser():
                     "every isotopologue's lines into decay-rate families (default: one rate per isotopologue), "
                     "'auto': edges from the start vector's line clusters and the sharp data lines (auto_family_edges), "
                     "'peaks': one family per data peak (edges midway between neighbouring data peaks, "
-                    "peak_family_edges), or 'peaks+auto': both")
+                    "peak_family_edges), 'lines': one family per model line of the start vector (line_family_edges), "
+                    "or a combination with '+', e.g. 'peaks+lines'")
     ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
     ap.add_argument("--fit-field", action="store_true",
@@ -1693,7 +1731,7 @@ def main():
     prob = build_problem(args)
     if "--family-edges" in sys.argv[:-1]:                 # record the edges actually used (auto -> numbers)
         i = sys.argv.index("--family-edges")
-        if sys.argv[i + 1].strip().lower() in ("auto", "peaks", "peaks+auto"):
+        if set(sys.argv[i + 1].strip().lower().split("+")) <= FAMILY_MODES:
             sys.argv[i + 1] = args.family_edges
             run_log.argv = list(sys.argv)
     series, left_out, lo, hi, obs, model = prob.series, prob.left_out, prob.lo, prob.hi, prob.obs, prob.model
