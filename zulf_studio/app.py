@@ -44,7 +44,7 @@ from .molecule_ui import MoleculeView  # noqa: E402
 from .flow import FlowLayout, flow_policy  # noqa: E402
 from .process_ui import ProcessPanel, RecipeBox, ScansPanel  # noqa: E402
 from .spinsystem_ui import SpinSystemEditor  # noqa: E402
-from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
+from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, pixel_margins, stylesheet  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
 COMPONENT_COLORS = ISOTOPOLOGUE
@@ -487,8 +487,11 @@ class StudioWindow(QMainWindow):
         self.field_label = QLabel()
         self.field_label.setObjectName("badge")
         self.field_label.setWordWrap(True)
-        self.fig = Figure(figsize=(8, 6), layout="constrained")
+        self.fig = Figure(figsize=(8, 6))            # margins in pixels (theme.pixel_margins)
         self.canvas = FigureCanvasQTAgg(self.fig)
+        self._margins = {"nrows": 1}
+        self.canvas.mpl_connect("resize_event", lambda _e: (pixel_margins(self.fig, self.canvas, **self._margins),
+                                                            self.canvas.draw_idle()))
         nav = NavigationToolbar2QT(self.canvas, self)
         nav.setIconSize(QSize(14, 14))
         for spin in (self.view_lo, self.view_hi):
@@ -1912,6 +1915,7 @@ class StudioWindow(QMainWindow):
             ax.text(0.5, 0.5, "open an averaged FID or a scan folder (left)", ha="center", va="center",
                     transform=ax.transAxes, color=t["muted"])
             ax.set_axis_off()
+            self._margins = {"nrows": 1}
         else:
             pv, r = p["preview"], p["recipe"]
             a1, a2 = self.fig.subplots(2, 1, gridspec_kw={"height_ratios": [1, 2.2]})
@@ -1920,6 +1924,7 @@ class StudioWindow(QMainWindow):
             a1.axvline(pv["edge_ms"], color=t["bad"], lw=0.8, ls="--", label=f"edge {pv['edge_ms']:.2f} ms")
             a1.set_xlabel("time (ms)")
             a1.set_title("FID start", loc="left")
+            self._margins = {"nrows": 2, "top": 26, "gap": 72}
             a1.legend(loc="upper right")
             f, z = pv["f"], pv["spectrum"]
             part = s.display
@@ -1932,6 +1937,7 @@ class StudioWindow(QMainWindow):
             a2.set_title(f"spectrum of the recipe ({part}): crop {r['crop_s']:g} s, record {r['record_s']:g} s, "
                          f"window {r['apodization_per_s']:g} 1/s, zero fill {r['zero_fill']}", loc="left")
         style.__exit__(None, None, None)
+        pixel_margins(self.fig, self.canvas, **self._margins)
         self.canvas.draw_idle()
 
     def schedule(self):
@@ -1960,6 +1966,7 @@ class StudioWindow(QMainWindow):
         show_model = mode in ("simulate", "fit")            # Process and Blind analysis: the data alone
         rows = ([3, 1, 1] if show_model else [1]) if has_data else ([3, 1] if show_model else [1])
         axes = np.atleast_1d(self.fig.subplots(len(rows), 1, sharex=True, gridspec_kw={"height_ratios": rows}))
+        self._margins = {"nrows": len(rows)}
         ax = axes[0]
         if has_data:
             d = pick(sim["data_re"], sim["data_im"])
@@ -2034,6 +2041,7 @@ class StudioWindow(QMainWindow):
             ax.set_xlim(*s.view)
             ax.set_xlabel("frequency (Hz)")
             style.__exit__(None, None, None)
+            pixel_margins(self.fig, self.canvas, **self._margins)
             self.canvas.draw_idle()
             return
         if self.show_sticks.isChecked():
@@ -2054,6 +2062,7 @@ class StudioWindow(QMainWindow):
         sax.set_xlim(*s.view)
         sax.set_xlabel("frequency (Hz)")
         style.__exit__(None, None, None)
+        pixel_margins(self.fig, self.canvas, **self._margins)
         self.canvas.draw_idle()
         self.fill_lines(sim["lines"])
         msg = (f"{1e3 * sim['seconds']:.0f} ms \u00b7 {len(sim['lines'])} lines \u00b7 scale {sim['scale']:.3g}"

@@ -140,3 +140,13 @@ def matplotlib_style(t: dict) -> dict:
             "axes.spines.right": False, "axes.grid": True, "grid.color": t["grid"], "grid.linewidth": 0.6,
             "font.size": 9, "axes.titlesize": 10, "axes.labelsize": 9, "legend.frameon": False,
             "legend.fontsize": 8.5, "lines.solid_capstyle": "round"}
+
+
+def pixel_margins(fig, canvas, nrows=1, left=80, right=14, top=12, bottom=40, gap=8):
+    """Axes margins fixed in pixels (axis labels, titles), recomputed for the canvas size. Used instead of
+    matplotlib's constrained layout, which leaves the axes collapsed once a canvas was very small (a narrow
+    drawer). gap: pixels between stacked rows (titles and tick labels of the upper row)."""
+    w, h = max(canvas.width(), 50), max(canvas.height(), 50)
+    inner = max(h - top - bottom - gap * (nrows - 1), 1)
+    fig.subplots_adjust(left=min(left / w, 0.45), right=max(1 - right / w, 0.55), top=max(1 - top / h, 0.55),
+                        bottom=min(bottom / h, 0.4), hspace=min(gap * nrows / inner, 0.9) if nrows > 1 else 0.2)

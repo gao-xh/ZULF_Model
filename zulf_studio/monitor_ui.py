@@ -118,11 +118,14 @@ class MonitorPanel(QWidget):
         lay.addLayout(prow)
         self._quiet = False
         split = QSplitter(Qt.Horizontal)                  # plots | starts, couplings, console
-        self.fig = Figure(figsize=(6, 4.2), layout="constrained")
+        self.fig = Figure(figsize=(6, 4.2))           # margins in pixels (_fit_margins), not constrained layout:
+        # that collapses the axes for good once the canvas was very small (a narrow drawer)
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setMinimumSize(200, 200)
         split.addWidget(self.canvas)
         self.canvas.mpl_connect("button_press_event", self._clicked)
+        self.canvas.mpl_connect("resize_event", lambda _e: (self._fit_margins(), self.canvas.draw_idle()))
+        self.canvas.setToolTip("click near a curve of the objective plot: that start, that evaluation")
         tables = QTabWidget()
         self.starts = QTableWidget(0, len(self.STARTS))
         self.starts.setHorizontalHeaderLabels(self.STARTS)
@@ -400,10 +403,10 @@ class MonitorPanel(QWidget):
                 ax1.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:.3g}"))
                 ax1.yaxis.set_minor_formatter(NullFormatter())
                 if len(starts) <= 8:
-                    ax1.legend(loc="upper right", ncols=min(len(starts), 4))
+                    ax1.legend(loc="upper right", ncols=min(len(starts), 8), fontsize=7.5)
             ax1.set_xlabel("evaluation")
             ax1.set_ylabel("objective")
-            ax1.set_title("objective per start (thick: best so far) - click a curve to draw that point", loc="left")
+            ax1.set_title("objective per start (thick: best so far)", loc="left")
             if self.spec and "error" not in self.spec:
                 sp = self.spec
                 f = np.asarray(sp["f"])
@@ -434,7 +437,16 @@ class MonitorPanel(QWidget):
                 ax2.set_title("spectrum at the best point so far", loc="left")
             ax2.set_xlabel("frequency (Hz)")
             ax2.set_yticks([])
+        self._fit_margins()
         self.canvas.draw_idle()
+
+    def _fit_margins(self):
+        """Fixed pixel margins for the axis labels and titles, whatever the canvas size."""
+        w, h = max(self.canvas.width(), 50), max(self.canvas.height(), 50)
+        left, right, top, bottom, gap = 62, 14, 26, 42, 70
+        self.fig.subplots_adjust(left=min(left / w, 0.45), right=max(1 - right / w, 0.55),
+                                 top=max(1 - top / h, 0.55), bottom=min(bottom / h, 0.4),
+                                 hspace=min(gap / max(h - top - bottom, 1) * 2, 0.9))
 
     def showEvent(self, e):
         super().showEvent(e)
