@@ -643,8 +643,9 @@ class FilesAndJobsTests(unittest.TestCase):
         self.assertIn("CPU", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
         self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Monitor", "Log", "AI assistant"])
-        for mode, visible in (("simulate", {"structure", "molecule", "couplings", "field"}), ("process", {"recipe"}),
-                              ("fit", {"data", "structure", "molecule", "couplings", "field"}), ("blind", {"data"})):
+        for mode, visible in (("simulate", {"structure", "couplings", "field"}), ("process", {"recipe"}),
+                              ("fit", {"data", "structure", "couplings", "field", "display"}),
+                              ("blind", {"data", "display"})):
             s.set_mode(mode)                                          # D58: one model, panels per task
             app.processEvents()
             self.assertEqual({k for k, sec in w.sections.items() if not sec.isHidden()}, visible, msg=mode)
@@ -800,10 +801,15 @@ class SpinSystemTests(unittest.TestCase):
         app.processEvents()
         w.molecule_view.refresh()
         self.assertIn("SMILES CC(C)O", w.molecule_view.caption.text())
-        from zulf_studio.molecule_ui import label_sites, structure_svg
+        from matplotlib.figure import Figure
+        from zulf_studio.molecule_ui import draw_molecule, label_sites
         self.assertEqual(label_sites("13C@C1,C3+15N@N1 (x2)"), ["C1", "C3", "N1"])
-        svg = structure_svg(s.spec, ["13C@C1 (x2)", "13C@C2"], w.t)
-        self.assertNotRegex(svg, r"#[0-9A-F]{8}")                      # no #RRGGBBAA (Qt draws it black)
+        r = draw_molecule(Figure().add_subplot(111), s.spec, ["13C@C1 (x2)", "13C@C2"], w.t)
+        self.assertEqual(r["atoms"], 4)                                  # C1, C2, C3, O1
+        self.assertEqual(set(r["marked"]), {"C1", "C2"})                 # the labelled sites, in plot colours
+        self.assertIn("isopropanol", w.model_summary.text())
+        w.open_model_editor()                                            # the editor is its own window
+        self.assertTrue(w.model_editor.isVisible())
         s.set_structure(self.METHYL_SPIN)                                # spin system: the network instead
         w.molecule_view.refresh()
         self.assertIn("4 spins in 2 groups", w.molecule_view.caption.text())

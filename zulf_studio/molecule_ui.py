@@ -1,27 +1,30 @@
-"""Molecule card: the model drawn as a molecule (structure models, RDKit) or as a spin network (typed-in spin
-systems). Structure: the heavy-atom skeleton with its protons (or the recorded SMILES of a molecule built with
-"From molecule"), site labels, and the 13C (15N) position of every isotopologue in its plot colour. Spin system:
-one node per group of equivalent spins, one edge per nonzero coupling with its value, width growing with |J|.
+"""The model drawn: a molecule (structure models; spin systems that carry a molecule, D61) or a spin network
+(typed-in spin systems). Drawn with matplotlib in the plot style (RDKit only computes the 2D coordinates):
+
+- molecule: atoms as text (CH3, CH2, OH; protons spelled out because they carry the couplings), bonds as lines
+  (double and triple as parallel lines), the site label (C1, C2, ...) small and grey outside the molecule, and the
+  labelled site of every isotopologue in a pill of its plot colour (the colours of the spectrum and Lines table);
+- spin network: one node per group of equivalent spins, one edge per nonzero coupling with its value, width
+  growing with |J|, dashed when negative.
+
+MoleculeView is the thumbnail in the Model card (compact: no caption, a click opens the large view) and the large
+view itself.
 """
 from __future__ import annotations
 
 import re
 
+import matplotlib
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtSvgWidgets import QSvgWidget
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QHBoxLayout, QInputDialog, QLabel, QMessageBox,
-                               QPushButton, QStackedWidget, QVBoxLayout, QWidget)
+                               QVBoxLayout, QWidget)
 
 from .theme import ISOTOPOLOGUE, matplotlib_style
 
-
-def _rgb(hex_colour, alpha=None):
-    h = hex_colour.lstrip("#")
-    rgb = tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
-    return rgb + ((alpha,) if alpha is not None else ())
+ELEMENT_COLOURS = {"O": "#d1495b", "N": "#3b6fb6", "S": "#c8a400", "P": "#d1495b", "F": "#2f8f5b", "Cl": "#2f8f5b"}
 
 
 def label_sites(label: str):
@@ -33,44 +36,107 @@ def label_sites(label: str):
     return out
 
 
-def structure_svg(spec, components, theme, size=(360, 240)) -> str:
-    """SVG drawing of a structure specification (zulf_hypothesis.molecule.molecule_from_structure)."""
-    from rdkit.Chem.Draw import rdMolDraw2D
+def _mix(colour, background, share):
+    c = np.array(matplotlib.colors.to_rgb(colour))
+    b = np.array(matplotlib.colors.to_rgb(background))
+    return tuple(share * c + (1 - share) * b)
+
+
+def draw_molecule(ax, spec, components, t, scale=1.0) -> dict:
+    """Draw the molecule of a structure specification on ax; components: isotopologue labels (their sites are
+    marked in the isotopologue colours). Returns {"atoms": n, "marked": {site: colour}}."""
     from rdkit.Chem import rdDepictor
     from zulf_hypothesis.molecule import molecule_from_structure
     mol, sites = molecule_from_structure(spec)
+    rdDepictor.SetPreferCoordGen(True)
     rdDepictor.Compute2DCoords(mol)
-    for label, i in sites.items():
-        atom = mol.GetAtomWithIdx(i)
-        atom.SetProp("atomNote", label)
-        n_h = atom.GetTotalNumHs()
-        el = atom.GetSymbol()
-        if el == "C" or n_h:                         # carbons with their protons spelled out (CH3, CH2, C)
-            atom.SetProp("_displayLabel", el + ("H" if n_h else "") + (f"<sub>{n_h}</sub>" if n_h > 1 else ""))
-    colours, atoms = {}, []
+    conf = mol.GetConformer()
+    n = mol.GetNumAtoms()
+    xy = np.array([[conf.GetAtomPosition(i).x, conf.GetAtomPosition(i).y] for i in range(n)])
+    bonds = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx(), str(b.GetBondType())) for b in mol.GetBonds()]
+    length = np.median([np.hypot(*(xy[i] - xy[j])) for i, j, _ in bonds]) if bonds else 1.0
+    xy = xy / length                                   # bond length 1
+    label_of = {i: s for s, i in sites.items()}
+    marked = {}
     for k, comp in enumerate(components):
         for site in label_sites(comp):
             if site in sites:
-                atoms.append(sites[site])
-                # opaque: Qt's SVG renderer draws RDKit's #RRGGBBAA colours black, so blend with the background
-                c, bg = np.array(_rgb(ISOTOPOLOGUE[k % len(ISOTOPOLOGUE)])), np.array(_rgb(theme["panel"]))
-                colours[sites[site]] = tuple(float(v) for v in 0.45 * c + 0.55 * bg)
-    d = rdMolDraw2D.MolDraw2DSVG(*size)
-    o = d.drawOptions()
-    o.setBackgroundColour(_rgb(theme["panel"], 1.0))
-    o.updateAtomPalette({-1: _rgb(theme["ink"]), 6: _rgb(theme["ink"]), 1: _rgb(theme["ink"])})
-    o.setAnnotationColour(_rgb(theme["muted"]))
-    o.annotationFontScale = 0.6
-    o.highlightRadius = 0.45
-    o.fixedBondLength = 38
-    o.clearBackground = True
-    d.DrawMolecule(mol, highlightAtoms=atoms, highlightAtomColors=colours, highlightBonds=[])
-    d.FinishDrawing()
-    return d.GetDrawingText()
+                marked[site] = ISOTOPOLOGUE[k % len(ISOTOPOLOGUE)]
+    fs = 12 * scale
+    for i, j, kind in bonds:
+        p, q = xy[i], xy[j]
+        u = (q - p) / max(np.hypot(*(q - p)), 1e-9)
+        nrm = np.array([-u[1], u[0]])
+        offsets = {"DOUBLE": (-0.07, 0.07), "TRIPLE": (-0.11, 0.0, 0.11), "AROMATIC": (-0.07, 0.07)}.get(kind, (0,))
+        for m, off in enumerate(offsets):
+            a, b = p + off * nrm, q + off * nrm
+            ax.plot([a[0], b[0]], [a[1], b[1]], color=t["ink"], lw=1.5 * scale, solid_capstyle="round", zorder=1,
+                    ls=(0, (3, 2)) if kind == "AROMATIC" and m == 1 else "-")
+    for i, atom in enumerate(mol.GetAtoms()):
+        el, n_h = atom.GetSymbol(), atom.GetTotalNumHs()
+        text = el + ("H" if n_h else "") + (f"$_{{{n_h}}}$" if n_h > 1 else "")
+        site = label_of.get(i)
+        colour = marked.get(site)
+        box = (dict(boxstyle="round,pad=0.32,rounding_size=0.6", fc=_mix(colour, t["panel"], 0.22), ec=colour,
+                    lw=1.6 * scale) if colour else
+               dict(boxstyle="round,pad=0.2", fc=t["panel"], ec="none"))
+        ax.text(*xy[i], text, ha="center", va="center", fontsize=fs, zorder=3,
+                color=ELEMENT_COLOURS.get(el, t["ink"]), fontweight="bold" if colour else "normal", bbox=box)
+        if site:                                       # the site label outside, away from the neighbours
+            nb = [xy[a.GetIdx()] - xy[i] for a in atom.GetNeighbors()]
+            d = -np.sum(nb, axis=0) if nb else np.array([0.0, -1.0])
+            d = d / np.hypot(*d) if np.hypot(*d) > 1e-6 else np.array([0.0, -1.0])
+            ax.text(*(xy[i] + 0.5 * d), site, ha="center", va="center", fontsize=fs * 0.62, color=t["muted"],
+                    zorder=2)
+    pad = 0.75                                         # invisible corners: equal aspect without fixed limits
+    ax.plot([xy[:, 0].min() - pad, xy[:, 0].max() + pad], [xy[:, 1].min() - pad, xy[:, 1].max() + pad], alpha=0)
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.autoscale(tight=True)
+    ax.set_axis_off()
+    return {"atoms": n, "marked": marked}
+
+
+def draw_network(ax, spec, k, t, scale=1.0) -> dict:
+    """Draw component k of a spin-system specification as a spin network on ax."""
+    from zulf_hypothesis.spin_system import groups, numeric_matrix, tokens
+    comp = spec["spin_system"]["components"][k]
+    iso = list(comp["isotopes"])
+    grp = groups(iso, tokens(comp))
+    m = numeric_matrix(comp, spec["spin_system"].get("variables", {}))
+    n = len(grp)
+    ang = np.linspace(0.5 * np.pi, 2.5 * np.pi, n, endpoint=False)
+    xy = np.c_[np.cos(ang), np.sin(ang)] if n > 1 else np.zeros((1, 2))
+    js = [abs(m[ga[0], gb[0]]) for a, ga in enumerate(grp) for b, gb in enumerate(grp) if b > a]
+    top = max(js + [1e-9])
+    for a in range(n):
+        for b in range(a + 1, n):
+            j = m[grp[a][0], grp[b][0]]
+            if j == 0:
+                continue
+            (x0, y0), (x1, y1) = xy[a], xy[b]
+            ax.plot([x0, x1], [y0, y1], color=t["accent"] if j > 0 else t["muted"],
+                    lw=(0.6 + 3.4 * np.sqrt(abs(j) / top)) * scale, alpha=0.85, zorder=1,
+                    ls="-" if j > 0 else (0, (4, 2)))
+            if n <= 8 or abs(j) >= 1.0:
+                ax.text(0.5 * (x0 + x1), 0.5 * (y0 + y1), f"{j:.4g}", fontsize=7.5 * scale, ha="center",
+                        va="center", color=t["ink"], zorder=3,
+                        bbox=dict(boxstyle="round,pad=0.15", fc=t["panel"], ec="none", alpha=0.9))
+    for a, g in enumerate(grp):
+        el = re.sub(r"^\d+", "", iso[g[0]])
+        col = ISOTOPOLOGUE[0] if el == "C" else ISOTOPOLOGUE[2] if el == "N" else t["panel2"]
+        text = iso[g[0]] + (f" x{len(g)}" if len(g) > 1 else "")
+        ax.text(*xy[a], text, ha="center", va="center", fontsize=9 * scale, color=t["ink"], zorder=4,
+                bbox=dict(boxstyle="round,pad=0.45,rounding_size=0.8", fc=_mix(col, t["panel"], 0.3), ec=col,
+                          lw=1.4))
+    ax.plot([-1.5, 1.5], [-1.35, 1.35], alpha=0)
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.autoscale(tight=True)
+    ax.set_axis_off()
+    return {"spins": len(iso), "groups": n, "name": comp.get("name", "")}
 
 
 class MoleculeView(QWidget):
-    """The Molecule card (and its large window)."""
+    """Thumbnail (compact, in the Model card) or large view of the model drawing."""
 
     def __init__(self, session, window, parent=None, large=False):
         super().__init__(parent)
@@ -78,149 +144,96 @@ class MoleculeView(QWidget):
         self.big = None
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        self.stack = QStackedWidget()
-        self.svg = QSvgWidget()
-        self.svg.renderer().setAspectRatioMode(Qt.KeepAspectRatio)
-        self.fig = Figure(figsize=(3.6, 2.4), layout="constrained")
+        self.fig = Figure(figsize=(3.6, 2.0))
+        self.fig.subplots_adjust(0.01, 0.01, 0.99, 0.99)
         self.canvas = FigureCanvasQTAgg(self.fig)
-        for w in (self.svg, self.canvas):
-            w.setMinimumHeight(420 if large else 170)
-        self.stack.addWidget(self.svg)
-        self.stack.addWidget(self.canvas)
-        lay.addWidget(self.stack, 1)
+        self.canvas.setMinimumHeight(420 if large else 120)
+        if not large:
+            self.canvas.setMaximumHeight(170)
+            self.canvas.setCursor(Qt.PointingHandCursor)
+            self.canvas.mpl_connect("button_press_event", lambda _e: self.open_large())
+        lay.addWidget(self.canvas, 1)
         self.caption = QLabel(objectName="hint", wordWrap=True)
+        self.caption.setVisible(large)
         lay.addWidget(self.caption)
         row = QHBoxLayout()
         self.view = QComboBox()
         self.view.addItems(["molecule", "spin network"])
         self.view.setToolTip("a spin system with a molecule: draw the molecule or the spin network")
-        self.view.currentIndexChanged.connect(lambda _i: self.refresh())
-        row.addWidget(self.view)
+        self.view.currentIndexChanged.connect(lambda _i: self.refresh(force=True))
         self.component = QComboBox()
         self.component.setToolTip("component of the spin system drawn")
-        self.component.currentIndexChanged.connect(lambda _i: self.refresh())
+        self.component.currentIndexChanged.connect(lambda _i: self.refresh(force=True))
+        row.addWidget(self.view)
         row.addWidget(self.component)
         row.addStretch(1)
-        if not large:
-            self.b_smiles = QPushButton("From molecule ...", objectName="small")
-            self.b_smiles.setToolTip("build the model from a SMILES string or a mol file (every heavy atom a site, "
-                                     "symmetry found automatically, 1J guesses from the hybridisation)")
-            self.b_smiles.clicked.connect(self.ask_molecule)
-            self.b_attach = QPushButton("Attach molecule ...", objectName="small")
-            self.b_attach.setToolTip("draw this spin system as a molecule: a SMILES string or a mol file whose "
-                                     "atoms are labelled C1, C2, O1, ... in order (so 13C@C1 marks its atom); "
-                                     "the model and its couplings are unchanged")
-            self.b_attach.clicked.connect(self.ask_attach)
-            row.addWidget(self.b_attach)
-            self.b_large = QPushButton("Large", objectName="small")
-            self.b_large.clicked.connect(self.open_large)
-            row.addWidget(self.b_smiles)
-            row.addWidget(self.b_large)
         lay.addLayout(row)
         self._last = None
 
-    def refresh(self):
+    def refresh(self, force=False):
         spec = self.session.spec
         t = self.window.t
         key = (repr(spec), self.component.currentIndex(), self.view.currentIndex(), t["panel"])
-        if key == self._last:
+        if key == self._last and not force:
             return
         self._last = key
         spin = "spin_system" in spec
         has_mol = bool(spec.get("molecule")) or not spin
         self.view.setVisible(spin and has_mol)
-        if not self.large:
-            self.b_smiles.setVisible(not spin)
-            self.b_attach.setVisible(spin)
-        if spin and (not has_mol or self.view.currentIndex() == 1):
-            comps = spec["spin_system"]["components"]
-            names = [c.get("name", f"component {i + 1}") for i, c in enumerate(comps)]
-            if [self.component.itemText(i) for i in range(self.component.count())] != names:
-                self.component.blockSignals(True)
-                self.component.clear()
-                self.component.addItems(names)
-                self.component.blockSignals(False)
-            self.component.setVisible(len(names) > 1)
-            self.stack.setCurrentWidget(self.canvas)
-            self._draw_network(spec, max(self.component.currentIndex(), 0))
-            if not has_mol:
-                self.caption.setText(self.caption.text() + "; Attach molecule ... draws it as a molecule")
-            return
-        self.component.setVisible(False)
-        self.stack.setCurrentWidget(self.svg)
-        comps = ([c.get("name", "") for c in spec["spin_system"]["components"]] if spin
-                 else [c["label"] for c in self.session.components()])
-        try:
-            self.svg.load(QByteArray(structure_svg(spec, comps, t, (720, 480) if self.large else (360, 240))
-                                     .encode()))
-            mol = spec.get("molecule", {}).get("smiles")
-            self.caption.setText((f"SMILES {mol}" if mol else "skeleton: bond orders are not part of the "
-                                  "structure") + "; coloured: the labelled site of each isotopologue")
-        except Exception as exc:
-            self.svg.load(QByteArray(b"<svg xmlns='http://www.w3.org/2000/svg'/>"))
-            self.caption.setText(f"no drawing: {type(exc).__name__}: {exc}")
-
-    def _draw_network(self, spec, k):
-        from zulf_hypothesis.spin_system import groups, numeric_matrix, tokens
-        import matplotlib
-        t = self.window.t
-        comp = spec["spin_system"]["components"][k]
-        iso = list(comp["isotopes"])
-        tok = tokens(comp)
-        grp = groups(iso, tok)
-        m = numeric_matrix(comp, spec["spin_system"].get("variables", {}))
-        n = len(grp)
+        network = spin and (not has_mol or self.view.currentIndex() == 1)
+        scale = 1.5 if self.large else 0.85
         with matplotlib.rc_context(matplotlib_style(t)):
             self.fig.clear()
             self.fig.set_facecolor(t["panel"])
             ax = self.fig.add_subplot(111)
-            ax.set_axis_off()
-            ang = np.linspace(0.5 * np.pi, 2.5 * np.pi, n, endpoint=False)
-            xy = np.c_[np.cos(ang), np.sin(ang)] if n > 1 else np.zeros((1, 2))
-            js = [abs(m[ga[0], gb[0]]) for a, ga in enumerate(grp) for b, gb in enumerate(grp) if b > a]
-            top = max(js + [1e-9])
-            for a in range(n):
-                for b in range(a + 1, n):
-                    j = m[grp[a][0], grp[b][0]]
-                    if j == 0:
-                        continue
-                    (x0, y0), (x1, y1) = xy[a], xy[b]
-                    ax.plot([x0, x1], [y0, y1], color=t["accent"] if j > 0 else t["muted"],
-                            lw=0.6 + 3.4 * np.sqrt(abs(j) / top), alpha=0.85, zorder=1,
-                            ls="-" if j > 0 else (0, (4, 2)))
-                    if n <= 8 or abs(j) >= 1.0:
-                        ax.text(0.5 * (x0 + x1), 0.5 * (y0 + y1), f"{j:.4g}", fontsize=7.5, ha="center",
-                                va="center", color=t["ink"], zorder=3,
-                                bbox=dict(boxstyle="round,pad=0.15", fc=t["panel"], ec="none", alpha=0.85))
-            for a, g in enumerate(grp):
-                el = re.sub(r"^\d+", "", iso[g[0]])
-                col = ISOTOPOLOGUE[0] if el == "C" else ISOTOPOLOGUE[2] if el == "N" else t["panel2"]
-                ax.scatter(*xy[a], s=900 if self.large else 520, color=col, edgecolor=t["line2"], zorder=2)
-                text = iso[g[0]] + (f" x{len(g)}" if len(g) > 1 else "")
-                ax.text(*xy[a], text, ha="center", va="center", fontsize=8.5, color=t["ink"], zorder=4)
-            ax.set_xlim(-1.45, 1.45)
-            ax.set_ylim(-1.3, 1.3)
-            ax.set_aspect("equal")
+            try:
+                if network:
+                    comps = spec["spin_system"]["components"]
+                    names = [c.get("name", f"component {i + 1}") for i, c in enumerate(comps)]
+                    if [self.component.itemText(i) for i in range(self.component.count())] != names:
+                        self.component.blockSignals(True)
+                        self.component.clear()
+                        self.component.addItems(names)
+                        self.component.blockSignals(False)
+                    self.component.setVisible(len(names) > 1)
+                    r = draw_network(ax, spec, max(self.component.currentIndex(), 0), t, scale)
+                    text = (f"{r['name']}: {r['spins']} spins in {r['groups']} groups of equivalent spins; edge "
+                            "width ~ |J|, dashed: negative J (Hz)"
+                            + ("" if has_mol else "; Edit model > Attach molecule draws it as a molecule"))
+                else:
+                    self.component.setVisible(False)
+                    comps = ([c.get("name", "") for c in spec["spin_system"]["components"]] if spin
+                             else [c["label"] for c in self.session.components()])
+                    draw_molecule(ax, spec, comps, t, scale)
+                    smiles = spec.get("molecule", {}).get("smiles")
+                    text = ((f"SMILES {smiles}" if smiles else "skeleton (bond orders are not part of the "
+                             "structure)") + "; ringed: the labelled site of each isotopologue, in its plot colour")
+            except Exception as exc:
+                ax.set_axis_off()
+                ax.text(0.5, 0.5, "no drawing", ha="center", va="center", color=t["muted"], transform=ax.transAxes)
+                text = f"no drawing: {type(exc).__name__}: {exc}"
+        self.caption.setText(text)
+        self.canvas.setToolTip(text + ("" if self.large else "\nclick: large view"))
         self.canvas.draw_idle()
-        self.caption.setText(f"{comp.get('name', '')}: {len(iso)} spins in {n} groups of equivalent spins; "
-                             "edge width ~ |J|, dashed: negative J (Hz)")
 
-    def ask_molecule(self):
-        text, ok = QInputDialog.getMultiLineText(self, "Model from a molecule",
+    def ask_molecule(self, parent=None):
+        parent = parent or self
+        text, ok = QInputDialog.getMultiLineText(parent, "Model from a molecule",
                                                  "SMILES (e.g. CCO for ethanol) or the text of a mol file:")
         if not ok or not text.strip():
             return
-        name, ok = QInputDialog.getText(self, "Model from a molecule", "compound name (optional):")
+        name, ok = QInputDialog.getText(parent, "Model from a molecule", "compound name (optional):")
         try:
             r = self.session.structure_from_molecule(text, compound=name.strip() or None)
         except Exception as exc:
-            QMessageBox.warning(self, "Molecule", f"{type(exc).__name__}: {exc}")
+            QMessageBox.warning(parent, "Molecule", f"{type(exc).__name__}: {exc}")
             return
         if r["notes"]:
-            QMessageBox.information(self, "Molecule", "\n".join(r["notes"]))
+            QMessageBox.information(parent, "Molecule", "\n".join(r["notes"]))
 
-    def ask_attach(self):
-        text, ok = QInputDialog.getMultiLineText(self, "Draw as a molecule",
+    def ask_attach(self, parent=None):
+        parent = parent or self
+        text, ok = QInputDialog.getMultiLineText(parent, "Draw as a molecule",
                                                  "SMILES (e.g. CCO for ethanol: C1, C2, O1) or the text of a mol "
                                                  "file; drawing only, the model is unchanged:")
         if not ok or not text.strip():
@@ -228,14 +241,14 @@ class MoleculeView(QWidget):
         try:
             self.session.attach_molecule(text)
         except Exception as exc:
-            QMessageBox.warning(self, "Molecule", f"{type(exc).__name__}: {exc}")
+            QMessageBox.warning(parent, "Molecule", f"{type(exc).__name__}: {exc}")
             return
         self.view.setCurrentIndex(0)
 
     def open_large(self):
         if self.big is None:
             self.big = QDialog(self.window)
-            self.big.setWindowTitle("ZULF Studio - molecule")
+            self.big.setWindowTitle("ZULF Studio - model")
             lay = QVBoxLayout(self.big)
             self.big.view = MoleculeView(self.session, self.window, self.big, large=True)
             lay.addWidget(self.big.view)
@@ -245,7 +258,6 @@ class MoleculeView(QWidget):
                 self.big.resize(int(g.width() * 0.5), int(g.height() * 0.6))
         self.big.view.component.setCurrentIndex(self.component.currentIndex())
         self.big.view.view.setCurrentIndex(self.view.currentIndex())
-        self.big.view._last = None
-        self.big.view.refresh()
+        self.big.view.refresh(force=True)
         self.big.show()
         self.big.raise_()

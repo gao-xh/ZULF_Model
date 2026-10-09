@@ -257,7 +257,7 @@ def studio_settings() -> QSettings:
 class Section(QWidget):
     """A titled card whose body folds away (state kept in QSettings under section/<key>)."""
 
-    def __init__(self, title, key, settings, extra=None, parent=None):
+    def __init__(self, title, key, settings, extra=None, parent=None, open_default=True):
         super().__init__(parent)
         self.key, self.settings = key, settings
         self.setObjectName("section")
@@ -280,7 +280,7 @@ class Section(QWidget):
         self.body_lay.setContentsMargins(12, 2, 12, 10)
         outer.addWidget(head)
         outer.addWidget(self.body)
-        collapsed = str(settings.value(f"section/{key}", "false")).lower() == "true"
+        collapsed = str(settings.value(f"section/{key}", "false" if open_default else "true")).lower() == "true"
         self.toggle.setChecked(not collapsed)
         self._apply(not collapsed)
         self.toggle.toggled.connect(self._apply)
@@ -435,11 +435,11 @@ class StudioWindow(QMainWindow):
         self.json_toggle.setToolTip("show the structure specification as editable JSON")
         sec_data = Section("1  Data", "data", self.settings_store)
         sec_data.add(self._data_box())
-        sec_struct = Section("2  Structure", "structure", self.settings_store, extra=self.json_toggle)
-        sec_struct.add(self._structure_box())
-        self.molecule_view = MoleculeView(self.session, self)
-        sec_mol = Section("Molecule", "molecule", self.settings_store)
-        sec_mol.add(self.molecule_view)
+        sec_struct = Section("2  Model", "structure", self.settings_store)
+        sec_struct.add(self._model_summary_box())
+        self.model_editor = self._model_editor()       # the model is built in its own window (owner, 2026-10-09)
+        sec_disp = Section("Display", "display", self.settings_store, open_default=False)
+        sec_disp.add(self._display_box())
         self.coupling_box = QWidget()
         self.coupling_lay = QVBoxLayout(self.coupling_box)
         self.coupling_lay.setContentsMargins(0, 0, 0, 0)
@@ -452,9 +452,9 @@ class StudioWindow(QMainWindow):
         self.recipe_box.delay.show_fine(self.fine_toggle.isChecked())
         sec_recipe = Section("1  Recipe", "recipe", self.settings_store)
         sec_recipe.add(self.recipe_box)
-        self.sections = {"recipe": sec_recipe, "data": sec_data, "structure": sec_struct, "molecule": sec_mol,
-                         "couplings": sec_coup, "field": sec_field}
-        for sec in (sec_recipe, sec_data, sec_struct, sec_mol, sec_coup, sec_field):
+        self.sections = {"recipe": sec_recipe, "data": sec_data, "structure": sec_struct, "couplings": sec_coup,
+                         "field": sec_field, "display": sec_disp}
+        for sec in (sec_recipe, sec_data, sec_struct, sec_coup, sec_field, sec_disp):
             self.left_lay.addWidget(sec)
         self.left_lay.addStretch(1)
         scroll = QScrollArea()
@@ -641,12 +641,12 @@ class StudioWindow(QMainWindow):
             self.info_tabs.setCurrentWidget(widget)
 
     # left sections and right panel per mode (D58)
-    MODE_SECTIONS = {"simulate": ("structure", "molecule", "couplings", "field"), "process": ("recipe",),
-                     "fit": ("data", "structure", "molecule", "couplings", "field"), "blind": ("data",)}
+    MODE_SECTIONS = {"simulate": ("structure", "couplings", "field"), "process": ("recipe",),
+                     "fit": ("data", "structure", "couplings", "field", "display"), "blind": ("data", "display")}
 
     def apply_mode(self):
         mode = self.session.mode
-        names = {"recipe": "FID and recipe", "data": "Data", "structure": "Model", "molecule": "Molecule",
+        names = {"recipe": "FID and recipe", "data": "Data", "structure": "Model", "display": "Display (phase, delay)",
                  "couplings": "Couplings (Hz)",
                  "field": "Field and line width"}
         n = 0
@@ -674,6 +674,75 @@ class StudioWindow(QMainWindow):
         for key, b in self.mode_buttons.items():
             b.setChecked(key == mode)
         self.schedule()
+
+    def _model_summary_box(self):
+        """Model card: what the model is (name, kind, isotopologues in their plot colours), its drawing (click:
+        large) and Edit model, which opens the model editor window."""
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.model_summary = QLabel(wordWrap=True)
+        self.model_summary.setTextFormat(Qt.RichText)
+        lay.addWidget(self.model_summary)
+        self.molecule_view = MoleculeView(self.session, self)
+        lay.addWidget(self.molecule_view)
+        row = QHBoxLayout()
+        edit = QPushButton("Edit model ...", objectName="small")
+        edit.setToolTip("motif, structure JSON, molecule (SMILES or mol file) or a spin system with its J matrix")
+        edit.clicked.connect(self.open_model_editor)
+        row.addWidget(edit)
+        row.addStretch(1)
+        lay.addLayout(row)
+        return box
+
+    def _update_model_summary(self):
+        spec = self.session.spec
+        comps = self.session.components()
+        name = spec.get("compound") or spec.get("motif") or "custom"
+        kind = ("spin system" if "spin_system" in spec else "molecule" if spec.get("molecule") else
+                "motif" if "motif" in spec else "structure")
+        self.model_summary.setText(
+            f"<b>{name}</b> <span style='color:{self.t['muted']}'>&middot; {kind} &middot; {len(comps)} "
+            f"isotopologue{'s' if len(comps) != 1 else ''}</span><br>" + ", ".join(
+                f"<span style='color:{COMPONENT_COLORS[i % 6]}'>{c['label']}</span>" for i, c in enumerate(comps)))
+
+    def _model_editor(self):
+        """The model editor window: From structure (motif, JSON, molecule) or Spin system (isotopes, J matrix)."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("ZULF Studio - model")
+        lay = QVBoxLayout(dlg)
+        top = QHBoxLayout()
+        from_mol = QPushButton("From molecule ...", objectName="small")
+        from_mol.setToolTip("build the model from a SMILES string or a mol file (every heavy atom a site, symmetry "
+                            "found automatically, 1J guesses from the hybridisation)")
+        from_mol.clicked.connect(lambda: self.molecule_view.ask_molecule(dlg))
+        attach = QPushButton("Attach molecule ...", objectName="small")
+        attach.setToolTip("draw a spin system as a molecule (atoms C1, C2, O1, ... in order); drawing only")
+        attach.clicked.connect(lambda: self.molecule_view.ask_attach(dlg))
+        top.addWidget(from_mol)
+        top.addWidget(attach)
+        top.addStretch(1)
+        top.addWidget(self.json_toggle)
+        lay.addLayout(top)
+        lay.addWidget(self._structure_box(), 1)
+        close = QPushButton("Close")
+        close.clicked.connect(dlg.close)
+        bottom = QHBoxLayout()
+        bottom.addStretch(1)
+        bottom.addWidget(close)
+        lay.addLayout(bottom)
+        return dlg
+
+    def open_model_editor(self):
+        dlg = self.model_editor
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is not None and not dlg.isVisible():
+            g = screen.availableGeometry()
+            dlg.resize(min(980, int(g.width() * 0.7)), min(820, int(g.height() * 0.85)))
+        self._model_page("spin" if "spin_system" in self.session.spec else "structure")
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _structure_box(self):
         """Model source (PLAN 8c): a structure (motif or chain JSON, isotopologues at natural abundance) or a
@@ -719,7 +788,7 @@ class StudioWindow(QMainWindow):
         self.spec_edit.setVisible(False)
         build.setVisible(False)
         self.json_toggle.toggled.connect(lambda on: (self.spec_edit.setVisible(on), build.setVisible(on),
-                                                     QTimer.singleShot(0, lambda: fit_to_page(self.model_stack, True))))
+                                                     QTimer.singleShot(0, lambda: fit_to_page(self.model_stack))))
         build.clicked.connect(self.build_structure)
         self.motif.currentTextChanged.connect(self._motif_chosen)
         self.exchange.currentTextChanged.connect(lambda m: self._guard(self.session.set_exchange, m))
@@ -745,7 +814,7 @@ class StudioWindow(QMainWindow):
         if spin:
             self.spin_editor.load_from_session()
         self.model_stack.setCurrentIndex(1 if spin else 0)
-        fit_to_page(self.model_stack, fixed=True)
+        fit_to_page(self.model_stack)                 # in the editor window: the page takes the free height
         self.json_toggle.setVisible(not spin)
         for k, b in self.model_buttons.items():
             b.setChecked(k == key)
@@ -806,6 +875,13 @@ class StudioWindow(QMainWindow):
             row.addWidget(b)
         row.addStretch(1)
         lay.addLayout(row)
+        return box
+
+    def _display_box(self):
+        """Display phase and delay of the data (display only; fits fit their own phase and delay)."""
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
         self.phase = ValueSlider("display phase", -180.0, 180.0, 0.0, 1, "deg")
         self.delay = ValueSlider("display delay", -10.0, 10.0, 0.0, 3, "ms", fine=0.2)
         self.phase.value_changed.connect(lambda v: self.session.set_display(phase_deg=v))
@@ -861,6 +937,7 @@ class StudioWindow(QMainWindow):
             row.show_fine(self.fine_toggle.isChecked())
             self.coupling_lay.addWidget(row)
             self.coupling_rows[c["key"]] = row
+        self._update_model_summary()
         if "spin_system" in self.session.spec:          # spin system: couplings are edited in its matrix
             self.components_label.setText("")
             return

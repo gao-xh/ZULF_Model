@@ -47,7 +47,10 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
      phase (deg) and delay (ms), which rotate the shown data only; **Auto phase** "match the simulation" (phase
      and delay that best match the current simulation, delay within +-3 ms; needs the lines roughly in place) or
      "data only" (model-free, delay within +-0.5 ms); "also delay" off keeps the delay; Reset sets both to zero.
-  2. **Model**, from one of two sources (switch at the top of the card):
+  2. **Model**: a summary (name, kind, the isotopologues in their plot colours), the model drawn (click: large view;
+     see Molecule below) and **Edit model ...**, which opens the model editor window (owner, 2026-10-09: building
+     the model is a set-up step, so it no longer fills the left column). The editor has **From molecule ...**,
+     **Attach molecule ...**, JSON, and two sources (switch at the top):
      - **From structure**: a registered motif, or the structure JSON (button JSON shows the editor and Build);
        the natural-abundance 13C isotopologues; N-H/O-H fast (decoupled) or slow (kept).
      - **Spin system** (PLAN 8c): components, each with a name, a weight and its isotopes (`13C 1H 1H 1H`;
@@ -61,17 +64,21 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
        MATLAB. Fit works as for a structure (D60): the variables and numeric couplings are the fit parameters;
        **fit weights** (on for typed-in systems) fits every component's amplitude, off holds the weight ratios
        (a converted structure holds its abundance ratios).
-  - **Molecule** (Simulate and Fit; D61): the model drawn. A structure model shows its heavy-atom skeleton with
+  - **The model drawing** (in the Model card; D61), drawn with matplotlib in the plot style, RDKit giving only the
+    2D coordinates. A structure model shows its heavy-atom skeleton with
     the protons (CH3, CH2), the site labels and the labelled site of every isotopologue in its plot colour; bond
     orders appear only for a model built from a molecule (the structure itself has none). A spin system shows a
     network: one node per group of equivalent spins, one edge per nonzero coupling with its value (width ~ |J|,
-    dashed when negative), a component chooser for several components. A spin system converted from a structure
+    dashed when negative), a component chooser for several components. The labelled site of each isotopologue sits in
+    a pill of its plot colour. A spin system converted from a structure
     keeps the molecule; for any other one **Attach molecule ...** (SMILES or mol file, atoms C1, C2, O1, ... in order)
     adds it for drawing only (model, couplings and an applied fit unchanged); a switch shows molecule or network. **From molecule ...** builds the model
     from a SMILES string or mol-file text (zulf_hypothesis.molecule.structure_from_molecule; API tool
     structure_from_molecule); **Large** opens the drawing in its own window. The plot legend and the field badge
     name the applied fit's run, so the main plot and the Monitor tab can be told apart when they show different
     runs.
+  - **Display (phase, delay)** (Fit and Blind analysis; folded by default): the display phase and delay of the
+    data and Auto phase, for display only (fits fit their own phase and delay).
   3. **Couplings (Hz)**: a slider and a spin box per coupling; "Add / set" adds a coupling by key `J(a,b)` (for
      example `J(C2,HC1)` makes the nitrile 13C isotopologue of acetonitrile visible). **fine sliders** shows a
      second, fine slider under every coupling, field and phase slider.

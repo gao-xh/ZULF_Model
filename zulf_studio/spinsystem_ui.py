@@ -64,7 +64,8 @@ class SpinSystemEditor(QWidget):
         mode.addWidget(self.text_toggle)
         lay.addLayout(mode)
         self.table = QTableWidget(0, 0)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)   # names readable
+        self.table.horizontalHeader().setMinimumSectionSize(56)
         self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.setMinimumHeight(150)
         self.table.itemChanged.connect(self._cell_changed)
