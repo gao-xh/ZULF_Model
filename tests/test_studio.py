@@ -244,6 +244,31 @@ class FitPlumbingTests(unittest.TestCase):
             w.stop_follow()
             w.close()
 
+    def test_stop_ends_the_worker_processes(self):
+        import subprocess
+        import sys
+        import time
+        from zulf_studio.session import FitJob, _descendants
+        code = ("import multiprocessing as m, time\n"
+                "def f(_):\n    time.sleep(60)\n"
+                "if __name__ == '__main__':\n    m.Pool(2).map(f, range(2))\n")
+        with tempfile.TemporaryDirectory() as d:
+            script = Path(d) / "pool.py"
+            script.write_text(code)
+            job = FitJob([sys.executable, str(script)], Path(d) / "out", lambda *a: None, lambda job: None,
+                         kind="fit", title="pool")
+            t0 = time.time()
+            while len(_descendants(job.pid)) < 2 and time.time() - t0 < 20:
+                time.sleep(0.1)
+            kids = _descendants(job.pid)
+            self.assertGreaterEqual(len(kids), 2)
+            job.stop()
+            time.sleep(1.5)
+            alive = [k for k in kids if subprocess.run(["ps", "-p", str(k)], capture_output=True).returncode == 0
+                     and "Z" not in subprocess.run(["ps", "-o", "stat=", "-p", str(k)], capture_output=True,
+                                                   text=True).stdout]
+            self.assertEqual(alive, [])
+
     def test_apply_fit_and_trace_frames(self):
         with tempfile.TemporaryDirectory() as d:
             run = Path(d) / "run"

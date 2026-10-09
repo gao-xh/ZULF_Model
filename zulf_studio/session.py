@@ -19,6 +19,7 @@ import json
 import math
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -54,6 +55,25 @@ def _resolve(path) -> Path:
     if p.exists() or p.is_absolute():
         return p
     return ROOT / p
+
+
+def _descendants(pid: int) -> List[int]:
+    """Process ids below pid (children, grandchildren), from ps by parent id."""
+    try:
+        out = subprocess.run(["ps", "-A", "-o", "pid=,ppid="], capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return []
+    kids = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            kids.setdefault(int(parts[1]), []).append(int(parts[0]))
+    found, todo = [], [pid]
+    while todo:
+        for c in kids.get(todo.pop(), []):
+            found.append(c)
+            todo.append(c)
+    return found
 
 
 class FitJob:
@@ -107,8 +127,15 @@ class FitJob:
         return self.returncode is None
 
     def stop(self):
+        """End the job and its worker processes (a fit's process pool would otherwise keep running)."""
         if self.running:
+            children = _descendants(self.proc.pid)
             self.proc.terminate()
+            for pid in children:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except OSError:
+                    pass
 
     def status(self) -> dict:
         return {"kind": self.kind, "title": self.title, "pid": self.pid, "workers": self.workers,
