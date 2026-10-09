@@ -219,6 +219,24 @@ class BarDelegate(QStyledItemDelegate):
         super().paint(painter, option, index)
 
 
+def fit_to_page(stack, fixed=False):
+    """A stacked widget sized by its current page (by default it keeps the size of its largest page, and a short
+    page spreads its few widgets over the empty height). fixed: exactly the page's height (cards in a column)."""
+    from PySide6.QtWidgets import QSizePolicy
+    for i in range(stack.count()):
+        page = stack.widget(i)
+        policy = QSizePolicy.Preferred if i == stack.currentIndex() else QSizePolicy.Ignored
+        page.setSizePolicy(QSizePolicy.Preferred, policy)
+    if fixed:
+        stack.setFixedHeight(stack.currentWidget().sizeHint().height())
+    w = stack                                     # let every enclosing layout take the new height now
+    while w is not None:
+        w.updateGeometry()
+        if w.layout() is not None:
+            w.layout().activate()
+        w = w.parentWidget()
+
+
 def studio_settings() -> QSettings:
     """Window settings (geometry, splitters, sections, recent files, dialog folders). ZULF_STUDIO_SETTINGS=FILE
     keeps them in that INI file instead (tests, so they never touch the user's own settings)."""
@@ -623,6 +641,7 @@ class StudioWindow(QMainWindow):
                                                 if self.info_tabs.tabText(i) == pages[0]))
         self.baseline.setVisible(mode in ("simulate", "fit"))
         self.right_stack.setCurrentWidget(self.mode_pages[mode])
+        fit_to_page(self.right_stack)
         for key, b in self.mode_buttons.items():
             b.setChecked(key == mode)
         self.schedule()
@@ -670,7 +689,8 @@ class StudioWindow(QMainWindow):
         build = QPushButton("Build")
         self.spec_edit.setVisible(False)
         build.setVisible(False)
-        self.json_toggle.toggled.connect(lambda on: (self.spec_edit.setVisible(on), build.setVisible(on)))
+        self.json_toggle.toggled.connect(lambda on: (self.spec_edit.setVisible(on), build.setVisible(on),
+                                                     QTimer.singleShot(0, lambda: fit_to_page(self.model_stack, True))))
         build.clicked.connect(self.build_structure)
         self.motif.currentTextChanged.connect(self._motif_chosen)
         self.exchange.currentTextChanged.connect(lambda m: self._guard(self.session.set_exchange, m))
@@ -696,6 +716,7 @@ class StudioWindow(QMainWindow):
         if spin:
             self.spin_editor.load_from_session()
         self.model_stack.setCurrentIndex(1 if spin else 0)
+        fit_to_page(self.model_stack, fixed=True)
         self.json_toggle.setVisible(not spin)
         for k, b in self.model_buttons.items():
             b.setChecked(k == key)

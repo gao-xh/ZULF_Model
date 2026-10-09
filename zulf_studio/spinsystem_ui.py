@@ -241,6 +241,14 @@ class SpinSystemEditor(QWidget):
             self._show()
         self.table.setVisible(not on)
         self.text.setVisible(on)
+        self._refit()
+
+    def _refit(self):
+        from PySide6.QtCore import QTimer
+        from .app import fit_to_page
+        stack = self.parentWidget()
+        if stack is not None and hasattr(stack, "currentWidget"):
+            QTimer.singleShot(0, lambda: fit_to_page(stack, True))
 
     def _store_table_only(self):
         was = self.text_toggle.isChecked()
