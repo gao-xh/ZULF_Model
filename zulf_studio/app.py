@@ -12,6 +12,7 @@ import json
 import math
 import os
 import sys
+import threading
 from pathlib import Path
 
 for _var in ("VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS"):     # one BLAS thread: the
@@ -411,6 +412,7 @@ class StudioWindow(QMainWindow):
         session.log_listeners.append(self.bridge.logged.emit)
         self.coupling_rows = {}
         self.dirty = False
+        self._fit_curve_failed = set()
         self.redraw_timer = QTimer(self, singleShot=True, interval=25)
         self.redraw_timer.timeout.connect(self.redraw)
         self.status_timer = QTimer(self, interval=1000)
@@ -1689,6 +1691,29 @@ class StudioWindow(QMainWindow):
             self._guard(self.session.set_view, lo, hi)
 
     # ---- session events ----------------------------------------------------------------------
+    def _request_fit_curve(self):
+        """Compute the applied fit's exact model in the background (the first time per run builds the fit
+        problem, about a second); the plot draws it instead of the quick look when it arrives."""
+        s = self.session
+        if s.applied is None or s.data is None or not s.state_is_applied_fit():
+            return
+        key = (s.applied["run"], s.data["label"])
+        if getattr(self, "_fit_curve_busy", False) or key in self._fit_curve_failed:
+            return
+        self._fit_curve_busy = True
+
+        def work():
+            try:
+                s.fit_model_curve()
+            except Exception as exc:
+                self._fit_curve_failed.add(key)
+                s.log(f"fit model of {key[0]} not available, showing the quick look: {type(exc).__name__}: {exc}",
+                      "session")
+            finally:
+                self._fit_curve_busy = False
+            s._changed("fit_model")
+        threading.Thread(target=work, daemon=True, name="fit-model").start()
+
     def on_changed(self, event):
         if event in ("structure", "couplings", "field", "linewidth"):
             self.dirty = True
@@ -1899,6 +1924,11 @@ class StudioWindow(QMainWindow):
         if has_data:
             d = pick(sim["data_re"], sim["data_im"])
         m = pick(sim["sim_re"], sim["sim_im"])
+        exact = mode == "fit" and "fit_re" in sim            # the applied fit's own model (fit_model_curve)
+        if exact:
+            m = pick(np.asarray(sim["fit_re"]), np.asarray(sim["fit_im"]))
+        elif mode == "fit":
+            self._request_fit_curve()
         corrected = has_data and show_model and self.baseline.isChecked() and part != "abs"
         if corrected:                                 # display only, data and model alike (WORKFLOW W2)
             from zulf_processing.display_baseline import display_baseline
@@ -1906,9 +1936,9 @@ class StudioWindow(QMainWindow):
             groups = [(lab, np.array([r["frequency_hz"] for r in sim["lines"] if r["component"] == lab]),
                        np.array([r["relative"] for r in sim["lines"] if r["component"] == lab])) for lab in labels]
             try:
-                d, m, _ = display_baseline(f, d, m, groups)
+                d, m, _ = display_baseline(f, d, np.nan_to_num(m), groups)
                 mm = float(m @ m)
-                if s.scale_lock is None and mm > 0 and float(m @ d) > 0:
+                if s.scale_lock is None and not exact and mm > 0 and float(m @ d) > 0:
                     m = m * float(m @ d) / mm        # display scale on the corrected curves (positive)
             except Exception as exc:                  # too few points in the view: show it uncorrected
                 corrected = False
@@ -1931,7 +1961,8 @@ class StudioWindow(QMainWindow):
             each = mode == "simulate" and self.simulate_panel.per_component()
             ax.plot(f, m, color=t["sim"] if not each else t["muted"], lw=1.3 if not each else 1.0,
                     ls="-" if not each else "--", alpha=0.9, zorder=1 if each else 2,
-                    label="simulation (quick look)" if mode != "simulate" else "weighted sum")
+                    label=("fit model (applied fit)" if exact else "simulation (quick look)") if mode != "simulate"
+                    else "weighted sum")
         tr = s.trace if self.show_trace.isChecked() else None
         if tr is not None and s.trace_index >= 0:
             ft = tr["f"]
@@ -1985,8 +2016,10 @@ class StudioWindow(QMainWindow):
         self.fill_lines(sim["lines"])
         msg = (f"{1e3 * sim['seconds']:.0f} ms \u00b7 {len(sim['lines'])} lines \u00b7 scale {sim['scale']:.3g}"
                + (" (locked)" if s.scale_lock is not None else ""))
-        if has_data:
+        if has_data and not exact:
             msg += f" \u00b7 rms residual {sim['residual_rms']:.3g}"
+        if exact:
+            msg += f" \u00b7 fit model: {sim['fit_source']}"
         self.statusBar().showMessage(msg)
 
 

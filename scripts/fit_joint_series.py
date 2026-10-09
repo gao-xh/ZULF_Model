@@ -1852,6 +1852,7 @@ def main():
               "free (J at every concentration independent)", "x": joint.nodes.tolist(),
               "spectra": [{"id": e["id"], "x": e["x"]} for e in series],
               "start_solutions": start_tables,
+              "z_final": [float(v) for v in z],         # full parameter vector (Studio draws the exact model)
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "signal_height_power": settings.signal_height_power,
               "structure": json.loads(args.structure), "exchange": args.exchange,

@@ -82,7 +82,12 @@ The static field of the model is written in the lower-left corner of the spectru
 parameters are exactly an applied fit's).
 
 The simulation is a quick look: complex Lorentzian lines with one decay rate, sign convention of the processed
-spectra (numpy FFT). It is not the fit model.
+spectra (numpy FFT). It is not the fit model. In Fit mode with an applied fit whose parameters are unchanged, the
+plot draws the **fit model (applied fit)** instead: the fit's own forward model (phase, delay, the decay rate of
+every family, amplitudes) at its final parameter vector (`z_final` in fit.json; older fits: the best point of the
+monitor record), rebuilt in the background from the run's recorded command, in the data's units (no display
+scale) and with the same display phase as the data. Its objective equals the fit's reported score. Any change of
+couplings, field or line width goes back to the quick look.
 
 Pages:
 - **Lines**: every transition (isotopologue, frequency, amplitude, relative).

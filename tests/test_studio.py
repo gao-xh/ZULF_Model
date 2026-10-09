@@ -141,6 +141,36 @@ class FitPlumbingTests(unittest.TestCase):
             argv = s.fit_command(fit_field=False)
             self.assertNotIn("--fit-field", argv)
 
+    def test_exact_fit_model_reproduces_the_fit_score(self):
+        """The model Studio draws for an applied fit is the fit's own: rebuilt from the run's record, its
+        objective equals the score the fit process reported (an independent computation in another process)."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            f = np.linspace(120, 290, 1500)
+            g = 1.0 / (2 * np.pi)
+            y = sum(a * g / (g + 1j * (f - c)) for a, c in ((1.0, 136.3), (0.8, 272.6))) * np.exp(0.3j)
+            y = y + np.random.default_rng(0).normal(0, 0.01, len(f))
+            np.save(tmp / "f.npy", f)
+            np.save(tmp / "y.npy", y)
+            json.dump([{"id": "x", "x": 1.0, "freq": str(tmp / "f.npy"), "values": str(tmp / "y.npy"),
+                        "ranges": [[120, 290]]}], open(tmp / "series.json", "w"))
+            s = session(METHYL, d)
+            s.load_spectrum(series=str(tmp / "series.json"))
+            argv = s.fit_command(starts=1, workers=1, max_nfev=30, trace=0, fit_field=False)
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=300)
+            self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+            out = Path(argv[argv.index("--out") + 1])
+            fit = json.loads((out / "fit.json").read_text())
+            s.apply_fit(str(out))
+            curve = s.fit_model_curve()
+            self.assertEqual(curve["source"], "final vector (fit.json)")
+            self.assertAlmostEqual(curve["objective"], fit["scores"][0], places=10)
+            sim = s.simulate()
+            self.assertIn("fit_re", sim)                                  # drawn instead of the quick look
+            s.set_couplings({"J(C1,HC1)": 136.0})                         # parameters no longer the fit's
+            self.assertNotIn("fit_re", s.simulate())
+
     def test_apply_fit_and_trace_frames(self):
         with tempfile.TemporaryDirectory() as d:
             run = Path(d) / "run"
@@ -721,6 +751,19 @@ class SpinSystemTests(unittest.TestCase):
         self.assertEqual([c["key"] for c in s.couplings()], ["a"])
         s.set_couplings({"a": 130.0})
         np.testing.assert_allclose(sorted(l["frequency_hz"] for l in s.lines(0.01)), [130.0, 260.0], atol=1e-9)
+
+    def test_apply_fit_of_a_spin_system_sets_its_variables(self):
+        s = session()
+        s.set_structure(self.METHYL_SPIN)
+        run = Path(s.workspace) / "spin_fit"
+        run.mkdir()
+        (run / "fit.json").write_text(json.dumps({"structure": self.METHYL_SPIN, "exchange": "fast",
+                                                  "couplings": {"a": {"J_at_x": [131.25]}},
+                                                  "spectrum_parameters": {}, "scores": [0.1]}))
+        s.apply_fit(str(run))
+        self.assertEqual({c["key"]: c["value"] for c in s.couplings()}, {"a": 131.25})
+        np.testing.assert_allclose(sorted(l["frequency_hz"] for l in s.lines(0.01)), [131.25, 262.5], atol=1e-9)
+        self.assertTrue(s.state_is_applied_fit())
 
     def test_structure_converts_to_the_same_spectrum_with_shared_variables(self):
         ethanol = {"compound": "ethanol", "chain": {"groups": [["C1", "C", 3], ["C2", "C", 2]],

@@ -366,6 +366,7 @@ flowchart LR
 Key algorithms:
 - Live simulation from the same spin physics as W3 (model cached per structure), drawn as complex Lorentzians
   a gamma / (gamma + i (f - f_k)) with one decay rate: a quick look, not the processed forward model of a fit.
+  With an applied, unchanged fit the plot draws that fit's own forward model at fit.json `z_final` instead.
 - Display scale by least squares on magnitudes (can be locked, so it does not jump while sliding).
 - Auto phase "model": delay on a 0.005 ms grid, phase0 in closed form, so the data best match a positive multiple
   of the simulation; "data": the W2 data-only estimate.

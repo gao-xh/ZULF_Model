@@ -265,6 +265,8 @@ class StudioSession:
         self.process: Optional[dict] = None          # Process mode: source FID, its scans record, recipe, preview
         self.figure: Optional[dict] = None           # last figure: directory, files, manual flag
         self.applied: Optional[dict] = None          # run directory of the applied fit and the state it gave
+        self.fit_curve: Optional[dict] = None        # exact model of the applied fit (fit_model_curve)
+        self._fit_problems = None                    # fit_monitor.SpectrumCache: the problems of fit runs
         self.trace: Optional[dict] = None
         self.trace_index = -1
         self._model_cache = None
@@ -577,6 +579,16 @@ class StudioSession:
             out = {"f": f.tolist(), "sim_re": (scale * sim.real).tolist(), "sim_im": (scale * sim.imag).tolist(),
                    "part": part, "scale": scale, "view": [lo, hi],
                    "lines": [r for r in lines if lo <= r["frequency_hz"] <= hi and r["relative"] >= 1e-3]}
+            curve = self._fit_curve_shown()
+            if curve is not None:                     # the applied fit's own model, same display phase as the data
+                fc = curve["f"]
+                inside = (f >= fc[0]) & (f <= fc[-1])
+                fm = np.full(len(f), np.nan, complex)
+                fm[inside] = (np.interp(f[inside], fc, curve["model"].real)
+                              + 1j * np.interp(f[inside], fc, curve["model"].imag))
+                fm = self._data_display(f, fm)
+                out.update({"fit_re": fm.real.tolist(), "fit_im": fm.imag.tolist(), "fit_source": curve["source"],
+                            "fit_objective": curve["objective"]})
             if data is not None:
                 out.update({"data_re": data.real.tolist(), "data_im": data.imag.tolist(),
                             "residual_rms": float(np.sqrt(np.mean((self._part(data, part) - scale * self._part(sim, part)) ** 2)))})
@@ -672,7 +684,11 @@ class StudioSession:
         sp_all = fit.get("spectrum_parameters", {})
         sp = sp_all.get(spectrum) if spectrum else next(iter(sp_all.values()), {})
         with self.lock:
-            self.overrides.update(couplings)
+            if "spin_system" in self.spec:            # typed-in spin system: the values live in the J matrices
+                from .spin_model import set_values
+                self.spec = set_values(self.spec, couplings)
+            else:
+                self.overrides.update(couplings)
             self._build()
             bt = sp.get("field_transverse_ut", sp.get("field_perp_ut"))
             if bt is not None or "field_z_ut" in sp:
@@ -688,6 +704,64 @@ class StudioSession:
             self.load_trace(str(run))
         self._changed("couplings")
         return {"couplings": couplings, "field_nt": self.field_nt, "rate_per_s": self.rate_per_s}
+
+    def fit_model_curve(self) -> Optional[dict]:
+        """Exact model of the applied fit for the loaded spectrum: the fit's own forward model (phase, delay, decay
+        rates of every family, amplitudes) at its final parameter vector (fit.json z_final; older fits: the best
+        point of the monitor record), built from the run's recorded command (scripts/fit_monitor.py). It is the
+        curve the fit compared with the data, on the data's grid and in the data's units. Slow (the problem is
+        built once per run, then cached): call it off the GUI thread. None when it cannot be made."""
+        if self.applied is None or self.data is None:
+            return None
+        run = _resolve(self.applied["run"]).resolve()
+        if self.fit_curve is not None and self.fit_curve["run"] == str(run):
+            return self.fit_curve
+        if not (run / "monitor" / "status.json").exists():
+            raise ValueError(f"{run} has no monitor record (fit run with --monitor off)")
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from fit_monitor import SpectrumCache, read_run
+        if self._fit_problems is None:
+            self._fit_problems = SpectrumCache()
+        prob = self._fit_problems.get(str(run))
+        ids = [e["id"] for e in prob.series]
+        label = self.applied.get("spectrum") if self.applied.get("spectrum") in ids else self.data["label"]
+        if label not in ids:
+            raise ValueError(f"the fit has no spectrum {label!r} (it has {ids})")
+        k = ids.index(label)
+        z = self.applied["fit"].get("z_final")
+        source = "final vector (fit.json)"
+        if z is None:
+            starts = [v for v in read_run(run)["starts"].values() if v["z"] is not None and v["best"] is not None]
+            if not starts:
+                raise ValueError("no best point in the monitor record")
+            best = min(starts, key=lambda v: v["best"])
+            z, source = best["z"], f"best point of the monitor record (objective {best['best']:.5g})"
+        z = np.asarray(z, float)
+        joint = prob.joint
+        fw = joint.forwards[k]
+        model = fw.predict(joint.spectrum_vector(z, k)).model
+        smooth = getattr(joint, "peak_smooth", 0.0)
+        try:                                          # the objective as the fit ranks and reports it (hard
+            if getattr(joint, "peaks", None) is not None:   # missing-peak rows): equals fit.json scores[0]
+                joint.peak_smooth = 0.0
+            objective = float(np.sum(joint.residual(z) ** 2))
+        finally:
+            joint.peak_smooth = smooth
+        curve = {"run": str(run), "spectrum": label, "f": np.asarray(fw.f, float), "model": np.asarray(model, complex),
+                 "objective": objective, "source": source}
+        with self.lock:
+            self.fit_curve = curve
+        self.log(f"fit model of {run.name} ({label}): {source}", "session")
+        return curve
+
+    def _fit_curve_shown(self) -> Optional[dict]:
+        """The applied fit's exact model when the parameters are still the fit's and it was computed."""
+        c = self.fit_curve
+        if c is None or self.applied is None or self.data is None or not self.state_is_applied_fit():
+            return None
+        if c["run"] != str(_resolve(self.applied["run"]).resolve()) or c["spectrum"] != self.data["label"]:
+            return None
+        return c
 
     def _snapshot(self):
         return (json.dumps(self.spec, sort_keys=True), self.exchange,

@@ -533,7 +533,8 @@ Steps:
 - [x] 8d. Fits of a custom spin system (done, D60) (fit_joint_series model input {"spin_system": ...}; variables as fit
   parameters; weights as amplitudes).
 - [ ] 8e. Exact rendering in Simulate (the processed forward model of zulf_core.render with an acquisition);
-  overlays of several parameter sets.
+  overlays of several parameter sets. Part done: Fit mode draws an applied fit's own forward model at
+  fit.json `z_final` (objective equal to the fit's score, tested); Studio Monitor tab and large window.
 
 ## Experimental data inventory (user Google Drive, "Metabolites/Low Gamma")
 
