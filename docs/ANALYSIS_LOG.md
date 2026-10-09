@@ -1379,3 +1379,7 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-08: isopropanol 70 % rubbing alcohol (8333 Hz, 9301 scans) and rate families for all three samples:
   fields 41-51 nT (ethanol, depends on the delay), 54 nT (isopropanol), 59 nT (acetonitrile, reproduced).
   Isopropanol 1J 142.0 / 126.5 Hz, residual 0.47. docs/analysis/2026-10-08_ethanol_field-fit.md
+- 2026-10-09: ethanol visually best fit in Studio (wider rate bounds, free isotopologue amplitudes, one decay
+  rate per model line, `--family-edges lines`): score 0.1210 -> 0.1117, couplings stable to 0.1 Hz; the
+  118-125 Hz "misfit" was the display baseline (D62: one baseline, estimated on the model, for both curves).
+  docs/analysis/2026-10-09_ethanol_visual-fit.md

@@ -67,14 +67,49 @@ From the stage-1 result: `--family-edges lines`, `--residual-peaks 5`, rate boun
 isotopologue amplitudes, field fitted (transverse start 20 nT, as Studio starts a zero component), 4 starts,
 300 evaluations each, no component search.
 
-(running)
+| start | objective |
+|---|---|
+| 0 | **0.11067** |
+| 1 | 0.13214 |
+| 2 | 0.51996 |
+| 3 | 0.27314 |
+
+Residual-peak stage (1-2 assignable residual peaks of 16-18 per candidate, so it changed little): final score
+**0.1117** (the candidate ranked best on the common residual-peak windows; start 0 alone 0.1107), residual 0.338
+(stage 1 0.348, ethanol_spinsystem2 0.352); 3247 s. Couplings (J_std from the linearised covariance):
+1J(C1,H1) 125.410 +- 0.002, 1J(C2,H2) 141.389 +- 0.008, 2J(C1,H2) -2.424 +- 0.012, 2J(C2,H1) -4.821 +- 0.029,
+3J(H,H) 7.043 +- 0.011 Hz. Field B z 63.6 nT, B transverse 0 (at its bound); delay -3.7 ms; 2 of 76 rates at a
+bound. Against stage 1 the couplings moved by 0.04-0.12 Hz, more than their linearised errors: the decay-rate
+model (families) changes them at that level, so the model spread, not J_std, is their uncertainty.
+
+Visually (runs/figures/ethanol_overlay_lines.png, start 0 point): 211 Hz now reaches the data (about 620 against
+650), the 251 Hz multiplet shows its splitting, 217, 256 and 128 Hz shapes closer. The 118-125 Hz region still
+looked low.
+
+### The 118-125 Hz "misfit" was the display baseline (D62)
+
+Overlays with four display baselines (zulf_processing.display_baseline method none / separate / shared /
+residual) at 114-131 Hz: without a baseline data and model agree there (the crop's rolling baseline is in both);
+"separate" (the earlier figures) estimated one baseline on the data and another on the model and left that
+roll in the data only, which looked like a missing line. One baseline for both curves keeps the residual of the
+fit; estimated on the noise-free model ("model", now the default of paper_figure.py, overlay_figure.py and
+Studio) it adds no noise ripple to the model, as "shared" (estimated on the data) did. Final overlay:
+runs/figures/ethanol_overlay_final.{png,svg,pdf} and ethanol_overlay_final_120.png (final fit.json, baseline
+"model").
 
 ## Conclusion
 
-(pending)
+Conditional numerical result for the ethyl spin system with a uniform static field: the visually best fit so
+far is stage 3 (one decay rate per model line, free isotopologue amplitudes, rates 0.1-40 1/s), score 0.1117
+(from 0.1210); with one display baseline for both curves the overlay shows no systematic misfit at the strong
+lines. The couplings are stable to about 0.1 Hz across the decay-rate models (1J 125.41-125.45 / 141.39-141.53,
+2J -2.40 to -2.42 / -4.78 to -4.88, 3J 7.04-7.15 Hz); the field direction fit (transverse at 0) differs from the
+earlier fits (2.6-12 nT transverse) and is not determined by these data at this level.
 
 ## Open points
 
-- (pending)
+- Halves (even / odd scans) and more starts for stage 3; profile 3J(H,H).
+- Small features still above the model: 126.9 Hz, 196-200 Hz, 245-247 Hz (no or weak model lines).
+- The 1-2 assignable residual peaks per candidate: which transitions (fit.json residual_peaks).
 
-Commit: (pending)
+Commit: (this commit)
