@@ -105,8 +105,39 @@ TOOLS: Dict[str, tuple] = {
                       _obj({})),
     "export_figure": ("export_figure", "Copy the last figure (PNG, PDF, SVG, caption, parameter file) to a directory.",
                       _obj({"directory": STR}, ["directory"])),
-    "export": ("export", "Write parameters.json, lines.csv and spectrum.csv to a directory (default under the "
-               "workspace).", _obj({"directory": STR})),
+    "export": ("export", "Write parameters.json, couplings.csv, lines.csv, spectrum.csv, a session file and the "
+               "applied fit's fit.json / J_table.csv to a directory (default under the workspace).",
+               _obj({"directory": STR})),
+    "machine_status": ("machine_status", "Cores (performance / efficiency), load average and the analysis processes "
+                       "running on this machine with their workers; free and suggested workers. Check it before "
+                       "starting a fit or analysis: more workers than cores slow every run down.", _obj({})),
+    "job_list": ("job_list", "Every background job of the session (fits, blind analyses, imports, figures), newest "
+                 "first: kind, title, running, starts finished / total, stage, elapsed s, best objective, output.",
+                 _obj({})),
+    "stop_job": ("stop_job", "Stop the job with this index (from job_list).", _obj({"index": {"type": "integer"}},
+                                                                                       ["index"])),
+    "start_blind": ("start_blind", "Blind analysis of an averaged FID in the background (scripts/analyze_sample.py: "
+                    "processing, hypotheses, search, ranked report); fid defaults to the FID of the loaded series. "
+                    "With structure (a structure specification) it fits that structure instead; labeling for that "
+                    "case. Poll blind_status. The ranking is a list of conditional candidates.",
+                    _obj({"fid": STR, "workers": {"type": "integer"}, "structure": {"type": "object"},
+                          "labeling": {"type": "string", "enum": ["", "natural", "15N", "2H-exchange", "unknown"]}})),
+    "blind_status": ("blind_status", "State of the last blind analysis: running, stage, elapsed, output directory and "
+                     "report path (blind.md or structure.md).", _obj({})),
+    "import_fid": ("import_fid", "Process an averaged FID (.npy) into a series (make_series_entry: sampling rate "
+                   "from scans.json or the .ini next to it, whole-grid fit ranges) and load it when done.",
+                   _obj({"fid": STR, "record_s": NUM, "crop_s": NUM, "grid": STR, "exclude": STR, "label": STR,
+                         "sampling_rate": NUM}, ["fid"])),
+    "import_scans": ("import_scans", "Average an instrument run folder (n.dat, n.ini; read-only) with "
+                     "average_scans.py, then import the average.",
+                     _obj({"run_folder": STR, "out": STR, "exclude_z": NUM}, ["run_folder"])),
+    "open_path": ("open_path", "Open a path by what it holds: session file, series.json, fit run (directory or "
+                  "fit.json), directory with series.json, averaged FID (.npy, imported), scan folder (averaged).",
+                  _obj({"path": STR}, ["path"])),
+    "save_session": ("save_session", "Save structure, couplings, field, line width, view, display and the paths of "
+                     "the loaded series and applied fit (.zulfstudio JSON).", _obj({"path": STR}, ["path"])),
+    "open_session": ("open_session", "Restore a saved session (.zulfstudio); missing series or fits are reported.",
+                     _obj({"path": STR}, ["path"])),
     "read_log": ("read_log", "Last log entries (sources: session, api, fit, terminal).",
                  _obj({"n": {"type": "integer"}, "source": STR})),
 }

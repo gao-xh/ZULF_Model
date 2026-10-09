@@ -428,3 +428,104 @@ class CredentialsTests(unittest.TestCase):
         self.assertIsNone(credentials.load("ANTHROPIC_API_KEY", runner))
         with self.assertRaises(ValueError):
             credentials.save("HOME", "x", runner)
+
+
+class FilesAndJobsTests(unittest.TestCase):
+    """Session files, opening by content, imports and the job list (2026-10-08 UI work)."""
+
+    def test_session_file_round_trip_ignores_unknown_keys_and_reports_missing_data(self):
+        a = session(METHYL)
+        a.set_couplings({"J(C1,HC1)": 131.5})
+        a.set_field(transverse_nt=7.0, z_nt=52.0)
+        a.set_linewidth(2.5)
+        path = a.save_session(Path(a.workspace) / "methyl")["path"]
+        self.assertTrue(path.endswith(".zulfstudio"))
+        d = json.loads(Path(path).read_text())
+        d["future_key"] = 1                                           # written by a newer Studio
+        d["data"] = {"series": str(Path(a.workspace) / "gone" / "series.json"), "index": 0}
+        Path(path).write_text(json.dumps(d))
+        b = session()
+        r = b.open_path(path)                                         # dispatched by content
+        self.assertEqual(r["opened"], "session")
+        self.assertEqual(len(r["missing"]), 1)
+        self.assertAlmostEqual({c["key"]: c["value"] for c in b.couplings()}["J(C1,HC1)"], 131.5)
+        self.assertEqual(b.field_nt, [7.0, 52.0])
+        self.assertAlmostEqual(b.rate_per_s, 2.5)
+        with self.assertRaises(ValueError):
+            b.open_path(str(Path(a.workspace) / "methyl.zulfstudio.txt"))
+
+    def test_import_fid_makes_and_loads_a_whole_grid_series(self):
+        import time
+        tmp = Path(tempfile.mkdtemp())
+        np.save(tmp / "average_fid.npy", _synthetic_fid_2khz())
+        (tmp / "scans.json").write_text(json.dumps({"sampling_rate_hz": 2000.0}))     # rate found next to the FID
+        s = session(METHYL)
+        r = s.open_path(str(tmp / "average_fid.npy"))
+        self.assertEqual(r["opened"], "FID")
+        t0 = time.time()
+        while any(job.running for job in s.jobs) and time.time() - t0 < 120:
+            time.sleep(0.2)
+        time.sleep(0.5)
+        self.assertIsNotNone(s.data)
+        ranges = s.data["ranges"]
+        self.assertAlmostEqual(ranges[0][0], 20.0)
+        self.assertAlmostEqual(ranges[-1][1], 380.0)
+        self.assertTrue(all(b[0] - a[1] < 1.0 for a, b in zip(ranges, ranges[1:])))   # only small gaps (mains)
+        jobs = s.job_list()
+        self.assertEqual(jobs[0]["kind"], "import")
+        self.assertEqual(jobs[0]["returncode"], 0)
+        self.assertEqual(s.blind_command(workers=2)[2], str((tmp / "average_fid.npy").resolve()))  # source_fid
+
+    def test_blind_command_needs_a_fid(self):
+        s = session(METHYL)
+        with self.assertRaises(ValueError):
+            s.blind_command()
+        fid = Path(tempfile.mkdtemp()) / "x.npy"
+        np.save(fid, np.zeros(10))
+        argv = s.blind_command(fid=str(fid), workers=3, structure=METHYL, labeling="15N")
+        self.assertIn("analyze_sample.py", argv[1])
+        self.assertEqual(argv[argv.index("--workers") + 1], "3")
+        self.assertEqual(json.loads(argv[argv.index("--structure") + 1]), METHYL)
+        self.assertEqual(argv[argv.index("--labeling") + 1], "15N")
+
+    def test_analysis_processes_counts_runs_not_their_forked_workers(self):
+        from zulf_studio.session import analysis_processes
+        py = "/opt/env/bin/python"
+        ps = "\n".join([
+            f"100 1 {py} scripts/fit_joint_series.py --series s.json --starts 8 --workers 3 --out runs/a",
+            f"101 100 {py} scripts/fit_joint_series.py --series s.json --starts 8 --workers 3 --out runs/a",
+            f"102 100 {py} scripts/fit_joint_series.py --series s.json --starts 8 --workers 3 --out runs/a",
+            f"200 1 {py} scripts/fit_joint_series.py --series s.json --starts 2 --workers 6 --out runs/b",
+            f"300 1 {py} scripts/analyze_sample.py fid.npy --id x",
+            "400 1 /bin/zsh -c python scripts/fit_joint_series.py --workers 9",          # a shell, not a run
+            f"500 1 {py} -c import x"])
+        procs = analysis_processes(ps)
+        self.assertEqual([p["pid"] for p in procs], [100, 200, 300])
+        self.assertEqual([p["workers"] for p in procs], [3, 2, 4])     # min(workers, starts); script default
+        self.assertEqual(procs[0]["out"], "runs/a")
+
+    def test_machine_status_and_window_job_widgets(self):
+        try:
+            import os
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PySide6.QtWidgets import QApplication
+            from zulf_studio.app import StudioWindow
+        except ImportError:
+            self.skipTest("PySide6 not installed")
+        s = session(METHYL)
+        m = s.machine_status()
+        self.assertGreaterEqual(m["cores"]["logical"], 1)
+        self.assertGreaterEqual(m["suggested_workers"], 1)
+        app = QApplication.instance() or QApplication([])
+        w = StudioWindow(s)
+        w.update_jobs()
+        self.assertIn("idle", w.activity.text.text())
+        self.assertIn("cores", w.machine.text())
+        self.assertIn("Jobs", [w.tabs.tabText(i) for i in range(w.tabs.count())])
+        s.set_field(z_nt=10.0)
+        app.processEvents()
+        self.assertIn("\u2022", w.windowTitle())                      # unsaved change
+        s.save_session(Path(s.workspace) / "m")
+        app.processEvents()
+        self.assertNotIn("\u2022", w.windowTitle())
+        w.close()

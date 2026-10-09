@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; Studio jobs, files and machine load).
 
 ## Map
 
@@ -30,7 +30,7 @@ flowchart TD
 
     subgraph known_fit["Known-structure fit: one engine, two ways to drive it"]
         fit["W3 command line<br/>fit_joint_series.py"]
-        studio["W4 ZULF Studio<br/>run_studio.py: sliders, live simulation,<br/>fit jobs, figures, AI API"]
+        studio["W4 ZULF Studio<br/>run_studio.py: sliders, live simulation,<br/>fit and analysis jobs, imports, figures, AI API"]
         studio -- starts fit jobs --> fit
         fit -. loads results, trace .-> studio
     end
@@ -39,6 +39,7 @@ flowchart TD
     known -- yes --> known_fit
     known -- no --> blind
     blind -- ranked candidate structures --> known_fit
+    studio -. starts blind jobs, imports FIDs .-> blind
     blind -. structure-free J network, planned .-> j2s
     fit --> jnet
     jnet --> j2s
@@ -57,7 +58,7 @@ fit_joint_series.py and reads its fit.json back); Studio adds manual tuning, liv
 | W1 scans to FID | instrument run folder | average FID, half averages, scan metrics | `scripts/average_scans.py` | below; skills/zulf-fid-processing |
 | W2 FID to spectrum | average FID | processed, phased complex spectrum, series.json, fit ranges | `scripts/make_series_entry.py` | sections 1-2, 4, 10; skills/zulf-fid-processing, zulf-phasing |
 | W3 known-structure fit | spectrum + structure | couplings with uncertainties, fit.json | `scripts/fit_joint_series.py` | sections 3-10 |
-| W4 the same, interactive | spectrum, optional fit | tuned or fitted parameters, fits, figures | `scripts/run_studio.py` | docs/STUDIO.md |
+| W4 the same, interactive | FID or spectrum, optional fit | tuned or fitted parameters, fits, blind analyses, figures, sessions | `scripts/run_studio.py` | docs/STUDIO.md |
 | W5 blind analysis | FID, no structure | ranked hypotheses and labellings | `scripts/analyze_sample.py` | skills/zulf-blind-analysis |
 | W6 J network to structure | fitted couplings | ranked heavy-atom graphs (A, B-J, B-K) | `scripts/j_structure.py` | docs/J_TO_STRUCTURE.md |
 | W7 learned candidates | generator configs | trained spectrum -> candidate model | `zulf-model train` | docs/PLAN.md Phases 1, 2, 4 |
@@ -336,6 +337,9 @@ flowchart LR
     api --> sess
     sess --> fit["fit_joint_series.py jobs"]
     sess --> fig["paper_figure.py figures"]
+    sess --> bl["analyze_sample.py jobs (W5)"]
+    sess --> imp["imports: average_scans.py,<br/>make_series_entry.py"]
+    sess --> files[".zulfstudio session files,<br/>exports (JSON, CSV, PNG/PDF/SVG)"]
 ```
 
     python scripts/run_studio.py --series runs/series/NAME/series.json [--fit runs/processed/NAME]
@@ -345,6 +349,12 @@ flowchart LR
   start and watch fits, phase and make figures; record results as for W3.
 - Real-time simulation (structure, couplings, field, line width), auto phase, fits with a progress slider,
   figure export, log and terminal; AI keys in the macOS Keychain or environment only (docs/STUDIO.md).
+- Jobs (fits, blind analyses, imports, figures) run as subprocesses with one BLAS thread per worker; the status
+  bar shows the running job (stage, starts, elapsed, best objective, Stop) and the cores, load and analysis
+  workers of the whole machine, and Studio asks before starting more workers than free cores.
+- Files: open by content (session, series, fit run, FID, scan folder; drag and drop, recent list), import an
+  averaged FID or a scan folder, save / open sessions (.zulfstudio), export parameters, couplings, lines,
+  spectrum, the applied fit and the plot.
 
 Key algorithms:
 - Live simulation from the same spin physics as W3 (model cached per structure), drawn as complex Lorentzians

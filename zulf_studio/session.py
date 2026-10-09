@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -60,7 +61,7 @@ class FitJob:
     `source`."""
 
     def __init__(self, argv: List[str], out_dir: Path, log: Callable[[str, str], None],
-                 done: Callable[["FitJob"], None], source: str = "fit"):
+                 done: Callable[["FitJob"], None], source: str = "fit", kind: str = "", title: str = ""):
         self.argv, self.out_dir, self.source = argv, out_dir, source
         self.started = time.time()
         self.finished: Optional[float] = None
@@ -69,9 +70,14 @@ class FitJob:
         self.starts_finished = 0
         self.last_line = ""
         self._log, self._done = log, done
-        env = {**__import__("os").environ, "OMP_NUM_THREADS": "1"}   # one BLAS thread per worker (an inherited value is replaced)
+        env = {**os.environ, **ONE_THREAD}          # one BLAS thread per worker process (inherited values replaced)
+        self.kind, self.title = kind or source, title or Path(out_dir).name
+        self.total = int(argv[argv.index("--starts") + 1]) if "--starts" in argv else None
+        self.workers = int(argv[argv.index("--workers") + 1]) if "--workers" in argv else 1
+        self.phase = "starting"
         self.proc = subprocess.Popen(argv, cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      text=True, bufsize=1, env=env)
+        self.pid = self.proc.pid
         self.thread = threading.Thread(target=self._read, daemon=True)
         self.thread.start()
 
@@ -87,8 +93,10 @@ class FitJob:
                 self.best = v if self.best is None else min(self.best, v)
             if re.match(r"start \d+ finished", line):
                 self.starts_finished += 1
+            self.phase = _phase_of(line, self.phase)
             self._log(line, self.source)
         self.returncode = self.proc.wait()
+        self.proc.stdout.close()
         self.finished = time.time()
         self._log(f"{self.source} finished with code {self.returncode} ({self.finished - self.started:.0f} s): "
                   f"{self.out_dir}", self.source)
@@ -103,10 +111,80 @@ class FitJob:
             self.proc.terminate()
 
     def status(self) -> dict:
-        return {"running": self.running, "returncode": self.returncode, "out_dir": str(self.out_dir),
+        return {"kind": self.kind, "title": self.title, "pid": self.pid, "workers": self.workers,
+                "running": self.running, "returncode": self.returncode, "out_dir": str(self.out_dir),
                 "seconds": round((self.finished or time.time()) - self.started, 1), "best_objective": self.best,
-                "starts_finished": self.starts_finished, "last_line": self.last_line,
-                "has_result": (self.out_dir / "fit.json").exists()}
+                "starts_finished": self.starts_finished, "starts_total": self.total, "phase": self.phase,
+                "last_line": self.last_line, "has_result": (self.out_dir / "fit.json").exists()}
+
+
+SESSION_FORMAT = "zulf-studio-session"
+SESSION_SUFFIX = ".zulfstudio"
+ONE_THREAD = {"OMP_NUM_THREADS": "1", "VECLIB_MAXIMUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"}
+# scripts whose processes count as analysis load (machine_status)
+ANALYSIS_SCRIPTS = {"fit_joint_series.py": 4, "analyze_sample.py": 4, "paper_figure.py": 1, "average_scans.py": 1,
+                    "make_series_entry.py": 1, "reliability_series.py": 4, "regression_confirmed.py": 4}
+
+
+def _phase_of(line: str, previous: str) -> str:
+    """Short stage of a running fit or analysis from one output line (for the progress display)."""
+    rules = (("component search (start)", "component search before the starts"),
+             ("component search (end)", "component search after the starts"), ("global refit", "global refit"),
+             ("family-edges auto", "choosing rate families"), ("guard rows", "setting up"),
+             ("start ", "multi-start fit"), ("crop ", "processing"), ("figure", "figure"),
+             ("averag", "averaging scans"), ('"score"', "writing results"))
+    for key, phase in rules:
+        if key in line:
+            return phase
+    return previous
+
+
+def analysis_processes(ps_text: Optional[str] = None) -> List[dict]:
+    """Analysis scripts running on this machine (any user session, any program): pid, script, workers, output.
+    Read from `ps -Ao pid=,ppid=,command=` (or `ps_text`) by parsing each command into its arguments; a process
+    whose parent is a counted run is one of its forked workers and is counted there (only counted, never
+    signalled)."""
+    text = ps_text
+    if text is None:
+        try:
+            text = subprocess.run(["ps", "-Ao", "pid=,ppid=,command="], capture_output=True, text=True,
+                                  timeout=5).stdout
+        except (OSError, subprocess.SubprocessError):
+            return []
+    rows = []
+    for row in text.splitlines():
+        parts = row.split()
+        if len(parts) < 4 or "python" not in Path(parts[2]).name:
+            continue
+        script = next((Path(a).name for a in parts[3:5] if Path(a).name in ANALYSIS_SCRIPTS), None)
+        if script is not None:
+            rows.append((int(parts[0]), int(parts[1]), script, parts[3:]))
+    pids = {r[0] for r in rows}
+    out = []
+    for pid, ppid, script, args in rows:
+        if ppid in pids:                  # a worker forked by a counted run (same command line): counted there
+            continue
+        workers = int(args[args.index("--workers") + 1]) if "--workers" in args[:-1] and \
+            args[args.index("--workers") + 1].isdigit() else ANALYSIS_SCRIPTS[script]
+        if "--starts" in args[:-1] and args[args.index("--starts") + 1].isdigit():
+            workers = min(workers, int(args[args.index("--starts") + 1]))
+        outdir = args[args.index("--out") + 1] if "--out" in args[:-1] else ""
+        out.append({"pid": pid, "script": script, "workers": workers, "out": outdir})
+    return out
+
+
+def cpu_cores() -> dict:
+    """Logical cores, and on Apple silicon the performance and efficiency cores."""
+    info = {"logical": os.cpu_count() or 1, "performance": None, "efficiency": None}
+    if sys.platform == "darwin":
+        for key, name in (("performance", "hw.perflevel0.physicalcpu"), ("efficiency", "hw.perflevel1.physicalcpu")):
+            try:
+                info[key] = int(subprocess.run(["sysctl", "-n", name], capture_output=True, text=True,
+                                               timeout=2).stdout.strip())
+            except (OSError, ValueError, subprocess.SubprocessError):
+                pass
+    return info
 
 
 class StudioSession:
@@ -131,6 +209,9 @@ class StudioSession:
         self.scale_lock: Optional[float] = None      # fixed display scale of the simulation (None: automatic)
         self.fit_job: Optional[FitJob] = None
         self.figure_job: Optional[FitJob] = None
+        self.blind_job: Optional[FitJob] = None
+        self.jobs: List[FitJob] = []                 # every background job of the session (fits, blind, figures)
+        self.session_file: Optional[str] = None      # last saved or opened session file
         self.figure: Optional[dict] = None           # last figure: directory, files, manual flag
         self.applied: Optional[dict] = None          # run directory of the applied fit and the state it gave
         self.trace: Optional[dict] = None
@@ -488,7 +569,9 @@ class StudioSession:
         argv = self.fit_command(**options)
         out = Path(argv[argv.index("--out") + 1])
         self.log("fit: " + " ".join(argv[1:]), "fit")
-        self.fit_job = FitJob(argv, out, self.log, lambda job: self._changed("fit_done"))
+        self.fit_job = FitJob(argv, out, self.log, lambda job: self._changed("fit_done"), kind="fit",
+                              title=f"fit {self.data['label']}")
+        self.jobs.append(self.fit_job)
         self._changed("fit_started")
         return self.fit_job.status()
 
@@ -620,7 +703,9 @@ class StudioSession:
         def done(job):
             self.figure["files"] = sorted(p.name for p in out.glob("figure*"))
             self._changed("figure_done")
-        self.figure_job = FitJob(cmd["argv"], out, self.log, done, source="figure")
+        self.figure_job = FitJob(cmd["argv"], out, self.log, done, source="figure", kind="figure",
+                                 title=f"figure {out.name}")
+        self.jobs.append(self.figure_job)
         return self.figure_status()
 
     def figure_status(self) -> dict:
@@ -683,6 +768,222 @@ class StudioSession:
         self._changed("trace")
         return {"ok": True}
 
+    # ---- jobs and machine load -----------------------------------------------------------
+    def job_list(self) -> List[dict]:
+        """Every background job of the session, newest first, with its index for stop_job."""
+        return [dict(job.status(), index=i) for i, job in reversed(list(enumerate(self.jobs)))]
+
+    def stop_job(self, index: int) -> dict:
+        job = self.jobs[int(index)]
+        job.stop()
+        self.log(f"stop requested: {job.title}", job.source)
+        return job.status()
+
+    def machine_status(self) -> dict:
+        """Cores, load average and the analysis processes running on this machine (any program), with the
+        workers they use and the free worker slots (cores minus busy workers). Fits use one BLAS thread per worker
+        (ONE_THREAD); more workers than free cores slow every run down."""
+        cores = cpu_cores()
+        procs = analysis_processes()
+        own = {job.pid for job in self.jobs if job.running}
+        busy = sum(p["workers"] for p in procs)
+        try:
+            load = [round(v, 2) for v in os.getloadavg()]
+        except OSError:
+            load = None
+        return {"cores": cores, "load_average": load, "processes": [dict(p, own=p["pid"] in own) for p in procs],
+                "busy_workers": busy, "free_workers": max(cores["logical"] - busy, 0),
+                "suggested_workers": max(1, min(8, cores["logical"] - busy))}
+
+    # ---- blind analysis (scripts/analyze_sample.py) ----------------------------------------
+    def blind_command(self, fid: Optional[str] = None, workers: int = 4, structure: Optional[dict] = None,
+                      labeling: str = "", out: Optional[str] = None) -> List[str]:
+        """analyze_sample command for an averaged FID (default: the FID the loaded series came from)."""
+        fid = fid or (self.data or {}).get("source_fid")
+        if not fid:
+            raise ValueError("no FID: load a series made by make_series_entry (it records source_fid) or pass fid")
+        path = _resolve(fid)
+        if not path.exists():
+            raise ValueError(f"FID not found: {path}")
+        label = re.sub(r"[^A-Za-z0-9]+", "-", (self.data or {}).get("label") or path.parent.name).strip("-")
+        outdir = Path(out) if out else self.workspace / "blind" / f"{time.strftime('%Y%m%d-%H%M%S')}_{label}"
+        argv = [sys.executable, str(ROOT / "scripts" / "analyze_sample.py"), str(path), "--id", label,
+                "--out", str(outdir), "--workers", str(int(workers))]
+        if structure:
+            argv += ["--structure", json.dumps(structure)]
+            if labeling:
+                argv += ["--labeling", labeling]
+        return argv
+
+    def start_blind(self, **options) -> dict:
+        """Blind analysis (or a known-structure analysis with structure=...) of an averaged FID in the background:
+        processing, hypotheses, search, report (OUT/blind.md or OUT/structure.md)."""
+        if self.blind_job is not None and self.blind_job.running:
+            raise RuntimeError("a blind analysis is already running")
+        argv = self.blind_command(**options)
+        out = Path(argv[argv.index("--out") + 1])
+        self.log("blind analysis: " + " ".join(argv[1:]), "blind")
+
+        def done(job):
+            report = next((p for p in (out / "blind.md", out / "structure.md") if p.exists()), None)
+            self.log(f"blind analysis report: {report}" if report else "blind analysis wrote no report", "blind")
+            self._changed("blind_done")
+        self.blind_job = FitJob(argv, out, self.log, done, source="blind", kind="blind",
+                                title=f"blind {Path(argv[2]).parent.name}")
+        self.jobs.append(self.blind_job)
+        self._changed("blind_started")
+        return self.blind_status()
+
+    def blind_status(self) -> dict:
+        if self.blind_job is None:
+            return {"running": False, "out_dir": None}
+        st = self.blind_job.status()
+        out = Path(st["out_dir"])
+        st["report"] = next((str(p) for p in (out / "blind.md", out / "structure.md") if p.exists()), None)
+        return st
+
+    # ---- import ------------------------------------------------------------------------------
+    def import_fid(self, fid: str, record_s: float = 7.5, crop_s: float = 0.1, grid: str = "20,380",
+                   exclude: str = "", label: str = "", sampling_rate: float = 0.0) -> dict:
+        """An averaged FID (.npy) -> processed series (scripts/make_series_entry.py; sampling rate from scans.json
+        or the .ini next to it, whole-grid fit ranges) in the workspace, loaded when it is done."""
+        path = _resolve(fid)
+        if not path.exists():
+            raise ValueError(f"FID not found: {path}")
+        label = re.sub(r"[^A-Za-z0-9]+", "-", label or f"{path.parent.name}-{path.stem}").strip("-")
+        out = self.workspace / "series" / label
+        argv = [sys.executable, str(ROOT / "scripts" / "make_series_entry.py"), "--fid", str(path), "--id", label,
+                "--out", str(out), "--record", str(record_s), "--crop", str(crop_s), "--grid", grid]
+        if exclude:
+            argv += ["--exclude", exclude]
+        if sampling_rate:
+            argv += ["--sampling-rate", str(sampling_rate)]
+        self.log("import FID: " + " ".join(argv[1:]), "import")
+
+        def done(job):
+            if job.returncode == 0 and (out / "series.json").exists():
+                self.load_spectrum(series=str(out / "series.json"))
+            self._changed("import_done")
+        job = FitJob(argv, out, self.log, done, source="import", kind="import", title=f"import {path.name}")
+        self.jobs.append(job)
+        self._changed("import_started")
+        return job.status()
+
+    def import_scans(self, run_folder: str, out: Optional[str] = None, exclude_z: float = 0.0) -> dict:
+        """An instrument run folder (<n>.dat, <n>.ini; read-only) -> averaged FID (scripts/average_scans.py), then
+        import_fid of the average. The average goes to `out` (default the workspace; averages kept for other work
+        belong in ~/research/<project>/data/processed/<measurement>/)."""
+        run = _resolve(run_folder)
+        if not any(run.glob("*.dat")):
+            raise ValueError(f"no <n>.dat scans in {run}")
+        dest = _resolve(out) if out else self.workspace / "averages" / run.name
+        argv = [sys.executable, str(ROOT / "scripts" / "average_scans.py"), str(run), str(dest)]
+        if exclude_z:
+            argv += ["--exclude-z", str(exclude_z)]
+        self.log("average scans: " + " ".join(argv[1:]), "import")
+
+        def done(job):
+            if job.returncode == 0 and (dest / "average_fid.npy").exists():
+                self.import_fid(str(dest / "average_fid.npy"), label=run.name)
+            self._changed("import_done")
+        job = FitJob(argv, dest, self.log, done, source="import", kind="import", title=f"average {run.name}")
+        self.jobs.append(job)
+        self._changed("import_started")
+        return job.status()
+
+    def open_path(self, path: str) -> dict:
+        """Open whatever a path holds: a session file, a series file, a fit run (directory or its fit.json), a
+        directory with series.json, an averaged FID (.npy: imported), or an instrument run folder (averaged)."""
+        p = _resolve(path)
+        if p.is_dir():
+            if (p / "fit.json").exists():
+                return {"opened": "fit run", **self.apply_fit(str(p))}
+            if (p / "trace.json").exists():
+                return {"opened": "trace", **self.load_trace(str(p))}
+            if (p / "series.json").exists():
+                return {"opened": "series", **self.load_spectrum(series=str(p / "series.json"))}
+            if (p / "average_fid.npy").exists():
+                return {"opened": "FID", **self.import_fid(str(p / "average_fid.npy"))}
+            if any(p.glob("*.dat")):
+                return {"opened": "scan folder", **self.import_scans(str(p))}
+            raise ValueError(f"nothing to open in {p}")
+        if p.suffix == ".npy":
+            return {"opened": "FID", **self.import_fid(str(p))}
+        if p.suffix == ".json" or p.suffix == SESSION_SUFFIX:
+            content = json.loads(p.read_text())
+            if isinstance(content, dict) and content.get("format") == SESSION_FORMAT:
+                return {"opened": "session", **self.open_session(str(p))}
+            if isinstance(content, dict) and "couplings" in content and "spectrum_parameters" in content:
+                return {"opened": "fit run", **self.apply_fit(str(p.parent))}
+            if isinstance(content, list) and content and "freq" in content[0]:
+                return {"opened": "series", **self.load_spectrum(series=str(p))}
+        raise ValueError(f"unknown file type: {p.name}")
+
+    # ---- session files -------------------------------------------------------------------------
+    def session_dict(self) -> dict:
+        with self.lock:
+            return {"format": SESSION_FORMAT, "version": 1, "saved": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "structure": self.spec, "overrides": dict(self.overrides), "exchange": self.exchange,
+                    "field_nt": list(self.field_nt), "rate_per_s": self.rate_per_s, "view": self.view,
+                    "display": {"part": self.display, "phase_deg": self.data_phase_deg,
+                                "delay_ms": self.data_delay_ms, "scale_lock": self.scale_lock},
+                    "data": None if self.data is None else {"series": self.data.get("series"),
+                                                            "index": self.data.get("index", 0)},
+                    "applied_fit": self.applied["run"] if self.applied else None}
+
+    def save_session(self, path: str) -> dict:
+        """Structure, couplings, field, line width, view, display and the paths of the loaded series and applied
+        fit as JSON (data and fits stay where they are; the file refers to them)."""
+        p = _resolve(path)
+        if p.suffix != SESSION_SUFFIX:
+            p = p.with_name(p.name + SESSION_SUFFIX)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(self.session_dict(), indent=1))
+        self.session_file = str(p)
+        self.log(f"session saved: {p}")
+        self._changed("session_saved")
+        return {"path": str(p)}
+
+    def open_session(self, path: str) -> dict:
+        """Restore a saved session; unknown keys are ignored, missing ones keep their defaults, and a series or
+        fit that no longer exists is reported, not fatal."""
+        p = _resolve(path)
+        d = json.loads(p.read_text())
+        if d.get("format") != SESSION_FORMAT:
+            raise ValueError(f"not a ZULF Studio session: {p}")
+        missing = []
+        with self.lock:
+            self.spec = d.get("structure") or self.spec
+            self.overrides = {k: float(v) for k, v in (d.get("overrides") or {}).items()}
+            self.exchange = d.get("exchange", self.exchange)
+            self.field_nt = [float(v) for v in d.get("field_nt", self.field_nt)]
+            self.rate_per_s = float(d.get("rate_per_s", self.rate_per_s))
+            disp = d.get("display") or {}
+            self.display = disp.get("part", self.display)
+            self.data_phase_deg = float(disp.get("phase_deg", self.data_phase_deg))
+            self.data_delay_ms = float(disp.get("delay_ms", self.data_delay_ms))
+            self.scale_lock = disp.get("scale_lock")
+            self._build()
+        data = d.get("data") or {}
+        if data.get("series"):
+            if _resolve(data["series"]).exists():
+                self.load_spectrum(series=data["series"], index=int(data.get("index", 0)))
+            else:
+                missing.append(data["series"])
+        if d.get("view"):
+            self.view = [float(v) for v in d["view"]]
+        run = d.get("applied_fit")
+        if run and (_resolve(run) / "fit.json").exists():
+            self.applied = {"run": run, "fit": json.loads((_resolve(run) / "fit.json").read_text()),
+                            "spectrum": None, "state": self._snapshot()}
+        elif run:
+            missing.append(run)
+        self.session_file = str(p)
+        self.log(f"session opened: {p}" + (f"; missing: {', '.join(missing)}" if missing else ""))
+        self._changed("structure")
+        self._changed("session_opened")
+        return {"path": str(p), "missing": missing}
+
     # ---- state and export ----------------------------------------------------------------
     def state(self) -> dict:
         with self.lock:
@@ -695,7 +996,8 @@ class StudioSession:
                                 "delay_ms": self.data_delay_ms, "scale_lock": self.scale_lock},
                     "data": None if self.data is None else {k: self.data[k] for k in ("label", "series", "index",
                                                                                        "ranges", "source_fid")},
-                    "fit": self.fit_status(), "figure": self.figure_status(),
+                    "fit": self.fit_status(), "figure": self.figure_status(), "blind": self.blind_status(),
+                    "jobs_running": sum(job.running for job in self.jobs), "session_file": self.session_file,
                     "parameters_are_applied_fit": self.state_is_applied_fit(),
                     "trace": None if self.trace is None else {"run": self.trace["run"], "index": self.trace_index,
                                                               "frames": len(self.trace["meta"]["frames"])}}
@@ -725,5 +1027,19 @@ class StudioSession:
             w.writerow(cols)
             for row in zip(*(sim[c] if c != "frequency_hz" else sim["f"] for c in cols)):
                 w.writerow([f"{v:.8g}" for v in row])
-        self.log(f"exported to {out}")
-        return {"directory": str(out), "files": ["parameters.json", "lines.csv", "spectrum.csv"]}
+        with open(out / "couplings.csv", "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["coupling", "J_hz", "set_by_hand"])
+            for c in self.couplings():
+                w.writerow([c["key"], f"{c['value']:.6f}", int(c["overridden"])])
+        (out / ("session" + SESSION_SUFFIX)).write_text(json.dumps(self.session_dict(), indent=1))
+        files = ["parameters.json", "lines.csv", "spectrum.csv", "couplings.csv", "session" + SESSION_SUFFIX]
+        if self.applied and (Path(self.applied["run"]) / "fit.json").exists():
+            import shutil
+            for name in ("fit.json", "J_table.csv"):
+                src = Path(self.applied["run"]) / name
+                if src.exists():
+                    shutil.copy2(src, out / f"applied_{name}")
+                    files.append(f"applied_{name}")
+        self.log(f"exported to {out}: {', '.join(files)}")
+        return {"directory": str(out), "files": files}

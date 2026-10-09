@@ -99,6 +99,18 @@ QHeaderView::section {{ background: {t['panel2']}; border: none; border-bottom: 
 QTableWidget {{ gridline-color: {t['line']}; }}
 QCheckBox {{ spacing: 6px; }}
 QStatusBar {{ background: {t['panel']}; border-top: 1px solid {t['line']}; color: {t['muted']}; }}
+QStatusBar::item {{ border: none; }}
+QProgressBar {{ background: {t['groove']}; border: none; border-radius: 3px; max-height: 6px; min-width: 120px; }}
+QProgressBar::chunk {{ background: {t['accent']}; border-radius: 3px; }}
+QLabel#busy {{ color: {t['accent']}; font-weight: 600; }}
+QLabel#idle {{ color: {t['muted']}; }}
+QLabel#warn {{ color: {t['bad']}; font-weight: 600; }}
+QLabel#ok {{ color: {t['good']}; }}
+QLabel#pill {{ background: {t['accent_soft']}; color: {t['accent']}; border-radius: 10px; padding: 3px 10px;
+              font-weight: 600; }}
+QLabel#pillwarn {{ background: {t['panel2']}; color: {t['bad']}; border: 1px solid {t['bad']}; border-radius: 10px;
+                  padding: 2px 9px; font-weight: 600; }}
+QPushButton#small {{ padding: 2px 9px; border-radius: 6px; font-size: 12px; }}
 QSplitter::handle {{ background: {t['bg']}; }}
 QToolBar {{ background: transparent; border: none; }}
 QMenuBar {{ background: {t['panel']}; }}

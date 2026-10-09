@@ -38,8 +38,7 @@ The simulation is a quick look: complex Lorentzian lines with one decay rate, si
 spectra (numpy FFT). It is not the fit model.
 
 Bottom tabs:
-- **Lines**: every transition (isotopologue, frequency, amplitude, relative); Export writes parameters.json,
-  lines.csv, spectrum.csv and figure.png.
+- **Lines**: every transition (isotopologue, frequency, amplitude, relative).
 - **Fit**: runs `scripts/fit_joint_series.py` in the background from the current couplings and field (starts,
   workers, evaluations, trace frames, coupling precision (0.01 Hz default, D55), field on/off, rate families, rate bounds, extra options). Apply result
   copies couplings, field and decay rate into the sliders. **Fit progress**: drag through the trace frames
@@ -48,10 +47,50 @@ Bottom tabs:
 - **Figure**: the publication figure of `scripts/paper_figure.py` (PNG at the chosen dpi, PDF, SVG and
   caption.txt), preview, Export to a folder, Open folder. If the sliders are exactly an applied fit, that fit is
   drawn; otherwise the current parameters are drawn and labelled "manual parameters (not a fit)".
+- **Analysis**: blind analysis of an averaged FID (`scripts/analyze_sample.py`, W5): the FID of the loaded series
+  (its `source_fid`) or one chosen with Browse; mode blind (hypotheses and search) or known structure (the current
+  structure, with a labelling); workers; Run / Stop / Open report. The report (blind.md or structure.md) is shown
+  next to the form when it is written. The ranking is a list of conditional candidates.
+- **Jobs**: every background job of the session (fits, blind analyses, imports, figures) with state, starts
+  finished / total, stage, elapsed time, best objective and output folder; Stop, Open folder, Apply fit result,
+  Open report.
 - **Log**: everything the session did (sources session, api, ai, fit, figure, terminal); also written to
   `runs/studio/studio.log`.
 - **AI assistant**: the chat with a language model that operates the session (below); its status line shows the
   provider, the model and whether a key is set.
+
+**Working indicator**: while a job runs, the status bar (on every tab) shows a spinner, the job, its stage
+(component search, multi-start fit, global refit, writing results; processing for an analysis), starts finished
+/ total, the elapsed time and the best objective so far, a progress bar (filled by finished starts; moving when
+the job has no start count) and Stop; the header shows the same as a badge. When nothing runs it shows the last
+job and how it ended.
+
+**Cores and load**: the status bar also shows the cores (Apple silicon: performance + efficiency), the load
+average and the analysis workers running on this machine from any program (fit_joint_series, analyze_sample,
+...; parsed from `ps`, forked workers counted with their run); red when they exceed the cores (tooltip: each
+run). Fits and analyses started from Studio use one BLAS thread per worker; the default worker count is what is
+free, and starting more than the free cores asks first. Several fits with many threads each made every run slow
+(load 95 on 10 cores, 2026-10-08).
+
+**Files** (File menu; also drag files or folders onto the window):
+- **Open** (Cmd+O) by content: a session (`.zulfstudio`), a `series.json`, a fit run (folder or its fit.json), a
+  folder with series.json, an averaged FID (`.npy`: imported) or an instrument scan folder (averaged, then
+  imported). **Open recent** keeps the last 12; the dialogs remember their folders.
+- **Import averaged FID** (Cmd+I): `make_series_entry.py` into `runs/studio/series/<name>` (sampling rate from
+  scans.json or the .ini next to the FID; whole-grid fit ranges), loaded when done. **Import scan folder**:
+  `average_scans.py` into `runs/studio/averages/<folder>` (averages kept for other work belong in
+  `~/research/<project>/data/processed/<measurement>/`), then imported.
+- **Save session** (Cmd+S) / **Save session as** (Shift+Cmd+S): structure, couplings, field, line width, view,
+  display, and the paths of the loaded series and applied fit (JSON; data and fits stay where they are). Opening
+  ignores unknown keys and reports a series or fit that no longer exists. The title shows the session name and a
+  dot while there are unsaved changes; closing or opening another file asks first, and closing while jobs run
+  asks too (they keep running).
+- **Export**: parameters, couplings, lines and spectrum (`parameters.json`, `couplings.csv`, `lines.csv`,
+  `spectrum.csv`, a session file and the applied fit's `fit.json` / `J_table.csv`; Cmd+E); the plot as PNG, PDF
+  or SVG; the publication figure.
+
+**View** menu: Cmd+1 ... switch the bottom tabs. **Run** menu: Start fit (Cmd+Return), Blind analysis (Cmd+B),
+Stop the running job (Cmd+.), Jobs (Cmd+J). The window size and splitters are remembered.
 
 **Settings** (File > Settings, on macOS ZULF Studio > Settings, Cmd+,): the AI assistant configuration
 (provider, model, steps, API key, Keychain, setup guide), the AI API address and tool list, and the appearance

@@ -14,8 +14,11 @@ import os
 import sys
 from pathlib import Path
 
+for _var in ("VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS"):     # one BLAS thread: the
+    os.environ.setdefault(_var, "1")                  # window should not compete with the fits it starts
+
 import numpy as np
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, Qt, QTimer, Signal
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
@@ -30,10 +33,13 @@ from matplotlib.collections import LineCollection  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
 from .api import TOOLS, StudioAPI, serve  # noqa: E402
+from .jobs_ui import ActivityIndicator, AnalysisPanel, JobsPanel, MachineLabel, confirm_workers, job_line  # noqa: E402
+from .session import SESSION_SUFFIX  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
 COMPONENT_COLORS = ISOTOPOLOGUE
+SPIN_TEXT = "\u25d0\u25d3\u25d1\u25d2"
 
 AI_SETUP_GUIDE = """
 <h3>Setting up the AI assistant</h3>
@@ -299,10 +305,12 @@ class StudioWindow(QMainWindow):
         session.listeners.append(self.bridge.changed.emit)
         session.log_listeners.append(self.bridge.logged.emit)
         self.coupling_rows = {}
+        self.dirty = False
         self.redraw_timer = QTimer(self, singleShot=True, interval=25)
         self.redraw_timer.timeout.connect(self.redraw)
         self.status_timer = QTimer(self, interval=1000)
         self.status_timer.timeout.connect(self.update_fit_status)
+        self.status_timer.timeout.connect(self.update_jobs)
         self.status_timer.start()
 
         left = QWidget()
@@ -353,6 +361,10 @@ class StudioWindow(QMainWindow):
         self.tabs.addTab(self._lines_tab(), "Lines")
         self.tabs.addTab(self._fit_tab(), "Fit")
         self.tabs.addTab(self._figure_tab(), "Figure")
+        self.analysis_panel = AnalysisPanel(self.session, self)
+        self.tabs.addTab(self.analysis_panel, "Analysis")
+        self.jobs_panel = JobsPanel(self.session)
+        self.tabs.addTab(self.jobs_panel, "Jobs")
         self.log_view = QPlainTextEdit(readOnly=True)
         self.log_view.setObjectName("mono")
         self.log_view.setMaximumBlockCount(5000)
@@ -369,6 +381,7 @@ class StudioWindow(QMainWindow):
         main.addWidget(scroll)
         main.addWidget(right)
         main.setSizes([510, 990])
+        self.splitters = {"right": right, "main": main}
         header = QWidget(objectName="header")
         hl = QHBoxLayout(header)
         hl.setContentsMargins(16, 10, 16, 10)
@@ -378,6 +391,10 @@ class StudioWindow(QMainWindow):
         hl.addSpacing(12)
         hl.addWidget(self.subtitle)
         hl.addStretch(1)
+        self.busy_pill = QLabel(objectName="pill")
+        self.busy_pill.hide()
+        hl.addWidget(self.busy_pill)
+        hl.addSpacing(8)
         hl.addWidget(self.field_label)
         root = QWidget(objectName="root")
         rl = QVBoxLayout(root)
@@ -390,7 +407,15 @@ class StudioWindow(QMainWindow):
         bl.addWidget(main)
         rl.addWidget(body, 1)
         self.setCentralWidget(root)
+        self.activity = ActivityIndicator(self.session)
+        self.machine = MachineLabel(self.session)
+        self.statusBar().addPermanentWidget(self.machine)
+        self.statusBar().addPermanentWidget(self.activity)
+        self.settings_store = QSettings("ZULF", "Studio")
+        self.setAcceptDrops(True)
         self._menu()
+        self._restore_layout()
+        self.update_title()
         for e in session.read_log(200):
             self.on_logged(e)
         self.rebuild_couplings()
@@ -561,7 +586,10 @@ class StudioWindow(QMainWindow):
         lay = QHBoxLayout(w)
         form = QFormLayout()
         self.f_starts = QSpinBox(minimum=1, maximum=200, value=8)
-        self.f_workers = QSpinBox(minimum=1, maximum=os.cpu_count() or 8, value=min(4, os.cpu_count() or 4))
+        self.f_workers = QSpinBox(minimum=1, maximum=os.cpu_count() or 8,
+                                  value=min(4, self.session.machine_status()["suggested_workers"]))
+        self.f_workers.setToolTip("worker processes (one start each at a time, one BLAS thread each); the default "
+                                  "is what the machine has free (status bar: analysis workers / cores)")
         self.f_nfev = QSpinBox(minimum=10, maximum=5000, value=300, singleStep=50)
         self.f_trace = QSpinBox(minimum=0, maximum=400, value=40)
         self.f_precision = QComboBox()
@@ -962,24 +990,197 @@ class StudioWindow(QMainWindow):
             self.schedule()
 
     def _menu(self):
+        def action(menu, text, slot, shortcut=None, role=None):
+            a = QAction(text, self)
+            if shortcut is not None:
+                a.setShortcut(QKeySequence(shortcut))
+            if role is not None:
+                a.setMenuRole(role)
+            a.triggered.connect(lambda _=False: slot())
+            menu.addAction(a)
+            return a
         m = self.menuBar().addMenu("&File")
-        prefs = QAction("Settings ...", self)
-        prefs.setMenuRole(QAction.PreferencesRole)          # macOS: ZULF Studio > Settings, Cmd+,
-        prefs.setShortcut(QKeySequence.Preferences)
-        prefs.triggered.connect(lambda: self.open_settings())
-        m.addAction(prefs)
+        action(m, "Open ...", self.open_dialog, QKeySequence.Open)
+        self.recent_menu = m.addMenu("Open recent")
+        self._fill_recent()
+        m.addSeparator()
+        action(m, "Import averaged FID (.npy) ...", self.import_fid_dialog, "Ctrl+I")
+        action(m, "Import scan folder (n.dat, n.ini) ...", self.import_scans_dialog)
+        action(m, "Load series.json ...", self.load_series)
+        action(m, "Load fit run ...", self.load_run, "Ctrl+R")
+        m.addSeparator()
+        action(m, "Save session", self.save_session, QKeySequence.Save)
+        action(m, "Save session as ...", lambda: self.save_session(ask=True), QKeySequence.SaveAs)
+        m.addSeparator()
+        ex = m.addMenu("Export")
+        action(ex, "Parameters, couplings, lines and spectrum (JSON, CSV) ...", self.export, "Ctrl+E")
+        action(ex, "Plot as image (PNG, PDF, SVG) ...", self.export_plot)
+        action(ex, "Publication figure (paper_figure) ...", self.export_figure)
+        action(m, "Generate publication figure", self.make_figure, "Ctrl+G")
+        m.addSeparator()
+        action(m, "Settings ...", lambda: self.open_settings(), QKeySequence.Preferences, QAction.PreferencesRole)
+        v = self.menuBar().addMenu("&View")
+        for i in range(self.tabs.count()):
+            action(v, self.tabs.tabText(i), lambda i=i: self.tabs.setCurrentIndex(i), f"Ctrl+{i + 1}")
+        r = self.menuBar().addMenu("&Run")
+        action(r, "Start fit", self.start_fit, "Ctrl+Return")
+        action(r, "Blind analysis ...", lambda: self.tabs.setCurrentWidget(self.analysis_panel), "Ctrl+B")
+        action(r, "Stop running job", self.activity._stop, "Ctrl+.")
+        action(r, "Jobs", lambda: self.tabs.setCurrentWidget(self.jobs_panel), "Ctrl+J")
         t = self.menuBar().addMenu("&Tools")
         for text, key, page in (("Terminal", "Ctrl+Shift+T", "Terminal"), ("Python console", "Ctrl+Shift+P", "Python")):
-            a = QAction(text, self)
-            a.setShortcut(QKeySequence(key))
-            a.triggered.connect(lambda _=False, pg=page: self.open_tools(pg))
-            t.addAction(a)
-        for text, key, fn in (("Load series ...", "Ctrl+O", self.load_series), ("Load fit run ...", "Ctrl+R", self.load_run),
-                              ("Export ...", "Ctrl+E", self.export), ("Generate figure", "Ctrl+G", self.make_figure)):
-            a = QAction(text, self)
-            a.setShortcut(QKeySequence(key))
-            a.triggered.connect(fn)
-            m.addAction(a)
+            action(t, text, lambda pg=page: self.open_tools(pg), key)
+
+    # ---- files: open, import, save, export, recent, drag and drop ------------------------------
+    def _fill_recent(self):
+        self.recent_menu.clear()
+        paths = [p for p in (self.settings_store.value("recent", []) or []) if Path(p).exists()]
+        for p in paths:
+            a = QAction(p.replace(str(Path.home()), "~"), self)
+            a.triggered.connect(lambda _=False, pp=p: self.open_any(pp))
+            self.recent_menu.addAction(a)
+        self.recent_menu.setEnabled(bool(paths))
+        if paths:
+            self.recent_menu.addSeparator()
+            clear = QAction("Clear list", self)
+            clear.triggered.connect(lambda: (self.settings_store.setValue("recent", []), self._fill_recent()))
+            self.recent_menu.addAction(clear)
+
+    def _remember(self, path):
+        paths = [str(path)] + [p for p in (self.settings_store.value("recent", []) or []) if p != str(path)]
+        self.settings_store.setValue("recent", paths[:12])
+        self._fill_recent()
+
+    def _start_dir(self, key, default):
+        return self.settings_store.value(f"dir/{key}", str(default))
+
+    def _remember_dir(self, key, path):
+        self.settings_store.setValue(f"dir/{key}", str(Path(path).parent if Path(path).is_file() else path))
+
+    def open_any(self, path):
+        """Open a session, series, fit run, FID (imported) or scan folder (averaged, then imported)."""
+        if not self._discard_ok():
+            return
+        r = self._guard(self.session.open_path, path)
+        if r:
+            self._remember(path)
+            self.statusBar().showMessage(f"opened {r['opened']}: {path}", 6000)
+            if r["opened"] in ("FID", "scan folder"):
+                self.tabs.setCurrentWidget(self.jobs_panel)
+
+    def open_dialog(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open", self._start_dir("open", ROOT / "runs"),
+            f"ZULF files (*{SESSION_SUFFIX} *.json *.npy);;Studio session (*{SESSION_SUFFIX});;"
+            "Series or fit (*.json);;Averaged FID (*.npy);;All files (*)")
+        if path:
+            self._remember_dir("open", path)
+            self.open_any(path)
+
+    def import_fid_dialog(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Averaged FID", self._start_dir("fid", Path.home() / "research"),
+                                              "Averaged FID (*.npy)")
+        if path:
+            self._remember_dir("fid", path)
+            self.open_any(path)
+
+    def import_scans_dialog(self):
+        d = QFileDialog.getExistingDirectory(self, "Instrument run folder (n.dat, n.ini; read-only)",
+                                             self._start_dir("scans", Path.home() / "research"))
+        if d:
+            self._remember_dir("scans", d)
+            self.open_any(d)
+
+    def save_session(self, ask=False):
+        path = self.session.session_file
+        if ask or not path:
+            path, _ = QFileDialog.getSaveFileName(self, "Save session", path or self._start_dir(
+                "session", self.session.workspace / f"session{SESSION_SUFFIX}"), f"Studio session (*{SESSION_SUFFIX})")
+        if path:
+            r = self._guard(self.session.save_session, path)
+            if r:
+                self._remember(r["path"])
+                self._remember_dir("session", r["path"])
+                self.statusBar().showMessage(f"session saved: {r['path']}", 6000)
+                return True
+        return False
+
+    def export_plot(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Plot as image", self._start_dir("plot", self.session.workspace /
+                                                                                  "plot.png"),
+                                              "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)")
+        if path:
+            if Path(path).suffix.lower() not in (".png", ".pdf", ".svg"):
+                path += ".png"
+            self.fig.savefig(path, dpi=200)
+            self._remember_dir("plot", path)
+            self.statusBar().showMessage(f"plot saved: {path}", 6000)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls() and all(u.isLocalFile() for u in e.mimeData().urls()):
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        for u in e.mimeData().urls():
+            self.open_any(u.toLocalFile())
+
+    # ---- title, unsaved changes, layout ---------------------------------------------------------
+    def update_title(self):
+        name = Path(self.session.session_file).stem if self.session.session_file else "untitled"
+        self.setWindowTitle(f"{name}{' \u2022' if self.dirty else ''} \u2014 ZULF Studio")
+        self.setWindowModified(self.dirty)
+
+    def _discard_ok(self):
+        """Ask before replacing unsaved couplings (not in offscreen tests)."""
+        if not self.dirty or os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+            return True
+        r = QMessageBox.question(self, "Unsaved changes", "Save the current session first?",
+                                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
+        if r == QMessageBox.Save:
+            return self.save_session()
+        return r == QMessageBox.Discard
+
+    def _restore_layout(self):
+        geo = self.settings_store.value("geometry")
+        if geo is not None:
+            self.restoreGeometry(geo)
+        for name, sp in self.splitters.items():
+            state = self.settings_store.value(f"splitter/{name}")
+            if state is not None:
+                sp.restoreState(state)
+        screen = QApplication.primaryScreen()
+        if screen is not None and not screen.availableGeometry().intersects(self.frameGeometry()):
+            self.resize(min(1500, screen.availableGeometry().width()), min(950, screen.availableGeometry().height()))
+            self.move(screen.availableGeometry().topLeft())
+
+    def closeEvent(self, e):
+        running = [st for st in self.session.job_list() if st["running"]]
+        if running and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            r = QMessageBox.question(self, "Jobs running", f"{len(running)} job(s) still running ("
+                                     + ", ".join(st["title"] for st in running) + "). They keep running after "
+                                     "Studio closes. Close anyway?", QMessageBox.Yes | QMessageBox.No)
+            if r != QMessageBox.Yes:
+                e.ignore()
+                return
+        if not self._discard_ok():
+            e.ignore()
+            return
+        self.settings_store.setValue("geometry", self.saveGeometry())
+        for name, sp in self.splitters.items():
+            self.settings_store.setValue(f"splitter/{name}", sp.saveState())
+        super().closeEvent(e)
+
+    def update_jobs(self):
+        self.activity.refresh()
+        self.machine.refresh()
+        self.jobs_panel.refresh()
+        self.analysis_panel.refresh()
+        running = self.activity.running
+        if running:
+            self.busy_pill.setText(SPIN_TEXT[self.activity.tick % len(SPIN_TEXT)] + "  " + job_line(running[0]))
+            self.busy_pill.show()
+        else:
+            self.busy_pill.hide()
 
     # ---- actions ---------------------------------------------------------------------------
     def _guard(self, fn, *args, **kw):
@@ -1003,6 +1204,8 @@ class StudioWindow(QMainWindow):
                 self._guard(self.session.load_trace, d)
 
     def start_fit(self):
+        if not confirm_workers(self, self.session, self.f_workers.value()):
+            return
         extra = self.f_extra.text().split()
         self._guard(self.session.start_fit, starts=self.f_starts.value(), workers=self.f_workers.value(),
                     max_nfev=self.f_nfev.value(), trace=self.f_trace.value(), fit_field=self.f_field.isChecked(),
@@ -1026,6 +1229,14 @@ class StudioWindow(QMainWindow):
 
     # ---- session events ----------------------------------------------------------------------
     def on_changed(self, event):
+        if event in ("structure", "couplings", "field", "linewidth"):
+            self.dirty = True
+        elif event in ("session_saved", "session_opened"):
+            self.dirty = False
+        if event in ("fit_started", "blind_started", "import_started"):
+            self.update_jobs()
+        if hasattr(self, "busy_pill"):
+            self.update_title()
         if event == "structure":
             self.rebuild_couplings()
         elif event == "couplings" and set(self.coupling_rows) != {c["key"] for c in self.session.couplings()}:
