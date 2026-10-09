@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QLabel, QToolButton, QWidget
+from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QToolButton, QWidget
+
+from .flow import FlowLayout, flow_policy
 
 
 class PlotKit(QWidget):
@@ -27,9 +29,8 @@ class PlotKit(QWidget):
         self.mode = None                               # None (wheel and readout only), "zoom" or "pan"
         self._drag = None
         self._band = None
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(4)
+        flow_policy(self)
+        lay = FlowLayout(self, spacing=6)              # wraps on narrow windows (never widens the window)
 
         def button(text, tip, slot, checkable=False):
             b = QToolButton(text=text, checkable=checkable, objectName="kit")
@@ -47,7 +48,6 @@ class PlotKit(QWidget):
         self.b_auto = button("Auto y", "automatic signal range (clears a box zoom's y range)", self.auto_y)
         self.b_save = button("Save", "save the plot as PNG, SVG or PDF", self.save)
         self.b_copy = button("Copy", "copy the plot image to the clipboard", self.copy)
-        lay.addStretch(1)
         self.readout = QLabel(" ", objectName="hint")  # placed under the plot by the window
         self.readout.setMinimumHeight(16)
         c = self.w.canvas

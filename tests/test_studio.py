@@ -769,8 +769,8 @@ class FilesAndJobsTests(unittest.TestCase):
             self.assertTrue(w.mode_buttons[mode].isChecked())
         w.show_page(w.figure_page)
         self.assertEqual(s.mode, "fit")
-        w.redraw()                                                     # the field is written on the plot
-        self.assertTrue(any("field" in txt.get_text() for txt in w.fig.axes[0].texts))
+        w.redraw()                                                     # the field heads the plot's legend
+        self.assertIn("field", w.fig.axes[0].get_legend().get_title().get_text())
         self.assertNotIn("nT", w.subtitle.text())
         s.set_field(z_nt=10.0)
         app.processEvents()
