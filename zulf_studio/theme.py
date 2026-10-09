@@ -117,6 +117,11 @@ QToolButton#sectionToggle {{ border: none; background: transparent; color: {t['i
                             font-weight: 700; letter-spacing: 0.5px; padding: 0; }}
 QWidget#plotCard {{ background: {t['panel']}; border: 1px solid {t['line']}; border-radius: 10px; }}
 QLabel#dataInfo {{ color: {t['ink']}; }}
+QWidget#modeBar {{ background: {t['panel2']}; border: 1px solid {t['line']}; border-radius: 9px; }}
+QPushButton#mode {{ background: transparent; border: none; border-radius: 7px; padding: 4px 14px; color: {t['muted']};
+                   font-weight: 600; }}
+QPushButton#mode:hover {{ color: {t['ink']}; }}
+QPushButton#mode:checked {{ background: {t['accent']}; color: {t['accent_ink']}; }}
 QSplitter::handle {{ background: {t['bg']}; }}
 QToolBar {{ background: transparent; border: none; }}
 QMenuBar {{ background: {t['panel']}; }}

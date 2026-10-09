@@ -24,8 +24,8 @@ from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence, QPixma
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QSplitter,
-                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolButton, QVBoxLayout,
-                               QWidget)
+                               QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolButton,
+                               QVBoxLayout, QWidget, QButtonGroup)
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -37,6 +37,7 @@ from .api import TOOLS, StudioAPI, serve  # noqa: E402
 from .jobs_ui import ActivityIndicator, AnalysisPanel, JobsPanel, MachineLabel, confirm_workers, job_line  # noqa: E402
 from .session import SESSION_SUFFIX  # noqa: E402
 from .dialogs import ExportDialog, ImportDialog  # noqa: E402
+from .modes_ui import ProcessPanel, SimulatePanel  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
@@ -397,6 +398,7 @@ class StudioWindow(QMainWindow):
         sec_coup.add(self.coupling_box)
         sec_field = Section("4  Field and line width", "field", self.settings_store)
         sec_field.add(self._field_box())
+        self.sections = {"data": sec_data, "structure": sec_struct, "couplings": sec_coup, "field": sec_field}
         for sec in (sec_data, sec_struct, sec_coup, sec_field):
             self.left_lay.addWidget(sec)
         self.left_lay.addStretch(1)
@@ -452,15 +454,21 @@ class StudioWindow(QMainWindow):
         self.info_tabs.addTab(self.log_view, "Log")
         self.info_tabs.addTab(self._ai_tab(), "AI assistant")
 
-        # ---- right: what to run (fit, blind analysis, publication figure) ----
+        # ---- right: the panel of the task mode (D58) ----
         self.run_tabs = QTabWidget(objectName="runTabs")
         self.fit_page = self._fit_tab()
         self.run_tabs.addTab(self.fit_page, "Fit")
-        self.analysis_panel = AnalysisPanel(self.session, self)
-        self.run_tabs.addTab(self.analysis_panel, "Analysis")
         self.figure_page = self._figure_tab()
         self.run_tabs.addTab(self.figure_page, "Figure")
-        self.run_tabs.setMinimumWidth(360)
+        self.analysis_panel = AnalysisPanel(self.session, self)
+        self.simulate_panel = SimulatePanel(self.session, self)
+        self.process_panel = ProcessPanel(self.session, self)
+        self.right_stack = QStackedWidget(objectName="runTabs")
+        self.mode_pages = {"simulate": self.simulate_panel, "process": self.process_panel, "fit": self.run_tabs,
+                           "blind": self.analysis_panel}
+        for page in self.mode_pages.values():
+            self.right_stack.addWidget(page)
+        self.right_stack.setMinimumWidth(360)
         self.tabs = self.run_tabs                        # old name (scripts, tests)
         self.settings = self._settings_dialog()          # AI configuration, API, appearance (menu: Settings)
         self.tools = self._tools_window()                # terminal and Python console (menu: Tools)
@@ -473,7 +481,7 @@ class StudioWindow(QMainWindow):
         main = QSplitter(Qt.Horizontal)
         main.addWidget(scroll)
         main.addWidget(middle)
-        main.addWidget(self.run_tabs)
+        main.addWidget(self.right_stack)
         main.setCollapsible(1, False)
         main.setSizes([450, 720, 360])
         main.setStretchFactor(1, 1)
@@ -484,7 +492,26 @@ class StudioWindow(QMainWindow):
         title = QLabel("ZULF Studio", objectName="title")
         self.subtitle = QLabel(objectName="subtitle")
         hl.addWidget(title)
-        hl.addSpacing(12)
+        hl.addSpacing(16)
+        self.mode_buttons = {}
+        group = QButtonGroup(self)
+        group.setExclusive(True)
+        modes = QWidget(objectName="modeBar")
+        ml = QHBoxLayout(modes)
+        ml.setContentsMargins(3, 3, 3, 3)
+        ml.setSpacing(2)
+        for key, text, tip in (("simulate", "Simulate", "model only: spectrum of a structure or spin system"),
+                               ("process", "Process", "scans or FID to a spectrum (no model)"),
+                               ("fit", "Fit", "fit a known model to a spectrum"),
+                               ("blind", "Blind analysis", "rank candidate models for a spectrum")):
+            b = QPushButton(text, objectName="mode", checkable=True)
+            b.setToolTip(tip)
+            b.clicked.connect(lambda _=False, k=key: self.session.set_mode(k))
+            group.addButton(b)
+            ml.addWidget(b)
+            self.mode_buttons[key] = b
+        hl.addWidget(modes)
+        hl.addSpacing(16)
         hl.addWidget(self.subtitle)
         hl.addStretch(1)
         self.busy_pill = QLabel(objectName="pill")
@@ -509,6 +536,7 @@ class StudioWindow(QMainWindow):
         self._menu()
         self._restore_layout()
         self.update_title()
+        self.apply_mode()
         for e in session.read_log(200):
             self.on_logged(e)
         self.rebuild_couplings()
@@ -522,10 +550,39 @@ class StudioWindow(QMainWindow):
             w.show_fine(on)
 
     def show_page(self, widget):
-        """Bring a page forward in whichever tab group holds it (run panel or drawer)."""
-        for tabs in (self.run_tabs, self.info_tabs):
-            if tabs.indexOf(widget) >= 0:
-                tabs.setCurrentWidget(widget)
+        """Bring a page forward: a mode panel (switches the mode), a Fit / Figure tab, or a drawer tab."""
+        for mode, page in self.mode_pages.items():
+            if page is widget:
+                self.session.set_mode(mode)
+                return
+        if self.run_tabs.indexOf(widget) >= 0:
+            self.session.set_mode("fit")
+            self.run_tabs.setCurrentWidget(widget)
+        if self.info_tabs.indexOf(widget) >= 0:
+            self.info_tabs.setCurrentWidget(widget)
+
+    # left sections and right panel per mode (D58)
+    MODE_SECTIONS = {"simulate": ("structure", "couplings", "field"), "process": ("data",),
+                     "fit": ("data", "structure", "couplings", "field"), "blind": ("data",)}
+
+    def apply_mode(self):
+        mode = self.session.mode
+        names = {"data": "Data", "structure": "Structure", "couplings": "Couplings (Hz)",
+                 "field": "Field and line width"}
+        n = 0
+        for key, sec in self.sections.items():
+            on = key in self.MODE_SECTIONS[mode]
+            sec.setVisible(on)
+            if on:
+                n += 1
+                sec.toggle.setText(f"{n}  {names[key]}")
+        self.show_sticks.setVisible(mode in ("simulate", "fit"))
+        self.lock_scale.setVisible(mode not in ("process", "blind"))
+        self.show_trace.setVisible(mode == "fit")
+        self.right_stack.setCurrentWidget(self.mode_pages[mode])
+        for key, b in self.mode_buttons.items():
+            b.setChecked(key == mode)
+        self.schedule()
 
     def _structure_box(self):
         box = QWidget()
@@ -1144,9 +1201,13 @@ class StudioWindow(QMainWindow):
         m.addSeparator()
         action(m, "Settings ...", lambda: self.open_settings(), QKeySequence.Preferences, QAction.PreferencesRole)
         v = self.menuBar().addMenu("&View")
-        pages = [(t, t.widget(i), t.tabText(i)) for t in (self.run_tabs, self.info_tabs) for i in range(t.count())]
-        for n, (_, page, text) in enumerate(pages):
-            action(v, text, lambda pg=page: self.show_page(pg), f"Ctrl+{n + 1}")
+        for n, (key, text) in enumerate((("simulate", "Simulate"), ("process", "Process"), ("fit", "Fit"),
+                                         ("blind", "Blind analysis"))):
+            action(v, text, lambda k=key: self.session.set_mode(k), f"Ctrl+{n + 1}")
+        v.addSeparator()
+        for text, page, key in (("Lines", 0, "Ctrl+Shift+1"), ("Jobs", 1, "Ctrl+Shift+2"), ("Log", 2, "Ctrl+Shift+3"),
+                                ("AI assistant", 3, "Ctrl+Shift+4")):
+            action(v, text, lambda i=page: self.info_tabs.setCurrentIndex(i), key)
         r = self.menuBar().addMenu("&Run")
         action(r, "Start fit", self.start_fit, "Ctrl+Return")
         action(r, "Blind analysis ...", lambda: self.show_page(self.analysis_panel), "Ctrl+B")
@@ -1312,6 +1373,7 @@ class StudioWindow(QMainWindow):
         self.machine.refresh()
         self.jobs_panel.refresh()
         self.analysis_panel.refresh()
+        self.process_panel.refresh()
         running = self.activity.running
         if running:
             self.busy_pill.setText(SPIN_TEXT[self.activity.tick % len(SPIN_TEXT)] + "  " + job_line(running[0]))
@@ -1383,6 +1445,8 @@ class StudioWindow(QMainWindow):
             self.update_jobs()
         if hasattr(self, "busy_pill"):
             self.update_title()
+        if event in ("mode", "session_opened"):
+            self.apply_mode()
         if event == "structure":
             self.rebuild_couplings()
         elif event == "couplings" and set(self.coupling_rows) != {c["key"] for c in self.session.couplings()}:
@@ -1503,15 +1567,32 @@ class StudioWindow(QMainWindow):
         style.__enter__()
         self.fig.clear()
         self.fig.set_facecolor(t["panel"])
-        has_data = "data_re" in sim
-        rows = [3, 1, 1] if has_data else [3, 1]
-        axes = self.fig.subplots(len(rows), 1, sharex=True, gridspec_kw={"height_ratios": rows})
+        mode = s.mode
+        has_data = "data_re" in sim and (mode != "simulate" or self.simulate_panel.show_data.isChecked())
+        show_model = mode in ("simulate", "fit")            # Process and Blind analysis: the data alone
+        rows = ([3, 1, 1] if show_model else [1]) if has_data else ([3, 1] if show_model else [1])
+        axes = np.atleast_1d(self.fig.subplots(len(rows), 1, sharex=True, gridspec_kw={"height_ratios": rows}))
         ax = axes[0]
         if has_data:
             d = pick(sim["data_re"], sim["data_im"])
             ax.plot(f, d, color=t["data"], lw=0.8, label=f"experiment ({s.data['label']})")
         m = pick(sim["sim_re"], sim["sim_im"])
-        ax.plot(f, m, color=t["sim"], lw=1.3, alpha=0.9, label="simulation (quick look)")
+        if show_model and mode == "simulate" and self.simulate_panel.per_component():
+            gamma = s.rate_per_s / (2 * np.pi)
+            labels = [c["label"] for c in s.components()]
+            for i, lab in enumerate(labels):
+                zc = np.zeros(len(f), complex)
+                for r in sim["lines"]:
+                    if r["component"] == lab:
+                        zc += r["amplitude"] * gamma / (gamma + 1j * (f - r["frequency_hz"]))
+                zc *= sim["scale"]
+                ax.plot(f, pick(zc.real, zc.imag), color=COMPONENT_COLORS[i % 6], lw=1.2, alpha=0.95, label=lab,
+                        zorder=3)
+        if show_model:
+            each = mode == "simulate" and self.simulate_panel.per_component()
+            ax.plot(f, m, color=t["sim"] if not each else t["muted"], lw=1.3 if not each else 1.0,
+                    ls="-" if not each else "--", alpha=0.9, zorder=1 if each else 2,
+                    label="simulation (quick look)" if mode != "simulate" else "weighted sum")
         tr = s.trace if self.show_trace.isChecked() else None
         if tr is not None and s.trace_index >= 0:
             ft = tr["f"]
@@ -1523,18 +1604,26 @@ class StudioWindow(QMainWindow):
                     label=f"fit trace frame {s.trace_index + 1} (objective "
                           f"{tr['meta']['frames'][s.trace_index]['objective']:.4g})")
         ax.legend(loc="upper right")
+        self.simulate_panel.refresh()
         bt, bz = s.field_nt
         field = ("zero field" if bt == 0 and bz == 0 else
                  f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT")
-        ax.text(0.01, 0.97, field + ("   (applied fit)" if s.state_is_applied_fit() else ""), transform=ax.transAxes,
-                ha="left", va="top", fontsize=8.5, color=t["accent"],
-                bbox=dict(boxstyle="round,pad=0.3", fc=t["accent_soft"], ec="none"))
+        if show_model:
+            ax.text(0.01, 0.97, field + ("   (applied fit)" if s.state_is_applied_fit() else ""),
+                    transform=ax.transAxes, ha="left", va="top", fontsize=8.5, color=t["accent"],
+                    bbox=dict(boxstyle="round,pad=0.3", fc=t["accent_soft"], ec="none"))
         ax.set_ylabel("signal")
-        if has_data:
+        if has_data and show_model:
             axes[1].plot(f, d - m, color=t["resid"], lw=0.7)
             axes[1].axhline(0, color=t["line2"], lw=0.6)
             axes[1].set_ylabel("residual")
         sax = axes[-1]
+        if not show_model:                                   # Process: the data spectrum alone
+            ax.set_xlim(*s.view)
+            ax.set_xlabel("frequency (Hz)")
+            style.__exit__(None, None, None)
+            self.canvas.draw_idle()
+            return
         if self.show_sticks.isChecked():
             labels = [c["label"] for c in s.components()]
             segs, cols = [], []
@@ -1568,6 +1657,8 @@ def main(argv=None):
     ap.add_argument("--api-port", type=int, default=8766, help="AI API port (0: any free port, -1: off)")
     ap.add_argument("--workspace", default="runs/studio")
     ap.add_argument("--no-gui", action="store_true", help="API server only (for agents; Ctrl+C to quit)")
+    ap.add_argument("--mode", default="", choices=["", "simulate", "process", "fit", "blind"],
+                    help="task mode at start (default: fit with data, else simulate)")
     args = ap.parse_args(argv)
     session = StudioSession(json.loads(args.structure) if args.structure else None, workspace=args.workspace)
     from . import credentials
@@ -1578,6 +1669,7 @@ def main(argv=None):
         session.load_spectrum(series=args.series)
     if args.fit:
         session.apply_fit(args.fit)
+    session.mode = args.mode or ("fit" if args.series or args.fit else "simulate")
     server = None
     if args.api_port >= 0:
         try:

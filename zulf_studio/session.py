@@ -230,6 +230,7 @@ class StudioSession:
         self.blind_job: Optional[FitJob] = None
         self.jobs: List[FitJob] = []                 # every background job of the session (fits, blind, figures)
         self.session_file: Optional[str] = None      # last saved or opened session file
+        self.mode = "simulate"                       # task mode of the window (D58): simulate, process, fit, blind
         self.figure: Optional[dict] = None           # last figure: directory, files, manual flag
         self.applied: Optional[dict] = None          # run directory of the applied fit and the state it gave
         self.trace: Optional[dict] = None
@@ -791,6 +792,20 @@ class StudioSession:
         self._changed("trace")
         return {"ok": True}
 
+    # ---- task mode (D58) -----------------------------------------------------------------
+    MODES = ("simulate", "process", "fit", "blind")
+
+    def set_mode(self, mode: str) -> dict:
+        """Task mode of the window: simulate (model only), process (scans to spectrum), fit (spectrum and a known
+        model), blind (spectrum, unknown model). The model is the same in every mode."""
+        if mode not in self.MODES:
+            raise ValueError(f"mode must be one of {self.MODES}")
+        if mode != self.mode:
+            self.mode = mode
+            self.log(f"mode: {mode}")
+            self._changed("mode")
+        return {"mode": self.mode}
+
     # ---- jobs and machine load -----------------------------------------------------------
     def job_list(self) -> List[dict]:
         """Every background job of the session, newest first, with its index for stop_job."""
@@ -1123,6 +1138,7 @@ class StudioSession:
     def session_dict(self) -> dict:
         with self.lock:
             return {"format": SESSION_FORMAT, "version": 1, "saved": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "mode": self.mode,
                     "structure": self.spec, "overrides": dict(self.overrides), "exchange": self.exchange,
                     "field_nt": list(self.field_nt), "rate_per_s": self.rate_per_s, "view": self.view,
                     "display": {"part": self.display, "phase_deg": self.data_phase_deg,
@@ -1179,6 +1195,8 @@ class StudioSession:
         elif run:
             missing.append(run)
         self.session_file = str(p)
+        if d.get("mode") in self.MODES:
+            self.mode = d["mode"]
         self.log(f"session opened: {p}" + (f"; missing: {', '.join(missing)}" if missing else ""))
         self._changed("structure")
         self._changed("session_opened")
@@ -1198,6 +1216,7 @@ class StudioSession:
                                                                                        "ranges", "source_fid")},
                     "fit": self.fit_status(), "figure": self.figure_status(), "blind": self.blind_status(),
                     "jobs_running": sum(job.running for job in self.jobs), "session_file": self.session_file,
+                    "mode": self.mode,
                     "parameters_are_applied_fit": self.state_is_applied_fit(),
                     "trace": None if self.trace is None else {"run": self.trace["run"], "index": self.trace_index,
                                                               "frames": len(self.trace["meta"]["frames"])}}

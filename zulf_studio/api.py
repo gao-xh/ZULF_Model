@@ -108,6 +108,9 @@ TOOLS: Dict[str, tuple] = {
     "export": ("export", "Write parameters.json, couplings.csv, lines.csv, spectrum.csv, a session file and the "
                "applied fit's fit.json / J_table.csv to a directory (default under the workspace).",
                _obj({"directory": STR})),
+    "set_mode": ("set_mode", "Task mode of the window: simulate (model only), process (scans to spectrum), fit "
+                 "(spectrum and a known model) or blind (blind analysis). The model is shared by every mode.",
+                 _obj({"mode": {"type": "string", "enum": ["simulate", "process", "fit", "blind"]}}, ["mode"])),
     "machine_status": ("machine_status", "Cores (performance / efficiency), load average and the analysis processes "
                        "running on this machine with their workers; free and suggested workers. Check it before "
                        "starting a fit or analysis: more workers than cores slow every run down.", _obj({})),

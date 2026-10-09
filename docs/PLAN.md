@@ -508,6 +508,33 @@ verification data before adoption.
       observation, scripts/j_structure.py prints A, B-J, B-K. Tests: BothModesTests.
 - [ ] 15N units and N couplings in the J observation (needed for K to matter on 15N-labelled samples).
 
+## Phase 8: ZULF Studio in four modes (owner 2026-10-08)
+
+Studio is organised by task; the model (structure or spin system, couplings, field, line width) is shared by every
+mode, each mode shows only what its task needs (D58).
+
+| Mode | Input | Left | Centre | Right | Output |
+|---|---|---|---|---|---|
+| Simulate | model only | model, couplings, field and line width | simulated spectrum (each component, weighted sum, overlays) | simulation settings (quick look / exact rendering through an acquisition, window, zero fill, Gaussian broadening), export | spectrum, line table, figure |
+| Process | scans or an FID, no model | processing recipe (crop, record, window, zero fill, phase, delay) | FID and spectrum, live with the recipe | scan selection (keep checkboxes, quality metric), save | averaged FID, processed spectrum (series.json), recipe |
+| Fit | spectrum and a known model | data, model, couplings, field | data, model, residual | fit, figure | couplings, field, figures |
+| Blind analysis | spectrum or FID, unknown model | data | spectrum, ranked candidates | analysis settings, report | candidates; one goes to Fit |
+
+Defaults chosen with the owner (2026-10-08, changeable): in a custom spin system the component weights are fitted
+amplitudes (can be fixed); several couplings may share one variable; acquisition settings and Gaussian broadening
+live in Simulate, not on the Fit screen; ZULF_NMR_Suite stays as it is, its molecule folders can be imported.
+
+Steps:
+- [x] 8a. Mode bar; Simulate, Fit, Blind analysis on the present widgets; the session records its mode (done, commit below; Process shows the import entry points until 8b).
+- [ ] 8b. Process mode: scan table from average_scans metrics, recipe with live preview (debounced), averaging
+  of the kept scans as a job, save the spectrum and the recipe (never into the data folder).
+- [ ] 8c. Custom spin system: isotopes, J matrix (upper-triangle table or text) with variables, component list
+  with weights; sliders per variable; save / load models; import ZULF_NMR_Suite molecule folders.
+- [ ] 8d. Fits of a custom spin system (fit_joint_series model input {"spin_system": ...}; variables as fit
+  parameters; weights as amplitudes).
+- [ ] 8e. Exact rendering in Simulate (the processed forward model of zulf_core.render with an acquisition);
+  overlays of several parameter sets.
+
 ## Experimental data inventory (user Google Drive, "Metabolites/Low Gamma")
 
 "Good Scan Data" and "Raw Data" folders hold zipped NMRduino runs (0.2-2 GB each):

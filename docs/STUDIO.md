@@ -16,9 +16,23 @@ Options: `--series` a processed spectrum (`scripts/make_series_entry.py` writes 
 (couplings, field, decay rate, trace), `--api-port` (default 8766; -1 switches the API off; a port in use falls
 back to a free one, shown in the AI API tab), `--workspace` (default `runs/studio`).
 
+## Modes (D58)
+
+The header has four task modes (View menu, Cmd+1 to Cmd+4); the model (structure, couplings, field, line width)
+is the same in all of them, and the session file records the mode. Studio starts in Fit when it is given data,
+else in Simulate (`--mode` chooses).
+- **Simulate**: the model alone. Left: structure, couplings, field and line width. Plot: the simulation (the
+  weighted sum, or every component and the sum); the loaded spectrum only on request. Right: display, the model
+  summary, export of the simulation, "Fit this model to data".
+- **Process**: scans or an FID to a spectrum, no model. Left: the data; plot: the data spectrum. Right: import a
+  scan folder or FID (inspection and recipe), open a processed spectrum, then Fit or Blind analysis. (The recipe
+  editor with live preview and scan selection is PLAN 8b.)
+- **Fit**: the data, the model and the residual; right: Fit and Figure.
+- **Blind analysis**: the data alone; right: the blind analysis and its report.
+
 ## Window
 
-Three columns in the order of the work (2026-10-08 layout):
+Three columns in the order of the work (2026-10-08 layout; which cards and panels show depends on the mode):
 - **Left, the model in workflow order**, each a card that folds away (remembered):
   1. **Data**: the loaded spectrum (points, range, fit ranges, series file); Open, Import FID, Scan folder; display
      phase (deg) and delay (ms), which rotate the shown data only; **Auto phase** "match the simulation" (phase

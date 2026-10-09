@@ -449,6 +449,7 @@ class FilesAndJobsTests(unittest.TestCase):
         b = session()
         r = b.open_path(path)                                         # dispatched by content
         self.assertEqual(r["opened"], "session")
+        self.assertEqual(b.mode, a.mode)
         self.assertEqual(len(r["missing"]), 1)
         self.assertAlmostEqual({c["key"]: c["value"] for c in b.couplings()}["J(C1,HC1)"], 131.5)
         self.assertEqual(b.field_nt, [7.0, 52.0])
@@ -524,7 +525,16 @@ class FilesAndJobsTests(unittest.TestCase):
         self.assertIn("idle", w.activity.text.text())
         self.assertIn("cores", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
-        self.assertEqual(pages, ["Fit", "Analysis", "Figure", "Lines", "Jobs", "Log", "AI assistant"])
+        self.assertEqual(pages, ["Fit", "Figure", "Lines", "Jobs", "Log", "AI assistant"])
+        for mode, visible in (("simulate", {"structure", "couplings", "field"}), ("process", {"data"}),
+                              ("fit", {"data", "structure", "couplings", "field"}), ("blind", {"data"})):
+            s.set_mode(mode)                                          # D58: one model, panels per task
+            app.processEvents()
+            self.assertEqual({k for k, sec in w.sections.items() if not sec.isHidden()}, visible, msg=mode)
+            self.assertIs(w.right_stack.currentWidget(), w.mode_pages[mode])
+            self.assertTrue(w.mode_buttons[mode].isChecked())
+        w.show_page(w.figure_page)
+        self.assertEqual(s.mode, "fit")
         w.redraw()                                                     # the field is written on the plot
         self.assertTrue(any("field" in txt.get_text() for txt in w.fig.axes[0].texts))
         self.assertNotIn("nT", w.subtitle.text())

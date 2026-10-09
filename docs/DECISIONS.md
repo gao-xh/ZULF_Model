@@ -973,6 +973,18 @@ Tests: tests/test_j_structure.py BothModesTests (isotopes reach the likelihood, 
 Tests: tests/test_joint_series.py test_guard_rows_penalise_model_peaks_where_the_data_are_empty (quiet where the
 data have the lines, active only at the empty bins, Jacobian against central differences, continuity).
 
+## D58. ZULF Studio in four modes: Simulate, Process, Fit, Blind analysis (2026-10-08)
+
+- Owner's decision: the interface switches by task instead of showing everything at once. Data processing (scans
+  to spectrum, no model) is a mode of its own before fitting: a fit needs a well processed spectrum and cannot
+  repair a bad crop, window or phase, though it refines the residual phase and delay.
+- One model state for all modes (structure or custom spin system, couplings, field, line width): parameters
+  tuned in Simulate are the start of a fit; a fit result can go back to Simulate. A blind-analysis candidate opens
+  in Fit. The session file records the mode; Studio opens in Fit when data are given, else in Simulate.
+- Simulation without data needs no MATLAB: zulf_core.SpinSystem takes isotopes and an n x n J matrix and
+  diagonalises exactly (the ZULF_NMR_Suite simulator used Spinach through MATLAB).
+- Plan and steps: PLAN Phase 8.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.
