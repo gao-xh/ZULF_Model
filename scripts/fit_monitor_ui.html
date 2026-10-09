@@ -29,7 +29,7 @@ button { cursor: pointer; } button:hover { border-color: var(--accent); }
 .tiles { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-width: 130px; }
 .tile .k { color: var(--muted); font-size: 11px; } .tile .v { font-size: 17px; font-variant-numeric: tabular-nums; }
-main { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; padding: 0 16px 16px; }
+main { display: grid; grid-template-columns: 1fr 1.3fr; gap: 12px; padding: 0 16px 16px; }
 @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
 section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
 section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
@@ -71,6 +71,17 @@ pre { margin: 0; max-height: 260px; overflow: auto; font: 11px/1.35 ui-monospace
     <div class="muted" style="margin-top:4px">thin: objective of each evaluation; thick: best so far; the selected start is drawn on top</div>
   </section>
   <section>
+    <h2>Spectrum now: data and model at the best point so far <span class="muted" style="font-weight:400">(black data, colour model, grey residual)</span></h2>
+    <div class="bar">
+      <button id="show">Show spectrum</button>
+      <label class="muted"><input type="checkbox" id="follow-spec" checked> update with the run</label>
+      <select id="part"><option value="re">real</option><option value="im">imaginary</option><option value="abs">magnitude</option></select>
+      <label class="muted">view</label><input type="number" id="vlo" step="0.5"> - <input type="number" id="vhi" step="0.5"> Hz
+      <span class="muted" id="specnote">rendered in the monitor process from the recorded command (the fit is not touched)</span>
+    </div>
+    <canvas id="spec" height="320"></canvas>
+  </section>
+  <section>
     <h2>Starts</h2>
     <div style="max-height: 340px; overflow:auto">
     <table id="starts"><thead><tr><th>start</th><th>state</th><th>stage</th><th>evals</th><th>current</th><th>best</th><th>finished at</th><th>s</th></tr></thead><tbody></tbody></table>
@@ -83,17 +94,6 @@ pre { margin: 0; max-height: 260px; overflow: auto; font: 11px/1.35 ui-monospace
   <section>
     <h2>Console</h2>
     <pre id="console"></pre>
-  </section>
-  <section style="grid-column: 1 / -1">
-    <h2>Spectrum at the selected start's best point</h2>
-    <div class="bar">
-      <button id="show">Show spectrum</button>
-      <label class="muted"><input type="checkbox" id="follow-spec"> update with the run</label>
-      <select id="part"><option value="re">real</option><option value="im">imaginary</option><option value="abs">magnitude</option></select>
-      <label class="muted">view</label><input type="number" id="vlo" step="0.5"> - <input type="number" id="vhi" step="0.5"> Hz
-      <span class="muted" id="specnote">rendered in the monitor process from the recorded command (the fit is not touched)</span>
-    </div>
-    <canvas id="spec" height="320"></canvas>
   </section>
 </main>
 <script>
@@ -119,7 +119,7 @@ async function refresh() {
     data = await api("/api/run?run=" + encodeURIComponent($("run").value));
     $("err").textContent = "";
     render();
-    if ($("follow-spec").checked && specData) showSpectrum();
+    if ($("follow-spec").checked && selected && !specBusy) showSpectrum();
   } catch (e) { $("err").textContent = e.message; }
 }
 
@@ -196,8 +196,13 @@ function chart() {
   }
 }
 
+let specBusy = false;
 async function showSpectrum() {
-  if (!selected) return;
+  if (!selected || specBusy) return;
+  specBusy = true;
+  try { await showSpectrumNow(); } finally { specBusy = false; }
+}
+async function showSpectrumNow() {
   const lo = $("vlo").value, hi = $("vhi").value;
   if ((lo === "") !== (hi === "")) return;                 // wait until both ends of the view are set
   const q = `/api/spectrum?run=${encodeURIComponent($("run").value)}&start=${selected}` + (lo && hi ? `&lo=${lo}&hi=${hi}` : "");
