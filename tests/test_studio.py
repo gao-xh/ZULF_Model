@@ -525,8 +525,9 @@ class FilesAndJobsTests(unittest.TestCase):
         self.assertIn("cores", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
         self.assertEqual(pages, ["Fit", "Analysis", "Figure", "Lines", "Jobs", "Log", "AI assistant"])
-        self.assertIn("field", w.field_label.text())                 # the field is on the Fit page, not the header
-        self.assertNotIn("field", w.subtitle.text())
+        w.redraw()                                                     # the field is written on the plot
+        self.assertTrue(any("field" in txt.get_text() for txt in w.fig.axes[0].texts))
+        self.assertNotIn("nT", w.subtitle.text())
         s.set_field(z_nt=10.0)
         app.processEvents()
         self.assertIn("\u2022", w.windowTitle())                      # unsaved change

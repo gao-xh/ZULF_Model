@@ -35,8 +35,10 @@ Three columns in the order of the work (2026-10-08 layout):
   view range, part (real, imaginary, magnitude), lines, fit trace, **lock scale** (freezes the display scale of
   the simulation; automatic: least squares on the magnitudes) and the zoom tools. Below it a drawer (drag to
   resize or close): **Lines**, **Jobs**, **Log**, **AI assistant**.
-- **Right, what to run**: **Fit**, **Analysis**, **Figure**. The Fit page shows the static field of the model
-  (from the sliders or the applied fit; the header does not).
+- **Right, what to run**: **Fit**, **Analysis**, **Figure**.
+
+The static field of the model is written in the top-left corner of the spectrum plot ("(applied fit)" when the
+parameters are exactly an applied fit's).
 
 The simulation is a quick look: complex Lorentzian lines with one decay rate, sign convention of the processed
 spectra (numpy FFT). It is not the fit model.

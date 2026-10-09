@@ -707,7 +707,6 @@ class StudioWindow(QMainWindow):
     def _fit_tab(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        lay.addWidget(self.field_label)
         form = QFormLayout()
         self.f_starts = QSpinBox(minimum=1, maximum=200, value=8)
         self.f_workers = QSpinBox(minimum=1, maximum=os.cpu_count() or 8,
@@ -1524,6 +1523,12 @@ class StudioWindow(QMainWindow):
                     label=f"fit trace frame {s.trace_index + 1} (objective "
                           f"{tr['meta']['frames'][s.trace_index]['objective']:.4g})")
         ax.legend(loc="upper right")
+        bt, bz = s.field_nt
+        field = ("zero field" if bt == 0 and bz == 0 else
+                 f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT")
+        ax.text(0.01, 0.97, field + ("   (applied fit)" if s.state_is_applied_fit() else ""), transform=ax.transAxes,
+                ha="left", va="top", fontsize=8.5, color=t["accent"],
+                bbox=dict(boxstyle="round,pad=0.3", fc=t["accent_soft"], ec="none"))
         ax.set_ylabel("signal")
         if has_data:
             axes[1].plot(f, d - m, color=t["resid"], lw=0.7)
