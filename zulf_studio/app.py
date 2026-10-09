@@ -86,6 +86,12 @@ docs/STUDIO.md.</p>
 MONO = QFont("Menlo", 11)
 
 
+def _family_edges(text):
+    """Map the rate-family choice to the --family-edges value ('' = one rate per isotopologue)."""
+    text = text.strip()
+    return "" if text.lower() in ("", "one rate") else text
+
+
 class Bridge(QObject):
     """Session events (any thread: API server, fit reader, AI assistant) -> Qt signals handled in the GUI thread."""
     changed = Signal(str)
@@ -927,14 +933,14 @@ class StudioWindow(QMainWindow):
         self.f_field = QCheckBox("fit the field", checked=True)
         self.f_field.setToolTip("fit B transverse and B z, starting from the field sliders (D47)")
         self.f_edges = QComboBox(editable=True)
-        for text, tip in (("", "one decay rate per isotopologue"),
+        for text, tip in (("one rate", "one decay rate per isotopologue (no families)"),
                           ("peaks", "every data peak its own decay rate"),
                           ("auto", "families from the model line clusters and sharp data lines"),
                           ("peaks+auto", "both")):
             self.f_edges.addItem(text)
             self.f_edges.setItemData(self.f_edges.count() - 1, tip, Qt.ToolTipRole)
-        self.f_edges.lineEdit().setPlaceholderText("one rate per isotopologue; peaks, auto, peaks+auto or Hz edges")
-        self.f_edges.setToolTip("decay-rate families: empty = one rate per isotopologue; peaks = every data peak "
+        self.f_edges.lineEdit().setPlaceholderText("one rate, peaks, auto, peaks+auto or Hz edges")
+        self.f_edges.setToolTip("decay-rate families: one rate = one rate per isotopologue; peaks = every data peak "
                                 "its own rate; auto = model line clusters; or edges in Hz, e.g. 135.5,137.2,200")
         self.f_rates = QLineEdit("0.2,15")
         self.f_extra = QLineEdit(placeholderText="extra fit_joint_series options, e.g. --model-line-passes 1")
@@ -1575,7 +1581,7 @@ class StudioWindow(QMainWindow):
         self._guard(self.session.start_fit, starts=self.f_starts.value(), workers=self.f_workers.value(),
                     max_nfev=self.f_nfev.value(), trace=self.f_trace.value(), fit_field=self.f_field.isChecked(),
                     precision=self.f_precision.currentData(),
-                    family_edges=self.f_edges.currentText().strip(), rate_bounds=self.f_rates.text().strip() or "0.2,15",
+                    family_edges=_family_edges(self.f_edges.currentText()), rate_bounds=self.f_rates.text().strip() or "0.2,15",
                     extra_args=extra)
         self.show_page(self.fit_page)
         self.show_page(self.jobs_panel)
