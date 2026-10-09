@@ -494,9 +494,10 @@ class StudioWindow(QMainWindow):
         self.show_sticks = QCheckBox("lines", checked=True)
         self.show_trace = QCheckBox("fit trace", checked=False)   # superseded by following a fit (Monitor)
         self.baseline = QCheckBox("baseline")
-        self.baseline.setToolTip("display only: the same baseline correction for data and model as the publication "
-                                 "figures (spline through anchor points away from the lines, then AsLS under the line "
-                                 "clusters); fits never subtract a baseline (WORKFLOW W2)")
+        self.baseline.setToolTip("display only: one baseline from the data (spline through anchor points away from "
+                                 "the lines, then AsLS under the line clusters), subtracted from data and model alike, "
+                                 "so the residual is unchanged; as the publication figures; fits never subtract a "
+                                 "baseline (WORKFLOW W2)")
         self.baseline.toggled.connect(lambda _: self.schedule())
         self.lock_scale = QCheckBox("lock scale")
         self.lock_scale.setToolTip("freeze the display scale of the simulation (automatic: least squares on |spectrum|)")

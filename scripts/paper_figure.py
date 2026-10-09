@@ -113,6 +113,9 @@ def main():
     ap.add_argument("--protect", type=float, default=1.0)
     ap.add_argument("--knots", type=float, default=1.5)
     ap.add_argument("--lift", type=float, default=2.5)
+    ap.add_argument("--baseline", default="shared", choices=("shared", "separate", "residual", "none"),
+                    help="display baseline: one from the data on both curves (shared), each its own (separate), "
+                         "from the residual on the data (residual), or none")
     ap.add_argument("--stacked-detail", action="store_true", help="detail panels stacked instead of overlaid")
     ap.add_argument("--insets", default="")
     ap.add_argument("--colors", default="{}", help="JSON {component label: colour}")
@@ -152,7 +155,7 @@ def main():
     phi = float(np.angle(gains[0]))
     phi -= np.pi * round(phi / np.pi)
     y, m = (y * np.exp(-1j * phi)).real, (m * np.exp(-1j * phi)).real
-    yc, mc, mains = display_baseline(f, y, m, lines, args.protect, args.knots, args.lift)
+    yc, mc, mains = display_baseline(f, y, m, lines, args.protect, args.knots, args.lift, method=args.baseline)
     segs = ([tuple(float(v) for v in s.split(",")) for s in args.segments.split(";")] if args.segments
             else [(min(r[0] for r in fit_ranges), max(r[1] for r in fit_ranges))])
     seg_gain = [float(v) for v in args.gains.split(",")] if args.gains else [1.0] * len(segs)

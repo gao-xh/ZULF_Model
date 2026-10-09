@@ -35,6 +35,10 @@ def main():
     ap.add_argument("--sim-width", type=float, default=1.9, help="line width of the simulation")
     ap.add_argument("--figure", required=True)
     ap.add_argument("--formats", default="png,svg,pdf")
+    ap.add_argument("--baseline", default="shared", choices=("separate", "shared", "residual", "none"),
+                    help="display baseline (zulf_processing.display_baseline): separate (data and model each "
+                         "their own), shared (one from the data, on both), residual (from data - model, on the "
+                         "data), none")
     ap.add_argument("--dpi", type=int, default=300)
     args = ap.parse_args()
     import matplotlib
@@ -54,7 +58,7 @@ def main():
     phi = float(np.angle(gains[0]))
     phi -= np.pi * round(phi / np.pi)
     y, m = (y * np.exp(-1j * phi)).real, (m * np.exp(-1j * phi)).real
-    yc, mc, _ = display_baseline(f, y, m, lines, 1.0, 1.5, 2.5)
+    yc, mc, _ = display_baseline(f, y, m, lines, 1.0, 1.5, 2.5, method=args.baseline)
     sel = (f >= lo) & (f <= hi)
     scale = 1000.0 / float(np.max(yc[sel]))
     w, h = (float(v) for v in args.size.split(","))

@@ -235,6 +235,7 @@ def point_result(prob, z, args=None) -> dict:
                                                                         for i, n in enumerate(joint.local)}}
                                   for si in range(joint.ns)}
     out["family_edges_hz"] = [float(v) for v in joint.params[0].policy.family_edges_hz]
+    out["x"] = [float(v) for v in joint.nodes]          # as fit.json: the concentration nodes of J_at_x
     out["z_final"] = [float(v) for v in z]
     smooth = getattr(joint, "peak_smooth", 0.0)
     try:

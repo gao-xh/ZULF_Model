@@ -218,6 +218,29 @@ class AslsBaselineTests(unittest.TestCase):
         self.assertLess(w[np.argmin(np.abs(f - 172.0))], 0.01)        # a negative line is excluded
 
 
+class DisplayBaselineTests(unittest.TestCase):
+    """D62: the shared display baseline leaves the residual data - model exactly as the fit left it."""
+
+    def test_shared_keeps_the_residual_and_removes_a_common_roll(self):
+        from zulf_processing.display_baseline import display_baseline
+        f = np.arange(100.0, 160.0, 0.02)
+        lines = [("A", np.array([120.0, 140.0]), np.array([1.0, 0.6]))]
+        model = sum(a / (1 + ((f - c) / 0.3) ** 2) for c, a in ((120.0, 1.0), (140.0, 0.6)))
+        roll = 0.2 * np.sin(2 * np.pi * (f - 100.0) / 25.0)                  # slow baseline in both curves
+        noise = 0.01 * np.random.default_rng(3).normal(size=len(f))
+        y, m = model + roll + noise, model + roll
+        yc, mc, _ = display_baseline(f, y, m, lines, method="shared")
+        np.testing.assert_allclose(yc - mc, y - m, atol=1e-12)               # the residual is the fit's
+        far = (np.abs(f - 120.0) > 3) & (np.abs(f - 140.0) > 3) & (f > 105) & (f < 155)
+        self.assertLess(np.abs(mc[far]).max(), 0.05)                         # the roll is gone
+        yc_s, mc_s, _ = display_baseline(f, y, m, lines, method="separate")
+        self.assertGreater(np.abs((yc_s - mc_s) - (y - m)).max(), 1e-3)      # separate changes the residual
+        yn, mn, _ = display_baseline(f, y, m, lines, method="none")
+        np.testing.assert_array_equal(yn, y)
+        with self.assertRaises(ValueError):
+            display_baseline(f, y, m, lines, method="other")
+
+
 class SamplingRateTests(unittest.TestCase):
     """The NMRduino sequences run at 2000, 4000 or 8333 Hz; a FID processed at the wrong rate has every frequency
     scaled (an 8333 Hz ethanol run read as 4000 Hz put its 2J band at 120 Hz)."""
