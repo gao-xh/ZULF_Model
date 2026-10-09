@@ -90,8 +90,10 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
   view range, part (real, imaginary, magnitude), lines, baseline, **lock scale** (freezes the display scale of
   the simulation; automatic: least squares on the magnitudes). The field heads the legend. **Plot kit**
   (zulf_studio/plot_kit.py; it changes the session's view, so redraws, e.g. while following a fit, keep it):
-  wheel zooms the frequency axis around the cursor, Shift+wheel shifts it; **Zoom** drags a box (frequency range
-  and, if tall enough, the signal range; **Auto y** frees it); **Pan** drags the view; **Reset** or a double
+  a left drag draws a box (Qt, over the plot, so the redraws while following a fit do not wipe it) and zooms to
+  it (frequency range and, if the box is tall enough on the signal axes, the signal range; **Auto y** frees it);
+  a right drag, or a left drag with **Pan** on, moves the view; the wheel zooms the frequency axis around the
+  cursor, Shift+wheel shifts it, Ctrl+wheel zooms the signal axis; **Reset** or a double
   click shows the whole spectrum; **Back** / **Fwd** step through earlier views; **Save** writes PNG, SVG or PDF;
   **Copy** puts the plot on the clipboard. The line under the plot reads frequency and signal at the cursor and
   the nearest transition (isotopologue, frequency, relative). Below it a drawer (drag to

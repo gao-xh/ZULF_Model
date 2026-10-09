@@ -2,9 +2,11 @@
 following a fit, keeps it). Replaces matplotlib's navigation toolbar, whose zoom and pan only changed the axes
 until the next redraw.
 
-- wheel: zoom the frequency axis around the cursor; Shift+wheel: shift it
-- Zoom (box): drag a box: its frequency range becomes the view, its signal range the y range (Auto y clears it)
-- Pan: drag to move the view
+- left drag: a box (drawn by Qt over the plot, so redraws while following a fit do not wipe it): its frequency
+  range becomes the view and, if it is tall enough on the signal axes, its signal range the y range (Auto y
+  clears it); a horizontal stroke zooms the frequency only
+- right drag, or left drag with Pan on: move the view
+- wheel: zoom the frequency axis around the cursor; Shift+wheel: shift it; Ctrl+wheel: zoom the signal axis
 - double click, Reset: the whole spectrum; Back / Forward: earlier views
 - readout: frequency and signal under the cursor and the nearest transition (isotopologue, frequency, relative)
 - Save: the plot as PNG, SVG or PDF; Copy: the plot image to the clipboard
@@ -12,8 +14,8 @@ until the next redraw.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QToolButton, QWidget
+from PySide6.QtCore import QPoint, QRect, QSize, Qt
+from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QRubberBand, QToolButton, QWidget
 
 from .flow import FlowLayout, flow_policy
 
@@ -26,9 +28,9 @@ class PlotKit(QWidget):
         self.w = window
         self.ylim = None                               # fixed y range of the signal axes (None: automatic)
         self.history, self.future = [], []
-        self.mode = None                               # None (wheel and readout only), "zoom" or "pan"
+        self.mode = None                               # None (left drag zooms) or "pan" (left drag moves)
         self._drag = None
-        self._band = None
+        self._band = QRubberBand(QRubberBand.Rectangle, self.w.canvas)
         flow_policy(self)
         lay = FlowLayout(self, spacing=6)              # wraps on narrow windows (never widens the window)
 
@@ -41,9 +43,8 @@ class PlotKit(QWidget):
         self.b_reset = button("Reset", "the whole spectrum (also: double click on the plot)", self.reset)
         self.b_back = button("Back", "the previous view", self.back)
         self.b_fwd = button("Fwd", "the next view", self.forward)
-        self.b_zoom = button("Zoom", "drag a box to zoom in (frequency and signal); wheel: zoom around the cursor",
-                             lambda on: self._set_mode("zoom" if on else None), checkable=True)
-        self.b_pan = button("Pan", "drag to move the view; Shift+wheel also moves it",
+        self.b_pan = button("Pan", "left drag moves the view instead of drawing a zoom box (right drag always "
+                            "moves it; Shift+wheel too)",
                             lambda on: self._set_mode("pan" if on else None), checkable=True)
         self.b_auto = button("Auto y", "automatic signal range (clears a box zoom's y range)", self.auto_y)
         self.b_save = button("Save", "save the plot as PNG, SVG or PDF", self.save)
@@ -99,10 +100,8 @@ class PlotKit(QWidget):
 
     def _set_mode(self, mode):
         self.mode = mode
-        self.b_zoom.setChecked(mode == "zoom")
         self.b_pan.setChecked(mode == "pan")
-        self.w.canvas.setCursor(Qt.CrossCursor if mode == "zoom" else Qt.OpenHandCursor if mode == "pan"
-                                else Qt.ArrowCursor)
+        self.w.canvas.setCursor(Qt.OpenHandCursor if mode == "pan" else Qt.ArrowCursor)
 
     # ---- mouse -----------------------------------------------------------------------------
     def _axes(self):
@@ -113,15 +112,31 @@ class PlotKit(QWidget):
         axes = self._axes()
         return axes[0] if axes else None
 
+    @staticmethod
+    def _qpos(e):
+        """Widget position (logical pixels) of a matplotlib mouse event."""
+        g = getattr(e, "guiEvent", None)
+        if g is not None:
+            pos = g.position() if hasattr(g, "position") else g.pos()
+            return QPoint(int(pos.x()), int(pos.y()))
+        return None
+
     def _scroll(self, e):
         if e.inaxes not in self._axes() or e.xdata is None:
             return
         lo, hi = self._view()
+        up = e.button == "up"
+        if e.key in ("control", "ctrl", "cmd", "super") and e.inaxes is self._signal_axes() and e.ydata is not None:
+            y0, y1 = e.inaxes.get_ylim()                 # Ctrl+wheel: the signal axis around the cursor
+            f = 0.8 if up else 1.25
+            self.ylim = (e.ydata - (e.ydata - y0) * f, e.ydata + (y1 - e.ydata) * f)
+            self.w.schedule()
+            return
         if e.key == "shift":                           # Shift+wheel: move by 10 % of the width per step
-            d = 0.1 * (hi - lo) * (1 if e.button == "up" else -1)
+            d = 0.1 * (hi - lo) * (1 if up else -1)
             self.set_view(lo + d, hi + d)
             return
-        f = 0.8 if e.button == "up" else 1.25
+        f = 0.8 if up else 1.25
         x = e.xdata
         self.set_view(x - (x - lo) * f, x + (hi - x) * f)
 
@@ -131,53 +146,59 @@ class PlotKit(QWidget):
         if e.dblclick:
             self.reset()
             return
-        if e.button == 1 and self.mode in ("zoom", "pan"):
-            self._drag = {"x": e.xdata, "y": e.ydata, "px": e.x, "ax": e.inaxes, "view": self._view()}
-            if self.mode == "pan":
-                self.w.canvas.setCursor(Qt.ClosedHandCursor)
+        pan = e.button == 3 or (e.button == 1 and self.mode == "pan")
+        if e.button not in (1, 3):
+            return
+        self._drag = {"x": e.xdata, "y": e.ydata, "px": e.x, "py": e.y, "ax": e.inaxes, "view": self._view(),
+                      "pan": pan, "q": self._qpos(e)}
+        if pan:
+            self.w.canvas.setCursor(Qt.ClosedHandCursor)
+        elif self._drag["q"] is not None:
+            self._band.setGeometry(QRect(self._drag["q"], QSize()))
+            self._band.show()
 
     def _motion(self, e):
         self._show_readout(e)
         d = self._drag
-        if d is None or e.xdata is None:
+        if d is None:
             return
-        if self.mode == "pan":
+        if d["pan"]:
             lo, hi = d["view"]
-            ax = d["ax"]
-            width_px = max(ax.bbox.width, 1.0)
+            width_px = max(d["ax"].bbox.width, 1.0)
             shift = (e.x - d["px"]) / width_px * (hi - lo)
             self.w._guard(self.w.session.set_view, lo - shift, hi - shift)
-        elif self.mode == "zoom":
-            if self._band is not None:
-                self._band.remove()
-            t = self.w.t
-            self._band = d["ax"].axvspan(min(d["x"], e.xdata), max(d["x"], e.xdata), color=t["accent"], alpha=0.15,
-                                         lw=0)
-            self.w.canvas.draw_idle()
+            return
+        q = self._qpos(e)
+        if q is not None and d["q"] is not None:
+            box = QRect(d["q"], q).normalized()
+            if abs(e.y - d["py"]) < 10 * self.w.canvas.devicePixelRatioF():   # a stroke: the full height
+                ax = d["ax"]
+                h = self.w.canvas.height()
+                dpr = self.w.canvas.devicePixelRatioF()
+                top, bottom = h - ax.bbox.y1 / dpr, h - ax.bbox.y0 / dpr
+                box = QRect(QPoint(box.left(), int(top)), QPoint(box.right(), int(bottom)))
+            self._band.setGeometry(box)
 
     def _release(self, e):
         d, self._drag = self._drag, None
+        self._band.hide()
         if d is None:
             return
-        if self._band is not None:
-            self._band.remove()
-            self._band = None
-        if self.mode == "pan":
+        if d["pan"]:
             self.history.append((d["view"], self.ylim))
             self.future.clear()
             self._update_buttons()
-            self.w.canvas.setCursor(Qt.OpenHandCursor)
+            self.w.canvas.setCursor(Qt.OpenHandCursor if self.mode == "pan" else Qt.ArrowCursor)
             return
-        if e.xdata is None or abs(e.x - d["px"]) < 4:            # a click, not a drag
-            self.w.canvas.draw_idle()
+        if e.x is None or abs(e.x - d["px"]) < 5:      # a click, not a drag
             return
+        ax = d["ax"]
+        x1, y1 = ax.transData.inverted().transform((e.x, e.y))
         ylim = "keep"
-        if d["ax"] is self._signal_axes() and e.ydata is not None and d["y"] is not None:
-            y0, y1 = sorted((d["y"], e.ydata))
-            span = np.diff(d["ax"].get_ylim())[0]
-            if y1 - y0 > 0.02 * abs(span):            # a real box, not a horizontal stroke: also the y range
-                ylim = (y0, y1)
-        self.set_view(d["x"], e.xdata, ylim=ylim)
+        if ax is self._signal_axes() and d["y"] is not None and abs(e.y - d["py"]) >= 10 * \
+                self.w.canvas.devicePixelRatioF():
+            ylim = tuple(sorted((d["y"], float(y1))))   # a real box: also the signal range
+        self.set_view(d["x"], float(x1), ylim=ylim)
 
     def _show_readout(self, e):
         if e.inaxes not in self._axes() or e.xdata is None:

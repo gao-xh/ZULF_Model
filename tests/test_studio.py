@@ -412,6 +412,30 @@ class WindowSmokeTests(unittest.TestCase):
         kit.reset()
         self.assertEqual(s.view, full)
         self.assertIsNone(kit.ylim)
+        w.redraw()                                                       # left drag: a box zooms in
+        ax = w.fig.axes[0]
+        y0, y1 = ax.get_ylim()
+        p0 = ax.transData.transform((130.0, y0 + 0.1 * (y1 - y0)))
+        p1 = ax.transData.transform((140.0, y0 + 0.9 * (y1 - y0)))
+        tall = abs(p1[1] - p0[1]) >= 12                                  # a box, not a stroke
+        kit._press(MouseEvent("button_press_event", w.canvas, *p0, button=1))
+        kit._motion(MouseEvent("motion_notify_event", w.canvas, *p1, button=1))
+        kit._release(MouseEvent("button_release_event", w.canvas, *p1, button=1))
+        self.assertAlmostEqual(s.view[0], 130.0, delta=1.0)             # mouse events are whole pixels
+        self.assertAlmostEqual(s.view[1], 140.0, delta=1.0)
+        if tall:
+            self.assertAlmostEqual(kit.ylim[0], y0 + 0.1 * (y1 - y0), delta=0.05 * (y1 - y0))
+        w.redraw()                                                       # right drag: moves the view
+        ax = w.fig.axes[0]
+        ym = float(np.mean(ax.get_ylim()))                              # inside the (zoomed) signal axes
+        a0 = ax.transData.transform((135.0, ym))
+        a1 = ax.transData.transform((137.0, ym))
+        kit._press(MouseEvent("button_press_event", w.canvas, *a0, button=3))
+        kit._motion(MouseEvent("motion_notify_event", w.canvas, *a1, button=3))
+        kit._release(MouseEvent("button_release_event", w.canvas, *a1, button=3))
+        width = s.view[1] - s.view[0]
+        self.assertAlmostEqual(width, 10.0, delta=1.0)                   # the same width, moved left
+        self.assertLess(s.view[0], 129.5)
         w.close()
 
     def test_monitor_tab_waits_for_a_record_then_shows_starts_and_couplings(self):
