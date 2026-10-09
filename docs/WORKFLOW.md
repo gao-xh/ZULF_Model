@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor).
 
 ## Map
 
@@ -669,7 +669,8 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
    state the baseline; "Save" writes OUT/tuned.json, which fit_joint_series reads with --from-joint (a manual
    point as the start of a full multi-start fit). Use it to test a hypothesis by hand (move one coupling, watch
    the window and the global cost together) before writing a scripted local fit.
-8. Watching a fit (`scripts/fit_monitor.py runs/processed` -> http://127.0.0.1:8770, or `--text` in a terminal).
+8. Watching a fit (`scripts/fit_monitor.py runs/processed` -> http://127.0.0.1:8770, or `--text` in a terminal; in
+   Studio: Live monitor in Jobs, a double-click on a job, or Cmd+Shift+M, which serve the same page).
    fit_joint_series records every run in OUT/monitor (on by default, `--monitor off`): the objective of every
    residual evaluation of every start with its stage (start / smoothing / fit / coordinate scan / residual-peak
    stage), the best point so far (couplings and the full vector, at most once a second), the start's own starting

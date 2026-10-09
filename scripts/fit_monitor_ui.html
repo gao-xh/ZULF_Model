@@ -109,7 +109,15 @@ async function api(path) { const r = await fetch(path); const j = await r.json()
 async function loadRuns() {
   const r = await api("/api/runs"), sel = $("run"), cur = sel.value;
   sel.innerHTML = r.runs.map(p => `<option value="${p}">${p}</option>`).join("");
-  if (r.runs.includes(cur)) sel.value = cur;
+  const asked = new URLSearchParams(location.search).get("run");
+  if (asked && !sel.dataset.asked) {
+    sel.dataset.asked = "1";
+    if (!r.runs.includes(asked)) sel.insertAdjacentHTML("afterbegin", `<option value="${asked}">${asked}</option>`);
+    sel.value = asked;
+  } else if (cur && !r.runs.includes(cur) && cur === asked) {
+    sel.insertAdjacentHTML("afterbegin", `<option value="${cur}">${cur}</option>`);
+    sel.value = cur;
+  } else if (r.runs.includes(cur)) sel.value = cur;
   else { try { const s = localStorage.getItem("fitmonitor.run"); if (s && r.runs.includes(s)) sel.value = s; } catch (e) {} }
 }
 

@@ -457,6 +457,18 @@ class FilesAndJobsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             b.open_path(str(Path(a.workspace) / "methyl.zulfstudio.txt"))
 
+    def test_monitor_url_serves_the_monitor_page_once_and_selects_the_run(self):
+        a = session(METHYL)
+        run = Path(a.workspace) / "some_fit"
+        run.mkdir()
+        r = a.monitor_url(str(run))
+        self.assertFalse(r["has_monitor"])
+        self.assertIn("?run=", r["url"])
+        with urllib.request.urlopen(r["url"], timeout=5) as resp:
+            self.assertIn("fetch(", resp.read().decode())
+        self.assertEqual(a.monitor_url()["url"], r["url"].split("?")[0])     # one server per session
+        a._monitor.shutdown()
+
     def test_import_fid_makes_and_loads_a_whole_grid_series(self):
         import time
         tmp = Path(tempfile.mkdtemp())

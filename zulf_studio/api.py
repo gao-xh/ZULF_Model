@@ -145,6 +145,9 @@ TOOLS: Dict[str, tuple] = {
                  _obj({})),
     "stop_job": ("stop_job", "Stop the job with this index (from job_list).", _obj({"index": {"type": "integer"}},
                                                                                        ["index"])),
+    "monitor_url": ("monitor_url", "URL of the live fit monitor page (objective per start, current simulated spectrum, "
+                    "console), served by Studio on 127.0.0.1; with run (an output directory from job_list) the page "
+                    "opens on that run.", _obj({"run": STR})),
     "start_blind": ("start_blind", "Blind analysis of an averaged FID in the background (scripts/analyze_sample.py: "
                     "processing, hypotheses, search, ranked report); fid defaults to the FID of the loaded series. "
                     "With structure (a structure specification) it fits that structure instead; labeling for that "

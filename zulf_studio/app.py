@@ -1379,9 +1379,15 @@ class StudioWindow(QMainWindow):
         action(r, "Blind analysis ...", lambda: self.show_page(self.analysis_panel), "Ctrl+B")
         action(r, "Stop running job", self.activity._stop, "Ctrl+.")
         action(r, "Jobs", lambda: self.show_page(self.jobs_panel), "Ctrl+J")
+        action(r, "Live fit monitor", self._open_monitor, "Ctrl+Shift+M")
         t = self.menuBar().addMenu("&Tools")
         for text, key, page in (("Terminal", "Ctrl+Shift+T", "Terminal"), ("Python console", "Ctrl+Shift+P", "Python")):
             action(t, text, lambda pg=page: self.open_tools(pg), key)
+
+    def _open_monitor(self):
+        """Live fit monitor page: the running fit of the session if any, else the list of every run."""
+        running = [st for st in self.session.job_list() if st["running"] and st["kind"] == "fit"]
+        QDesktopServices.openUrl(QUrl(self.session.monitor_url(running[0]["out_dir"] if running else None)["url"]))
 
     # ---- files: open, import, save, export, recent, drag and drop ------------------------------
     def _fill_recent(self):

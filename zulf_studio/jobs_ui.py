@@ -177,7 +177,10 @@ class JobsPanel(QWidget):
         self.b_open = QPushButton("Open folder")
         self.b_apply = QPushButton("Apply fit result")
         self.b_report = QPushButton("Open report")
-        for b in (self.b_stop, self.b_open, self.b_apply, self.b_report):
+        self.b_monitor = QPushButton("Live monitor")
+        self.b_monitor.setToolTip("open the live fit monitor page of this job in the browser (objective per start, "
+                                  "current simulated spectrum, console); double-click a job does the same")
+        for b in (self.b_stop, self.b_monitor, self.b_open, self.b_apply, self.b_report):
             row.addWidget(b)
         row.addStretch(1)
         lay.addLayout(row)
@@ -187,7 +190,16 @@ class JobsPanel(QWidget):
         self.b_open.clicked.connect(lambda: self._with(lambda st: open_folder(st["out_dir"])))
         self.b_apply.clicked.connect(lambda: self._with(lambda st: self.session.apply_fit(st["out_dir"])))
         self.b_report.clicked.connect(lambda: self._with(self._report))
+        self.b_monitor.clicked.connect(lambda: self._with(self._monitor))
+        self.table.cellDoubleClicked.connect(lambda *_: self._with(self._monitor))
         self.rows = []
+
+    def _monitor(self, st):
+        r = self.session.monitor_url(st["out_dir"])
+        QDesktopServices.openUrl(QUrl(r["url"]))
+        if not r["has_monitor"]:
+            self.session.log(f"no monitor record in {st['out_dir']} yet; the page lists every run below runs/",
+                             "studio")
 
     def _report(self, st):
         out = Path(st["out_dir"])
@@ -224,6 +236,7 @@ class JobsPanel(QWidget):
         self.b_apply.setEnabled(bool(sel and sel["kind"] == "fit" and sel["has_result"]))
         self.b_report.setEnabled(bool(sel and sel["kind"] in ("blind", "fit")))
         self.b_open.setEnabled(sel is not None)
+        self.b_monitor.setEnabled(sel is not None)
 
 
 class AnalysisPanel(QWidget):

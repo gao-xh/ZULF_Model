@@ -926,6 +926,28 @@ class StudioSession:
         self.log(f"stop requested: {job.title}", job.source)
         return job.status()
 
+    def monitor_url(self, run=None) -> dict:
+        """URL of the live fit monitor page (scripts/fit_monitor.py: objective per start, current simulated
+        spectrum, console). Studio serves it itself on 127.0.0.1 (a free port, started on first use, stopped with
+        Studio); with run, the page opens on that run directory."""
+        if getattr(self, "_monitor", None) is None:
+            import threading
+            from http.server import ThreadingHTTPServer
+            sys.path.insert(0, str(ROOT / "scripts"))
+            from fit_monitor import SpectrumCache, make_handler
+            server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(str(ROOT / "runs"), SpectrumCache()))
+            threading.Thread(target=server.serve_forever, daemon=True, name="fit-monitor").start()
+            self._monitor = server
+            self.log(f"fit monitor on http://127.0.0.1:{server.server_address[1]}", "studio")
+        url = f"http://127.0.0.1:{self._monitor.server_address[1]}/"
+        has_monitor = False
+        if run:
+            path = _resolve(run).resolve()
+            has_monitor = (path / "monitor" / "status.json").exists()
+            from urllib.parse import quote
+            url += "?run=" + quote(str(path), safe="")
+        return {"url": url, "run": None if not run else str(_resolve(run).resolve()), "has_monitor": has_monitor}
+
     def machine_status(self) -> dict:
         """Cores, load average and the analysis processes running on this machine (any program), with the
         workers they use and the free worker slots (cores minus busy workers). Fits use one BLAS thread per worker

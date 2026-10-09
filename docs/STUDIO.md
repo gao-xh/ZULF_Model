@@ -99,8 +99,11 @@ Pages:
   structure, with a labelling); workers; Run / Stop / Open report. The report (blind.md or structure.md) is shown
   next to the form when it is written. The ranking is a list of conditional candidates.
 - **Jobs**: every background job of the session (fits, blind analyses, imports, figures) with state, starts
-  finished / total, stage, elapsed time, best objective and output folder; Stop, Open folder, Apply fit result,
-  Open report.
+  finished / total, stage, elapsed time, best objective and output folder; Stop, Live monitor, Open folder, Apply
+  fit result, Open report. **Live monitor** (or a double-click on a job, or Run > Live fit monitor, Cmd+Shift+M)
+  opens the fit monitor page of that job in the browser (objective of every start, current simulated spectrum,
+  console; WORKFLOW step 8). Studio serves the page itself on 127.0.0.1 (free port, started on first use, stopped
+  with Studio), so `scripts/fit_monitor.py` need not run separately.
 - **Log**: everything the session did (sources session, api, ai, fit, figure, terminal); also written to
   `runs/studio/studio.log`.
 - **AI assistant**: the chat with a language model that operates the session (below); its status line shows the
@@ -147,7 +150,7 @@ free, and starting more than the free cores asks first. Several fits with many t
   and the publication figure.
 
 **View** menu: Cmd+1 ... Cmd+7 bring a page forward (Fit, Analysis, Figure, Lines, Jobs, Log, AI assistant). **Run** menu: Start fit (Cmd+Return), Blind analysis (Cmd+B),
-Stop the running job (Cmd+.), Jobs (Cmd+J). The window size and splitters are remembered.
+Stop the running job (Cmd+.), Jobs (Cmd+J), Live fit monitor (Cmd+Shift+M). The window size and splitters are remembered.
 
 **Settings** (File > Settings, on macOS ZULF Studio > Settings, Cmd+,): the AI assistant configuration
 (provider, model, steps, API key, Keychain, setup guide), the AI API address and tool list, and the appearance
