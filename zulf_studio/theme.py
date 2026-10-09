@@ -117,6 +117,11 @@ QWidget#section {{ background: {t['panel']}; border: 1px solid {t['line']}; bord
 QWidget#sectionHead, QWidget#sectionBody {{ background: transparent; border: none; }}
 QToolButton#sectionToggle {{ border: none; background: transparent; color: {t['ink']}; font-size: 12px;
                             font-weight: 700; letter-spacing: 0.5px; padding: 0; }}
+QToolButton#kit {{ background: {t['panel2']}; border: 1px solid {t['line']}; border-radius: 6px; padding: 2px 7px;
+                  color: {t['ink']}; }}
+QToolButton#kit:hover {{ border-color: {t['line2']}; }}
+QToolButton#kit:checked {{ background: {t['accent']}; color: {t['accent_ink']}; border-color: {t['accent']}; }}
+QToolButton#kit:disabled {{ color: {t['muted']}; }}
 QWidget#followBar {{ background: {t['accent_soft']}; border: 1px solid {t['accent']}; border-radius: 9px; }}
 QWidget#plotCard {{ background: {t['panel']}; border: 1px solid {t['line']}; border-radius: 10px; }}
 QLabel#dataInfo {{ color: {t['ink']}; }}

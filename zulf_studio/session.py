@@ -438,6 +438,13 @@ class StudioSession:
         self._changed("linewidth")
         return {"rate_per_s": self.rate_per_s, "fwhm_hz": self.rate_per_s / math.pi}
 
+    def full_view(self) -> List[float]:
+        """The whole frequency range: the loaded spectrum, else the range of the model's lines."""
+        if self.data is not None and len(self.data["freq"]):
+            return [float(np.min(self.data["freq"])), float(np.max(self.data["freq"]))]
+        js = [abs(v["value"]) for v in self.couplings() if abs(v["value"]) >= 50] or [10.0]
+        return [max(0.0, 0.85 * min(js)), 2.15 * max(js)]
+
     def set_view(self, lo: float, hi: float):
         if not hi > lo:
             raise ValueError("view needs lo < hi")

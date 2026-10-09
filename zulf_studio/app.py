@@ -42,6 +42,7 @@ from .modes_ui import SimulatePanel  # noqa: E402
 from .monitor_ui import MonitorPanel  # noqa: E402
 from .molecule_ui import MoleculeView  # noqa: E402
 from .flow import FlowLayout, flow_policy  # noqa: E402
+from .plot_kit import PlotKit  # noqa: E402
 from .process_ui import ProcessPanel, RecipeBox, ScansPanel  # noqa: E402
 from .spinsystem_ui import SpinSystemEditor  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, pixel_margins, stylesheet  # noqa: E402
@@ -485,7 +486,7 @@ class StudioWindow(QMainWindow):
         cl.setContentsMargins(10, 6, 10, 4)
         cl.setSpacing(2)
         bar_box = flow_policy(QWidget())
-        bar = FlowLayout(bar_box, spacing=12, right_align_last=True)    # wraps on narrow windows
+        bar = FlowLayout(bar_box, spacing=16)          # wraps on narrow windows
         self.view_lo = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.view_hi = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.part = QComboBox()
@@ -508,17 +509,16 @@ class StudioWindow(QMainWindow):
         self._margins = {"nrows": 1}
         self.canvas.mpl_connect("resize_event", lambda _e: (pixel_margins(self.fig, self.canvas, **self._margins),
                                                             self.canvas.draw_idle()))
-        nav = self.nav = NavigationToolbar2QT(self.canvas, self)
-        self._theme_nav()
-        nav.setIconSize(QSize(14, 14))
+        self.plot_kit = PlotKit(self)                  # zoom, pan, reset, readout, save (tied to the session view)
         for spin in (self.view_lo, self.view_hi):
             spin.setMaximumWidth(84)
         for w in (QLabel("View"), self.view_lo, QLabel("-"), self.view_hi, QLabel("Hz"), self.part,
                   self.show_sticks, self.show_trace, self.baseline, self.lock_scale):
             bar.addWidget(w)
-        bar.addWidget(nav)
         cl.addWidget(bar_box)
+        cl.addWidget(self.plot_kit)
         cl.addWidget(self.canvas, 1)
+        cl.addWidget(self.plot_kit.readout)            # cursor readout under the plot, full width
         self.view_lo.valueChanged.connect(self._view_from_spins)
         self.view_hi.valueChanged.connect(self._view_from_spins)
         self.part.currentTextChanged.connect(lambda p: self.session.set_display(part=p))
@@ -1443,8 +1443,6 @@ class StudioWindow(QMainWindow):
                 dark = False
         self.t = DARK if dark else LIGHT
         QApplication.instance().setStyleSheet(stylesheet(self.t))
-        if hasattr(self, "nav"):
-            self._theme_nav()
         if hasattr(self, "fig"):
             self.fig.set_facecolor(self.t["panel"])
             if hasattr(self, "ai_creds"):
@@ -2193,17 +2191,18 @@ class StudioWindow(QMainWindow):
             ax.plot(ft[sel], mt[sel], color=t["trace"], lw=1.2,
                     label=f"fit trace frame {s.trace_index + 1} (objective "
                           f"{tr['meta']['frames'][s.trace_index]['objective']:.4g})")
-        ax.legend(loc="upper right")
-        self.simulate_panel.refresh()
         bt, bz = s.field_nt
         field = ("zero field" if bt == 0 and bz == 0 else
                  f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT")
+        # the field heads the legend (the fit's run is in the model's entry): one box, nothing over the data's left
+        leg = ax.legend(loc="upper right", title=field if show_model else None, title_fontsize=8.5,
+                        alignment="right", frameon=True, facecolor=t["panel"], edgecolor="none", framealpha=0.85)
         if show_model:
-            ax.text(0.01, 0.03, field + (f"   ({self._fit_point_name()})"
-                                         if s.state_is_applied_fit() else ""),
-                    transform=ax.transAxes, ha="left", va="bottom", fontsize=8.5, color=t["accent"],
-                    bbox=dict(boxstyle="round,pad=0.3", fc=t["accent_soft"], ec="none"))
+            leg.get_title().set_color(t["accent"])
+        self.simulate_panel.refresh()
         ax.set_ylabel("signal")
+        self.plot_kit.apply_ylim(ax)                   # a box zoom's signal range (Auto y clears it)
+        self._last_lines = sim["lines"]
         if has_data and show_model:
             axes[1].plot(f, d - m, color=t["resid"], lw=0.7)
             axes[1].axhline(0, color=t["line2"], lw=0.6)

@@ -346,6 +346,49 @@ class WindowSmokeTests(unittest.TestCase):
         self.assertAlmostEqual(t.item(0, 4).data(0), float(f"{1.0 / s.rate_per_s:.3g}"))   # 0: DisplayRole
         w.close()
 
+    def test_plot_kit_views_survive_redraws(self):
+        try:
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PySide6.QtWidgets import QApplication
+            from matplotlib.backend_bases import MouseEvent
+            from zulf_studio.app import StudioWindow
+        except ImportError:
+            self.skipTest("PySide6 not installed")
+        app = QApplication.instance() or QApplication([])
+        s = session(METHYL)
+        w = StudioWindow(s)
+        w.resize(1200, 800)
+        w.show()
+        app.processEvents()
+        kit = w.plot_kit
+        full = s.full_view()
+        kit.set_view(130.0, 140.0, ylim=(0.0, 5.0))                     # a box zoom: view and signal range
+        w.redraw()
+        self.assertEqual(s.view, [130.0, 140.0])
+        self.assertEqual(tuple(w.fig.axes[0].get_ylim()), (0.0, 5.0))    # kept by the redraw
+        self.assertEqual(tuple(w.fig.axes[0].get_xlim()), (130.0, 140.0))
+        kit.back()
+        self.assertNotEqual(s.view, [130.0, 140.0])
+        kit.forward()
+        self.assertEqual(s.view, [130.0, 140.0])
+        w.redraw()
+        ax = w.fig.axes[0]                                               # wheel: zoom around the cursor
+        x, y = ax.transData.transform((136.0, 1.0))
+        ev = MouseEvent("scroll_event", w.canvas, x, y, button="up", step=1)
+        kit._scroll(ev)
+        lo, hi = s.view
+        self.assertAlmostEqual(hi - lo, 8.0)
+        self.assertTrue(lo < 136.0 < hi)
+        w.redraw()
+        ax = w.fig.axes[0]
+        x, y = ax.transData.transform((136.0, 1.0))                     # readout: the line at 136 Hz
+        kit._show_readout(MouseEvent("motion_notify_event", w.canvas, x, y))
+        self.assertIn("nearest line", kit.readout.text())
+        kit.reset()
+        self.assertEqual(s.view, full)
+        self.assertIsNone(kit.ylim)
+        w.close()
+
     def test_monitor_tab_waits_for_a_record_then_shows_starts_and_couplings(self):
         try:
             import os

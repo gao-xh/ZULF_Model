@@ -87,8 +87,14 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
   4. **Field and line width**: B transverse and B z in nT, |B|, Zero field, decay rate in 1/s (log scale) and the
      Lorentzian FWHM (= rate / pi).
 - **Centre, the plot**: data, simulation and residual, line sticks coloured by isotopologue; one bar with the
-  view range, part (real, imaginary, magnitude), lines, fit trace, **lock scale** (freezes the display scale of
-  the simulation; automatic: least squares on the magnitudes) and the zoom tools. Below it a drawer (drag to
+  view range, part (real, imaginary, magnitude), lines, baseline, **lock scale** (freezes the display scale of
+  the simulation; automatic: least squares on the magnitudes). The field heads the legend. **Plot kit**
+  (zulf_studio/plot_kit.py; it changes the session's view, so redraws, e.g. while following a fit, keep it):
+  wheel zooms the frequency axis around the cursor, Shift+wheel shifts it; **Zoom** drags a box (frequency range
+  and, if tall enough, the signal range; **Auto y** frees it); **Pan** drags the view; **Reset** or a double
+  click shows the whole spectrum; **Back** / **Fwd** step through earlier views; **Save** writes PNG, SVG or PDF;
+  **Copy** puts the plot on the clipboard. The line under the plot reads frequency and signal at the cursor and
+  the nearest transition (isotopologue, frequency, relative). Below it a drawer (drag to
   resize or close): **Lines**, **Jobs**, **Log**, **AI assistant**.
 - **Right, what to run**: **Fit**, **Analysis**, **Figure**.
 
