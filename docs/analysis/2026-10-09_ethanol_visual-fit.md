@@ -46,6 +46,27 @@ the 125.5 Hz line now reaches the data (was about 8 % low), 204, 217 and 256 Hz 
 From the stage-1 result, `--residual-peaks 5` (data peaks the model leaves unexplained weighted in a refit of
 the best candidates), 2 starts, 250 evaluations each, otherwise as stage 1.
 
+Stopped after 38 min (Xuehan): the residual-peak rows act only after the starts, and the starts only repeated
+stage 1 from its optimum (best 0.11836 and 0.11942 after about 120 evaluations each, against 0.11822); about
+1.5 h more before the residual-peak stage. (Studio's Stop ended only the main process; its two workers were
+stopped by PID, and Stop now ends the workers too, d0a76ac.)
+
+### Why 120.7 Hz is missing
+
+The model has a 13C@C1 line at 120.84-120.87 Hz (relative 0.33 of the strongest line); in stage 1 it shared a
+4.6 1/s family (FWHM 1.5 Hz), so it came out broad and low (about 90 against 215 in the overlay). `peaks` finds
+families in the data's smoothed magnitude: there the line is about 6 sigma and was not taken as a peak (the
+peaks found near it were 115.38, 118.71 and 123.69 Hz). Not mains: the 120 Hz harmonic is 0.7-1.3 Hz away (and
+excluded +-0.4 Hz), and acetonitrile and isopropanol show nothing at 112-130 Hz; it is weak, though (6.7 sigma in
+the even half, not separated in the odd half). New option `--family-edges lines` (one family per model line,
+D59 amendment, 03f77d2): 38 families, 120.87 Hz on its own (123.96 / 124.12 Hz, 0.16 Hz apart, share one).
+
+### Stage 3: one decay rate per model line (runs/studio/fits/20261009-144726_ethanol)
+
+From the stage-1 result: `--family-edges lines`, `--residual-peaks 5`, rate bounds 0.1-40 1/s, free
+isotopologue amplitudes, field fitted (transverse start 20 nT, as Studio starts a zero component), 4 starts,
+300 evaluations each, no component search.
+
 (running)
 
 ## Conclusion
