@@ -175,7 +175,7 @@ class JobsPanel(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(len(self.COLUMNS) - 1, QHeaderView.Stretch)
         lay.addWidget(self.table, 1)
         row_box = flow_policy(QWidget())
-        row = FlowLayout(row_box, spacing=6)
+        row = FlowLayout(row_box, spacing=12)
         self.b_stop = QPushButton("Stop")
         self.b_open = QPushButton("Open folder")
         self.b_apply = QPushButton("Apply fit result")

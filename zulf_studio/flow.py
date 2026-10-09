@@ -10,7 +10,8 @@ class FlowLayout(QLayout):
     def __init__(self, parent=None, spacing=6, right_align_last=False):
         super().__init__(parent)
         self._items = []
-        self._spacing = spacing
+        self._spacing = spacing                       # horizontal; macOS widgets paint a few px past their hint
+        self._vspacing = 6
         self._right_last = right_align_last           # the last item sits at the right end of its row
         self.setContentsMargins(0, 0, 0, 0)
 
@@ -60,7 +61,7 @@ class FlowLayout(QLayout):
         for n, item in enumerate(visible):
             hint = item.sizeHint()
             if x + hint.width() > area.right() + 1 and x > area.x():
-                x, y, row_h = area.x(), y + row_h + self._spacing, 0
+                x, y, row_h = area.x(), y + row_h + self._vspacing, 0
             pos_x = x
             if self._right_last and n == len(visible) - 1:
                 pos_x = max(x, area.right() + 1 - hint.width())

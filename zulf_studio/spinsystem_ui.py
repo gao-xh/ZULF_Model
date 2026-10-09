@@ -97,6 +97,18 @@ class SpinSystemEditor(QWidget):
         lay.addLayout(files)
 
     # ---- state ---------------------------------------------------------------------------
+    def refresh_values(self):
+        """The variable values of the session (sliders, an applied fit) into the variables line; the cells being
+        edited are left alone."""
+        spec = self.session.spec
+        if self.spec is None or "spin_system" not in spec or "spin_system" not in self.spec:
+            return
+        current = spec["spin_system"].get("variables", {})
+        mine = self.spec["spin_system"].setdefault("variables", {})
+        if any(mine.get(k) != v for k, v in current.items() if k in mine):
+            mine.update({k: v for k, v in current.items() if k in mine})
+            self._show_vars()
+
     def load_from_session(self):
         spec = self.session.spec
         if "spin_system" in spec:

@@ -86,7 +86,7 @@ class MonitorPanel(QWidget):
         top.addWidget(self.runs, 1)
         top.addWidget(self.b_reload)
         tools_box = flow_policy(QWidget())
-        tools = FlowLayout(tools_box, spacing=6)
+        tools = FlowLayout(tools_box, spacing=12)
         top.addWidget(tools_box)
         tools.addWidget(self.follow)
         tools.addWidget(self.part)

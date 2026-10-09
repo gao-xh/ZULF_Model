@@ -469,7 +469,7 @@ class StudioWindow(QMainWindow):
         cl.setContentsMargins(10, 6, 10, 4)
         cl.setSpacing(2)
         bar_box = flow_policy(QWidget())
-        bar = FlowLayout(bar_box, spacing=6, right_align_last=True)    # wraps on narrow windows
+        bar = FlowLayout(bar_box, spacing=12, right_align_last=True)    # wraps on narrow windows
         self.view_lo = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.view_hi = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.part = QComboBox()
@@ -883,7 +883,7 @@ class StudioWindow(QMainWindow):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(8, 6, 8, 6)
         row_box = flow_policy(QWidget())
-        row = FlowLayout(row_box, spacing=6)
+        row = FlowLayout(row_box, spacing=12)
         self.lines_count = QLabel(objectName="hint")
         self.lines_comp = QComboBox()
         self.lines_comp.addItem("all isotopologues", "")
@@ -1742,6 +1742,8 @@ class StudioWindow(QMainWindow):
                 self.info_tabs.setCurrentWidget(self.scans_panel)
         if event in ("structure", "session_opened"):
             self._model_page("spin" if "spin_system" in self.session.spec else "structure")
+        if event in ("couplings", "structure", "session_opened") and hasattr(self, "spin_editor"):
+            self.spin_editor.refresh_values()             # the variables line follows sliders and fits
         if event == "structure":
             self.rebuild_couplings()
         elif event == "couplings" and set(self.coupling_rows) != {c["key"] for c in self.session.couplings()}:

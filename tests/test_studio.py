@@ -812,6 +812,9 @@ class SpinSystemTests(unittest.TestCase):
         (run / "fit.json").write_text(json.dumps({"structure": self.METHYL_SPIN, "couplings": {"a": {"J_at_x": [131.0]}},
                                                   "spectrum_parameters": {}, "scores": [0.1]}))
         s.apply_fit(str(run))
+        w._model_page("spin")
+        w.spin_editor.refresh_values()
+        self.assertIn("a = 131 Hz", w.spin_editor.vars.text())          # the fitted value, not the start
         s.attach_molecule("C")
         self.assertTrue(s.state_is_applied_fit())
         self.assertEqual(s.spec["molecule"], {"smiles": "C", "sites": {"C1": 0}})
