@@ -130,6 +130,28 @@ open point for the field. Ethanol 3J(H,H) stays at 9.1 Hz with families. Isoprop
 Figures (scripts/paper_figure.py; the detail panels now share one scale, a804beb / 462d052 / 4197b97 fixed the
 spectra.png and paper_figure display): runs/figures/{acn_full,ipa_full,ethanol_full,ethanol_fam_full}.png.
 
+### Field direction scan (Xuehan: does the direction matter?)
+
+Whole-grid series `runs/series/ethanol_full`, automatic rate families of ethanol_full_fam_0.04_0.04 (best whole-
+spectrum fit: B transverse 6.6, B z 52.2 nT, objective 0.209), |B| held at 52.7 nT, angle theta from z held,
+couplings, rates, phase and delay fitted (2 starts from that fit's couplings; runs/processed/ethanol_dir_<theta>):
+
+| theta (deg) | Objective | Residual | delay (ms) | 1J(C1,H1) | 1J(C2,H2) | 2J(C1,H2) | 2J(C2,H1) | 3J(H,H) |
+|---|---|---|---|---|---|---|---|---|
+| 0 | 0.209 | 0.447 | -3.72 | 125.453 | 141.853 | -2.943 | -6.048 | 7.688 |
+| 15 | **0.2005** | 0.439 | -3.69 | 125.457 | 141.876 | -2.926 | -6.003 | 7.662 |
+| 30 | 0.232 | 0.476 | -3.72 | 125.453 | 141.848 | -2.943 | -5.944 | 7.688 |
+| 45 | 0.307 | 0.556 | -3.75 | 125.507 | 142.065 | -2.817 | -5.211 | 7.713 |
+| 60 | 0.423 | 0.645 | -4.48 | 124.199 | 140.804 | +3.225 | +2.173 | 8.435 |
+| 75 | 0.614 | 0.748 | -3.93 | 124.079 | 135.375 | +3.710 | +3.676 | 7.724 |
+| 90 | 0.657 | 0.764 | -3.82 | 124.036 | 135.604 | +3.725 | +3.337 | 7.685 |
+
+With the whole spectrum the direction is constrained: the field lies within about 30 deg of the detection axis
+(best near 15 deg); 45 deg and more fit clearly worse, and from 60 deg the couplings jump to another solution
+(2J positive, 1J(C2,H2) 135-141 Hz). Within 0-30 deg the couplings move by at most 0.03 Hz (1J), 0.1 Hz (2J) and
+0.03 Hz (3J): there the direction does not change the reported couplings. The earlier trade-off between the
+components (segment fits) came from the unfitted gaps, not from the physics.
+
 ## Conclusion
 
 Conditional numerical result for one ethyl model with a uniform static field:
