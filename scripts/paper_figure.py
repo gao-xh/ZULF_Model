@@ -39,6 +39,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import fit_joint_series as fj                                            # noqa: E402
 from figure_tools import GRID, INK, MUTED, PALETTE, SIMULATION, isotopologue_png  # noqa: E402
 from j_tuner import load_fit                                             # noqa: E402
+from zulf_processing.display_baseline import display_baseline           # noqa: E402,F401  (one implementation)
 
 MAINS_HZ = 60.06
 
@@ -86,26 +87,6 @@ def render_model(prob, z, f, spec, acq, phasing, wide, fit_ranges):
         if len(a):
             lines.append((c, np.asarray(tl.frequencies_hz), a / a.max()))
     return np.asarray(obs_w.frequencies_hz), np.asarray(obs_w.values), np.asarray(pred.model), gains, lines
-
-
-def display_baseline(f, y, m, lines, protect_hz, knots_hz, lift_hz):
-    from scipy.ndimage import gaussian_filter1d
-    from scipy.signal import find_peaks
-    from zulf_processing import anchor_spline_baseline, asls_baseline, line_mask
-    model_lines = [v for _, fr, a in lines for v in fr[a >= 0.03] if v > 20.0]
-    step = float(np.median(np.diff(f)))
-    quiet = (f > f.max() - 10) & (f <= f.max())
-    noise = 1.4826 * np.median(np.abs(y[quiet] - np.median(y[quiet])))
-    peaks, _ = find_peaks(np.abs(y), prominence=6 * noise, width=(None, 1.5 / step))
-    mains = [MAINS_HZ * k for k in range(1, int(f.max() / MAINS_HZ) + 1)]
-    protect = (line_mask(f, model_lines, protect_hz) | line_mask(f, mains, 0.6)
-               | (line_mask(f, f[peaks], 0.8) & line_mask(f, model_lines, 5.0)))
-    yc = y - anchor_spline_baseline(y, f, protect, knot_spacing_hz=knots_hz)
-    mc = m - anchor_spline_baseline(m, f, protect, knot_spacing_hz=knots_hz, k_sigma=np.inf)
-    taper = np.clip(gaussian_filter1d(line_mask(f, model_lines, lift_hz).astype(float), 1.0 / step), 0, 1)
-    yc = yc - taper * asls_baseline(yc, f, smooth_hz=1.5, p=0.01)
-    mc = mc - taper * asls_baseline(mc, f, smooth_hz=1.5, p=0.01)
-    return yc, mc, mains
 
 
 def clusters(fr, amp, lo, hi, threshold=0.12, gap=2.6, pad=0.6):

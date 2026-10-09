@@ -59,7 +59,13 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
   resize or close): **Lines**, **Jobs**, **Log**, **AI assistant**.
 - **Right, what to run**: **Fit**, **Analysis**, **Figure**.
 
-The static field of the model is written in the top-left corner of the spectrum plot ("(applied fit)" when the
+**baseline** (plot bar, Simulate and Fit): display only, the same baseline correction for data and model as the
+publication figures (`zulf_processing.display_baseline`: a spline through anchor points away from the lines,
+then AsLS under the line clusters), with the display scale taken on the corrected curves; fits never subtract a
+baseline (WORKFLOW W2). The drawer shows the pages of the mode: Lines (Simulate, Fit), Scans (Process), Jobs,
+Log and AI assistant.
+
+The static field of the model is written in the lower-left corner of the spectrum plot ("(applied fit)" when the
 parameters are exactly an applied fit's).
 
 The simulation is a quick look: complex Lorentzian lines with one decay rate, sign convention of the processed

@@ -306,7 +306,7 @@ class ProcessPanel(QWidget):
         lay.addWidget(box)
         other = QGroupBox("Other sources")
         ol = QVBoxLayout(other)
-        for text, fn in (("Import with the dialog (FID or scan folder) ...", window.import_fid_dialog),
+        for text, fn in (("Import FID or scan folder ...", window.import_fid_dialog),
                          ("Open a processed spectrum ...", window.open_dialog)):
             b = QPushButton(text)
             b.clicked.connect(fn)

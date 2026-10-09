@@ -44,7 +44,10 @@ class ImportDialog(QDialog):
         super().__init__(parent)
         self.session, self.path, self.settings = session, str(path), settings
         self.setWindowTitle(f"Import {Path(path).name}")
-        self.resize(980, 860)
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen is not None else None
+        self.resize(min(980, avail.width() - 40) if avail else 980, min(860, avail.height() - 30) if avail else 860)
         info = session.inspect_path(path)
         self.info = info
         lay = QVBoxLayout(self)

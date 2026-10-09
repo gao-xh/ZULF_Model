@@ -443,6 +443,11 @@ class StudioWindow(QMainWindow):
         self.part.addItems(["re", "im", "abs"])
         self.show_sticks = QCheckBox("lines", checked=True)
         self.show_trace = QCheckBox("fit trace", checked=True)
+        self.baseline = QCheckBox("baseline")
+        self.baseline.setToolTip("display only: the same baseline correction for data and model as the publication "
+                                 "figures (spline through anchor points away from the lines, then AsLS under the line "
+                                 "clusters); fits never subtract a baseline (WORKFLOW W2)")
+        self.baseline.toggled.connect(lambda _: self.schedule())
         self.lock_scale = QCheckBox("lock scale")
         self.lock_scale.setToolTip("freeze the display scale of the simulation (automatic: least squares on |spectrum|)")
         self.lock_scale.toggled.connect(lambda on: self._guard(self.session.lock_scale, on))
@@ -456,7 +461,7 @@ class StudioWindow(QMainWindow):
         for spin in (self.view_lo, self.view_hi):
             spin.setMaximumWidth(84)
         for w in (QLabel("View"), self.view_lo, QLabel("-"), self.view_hi, QLabel("Hz"), self.part,
-                  self.show_sticks, self.show_trace, self.lock_scale):
+                  self.show_sticks, self.show_trace, self.baseline, self.lock_scale):
             bar.addWidget(w)
         bar.addStretch(1)
         bar.addWidget(nav)
@@ -606,6 +611,15 @@ class StudioWindow(QMainWindow):
         self.show_sticks.setVisible(mode in ("simulate", "fit"))
         self.lock_scale.setVisible(mode not in ("process", "blind"))
         self.show_trace.setVisible(mode == "fit")
+        pages = {"simulate": ("Lines", "Jobs", "Log", "AI assistant"),
+                 "process": ("Scans", "Jobs", "Log", "AI assistant"),
+                 "fit": ("Lines", "Jobs", "Log", "AI assistant"), "blind": ("Jobs", "Log", "AI assistant")}[mode]
+        for i in range(self.info_tabs.count()):
+            self.info_tabs.setTabVisible(i, self.info_tabs.tabText(i) in pages)
+        if self.info_tabs.tabText(self.info_tabs.currentIndex()) not in pages:
+            self.info_tabs.setCurrentIndex(next(i for i in range(self.info_tabs.count())
+                                                if self.info_tabs.tabText(i) == pages[0]))
+        self.baseline.setVisible(mode in ("simulate", "fit"))
         self.right_stack.setCurrentWidget(self.mode_pages[mode])
         for key, b in self.mode_buttons.items():
             b.setChecked(key == mode)
@@ -1732,8 +1746,24 @@ class StudioWindow(QMainWindow):
         ax = axes[0]
         if has_data:
             d = pick(sim["data_re"], sim["data_im"])
-            ax.plot(f, d, color=t["data"], lw=0.8, label=f"experiment ({s.data['label']})")
         m = pick(sim["sim_re"], sim["sim_im"])
+        corrected = has_data and show_model and self.baseline.isChecked() and part != "abs"
+        if corrected:                                 # display only, data and model alike (WORKFLOW W2)
+            from zulf_processing.display_baseline import display_baseline
+            labels = [c["label"] for c in s.components()]
+            groups = [(lab, np.array([r["frequency_hz"] for r in sim["lines"] if r["component"] == lab]),
+                       np.array([r["relative"] for r in sim["lines"] if r["component"] == lab])) for lab in labels]
+            try:
+                d, m, _ = display_baseline(f, d, m, groups)
+                mm = float(m @ m)
+                if s.scale_lock is None and mm > 0 and float(m @ d) > 0:
+                    m = m * float(m @ d) / mm        # display scale on the corrected curves (positive)
+            except Exception as exc:                  # too few points in the view: show it uncorrected
+                corrected = False
+                self.statusBar().showMessage(f"baseline: {exc}", 6000)
+        if has_data:
+            ax.plot(f, d, color=t["data"], lw=0.8,
+                    label="experiment, baseline corrected" if corrected else f"experiment ({s.data['label']})")
         if show_model and mode == "simulate" and self.simulate_panel.per_component():
             gamma = s.rate_per_s / (2 * np.pi)
             labels = [c["label"] for c in s.components()]
@@ -1766,8 +1796,8 @@ class StudioWindow(QMainWindow):
         field = ("zero field" if bt == 0 and bz == 0 else
                  f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT")
         if show_model:
-            ax.text(0.01, 0.97, field + ("   (applied fit)" if s.state_is_applied_fit() else ""),
-                    transform=ax.transAxes, ha="left", va="top", fontsize=8.5, color=t["accent"],
+            ax.text(0.01, 0.03, field + ("   (applied fit)" if s.state_is_applied_fit() else ""),
+                    transform=ax.transAxes, ha="left", va="bottom", fontsize=8.5, color=t["accent"],
                     bbox=dict(boxstyle="round,pad=0.3", fc=t["accent_soft"], ec="none"))
         ax.set_ylabel("signal")
         if has_data and show_model:
@@ -1801,10 +1831,10 @@ class StudioWindow(QMainWindow):
         style.__exit__(None, None, None)
         self.canvas.draw_idle()
         self.fill_lines(sim["lines"])
-        msg = (f"simulation {1e3 * sim['seconds']:.0f} ms, {len(sim['lines'])} lines in view, scale {sim['scale']:.4g}"
+        msg = (f"{1e3 * sim['seconds']:.0f} ms \u00b7 {len(sim['lines'])} lines \u00b7 scale {sim['scale']:.3g}"
                + (" (locked)" if s.scale_lock is not None else ""))
         if has_data:
-            msg += f", rms residual {sim['residual_rms']:.3g}"
+            msg += f" \u00b7 rms residual {sim['residual_rms']:.3g}"
         self.statusBar().showMessage(msg)
 
 
