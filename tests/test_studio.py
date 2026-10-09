@@ -258,7 +258,12 @@ class WindowSmokeTests(unittest.TestCase):
         self.assertEqual(w.monitor_panel.couplings.item(0, 1).text(), "136.500")
         self.assertEqual(w.monitor_panel.couplings.item(0, 2).text(), "+0.500")
         self.assertIn("start 0 running", w.monitor_panel.console.toPlainText())
+        w.monitor_panel.open_large()                                  # the large window shows the same run
+        big = w.monitor_panel.popout.panel
+        self.assertEqual(big.run, w.monitor_panel.run)
+        self.assertEqual(big.starts.rowCount(), 1)
         w.close()
+        self.assertFalse(w.monitor_panel.popout.isVisible())
 
 
 if __name__ == "__main__":

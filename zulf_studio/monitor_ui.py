@@ -20,7 +20,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QHBoxLayout, QHeaderView, QLabel, QPlainTextEdit,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QHBoxLayout, QHeaderView, QLabel, QPlainTextEdit,
                                QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from .session import ROOT, _resolve
@@ -50,9 +50,10 @@ class MonitorPanel(QWidget):
 
     STARTS = ("#", "state", "stage", "evals", "now", "best", "final", "s")
 
-    def __init__(self, session, window, parent=None):
+    def __init__(self, session, window, parent=None, large=False):
         super().__init__(parent)
-        self.session, self.window = session, window
+        self.session, self.window, self.large = session, window, large
+        self.popout = None
         self.cache = SpectrumCache()
         self.relay = _Relay()
         self.relay.spectrum.connect(self._got_spectrum)
@@ -82,6 +83,11 @@ class MonitorPanel(QWidget):
         top.addWidget(self.b_reload)
         top.addWidget(self.follow)
         top.addWidget(self.part)
+        if not large:
+            self.b_large = QPushButton("Large window", objectName="small")
+            self.b_large.setToolTip("open this monitor in its own large window (resize or maximize it freely)")
+            self.b_large.clicked.connect(self.open_large)
+            top.addWidget(self.b_large)
         lay.addLayout(top)
         self.status = QLabel("", wordWrap=True)
         lay.addWidget(self.status)
@@ -122,6 +128,16 @@ class MonitorPanel(QWidget):
         self.timer.timeout.connect(self.refresh)
         self.timer.start()
         self.fill_runs()
+
+    def open_large(self):
+        """The same monitor in a separate window of 85 % of the screen, on the run shown here."""
+        if self.popout is None:
+            self.popout = MonitorWindow(self.session, self.window)
+        if self.run:
+            self.popout.panel.set_run(self.run)
+        self.popout.show()
+        self.popout.raise_()
+        self.popout.activateWindow()
 
     # ---- run choice ------------------------------------------------------------------------
     def fill_runs(self):
@@ -324,3 +340,20 @@ class MonitorPanel(QWidget):
     def showEvent(self, e):
         super().showEvent(e)
         self.refresh(force=True)
+
+
+class MonitorWindow(QWidget):
+    """A separate, large window with its own MonitorPanel (Monitor tab > Large window)."""
+
+    def __init__(self, session, window):
+        super().__init__(None, Qt.Window)
+        self.setWindowTitle("ZULF Studio - fit monitor")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(10, 10, 10, 10)
+        self.panel = MonitorPanel(session, window, self, large=True)
+        lay.addWidget(self.panel)
+        screen = (window.screen() if window is not None else None) or QApplication.primaryScreen()
+        if screen is not None:
+            g = screen.availableGeometry()
+            self.resize(int(g.width() * 0.85), int(g.height() * 0.85))
+            self.move(g.x() + (g.width() - self.width()) // 2, g.y() + (g.height() - self.height()) // 2)

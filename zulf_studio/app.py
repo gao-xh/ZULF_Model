@@ -1386,6 +1386,7 @@ class StudioWindow(QMainWindow):
         action(r, "Blind analysis ...", lambda: self.show_page(self.analysis_panel), "Ctrl+B")
         action(r, "Stop running job", self.activity._stop, "Ctrl+.")
         action(r, "Jobs", lambda: self.show_page(self.jobs_panel), "Ctrl+J")
+        action(r, "Large fit monitor window", self._monitor_window, "Ctrl+Shift+L")
         action(r, "Live fit monitor in the browser", self._open_monitor)
         t = self.menuBar().addMenu("&Tools")
         for text, key, page in (("Terminal", "Ctrl+Shift+T", "Terminal"), ("Python console", "Ctrl+Shift+P", "Python")):
@@ -1419,6 +1420,13 @@ class StudioWindow(QMainWindow):
         if run:
             self.monitor_panel.set_run(run)
         self._drawer("Monitor")
+
+    def _monitor_window(self):
+        if not self.monitor_panel.run:
+            running = [st for st in self.session.job_list() if st["running"] and st["kind"] == "fit"]
+            if running:
+                self.monitor_panel.set_run(running[0]["out_dir"])
+        self.monitor_panel.open_large()
 
     def _open_monitor(self):
         """Live fit monitor page: the running fit of the session if any, else the list of every run."""
@@ -1577,6 +1585,8 @@ class StudioWindow(QMainWindow):
         if not self._discard_ok():
             e.ignore()
             return
+        if self.monitor_panel.popout is not None:
+            self.monitor_panel.popout.close()
         if self._drawer_sizes is not None:                 # save the user's split, not the Monitor one
             self.splitters["middle3"].setSizes(self._drawer_sizes)
         self.settings_store.setValue("geometry", self.saveGeometry())

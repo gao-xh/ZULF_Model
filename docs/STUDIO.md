@@ -108,7 +108,9 @@ Pages:
   command; the fit is not touched; "follow" re-renders when the best point improves), and side tabs Couplings
   (value and change from the start), Starts and Console. A run that has not written its record yet shows a
   waiting line. While the tab is shown the drawer takes 65 % of the middle column; the previous split returns
-  with another tab. Run > "Live fit monitor in the browser" opens the same view as the web page of
+  with another tab. **Large window** (button in the tab; Run > Large fit monitor window, Cmd+Shift+L)
+  opens the same monitor in its own window of 85 % of the screen, which can be resized or maximized. Run > "Live
+  fit monitor in the browser" opens the same view as the web page of
   `scripts/fit_monitor.py`, served by Studio on 127.0.0.1.
 - **Log**: everything the session did (sources session, api, ai, fit, figure, terminal); also written to
   `runs/studio/studio.log`.
