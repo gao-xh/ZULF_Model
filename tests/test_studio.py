@@ -288,6 +288,21 @@ class WindowSmokeTests(unittest.TestCase):
         self.assertEqual(w.monitor_panel.couplings.item(0, 1).text(), "136.500")
         self.assertEqual(w.monitor_panel.couplings.item(0, 2).text(), "+0.500")
         self.assertIn("start 0 running", w.monitor_panel.console.toPlainText())
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from fit_monitor import read_point
+        with open(mon / "start_000.jsonl", "a") as fh:                # newer records carry every vector ("x")
+            fh.write(json.dumps({"n": 3, "t": 0.3, "cost": 1.5, "best": 1.0, "label": "fit", "x": [137.0]}) + "\n")
+        self.assertEqual(read_point(run, "start_000", 3)["z"], [137.0])                   # its own vector
+        self.assertEqual(read_point(run, "start_000", 3)["kind"], "evaluation")
+        self.assertEqual(read_point(run, "start_000", 2)["z"], [136.5])                   # older: best up to n
+        with self.assertRaises(ValueError):
+            read_point(run, "start_000", 1)                           # nothing recorded yet at evaluation 1
+        w.monitor_panel.refresh(force=True)
+        w.monitor_panel.set_point(3)
+        self.assertEqual(w.monitor_panel.point_label.text(), "evaluation 3 / 3")
+        w.monitor_panel.set_point(None)
+        self.assertEqual(w.monitor_panel.point_label.text(), "latest best point")
         w.monitor_panel.open_large()                                  # the large window shows the same run
         big = w.monitor_panel.popout.panel
         self.assertEqual(big.run, w.monitor_panel.run)

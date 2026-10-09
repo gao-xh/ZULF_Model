@@ -673,7 +673,7 @@ Not every step: as an occasional diagnostic and as a final fine-tuning stage.
 8. Watching a fit (`scripts/fit_monitor.py runs/processed` -> http://127.0.0.1:8770, or `--text` in a terminal; in
    Studio: the Monitor tab, opened by a double-click on a job, Live monitor in Jobs or Cmd+Shift+M).
    fit_joint_series records every run in OUT/monitor (on by default, `--monitor off`): the objective of every
-   residual evaluation of every start with its stage (start / smoothing / fit / coordinate scan / residual-peak
+   residual evaluation of every start with its stage and its parameter vector (start / smoothing / fit / coordinate scan / residual-peak
    stage), the best point so far (couplings and the full vector, at most once a second), the start's own starting
    couplings, the phase of the run and the console output. The hook only reads the objective the fit has already
    computed; a test checks that a start gives bit-identical results with and without it. The page shows the

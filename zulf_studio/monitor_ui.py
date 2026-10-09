@@ -21,16 +21,17 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QHBoxLayout, QHeaderView, QLabel, QPlainTextEdit,
-                               QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+                               QPushButton, QSlider, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from .flow import FlowLayout, flow_policy
 from .session import ROOT, _resolve
 from .theme import ISOTOPOLOGUE, matplotlib_style
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from fit_monitor import SpectrumCache, find_runs, read_run  # noqa: E402
+from fit_monitor import SpectrumCache, find_runs, read_point, read_run  # noqa: E402
 
 RUNS_ROOT = ROOT / "runs"
+START_COLORS = list(ISOTOPOLOGUE) + ["#8c564b", "#17becf", "#bcbd22", "#7f7f7f", "#e377c2", "#1f3b73"]
 
 
 def _short(path) -> str:
@@ -64,6 +65,8 @@ class MonitorPanel(QWidget):
         self.spec = None
         self.spec_busy = False
         self.spec_key = None
+        self.point = None                                  # evaluation shown (None: the latest best point)
+        self.ax_obj = None
         lay = QVBoxLayout(self)
         top = QHBoxLayout()
         self.runs = QComboBox()
@@ -95,11 +98,31 @@ class MonitorPanel(QWidget):
         lay.addLayout(top)
         self.status = QLabel("", wordWrap=True)
         lay.addWidget(self.status)
+        prow = QHBoxLayout()                               # which point of which start is drawn
+        self.point_slider = QSlider(Qt.Horizontal)
+        self.point_slider.setMinimum(1)
+        self.point_slider.setToolTip("evaluation of the selected start whose spectrum is drawn; or click any curve "
+                                     "of the objective plot (that start, that evaluation)")
+        self.point_timer = QTimer(self, singleShot=True, interval=150)
+        self.point_timer.timeout.connect(lambda: self.set_point(self.point_slider.value()))
+        self.point_slider.valueChanged.connect(lambda _v: None if self._quiet else self.point_timer.start())
+        self.point_label = QLabel("latest best point")
+        self.point_label.setMinimumWidth(120)
+        self.b_latest = QPushButton("Latest best", objectName="small")
+        self.b_latest.setToolTip("back to the best point so far of the selected start (follows the run)")
+        self.b_latest.clicked.connect(lambda: self.set_point(None))
+        prow.addWidget(QLabel("point"))
+        prow.addWidget(self.point_slider, 1)
+        prow.addWidget(self.point_label)
+        prow.addWidget(self.b_latest)
+        lay.addLayout(prow)
+        self._quiet = False
         split = QSplitter(Qt.Horizontal)                  # plots | starts, couplings, console
         self.fig = Figure(figsize=(6, 4.2), layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setMinimumSize(200, 200)
         split.addWidget(self.canvas)
+        self.canvas.mpl_connect("button_press_event", self._clicked)
         tables = QTabWidget()
         self.starts = QTableWidget(0, len(self.STARTS))
         self.starts.setHorizontalHeaderLabels(self.STARTS)
@@ -164,6 +187,7 @@ class MonitorPanel(QWidget):
         run = str(_resolve(run).resolve()) if run else None
         if run != self.run:
             self.run, self.data, self.selected, self.spec, self.spec_key = run, None, None, None, None
+            self.point = None
             self.starts.setRowCount(0)
             self.couplings.setRowCount(0)
             self.console.clear()
@@ -200,6 +224,7 @@ class MonitorPanel(QWidget):
         if self.selected not in starts and starts:
             self.selected = min(starts, key=lambda k: np.inf if starts[k]["best"] is None else starts[k]["best"])
         self._fill_couplings()
+        self._sync_slider()
         log = Path(self.run) / "monitor" / "console.log"
         text = log.read_text(errors="replace")[-6000:] if log.exists() else ""
         if text != self.console.toPlainText():
@@ -233,7 +258,7 @@ class MonitorPanel(QWidget):
         r = self.starts.currentRow()
         names = list(self.data["starts"]) if self.data else []
         if 0 <= r < len(names) and names[r] != self.selected:
-            self.selected, self.spec, self.spec_key = names[r], None, None
+            self.selected, self.spec, self.spec_key, self.point = names[r], None, None, None
             self._fill_couplings()
             self._request_spectrum()
             self._draw()
@@ -241,6 +266,8 @@ class MonitorPanel(QWidget):
     def _fill_couplings(self):
         s = self.data["starts"].get(self.selected) if self.data else None
         J = (s or {}).get("J") or {}
+        if self.point is not None:                         # the couplings of the drawn point
+            J = (self.spec or {}).get("J") or {}
         J0 = (s or {}).get("J0") or self.data["status"].get("start_couplings") or {} if self.data else {}
         rows = []
         for key, v in J.items():
@@ -257,36 +284,90 @@ class MonitorPanel(QWidget):
                 if item.text() != v:
                     item.setText(v)
 
+    # ---- the point shown: click on the objective plot, slider, Latest best ---------------------
+    def set_point(self, n, start=None):
+        """Draw the spectrum at evaluation n of the start (default: the selected one); None: the latest best."""
+        if start is not None and start != self.selected:
+            self.selected = start
+            self._fill_starts()
+        self.point = None if n is None else int(n)
+        self.spec, self.spec_key = None, None
+        self._sync_slider()
+        self._request_spectrum()
+        self._fill_couplings()
+        self._draw()
+
+    def _clicked(self, event):
+        """Click near a curve of the objective plot: that start, the nearest evaluation."""
+        if self.ax_obj is None or event.inaxes is not self.ax_obj or not self.data or event.xdata is None:
+            return
+        best = None
+        for name, s in self.data["starts"].items():
+            h = np.asarray(s["history"], float)
+            if not len(h):
+                continue
+            i = int(np.argmin(np.abs(h[:, 0] - event.xdata)))
+            for col in (1, 2):                         # thin (this evaluation) and thick (best so far)
+                px = self.ax_obj.transData.transform((h[i, 0], h[i, col]))
+                d = np.hypot(px[0] - event.x, px[1] - event.y)
+                if best is None or d < best[0]:
+                    best = (d, name, int(h[i, 0]))
+        if best is not None and best[0] < 40:          # pixels
+            self.set_point(best[2], best[1])
+
+    def _sync_slider(self):
+        if self.point_slider.isSliderDown():
+            return
+        s = self.data["starts"].get(self.selected) if self.data else None
+        self._quiet = True
+        self.point_slider.setMaximum(max(1, (s or {}).get("evaluations", 1)))
+        self.point_slider.setValue(self.point or self.point_slider.maximum())
+        self._quiet = False
+        if self.point is None:
+            self.point_label.setText("latest best point")
+        else:
+            self.point_label.setText(f"evaluation {self.point} / {(s or {}).get('evaluations', '?')}")
+
     # ---- spectrum at the best point (background thread) ------------------------------------
     def _request_spectrum(self):
         if not self.data or self.selected not in self.data["starts"] or self.spec_busy:
             return
         s = self.data["starts"][self.selected]
-        if s["z"] is None:
+        point = self.point
+        if point is None and s["z"] is None:
             return
-        key = (self.run, self.selected, s["best"])
-        if key == self.spec_key or (self.spec is not None and not self.follow.isChecked()):
+        key = (self.run, self.selected, ("best", s["best"]) if point is None else ("point", point))
+        if key == self.spec_key or (point is None and self.spec is not None and not self.follow.isChecked()):
             return
         self.spec_busy, self.spec_key = True, key
         run, start = self.run, self.selected
+        keys = self.data["status"].get("keys", [])
 
         def work():
             try:
-                out = self.cache.spectrum(run, start)
+                rp = None if point is None else read_point(run, start, point)
+                z = None if rp is None else rp["z"]
+                out = self.cache.spectrum(run, start, z=z)
+                if rp is not None:
+                    joint = self.cache.get(run).joint
+                    zz = np.asarray(rp["z"], float)
+                    out["J"] = {k: joint.coupling_values(zz, i).tolist() for i, k in enumerate(keys)}
+                out["point"] = rp
                 out["key"] = key
-            except Exception as exc:
+            except BaseException as exc:                 # argparse exits with SystemExit: report, never hang
                 out = {"key": key, "error": f"{type(exc).__name__}: {exc}"}
             self.relay.spectrum.emit(out)
         threading.Thread(target=work, daemon=True, name="monitor-spectrum").start()
 
     def _got_spectrum(self, out):
         self.spec_busy = False
-        if out["key"][:2] != (self.run, self.selected):   # the run or start changed meanwhile: render the new one
+        if out["key"] != self.spec_key:                    # the run, start or point changed meanwhile: render that
             self.spec_key = None
             self._request_spectrum()
             self._draw()
             return
         self.spec = out
+        self._fill_couplings()
         self._draw()
 
     # ---- drawing ---------------------------------------------------------------------------
@@ -296,16 +377,23 @@ class MonitorPanel(QWidget):
             self.fig.clear()
             self.fig.set_facecolor(t["panel"])
             ax1, ax2 = self.fig.subplots(2, 1, height_ratios=[1, 1.6])
+            self.ax_obj = ax1
             starts = self.data["starts"] if self.data else {}
             for i, (name, s) in enumerate(starts.items()):
                 h = np.asarray(s["history"], float)
                 if not len(h):
                     continue
-                col = ISOTOPOLOGUE[i % len(ISOTOPOLOGUE)]
+                col = START_COLORS[i % len(START_COLORS)]
                 top = name == self.selected
                 ax1.plot(h[:, 0], h[:, 1], color=col, lw=0.6, alpha=0.35, zorder=3 if top else 1)
                 ax1.plot(h[:, 0], h[:, 2], color=col, lw=2.0 if top else 1.2, zorder=4 if top else 2,
                          label=f"#{name.replace('start_', '')}" if len(starts) <= 8 else None)
+            sel = starts.get(self.selected)
+            if sel is not None and self.point is not None and len(sel["history"]):
+                h = np.asarray(sel["history"], float)
+                i = int(np.argmin(np.abs(h[:, 0] - self.point)))
+                ax1.axvline(self.point, color=t["accent"], lw=0.9, alpha=0.8, zorder=5)
+                ax1.plot([h[i, 0]], [h[i, 1]], "o", ms=6, mfc="none", mec=t["accent"], mew=1.6, zorder=6)
             if starts:
                 ax1.set_yscale("log")
                 ax1.yaxis.set_major_locator(LogLocator(subs=(1.0, 2.0, 5.0)))
@@ -315,7 +403,7 @@ class MonitorPanel(QWidget):
                     ax1.legend(loc="upper right", ncols=min(len(starts), 4))
             ax1.set_xlabel("evaluation")
             ax1.set_ylabel("objective")
-            ax1.set_title("objective per start (thick: best so far)", loc="left")
+            ax1.set_title("objective per start (thick: best so far) - click a curve to draw that point", loc="left")
             if self.spec and "error" not in self.spec:
                 sp = self.spec
                 f = np.asarray(sp["f"])
@@ -327,10 +415,17 @@ class MonitorPanel(QWidget):
                     if lo > sp["extent"][0] or hi < sp["extent"][1]:
                         ax2.axvspan(lo, hi, color=t["grid"], alpha=0.35, lw=0)
                 ax2.plot(f, pick(d), color=t["ink"], lw=0.8, label="data")
-                ax2.plot(f, pick(m), color=ISOTOPOLOGUE[1], lw=1.2, label="model")
+                names = list(starts)
+                col = START_COLORS[names.index(self.selected) % len(START_COLORS)] if self.selected in names \
+                    else ISOTOPOLOGUE[1]                    # the colour of the start's curve above
+                ax2.plot(f, pick(m), color=col, lw=1.2, label="model")
                 ax2.plot(f, pick(d) - pick(m), color=t["muted"], lw=0.6, alpha=0.8, label="residual")
                 ax2.legend(loc="upper right", ncols=3)
-                ax2.set_title(f"best point of start {self.selected.replace('start_', '')}: "
+                pt = sp.get("point")
+                where = ("best point so far" if pt is None else
+                         f"evaluation {pt['n']}" if pt["kind"] == "evaluation" else
+                         f"best point up to evaluation {self.point} (older record: evaluation {pt['n']})")
+                ax2.set_title(f"start {self.selected.replace('start_', '')}, {where}: "
                               f"objective {sp['objective']:.5g}", loc="left")
             else:
                 msg = (self.spec or {}).get("error") or ("rendering the spectrum ..." if self.spec_busy else

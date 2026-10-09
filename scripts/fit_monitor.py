@@ -2,8 +2,9 @@
 the fit runs, without changing the fit.
 
 Writer side (used by fit_joint_series, on by default, `--monitor off` to disable): every residual evaluation of a
-start appends its objective to RUN/monitor/start_NNN.jsonl (buffered, flushed at most every 0.5 s); the couplings of
-the best point so far are added when it improves (at most once a second, and at the end). RUN/monitor/status.json
+start appends its objective and its parameter vector ("x") to RUN/monitor/start_NNN.jsonl (buffered, flushed at most
+every 0.5 s), so the spectrum at any evaluation can be drawn afterwards; the couplings and vector of the best point
+so far are added when it improves (at most once a second, and at the end). RUN/monitor/status.json
 holds the command, the phase, the number of starts and the scores of the finished starts; RUN/monitor/console.log
 copies the console output. The writer only reads the objective value the fit has already computed; the optimizer,
 its steps and its results are unchanged.
@@ -64,7 +65,8 @@ class MonitorWriter:
         if improved:
             self.best, self.best_z = cost, np.array(z, float)
             self.snapshot_pending = True
-        rec = {"n": self.n, "t": round(now - self.t0, 3), "cost": cost, "best": self.best, "label": label}
+        rec = {"n": self.n, "t": round(now - self.t0, 3), "cost": cost, "best": self.best, "label": label,
+               "x": [float(v) for v in z]}            # this evaluation's vector (Studio: spectrum at any point)
         if self.n == 1:
             rec["J0"] = self._couplings(z)                   # this start's own starting couplings
         if self.snapshot_pending and now - self.last_snapshot >= self.snapshot_s:
@@ -219,6 +221,32 @@ def text_view(run, interval=2.0):
         pass
 
 
+def read_point(run, start, n):
+    """Parameter vector at evaluation n of one start: that evaluation's own vector ("x", recorded since
+    2026-10-08) or, for older records, the best point recorded up to n. Returns {n, cost, best, z, kind}."""
+    path = Path(run) / "monitor" / f"{start}.jsonl"
+    own, best = None, None
+    with open(path) as fh:
+        for line in fh:
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if "n" not in r:
+                continue
+            if r["n"] > n:
+                break
+            if "z" in r:
+                best = r
+            if r["n"] == n and "cost" in r:
+                own = r
+    if own is not None and "x" in own:
+        return {"n": n, "cost": own["cost"], "best": own["best"], "z": own["x"], "kind": "evaluation"}
+    if best is not None:
+        return {"n": best["n"], "cost": best.get("cost", best["best"]), "best": best["best"], "z": best["z"], "kind": "best up to"}
+    raise ValueError(f"no parameter vector recorded up to evaluation {n} of {start}")
+
+
 class SpectrumCache:
     """build_problem from a run's recorded command, once per run, for the on-demand spectrum view."""
 
@@ -242,11 +270,13 @@ class SpectrumCache:
                     os.chdir(cwd)
             return self.problems[run]
 
-    def spectrum(self, run, start, s=0, view=None, max_points=4000):
-        """Data and model of spectrum s at the best point so far of one start (its full parameter vector)."""
+    def spectrum(self, run, start, s=0, view=None, max_points=4000, z=None):
+        """Data and model of spectrum s at the best point so far of one start (its full parameter vector), or at
+        the vector z."""
         prob = self.get(run)
         joint = prob.joint
-        z = read_run(run)["starts"][start]["z"]
+        if z is None:
+            z = read_run(run)["starts"][start]["z"]
         if z is None:
             raise ValueError("no best point recorded yet")
         with self.lock:

@@ -110,7 +110,11 @@ Pages:
   starts): the live view of a fit run inside Studio (WORKFLOW step 8), read from OUT/monitor every 2 s while the
   tab is visible: objective of every start (thin: each evaluation, thick: best so far), data, model and residual
   at the best point so far of the selected start (rendered in a background thread from the run's recorded
-  command; the fit is not touched; "follow" re-renders when the best point improves), and side tabs Couplings
+  command; the fit is not touched; "follow" re-renders when the best point improves). **Any point of any start**: click
+  near a curve of the objective plot (that start, the nearest evaluation; a ring marks it) or drag the "point"
+  slider of the selected start; the spectrum and the Couplings tab then show that evaluation's own parameter
+  vector (records since 2026-10-08 store it for every evaluation; older records give the best point up to it,
+  and the title says so). "Latest best" goes back to following the run. Side tabs Couplings
   (value and change from the start), Starts and Console. A run that has not written its record yet shows a
   waiting line. While the tab is shown the drawer takes 65 % of the middle column; the previous split returns
   with another tab. **Large window** (button in the tab; Run > Large fit monitor window, Cmd+Shift+L)
