@@ -174,6 +174,24 @@ def analysis_processes(ps_text: Optional[str] = None) -> List[dict]:
     return out
 
 
+def fit_structure(run: Path, fit: dict):
+    """The structure specification of a fit: fit.json "structure" (fits since 2026-10-08), else the --structure
+    of the command in its RUN_LOG.md; None when neither has one (a list of structures is returned as written)."""
+    if fit.get("structure"):
+        return fit["structure"]
+    log = run / "RUN_LOG.md"
+    if log.exists():
+        import shlex
+        for line in log.read_text().splitlines():
+            if "fit_joint_series.py" in line and "--structure" in line:
+                try:
+                    args = shlex.split(line.strip().strip("`"))
+                    return json.loads(args[args.index("--structure") + 1])
+                except (ValueError, IndexError):
+                    return None
+    return None
+
+
 def cpu_cores() -> dict:
     """Logical cores, and on Apple silicon the performance and efficiency cores."""
     info = {"logical": os.cpu_count() or 1, "performance": None, "efficiency": None}
@@ -591,6 +609,11 @@ class StudioSession:
             raise ValueError("no run directory")
         fit = json.loads((run / "fit.json").read_text())
         couplings = {k: float(v["J_at_x"][0]) for k, v in fit["couplings"].items()}
+        structure = fit_structure(run, fit)
+        if isinstance(structure, dict) and structure != self.spec:      # the fit's molecule, not the current one
+            self.set_structure(structure)
+            if fit.get("exchange") in ("fast", "slow"):
+                self.set_exchange(fit["exchange"])
         sp_all = fit.get("spectrum_parameters", {})
         sp = sp_all.get(spectrum) if spectrum else next(iter(sp_all.values()), {})
         with self.lock:

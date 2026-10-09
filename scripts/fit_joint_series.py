@@ -1810,6 +1810,7 @@ def main():
               "start_solutions": start_tables,
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "signal_height_power": settings.signal_height_power,
+              "structure": json.loads(args.structure), "exchange": args.exchange,
               "guard_penalty": {"strength": args.guard_penalty, "k_sigma": args.guard_sigma,
                                 "margin_hz": args.guard_margin, "bin_hz": args.guard_bin,
                                 "range": args.guard_range or None,
