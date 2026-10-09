@@ -139,7 +139,8 @@ class HypothesisModel:
         return {"name": self.name, "components": self.component_labels, "ratios": list(self.ratios),
                 "ratio_blocks": self.blocks(), "parents": list(self.parents),
                 "couplings": {k: v for k, v in self.coupling_names.items()}, "unspecified": list(self.unspecified),
-                "omitted": [list(o) for o in self.omitted], "fragment": self.fragment.to_dict()}
+                "omitted": [list(o) for o in self.omitted],
+                "fragment": self.fragment.to_dict() if self.fragment is not None else None}
 
 
 def build_model(fragment: Fragment, include_exchangeable: bool = True, ranges: Optional[Sequence[Tuple[float, float]]] = None,

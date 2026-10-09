@@ -999,6 +999,24 @@ data have the lines, active only at the empty bins, Jacobian against central dif
 - Studio: the rate-family box offers peaks, auto, peaks+auto.
 Tests: tests/test_joint_series.py test_peak_family_edges_give_every_data_peak_its_own_family.
 
+## D60. Fits of a typed-in spin system (2026-10-08, PLAN 8c-8d)
+
+- Owner: besides structures, models given as isotopes and a J matrix (as in ZULF_NMR_Suite), simulated and
+  fitted in ZULF Studio and by fit_joint_series (`--structure '{"spin_system": ...}'`).
+- zulf_hypothesis.spin_system builds a HypothesisModel from the specification, so the fit, guard rows, rate
+  families, field and Studio work unchanged: a J entry is Hz or a variable name; spins of one isotope with equal
+  entry rows (by name or number) form an equivalence group; a group pair is one solver parameter c<k>.J<a>-<b>
+  under the key of its entry (the variable, shared wherever it appears, or 'component:J(i,j)' of the groups'
+  first spins); entries 0 are no coupling and stay 0. Studio's sliders use the same grouping and keys, so fit
+  results apply back.
+- Weights: typed-in systems fit one amplitude per component by default ("fit weights"); a structure converted to
+  a spin system holds its abundance ratios ("fixed_weights": true). With free amplitudes, ethanol from a start
+  0.3 Hz off reached objective 0.78 (13C@C1 amplitude near 0) against 0.12 with fixed ratios.
+- Converting a structure ties couplings by the structure's keys (J(C1,HC1) -> variable J_C1_HC1), not by equal
+  values (the two 2J(C,H) of ethanol are both -4.5 Hz at the start).
+Tests: tests/test_joint_series.py SpinSystemFitTests (two components, a variable and a numeric coupling recovered
+from a 0.4 Hz offset, amplitude ratio 0.5); tests/test_studio.py SpinSystemTests.
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

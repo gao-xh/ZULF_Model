@@ -611,9 +611,6 @@ class StudioSession:
     # ---- fitting -------------------------------------------------------------------------
     def fit_command(self, **options) -> List[str]:
         """fit_joint_series command for the loaded series, starting from the current couplings and field."""
-        if "spin_system" in self.spec:
-            raise ValueError("fits of a custom spin system are PLAN 8d (not yet available); simulate it, or fit "
-                             "a structure")
         if self.data is None or not self.data.get("series"):
             raise ValueError("load a series file (load_spectrum series=...) before fitting")
         o = dict(FIT_DEFAULTS, **options)

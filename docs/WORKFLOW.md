@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; Studio jobs, files and machine load; Studio modes D58).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58).
 
 ## Map
 
@@ -183,6 +183,9 @@ flowchart LR
         [--fit-field] [--field t,z --fit-gamma 13C] [--precision 0.01] --out runs/processed/NAME
 
 - Steps, algorithms, settings and pitfalls: sections 3-10 below; a full command at the end of this file.
+- Model: `--structure` takes a motif, a chain, or a typed-in spin system `{"spin_system": {"components":
+  [{"name", "isotopes", "J" (Hz or variable names), "weight"}], "variables": {...}, "fixed_weights": false}}`
+  (D60; variables are the fit parameters).
 - Field: zero field by default; `--fit-field` fits the transverse and z components (D47); with a known field
   `--fit-gamma` names a heteronucleus (D53).
 - Precision: fits stop when every coupling moves by less than `--precision` (default 0.01 Hz, D55).

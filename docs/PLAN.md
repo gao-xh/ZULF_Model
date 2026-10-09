@@ -530,7 +530,7 @@ Steps:
   of the kept scans as a job, save the spectrum and the recipe (never into the data folder).
 - [x] 8c. Custom spin system (done; Studio editor, API, tests): isotopes, J matrix (upper-triangle table or text) with variables, component list
   with weights; sliders per variable; save / load models; import ZULF_NMR_Suite molecule folders.
-- [ ] 8d. Fits of a custom spin system (fit_joint_series model input {"spin_system": ...}; variables as fit
+- [x] 8d. Fits of a custom spin system (done, D60) (fit_joint_series model input {"spin_system": ...}; variables as fit
   parameters; weights as amplitudes).
 - [ ] 8e. Exact rendering in Simulate (the processed forward model of zulf_core.render with an acquisition);
   overlays of several parameter sets.

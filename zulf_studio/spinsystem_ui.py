@@ -7,11 +7,11 @@ import json
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QMessageBox, QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
-from .spin_model import NAME
+from zulf_hypothesis.spin_system import NAME
 
 
 class SpinSystemEditor(QWidget):
@@ -81,6 +81,9 @@ class SpinSystemEditor(QWidget):
         apply_.clicked.connect(self.apply)
         btn.addWidget(apply_)
         btn.addStretch(1)
+        self.fit_weights = QCheckBox("fit weights", checked=True)
+        self.fit_weights.setToolTip("a fit fits every component's amplitude; off: the weight ratios are held")
+        btn.addWidget(self.fit_weights)
         lay.addLayout(btn)
         files = QHBoxLayout()
         for text, fn, tip in (("From structure", self._from_structure, "the current structure as an editable spin system"),
@@ -104,6 +107,7 @@ class SpinSystemEditor(QWidget):
                  "J": [[0, "J1", "J1", "J1"], ["J1", 0, 0, 0], ["J1", 0, 0, 0], ["J1", 0, 0, 0]], "weight": 1.0}],
                 "variables": {"J1": 125.0}}}
         self.current = min(self.current, len(self._comps()) - 1)
+        self.fit_weights.setChecked(not self.spec["spin_system"].get("fixed_weights", False))
         self._fill_components()
 
     def _comps(self):
@@ -259,6 +263,7 @@ class SpinSystemEditor(QWidget):
                 for v in row:
                     if isinstance(v, str) and NAME.match(v) and v not in ss["variables"]:
                         ss["variables"][v] = 0.0
+        ss["fixed_weights"] = not self.fit_weights.isChecked()
         used = {v for c in ss["components"] for row in c["J"] for v in row if isinstance(v, str)}
         ss["variables"] = {k: v for k, v in ss["variables"].items() if k in used}
         self.window._guard(self.session.set_structure, json.loads(json.dumps(self.spec)))

@@ -1346,6 +1346,13 @@ def _build_problem(args):
         model = _combined_model(spec, args, lo, hi)
         fragment, fixed_keys = model.fragment, []
         return _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_keys)
+    if "spin_system" in spec:                       # isotopes and a J matrix typed in (PLAN 8d)
+        if getattr(args, "free_couplings", ""):
+            raise SystemExit("--free-couplings applies to structures; give fixed couplings of a spin system as "
+                             "numbers and free ones as variables")
+        from zulf_hypothesis.spin_system import spin_system_model
+        model = spin_system_model(spec, json.loads(args.couplings))
+        return _finish_problem(args, series, left_out, lo, hi, obs, model, None, [])
     spec.setdefault("compound", "series")
     overrides = json.loads(args.couplings)
     fixed_keys = []

@@ -466,3 +466,43 @@ class JointSeriesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpinSystemFitTests(unittest.TestCase):
+    def test_fit_of_a_typed_in_spin_system_recovers_its_variables(self):
+        # PLAN 8d: a methyl (13C, 3 x 1H; variable 'a' ties the three 1J) and a 13C-1H pair with a numeric 1J, at
+        # weights 1 and 0.5; the fit starts 0.4 Hz off and recovers both couplings and the amplitude ratio
+        from scipy.optimize import least_squares
+        from zulf_hypothesis.spin_system import spin_system_model
+        truth = {"compound": "t", "spin_system": {"components": [
+            {"name": "M", "isotopes": ["13C", "1H", "1H", "1H"],
+             "J": [[0, "a", "a", "a"], ["a", 0, 0, 0], ["a", 0, 0, 0], ["a", 0, 0, 0]], "weight": 1.0},
+            {"name": "X", "isotopes": ["13C", "1H"], "J": [[0, 141.0], [141.0, 0]], "weight": 0.5}],
+            "variables": {"a": 126.0}}}
+        model = spin_system_model(truth)
+        self.assertEqual(sorted(model.coupling_names), ["X:J(1,2)", "a"])
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.05)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 300.0)], record=acq)
+        p = settings.parameterize(model.interpretation)
+        sig = np.asarray(MixtureForward(p, clean, gain_model=settings.gain_model, background=-1,
+                                        band_weighting="none", **_signal_kwargs(settings)).predict(
+            p.vector(), fixed_gains=np.array([1.0, 0.5], complex)).model)
+        y = sig + 1e-4 * np.abs(sig).max() * np.random.default_rng(3).normal(size=len(f))
+        start = spin_system_model(truth, {"a": 126.4, "X:J(1,2)": 140.6})
+        joint = JointSeries(start, _settings_for(start, "ratios", RefineSettings(band_weighting="none",
+                                                                                background_order=-1)),
+                            [ObservedSpectrum.from_spectrum(f, y, [(100.0, 300.0)], record=acq)], [1.0], shape="free")
+        table = np.array([[q.vector()[joint.col[n]] for n in joint.coupling] for q in joint.params])
+        z = joint.pack(table, [q.vector().copy() for q in joint.params])
+        lo, hi = joint.bounds(5.0)
+        sol = least_squares(joint.residual, np.clip(z, lo + 1e-9, hi - 1e-9), jac=joint.jacobian, bounds=(lo, hi),
+                            x_scale="jac")
+        got = {n: joint.coupling_values(sol.x, k)[0] for k, n in enumerate(joint.coupling)}
+        key = {names[0]: k for k, names in start.coupling_names.items()}
+        found = {key[n]: v for n, v in got.items()}
+        self.assertAlmostEqual(found["a"], 126.0, places=2)
+        self.assertAlmostEqual(found["X:J(1,2)"], 141.0, places=2)
+        gains = joint.forwards[0].predict(joint.spectrum_vector(sol.x, 0)).gains
+        self.assertAlmostEqual(abs(gains[1]) / abs(gains[0]), 0.5, places=2)

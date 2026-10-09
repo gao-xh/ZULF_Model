@@ -57,7 +57,9 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
        system (each isotopologue a component with its abundance weight; equal couplings share J1, J2, ...; rename
        a cell to split two that are equal by chance); **Load** reads a model JSON or a ZULF_NMR_Suite molecule
        folder (structure.csv); **Save** writes the model JSON. Exact diagonalisation (zulf_core.SpinSystem), no
-       MATLAB. Fits of a spin system are PLAN 8d.
+       MATLAB. Fit works as for a structure (D60): the variables and numeric couplings are the fit parameters;
+       **fit weights** (on for typed-in systems) fits every component's amplitude, off holds the weight ratios
+       (a converted structure holds its abundance ratios).
   3. **Couplings (Hz)**: a slider and a spin box per coupling; "Add / set" adds a coupling by key `J(a,b)` (for
      example `J(C2,HC1)` makes the nitrile 13C isotopologue of acetonitrile visible). **fine sliders** shows a
      second, fine slider under every coupling, field and phase slider.

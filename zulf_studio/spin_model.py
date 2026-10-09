@@ -17,137 +17,66 @@ from __future__ import annotations
 
 import csv
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
 
-from zulf_core.nuclei import get_registry
-from zulf_core.spinsystem import SpinSystem
-
-NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-@dataclass
-class _Component:
-    system: SpinSystem
-    contribution: float
-
-
-@dataclass
-class _Interpretation:
-    components: List[_Component]
+from zulf_hypothesis.spin_system import NAME, entry_key  # noqa: F401  (the fit's grouping and keys)
 
 
 class CustomModel:
-    """The model of a spin-system specification, shaped like a structure model for the session (component labels,
-    interpretation.components with .system and .contribution, coupling_names, unspecified)."""
+    """The model of a spin-system specification for the session: zulf_hypothesis.spin_system.spin_system_model
+    (the fit's model: components, equivalence groups, keys) and its couplings for the sliders."""
 
     def __init__(self, spec: dict):
-        ss = spec["spin_system"]
-        self.variables = {str(k): float(v) for k, v in (ss.get("variables") or {}).items()}
-        comps = ss.get("components") or []
-        if not comps:
-            raise ValueError("a spin system needs at least one component")
-        registry = get_registry()
-        self.component_labels, parts, self.entries = [], [], []
-        used = set()
-        for c in comps:
-            iso = [str(x).strip() for x in c["isotopes"]]
-            for x in iso:
-                registry[x]                                   # unknown isotopes raise here
-            n = len(iso)
-            J = c.get("J") or [[0] * n for _ in range(n)]
-            if len(J) != n or any(len(row) != n for row in J):
-                raise ValueError(f"component {c.get('name')}: J must be {n} x {n} for {n} isotopes")
-            mat = np.zeros((n, n))
-            for i in range(n):
-                for j in range(i + 1, n):
-                    v = J[i][j]
-                    if isinstance(v, str) and v.strip() == "":
-                        v = 0.0
-                    if isinstance(v, str) and not _is_number(v):
-                        name = v.strip()
-                        if not NAME.match(name):
-                            raise ValueError(f"J[{i + 1},{j + 1}] = {v!r} is neither a number nor a variable name")
-                        if name not in self.variables:
-                            raise ValueError(f"variable {name!r} has no value (variables: {sorted(self.variables)})")
-                        used.add(name)
-                        mat[i, j] = mat[j, i] = self.variables[name]
-                    else:
-                        mat[i, j] = mat[j, i] = float(v)
-                        if float(v) != 0.0:
-                            self.entries.append((str(c.get("name", "")), i, j, float(v)))
-            label = str(c.get("name") or f"system {len(parts) + 1}")
-            self.component_labels.append(label)
-            parts.append(_Component(SpinSystem(tuple(iso), mat), float(c.get("weight", 1.0))))
-        self.interpretation = _Interpretation(parts)
-        self.coupling_names = [v for v in self.variables if v in used] + [entry_key(c, i, j)
-                                                                           for c, i, j, _ in self.entries]
-        self.unspecified = set()
+        from zulf_hypothesis.spin_system import couplings, spin_system_model
+        m = spin_system_model(spec)
+        self.component_labels, self.interpretation = m.component_labels, m.interpretation
+        self.coupling_names, self.unspecified = m.coupling_names, set(m.unspecified)
+        self._couplings = couplings(spec)
 
     def couplings(self) -> List[dict]:
-        out = [{"key": k, "value": self.variables[k], "one_bond": abs(self.variables[k]) >= 50.0,
-                "unspecified": False, "overridden": False, "variable": True} for k in self.coupling_names
-               if k in self.variables]
-        out += [{"key": entry_key(c, i, j), "value": v, "one_bond": abs(v) >= 50.0, "unspecified": False,
-                 "overridden": False, "variable": False} for c, i, j, v in self.entries]
-        return out
-
-
-def entry_key(component: str, i: int, j: int) -> str:
-    """Slider key of a numeric matrix entry: component name and 1-based spin numbers, e.g. 'A:J(1,2)'."""
-    return f"{component}:J({i + 1},{j + 1})"
-
-
-def _is_number(text: str) -> bool:
-    try:
-        float(text)
-        return True
-    except ValueError:
-        return False
+        return [{"key": c["key"], "value": c["value"], "one_bond": abs(c["value"]) >= 50.0, "unspecified": False,
+                 "overridden": False, "variable": c["variable"]} for c in self._couplings]
 
 
 def set_values(spec: dict, values: Dict[str, float]) -> dict:
-    """A copy of the specification with variables and numeric entries changed (keys as in CustomModel)."""
-    import copy
-    out = copy.deepcopy(spec)
-    ss = out["spin_system"]
-    ss.setdefault("variables", {})
-    comps = {str(c.get("name", "")): c for c in ss["components"]}
-    for key, v in values.items():
-        m = re.match(r"^(.*):J\((\d+),(\d+)\)$", key)
-        if m:
-            c = comps.get(m.group(1))
-            if c is None:
-                raise ValueError(f"no component {m.group(1)!r}")
-            i, j = int(m.group(2)) - 1, int(m.group(3)) - 1
-            c["J"][i][j] = c["J"][j][i] = float(v)
-        elif key in ss["variables"]:
-            ss["variables"][key] = float(v)
-        else:
-            raise ValueError(f"unknown coupling {key!r} (variables {sorted(ss['variables'])} or 'name:J(i,j)')")
-    return out
+    from zulf_hypothesis.spin_system import set_values as shared
+    return shared(spec, values)
 
 
 def from_structure_model(model, name: str = "") -> dict:
     """The spin-system specification of a structure model: every isotopologue a component with its abundance
-    weight; couplings with the same value (equivalent protons, the same coupling in several isotopologues) share
-    one variable J1, J2, ... (largest first), so they move together."""
-    values = sorted({round(float(v), 6) for c in model.interpretation.components
-                     for v in np.asarray(c.system.couplings_hz, float)[np.triu_indices(len(c.system.isotopes), 1)]
-                     if abs(v) > 0}, key=lambda v: -abs(v))
-    names = {v: f"J{k + 1}" for k, v in enumerate(values)}
-    comps = []
-    for lab, c in zip(model.component_labels, model.interpretation.components):
-        J = np.asarray(c.system.couplings_hz, float)
-        n = len(c.system.isotopes)
-        cells = [[names.get(round(float(J[i, j]), 6), 0) if i != j and abs(J[i, j]) > 0 else 0 for j in range(n)]
-                 for i in range(n)]
-        comps.append({"name": lab, "isotopes": list(c.system.isotopes), "J": cells, "weight": float(c.contribution)})
+    weight; each coupling of the structure becomes one variable named after its key (J(C1,HC1) -> J_C1_HC1),
+    shared by every place it appears (equivalent protons, several isotopologues), so a fit of the spin system
+    has the structure's parameters. Couplings that are equal only by value stay separate."""
+    param_key = {n: k for k, names in model.coupling_names.items() for n in names}
+    variables, comps = {}, []
+    for c, (lab, comp) in enumerate(zip(model.component_labels, model.interpretation.components)):
+        system = comp.system
+        J = np.asarray(system.couplings_hz, float)
+        n = len(system.isotopes)
+        cells = [[0] * n for _ in range(n)]
+        gs = system.groups
+        for a in range(len(gs)):
+            for b in range(a + 1, len(gs)):
+                key = param_key.get(f"c{c}.J{a}-{b}")
+                value = float(J[gs[a][0], gs[b][0]])
+                if key is None and value == 0.0:
+                    continue
+                var = re.sub(r"[^A-Za-z0-9]+", "_", key).strip("_") if key else f"J_{lab}_{a}_{b}"
+                if not NAME.match(var):
+                    var = "J_" + var
+                variables.setdefault(var, round(value, 6))
+                for p in gs[a]:
+                    for q in gs[b]:
+                        cells[p][q] = cells[q][p] = var
+        comps.append({"name": lab, "isotopes": list(system.isotopes), "J": cells, "weight": float(comp.contribution)})
+    # abundance ratios are known for a structure: the weights are held (free amplitudes let a fit from a poor
+    # start switch one isotopologue off; ethanol: objective 0.78 instead of 0.12)
     return {"compound": name or "custom",
-            "spin_system": {"components": comps, "variables": {n: v for v, n in names.items()}}}
+            "spin_system": {"components": comps, "variables": variables, "fixed_weights": True}}
 
 
 def read_suite_molecule(folder) -> dict:

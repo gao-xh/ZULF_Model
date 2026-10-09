@@ -676,8 +676,10 @@ class SpinSystemTests(unittest.TestCase):
         s.spin_system_from_structure()
         after = [(round(l["frequency_hz"], 6), round(l["amplitude"], 6)) for l in s.lines(0.001)]
         self.assertEqual(before, after)
-        self.assertEqual({c["key"]: c["value"] for c in s.couplings()},
-                         {"J1": 141.0, "J2": 126.0, "J3": 7.0, "J4": -4.5})
+        self.assertTrue(s.spec["spin_system"]["fixed_weights"])          # abundance ratios known: held
+        self.assertEqual({c["key"]: c["value"] for c in s.couplings()},   # one variable per structure coupling,
+                         {"J_C1_HC1": 126.0, "J_C1_HC2": -4.5, "J_HC1_HC2": 7.0,   # equal values stay separate
+                          "J_C2_HC1": -4.5, "J_C2_HC2": 141.0})
 
     def test_entries_errors_and_suite_folders(self):
         s = session()
@@ -698,7 +700,7 @@ class SpinSystemTests(unittest.TestCase):
         (folder / "structure.csv").write_text("1H,2H\n0.0,7.0\n7.0,0.0\n")
         s.load_model(str(folder))
         self.assertEqual(s.components()[0]["label"], "HD")
-        with self.assertRaises(ValueError):                                       # fits come with PLAN 8d
+        with self.assertRaises(ValueError):                                       # a fit needs a loaded series
             s.fit_command()
         path = s.save_model(str(Path(s.workspace) / "hd"))["path"]
         self.assertEqual(json.loads(Path(path).read_text())["spin_system"]["components"][0]["isotopes"], ["1H", "2H"])
