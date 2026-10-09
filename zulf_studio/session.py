@@ -1486,7 +1486,8 @@ class StudioSession:
         return info
 
     # ---- export bundles ---------------------------------------------------------------------------
-    def export_bundle(self, directory: str, spectrum=("data", "simulation", "residual"), view_only: bool = False,
+    def export_bundle(self, directory: str, spectrum=("data", "fit_model", "simulation", "residual"),
+                      view_only: bool = False,
                       formats=("csv",), fid: bool = False, parameters: bool = True, fit: bool = True) -> dict:
         """One folder that can be shared: spectrum.csv (frequency_hz and, per chosen source, real, imaginary,
         magnitude; header line), spectrum.npz (complex, with csv or alone), fid.csv (time_s, signal of the source
@@ -1524,9 +1525,11 @@ class StudioSession:
             cols = {"frequency_hz": fq}
             arrays = {"frequency_hz": fq}
             series = {"simulation": np.asarray(sim["sim_re"]) + 1j * np.asarray(sim["sim_im"])}
+            if "fit_re" in sim:                       # the applied fit's own model (as drawn in Fit mode)
+                series["fit_model"] = np.asarray(sim["fit_re"]) + 1j * np.asarray(sim["fit_im"])
             if "data_re" in sim:
                 series["data"] = np.asarray(sim["data_re"]) + 1j * np.asarray(sim["data_im"])
-                series["residual"] = series["data"] - series["simulation"]
+                series["residual"] = series["data"] - series.get("fit_model", series["simulation"])
             for name in spectrum:
                 if name in series:
                     z = series[name]

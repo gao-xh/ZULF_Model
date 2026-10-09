@@ -193,7 +193,12 @@ class ExportDialog(QDialog):
         has_data = session.data is not None
         self.c_data = QCheckBox("data (as loaded, with the display phase)", checked=saved.get("data", True))
         self.c_sim = QCheckBox("simulation (quick look: Lorentzian lines, one rate)", checked=saved.get("sim", True))
-        self.c_res = QCheckBox("residual (data - simulation)", checked=saved.get("res", False))
+        has_fit = session._fit_curve_shown() is not None
+        self.c_fitm = QCheckBox("fit model (the applied fit's own forward model, as drawn in Fit mode)",
+                                checked=has_fit and saved.get("fitm", True))
+        self.c_fitm.setEnabled(has_fit)
+        self.c_res = QCheckBox("residual (data - fit model, or data - simulation without an applied fit)",
+                               checked=saved.get("res", False))
         for c in (self.c_data, self.c_res):
             c.setEnabled(has_data)
         row = QHBoxLayout()
@@ -205,7 +210,7 @@ class ExportDialog(QDialog):
         for w in (self.r_full, self.r_view, QLabel("   format"), self.f_csv, self.f_npz):
             row.addWidget(w)
         row.addStretch(1)
-        for w in (self.c_data, self.c_sim, self.c_res):
+        for w in (self.c_data, self.c_fitm, self.c_sim, self.c_res):
             sl.addWidget(w)
         sl.addLayout(row)
         lay.addWidget(spec)
@@ -266,6 +271,7 @@ class ExportDialog(QDialog):
 
     def _accept(self):
         choice = {"data": self.c_data.isChecked(), "sim": self.c_sim.isChecked(), "res": self.c_res.isChecked(),
+                  "fitm": self.c_fitm.isChecked(),
                   "view_only": self.r_view.isChecked(), "csv": self.f_csv.isChecked(), "npz": self.f_npz.isChecked(),
                   "fid": self.c_fid.isChecked(), "par": self.c_par.isChecked(), "fit": self.c_fit.isChecked(),
                   "plot": self.c_plot.isChecked(), "png": self.p_png.isChecked(), "pdf": self.p_pdf.isChecked(),
@@ -273,8 +279,8 @@ class ExportDialog(QDialog):
         self.settings.setValue("export/choice", json.dumps(choice))
         self.settings.setValue("export/dir", self.dir.text().strip())
         out = Path(self.dir.text().strip()).expanduser() / self.name.text().strip()
-        spectrum = tuple(n for n, on in (("data", choice["data"]), ("simulation", choice["sim"]),
-                                         ("residual", choice["res"])) if on)
+        spectrum = tuple(n for n, on in (("data", choice["data"]), ("fit_model", choice["fitm"]),
+                                         ("simulation", choice["sim"]), ("residual", choice["res"])) if on)
         formats = tuple(f for f, on in (("csv", choice["csv"]), ("npz", choice["npz"])) if on) or ("csv",)
         try:
             self.result = self.session.export_bundle(str(out), spectrum=spectrum, view_only=choice["view_only"],

@@ -168,6 +168,9 @@ class FitPlumbingTests(unittest.TestCase):
             self.assertAlmostEqual(curve["objective"], fit["scores"][0], places=10)
             sim = s.simulate()
             self.assertIn("fit_re", sim)                                  # drawn instead of the quick look
+            s.export_bundle(str(tmp / "export"), formats=("csv",), parameters=False, fit=False)
+            header = (tmp / "export" / "spectrum.csv").read_text().splitlines()[0].split(",")
+            self.assertIn("fit_model_real", header)                       # exported as drawn
             s.set_couplings({"J(C1,HC1)": 136.0})                         # parameters no longer the fit's
             self.assertNotIn("fit_re", s.simulate())
 

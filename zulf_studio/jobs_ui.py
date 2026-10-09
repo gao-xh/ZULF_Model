@@ -295,7 +295,7 @@ class AnalysisPanel(QWidget):
         left.addWidget(hint)
         self.view = QTextBrowser()
         self.view.setOpenExternalLinks(True)
-        self.view.setPlaceholderText("the report appears here when the analysis has written it")
+        self.view.setPlaceholderText("the report appears here")
         lay.addLayout(left)
         lay.addWidget(self.view, 1)
         self.shown = None

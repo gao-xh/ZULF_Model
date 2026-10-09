@@ -189,7 +189,8 @@ free, and starting more than the free cores asks first. Several fits with many t
   dot while there are unsaved changes; closing or opening another file asks first, and closing while jobs run
   asks too (they keep running).
 - **Export** (Cmd+E): a dialog for one folder (`<name>_<time>`, place remembered) with any of: the spectrum
-  (data, simulation, residual; whole spectrum or the view; `spectrum.csv` with the header `frequency_hz,
+  (data, fit model of an applied fit, simulation, residual = data - fit model (data - simulation without a
+  fit); whole spectrum or the view; `spectrum.csv` with the header `frequency_hz,
   data_real, data_imaginary, data_magnitude, simulation_...` and/or `spectrum.npz` with complex arrays), the
   FID (`fid.csv`: time_s, signal), the parameters (`parameters.json`, `couplings.csv`, `lines.csv`, the session
   file), the applied fit (`applied_fit.json`, `applied_J_table.csv`), the plot (PNG, PDF, SVG), and always

@@ -453,6 +453,7 @@ class StudioWindow(QMainWindow):
         sec_struct = Section("2  Model", "structure", self.settings_store)
         sec_struct.add(self._model_summary_box())
         self.model_editor = self._model_editor()       # the model is built in its own window (owner, 2026-10-09)
+        self.json_toggle.setChecked(True)              # the editor window has room for the structure JSON
         sec_disp = Section("Display", "display", self.settings_store, open_default=False)
         sec_disp.add(self._display_box())
         self.coupling_box = QWidget()
@@ -507,7 +508,8 @@ class StudioWindow(QMainWindow):
         self._margins = {"nrows": 1}
         self.canvas.mpl_connect("resize_event", lambda _e: (pixel_margins(self.fig, self.canvas, **self._margins),
                                                             self.canvas.draw_idle()))
-        nav = NavigationToolbar2QT(self.canvas, self)
+        nav = self.nav = NavigationToolbar2QT(self.canvas, self)
+        self._theme_nav()
         nav.setIconSize(QSize(14, 14))
         for spin in (self.view_lo, self.view_hi):
             spin.setMaximumWidth(84)
@@ -702,13 +704,10 @@ class StudioWindow(QMainWindow):
         lay.addWidget(self.model_summary)
         self.molecule_view = MoleculeView(self.session, self)
         lay.addWidget(self.molecule_view)
-        row = QHBoxLayout()
         edit = QPushButton("Edit model ...", objectName="small")
         edit.setToolTip("motif, structure JSON, molecule (SMILES or mol file) or a spin system with its J matrix")
         edit.clicked.connect(self.open_model_editor)
-        row.addWidget(edit)
-        row.addStretch(1)
-        lay.addLayout(row)
+        self.molecule_view.row.addWidget(edit)         # one row: view, protons, Edit model
         return box
 
     def _update_model_summary(self):
@@ -799,7 +798,7 @@ class StudioWindow(QMainWindow):
         row.addWidget(self.motif, 1)
         self.spec_edit = QPlainTextEdit()
         self.spec_edit.setObjectName("mono")
-        self.spec_edit.setFixedHeight(120)
+        self.spec_edit.setMinimumHeight(220)
         build = QPushButton("Build")
         self.spec_edit.setVisible(False)
         build.setVisible(False)
@@ -818,6 +817,7 @@ class StudioWindow(QMainWindow):
         r2.addWidget(self.exchange)
         lay.addLayout(r2)
         lay.addWidget(build)
+        lay.addStretch(1)                             # the form stays at the top of the editor window
         self.spin_editor = SpinSystemEditor(self.session, self)
         self.model_stack.addWidget(box)
         self.model_stack.addWidget(self.spin_editor)
@@ -1043,7 +1043,7 @@ class StudioWindow(QMainWindow):
         self.f_workers.setToolTip("worker processes (one start each at a time, one BLAS thread each); the default "
                                   "is what the machine has free (status bar: analysis workers / cores)")
         self.f_nfev = QSpinBox(minimum=10, maximum=5000, value=300, singleStep=50)
-        self.f_trace = QSpinBox(minimum=0, maximum=400, value=40)
+        self.f_trace = QSpinBox(minimum=0, maximum=400, value=0)   # trace.json frames; the Monitor records every step
         self.f_precision = QComboBox()
         for text, value in (("0.1 Hz", 0.1), ("0.01 Hz (default)", 0.01), ("0.001 Hz", 0.001), ("0.0001 Hz", 0.0001),
                             ("run to the tolerances", 0.0)):
@@ -1066,7 +1066,7 @@ class StudioWindow(QMainWindow):
         self.f_rates = QLineEdit("0.2,15")
         self.f_extra = QLineEdit(placeholderText="extra fit_joint_series options, e.g. --model-line-passes 1")
         for label, wid in (("starts", self.f_starts), ("workers", self.f_workers), ("max evaluations", self.f_nfev),
-                           ("trace frames", self.f_trace), ("coupling precision", self.f_precision), ("", self.f_field), ("rate families", self.f_edges),
+                           ("coupling precision", self.f_precision), ("", self.f_field), ("rate families", self.f_edges),
                            ("rate bounds (1/s)", self.f_rates), ("extra", self.f_extra)):
             form.addRow(label, wid)
         btns = QHBoxLayout()
@@ -1443,11 +1443,22 @@ class StudioWindow(QMainWindow):
                 dark = False
         self.t = DARK if dark else LIGHT
         QApplication.instance().setStyleSheet(stylesheet(self.t))
+        if hasattr(self, "nav"):
+            self._theme_nav()
         if hasattr(self, "fig"):
             self.fig.set_facecolor(self.t["panel"])
             if hasattr(self, "ai_creds"):
                 self._ai_provider_changed()
             self.schedule()
+
+    def _theme_nav(self):
+        """matplotlib draws the toolbar icons black or white from the palette, not from the style sheet."""
+        pal = self.nav.palette()
+        pal.setColor(self.nav.backgroundRole(), QColor(self.t["panel"]))
+        self.nav.setPalette(pal)
+        for text, _tip, image, callback in self.nav.toolitems:
+            if text is not None and callback in getattr(self.nav, "_actions", {}):
+                self.nav._actions[callback].setIcon(self.nav._icon(image + ".png"))
 
     def _menu(self):
         def action(menu, text, slot, shortcut=None, role=None):
@@ -1979,6 +1990,12 @@ class StudioWindow(QMainWindow):
         self.exchange.blockSignals(False)
         if not self.spec_edit.hasFocus():
             self.spec_edit.setPlainText(json.dumps(s.spec, indent=1))
+        motif = s.spec.get("motif") if set(s.spec) <= {"motif", "one_bond", "compound", "molecule"} else None
+        want = motif if motif and self.motif.findText(motif) >= 0 else "(custom JSON below)"
+        if self.motif.currentText() != want:                 # the chooser shows the current model
+            self.motif.blockSignals(True)
+            self.motif.setCurrentText(want)
+            self.motif.blockSignals(False)
 
     def update_fit_status(self):
         st = self.session.fit_status()

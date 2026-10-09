@@ -186,7 +186,7 @@ class MoleculeView(QWidget):
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setMinimumHeight(420 if large else 120)
         if not large:
-            self.canvas.setMaximumHeight(170)
+            self.canvas.setMaximumHeight(150)
             self.canvas.setCursor(Qt.PointingHandCursor)
             self.canvas.mpl_connect("button_press_event", lambda _e: self.open_large())
         self.canvas.mpl_connect("resize_event", lambda _e: self.refresh(force=True))   # fonts follow the size
@@ -194,7 +194,7 @@ class MoleculeView(QWidget):
         self.caption = QLabel(objectName="hint", wordWrap=True)
         self.caption.setVisible(large)
         lay.addWidget(self.caption)
-        row = QHBoxLayout()
+        row = self.row = QHBoxLayout()
         self.view = QComboBox()
         self.view.addItems(["molecule", "spin network"])
         self.view.setToolTip("a spin system with a molecule: draw the molecule or the spin network")
