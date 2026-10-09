@@ -174,10 +174,9 @@ class JobsPanel(QWidget):
         for b in (self.b_stop, self.b_open, self.b_apply, self.b_report):
             row.addWidget(b)
         row.addStretch(1)
-        self.hint = QLabel("Jobs run as separate processes with one BLAS thread per worker; the status bar shows "
-                           "the running one on every tab.", objectName="hint")
-        row.addWidget(self.hint)
         lay.addLayout(row)
+        self.table.setToolTip("Jobs run as separate processes with one BLAS thread per worker; fits started outside "
+                              "Studio are listed too. The status bar shows the running one on every tab.")
         self.b_stop.clicked.connect(lambda: self._with(lambda st: self.session.stop_job(st["index"])))
         self.b_open.clicked.connect(lambda: self._with(lambda st: open_folder(st["out_dir"])))
         self.b_apply.clicked.connect(lambda: self._with(lambda st: self.session.apply_fit(st["out_dir"])))

@@ -412,7 +412,7 @@ class StudioWindow(QMainWindow):
         scroll.setWidget(left)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(440)
+        scroll.setMinimumWidth(370)
 
         # ---- centre: the plot with one slim bar; below it a drawer (lines, jobs, log, AI) ----
         center = QWidget(objectName="plotCard")
@@ -436,9 +436,11 @@ class StudioWindow(QMainWindow):
         self.fig = Figure(figsize=(8, 6), layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
         nav = NavigationToolbar2QT(self.canvas, self)
-        nav.setIconSize(QSize(15, 15))
-        for w in (QLabel("View"), self.view_lo, QLabel("to"), self.view_hi, QLabel("Hz"), QLabel("  Part"), self.part,
-                  QLabel(" "), self.show_sticks, self.show_trace, self.lock_scale):
+        nav.setIconSize(QSize(14, 14))
+        for spin in (self.view_lo, self.view_hi):
+            spin.setMaximumWidth(84)
+        for w in (QLabel("View"), self.view_lo, QLabel("-"), self.view_hi, QLabel("Hz"), self.part,
+                  self.show_sticks, self.show_trace, self.lock_scale):
             bar.addWidget(w)
         bar.addStretch(1)
         bar.addWidget(nav)
@@ -476,7 +478,7 @@ class StudioWindow(QMainWindow):
                            "blind": self.analysis_panel}
         for page in self.mode_pages.values():
             self.right_stack.addWidget(page)
-        self.right_stack.setMinimumWidth(360)
+        self.right_stack.setMinimumWidth(300)
         self.tabs = self.run_tabs                        # old name (scripts, tests)
         self.settings = self._settings_dialog()          # AI configuration, API, appearance (menu: Settings)
         self.tools = self._tools_window()                # terminal and Python console (menu: Tools)
@@ -491,7 +493,7 @@ class StudioWindow(QMainWindow):
         main.addWidget(middle)
         main.addWidget(self.right_stack)
         main.setCollapsible(1, False)
-        main.setSizes([450, 720, 360])
+        main.setSizes([400, 760, 330])
         main.setStretchFactor(1, 1)
         self.splitters = {"middle3": middle, "main3": main}
         header = QWidget(objectName="header")
@@ -1360,6 +1362,12 @@ class StudioWindow(QMainWindow):
         geo = self.settings_store.value("geometry")
         if geo is not None:
             self.restoreGeometry(geo)
+        screen = QApplication.primaryScreen()
+        if screen is not None:                          # never larger than the screen (a laptop: 1470 x 867)
+            avail = screen.availableGeometry()
+            if geo is None or self.width() > avail.width() or self.height() > avail.height():
+                self.resize(min(1500, avail.width()), min(950, avail.height()))
+                self.move(avail.topLeft())
         for name, sp in self.splitters.items():
             state = self.settings_store.value(f"splitter/{name}")
             if state is not None:

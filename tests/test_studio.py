@@ -516,6 +516,7 @@ class FilesAndJobsTests(unittest.TestCase):
         except ImportError:
             self.skipTest("PySide6 not installed")
         s = session(METHYL)
+        s.external_runs = lambda: []                                 # fits of other programs on this machine
         m = s.machine_status()
         self.assertGreaterEqual(m["cores"]["logical"], 1)
         self.assertGreaterEqual(m["suggested_workers"], 1)
@@ -523,6 +524,7 @@ class FilesAndJobsTests(unittest.TestCase):
         w = StudioWindow(s)
         w.update_jobs()
         self.assertIn("idle", w.activity.text.text())
+        self.assertLessEqual(w.minimumSizeHint().width(), 1400)     # fits a 1470 px laptop screen
         self.assertIn("cores", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
         self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Log", "AI assistant"])
