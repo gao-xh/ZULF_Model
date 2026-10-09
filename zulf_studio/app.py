@@ -19,7 +19,7 @@ for _var in ("VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS"
     os.environ.setdefault(_var, "1")                  # window should not compete with the fits it starts
 
 import numpy as np
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QItemSelectionModel, QObject, QProcess, QProcessEnvironment, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
@@ -1834,6 +1834,16 @@ class StudioWindow(QMainWindow):
         lines = [r for r in lines if r["relative"] >= lo and (not only or r["component"] == only)]
         self.lines_count.setText(f"{len(lines)} lines in {self.session.view[0]:.0f}-{self.session.view[1]:.0f} Hz")
         t = self.lines_table
+        signature = tuple((r["component"], round(r["frequency_hz"], 6), round(r["relative"], 6),
+                           round(r["amplitude"], 6)) for r in lines)
+        if signature == getattr(self, "_lines_signature", None):
+            return                                    # unchanged (a redraw for a marked line): keep rows, selection
+        self._lines_signature = signature
+        marked = set(getattr(self, "marked_lines", []))
+        scroll = t.verticalScrollBar().value()
+        t.blockSignals(True)
+        t.selectionModel().blockSignals(True)
+        t.clearSelection()
         mono = QFont("Menlo")
         mono.setStyleHint(QFont.Monospace)
         t.setSortingEnabled(False)
@@ -1857,6 +1867,16 @@ class StudioWindow(QMainWindow):
             for j, it in enumerate((name, freq, rel, amp)):
                 t.setItem(i, j, it)
         t.setSortingEnabled(True)
+        for i in range(t.rowCount()):                 # the marked lines stay selected, by frequency (rows re-sort)
+            item = t.item(i, 1)
+            if item is not None and float(item.data(Qt.UserRole)) in marked:
+                t.selectionModel().select(t.model().index(i, 0),
+                                          QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        t.selectionModel().blockSignals(False)
+        t.blockSignals(False)
+        t.verticalScrollBar().setValue(scroll)
+        self.marked_lines = sorted(float(t.item(r.row(), 1).data(Qt.UserRole))
+                                   for r in t.selectionModel().selectedRows() if t.item(r.row(), 1) is not None)
 
     # ---- plot --------------------------------------------------------------------------------
     def _draw_process(self):

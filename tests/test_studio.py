@@ -255,6 +255,13 @@ class WindowSmokeTests(unittest.TestCase):
         self.assertAlmostEqual(w.coupling_rows["J(C1,HC1)"].value(), 131.0)
         w.redraw()
         self.assertGreater(w.lines_table.rowCount(), 0)
+        t = w.lines_table                                             # a click marks a line; the redraw it
+        t.sortItems(0)                                                # causes keeps that line selected
+        t.selectRow(t.rowCount() - 1)
+        freq = t.item(t.rowCount() - 1, 1).text()
+        w.redraw()
+        rows = [r.row() for r in t.selectionModel().selectedRows()]
+        self.assertEqual([t.item(r, 1).text() for r in rows], [freq])
         w.close()
 
     def test_monitor_tab_waits_for_a_record_then_shows_starts_and_couplings(self):
