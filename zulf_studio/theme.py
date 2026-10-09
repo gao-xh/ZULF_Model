@@ -111,6 +111,12 @@ QLabel#pill {{ background: {t['accent_soft']}; color: {t['accent']}; border-radi
 QLabel#pillwarn {{ background: {t['panel2']}; color: {t['bad']}; border: 1px solid {t['bad']}; border-radius: 10px;
                   padding: 2px 9px; font-weight: 600; }}
 QPushButton#small {{ padding: 2px 9px; border-radius: 6px; font-size: 12px; }}
+QWidget#section {{ background: {t['panel']}; border: 1px solid {t['line']}; border-radius: 10px; }}
+QWidget#sectionHead, QWidget#sectionBody {{ background: transparent; border: none; }}
+QToolButton#sectionToggle {{ border: none; background: transparent; color: {t['ink']}; font-size: 12px;
+                            font-weight: 700; letter-spacing: 0.5px; padding: 0; }}
+QWidget#plotCard {{ background: {t['panel']}; border: 1px solid {t['line']}; border-radius: 10px; }}
+QLabel#dataInfo {{ color: {t['ink']}; }}
 QSplitter::handle {{ background: {t['bg']}; }}
 QToolBar {{ background: transparent; border: none; }}
 QMenuBar {{ background: {t['panel']}; }}

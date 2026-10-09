@@ -18,13 +18,14 @@ for _var in ("VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS"
     os.environ.setdefault(_var, "1")                  # window should not compete with the fits it starts
 
 import numpy as np
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QSplitter,
-                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
+                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolButton, QVBoxLayout,
+                               QWidget)
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -35,6 +36,7 @@ from matplotlib.figure import Figure  # noqa: E402
 from .api import TOOLS, StudioAPI, serve  # noqa: E402
 from .jobs_ui import ActivityIndicator, AnalysisPanel, JobsPanel, MachineLabel, confirm_workers, job_line  # noqa: E402
 from .session import SESSION_SUFFIX  # noqa: E402
+from .dialogs import ExportDialog, ImportDialog  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
@@ -101,14 +103,15 @@ class ValueSlider(QWidget):
         grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(0)
         self.name = QLabel(label)
-        self.name.setMinimumWidth(96)
+        self.name.setMinimumWidth(78)
         self.spin = QDoubleSpinBox()
         self.spin.setDecimals(decimals)
         self.spin.setRange(min(lo, value), max(hi, value))
         self.spin.setSingleStep(10 ** -min(decimals, 2))
         self.spin.setKeyboardTracking(False)
         self.spin.setSuffix(f" {unit}" if unit else "")
-        self.spin.setMinimumWidth(104)
+        self.spin.setMinimumWidth(100)
+        self.spin.setMaximumWidth(118)
         self.coarse = QSlider(Qt.Horizontal)
         self.coarse.setRange(0, 1000)
         grid.addWidget(self.name, 0, 0)
@@ -120,6 +123,7 @@ class ValueSlider(QWidget):
             self.fine.setRange(-500, 500)
             fl = QLabel(f"fine +-{fine:g}")
             fl.setObjectName("fine")
+            self.fine_label = fl
             self.fine.setObjectName("fineSlider")
             grid.addWidget(fl, 1, 0)
             grid.addWidget(self.fine, 1, 1)
@@ -188,6 +192,62 @@ class ValueSlider(QWidget):
 
     def value(self):
         return self.spin.value()
+
+    def show_fine(self, on: bool):
+        """Show or hide the fine slider row (hidden keeps the panel compact; the spin box stays exact)."""
+        if self.fine is not None:
+            self.fine.setVisible(on)
+            self.fine_label.setVisible(on)
+
+
+def studio_settings() -> QSettings:
+    """Window settings (geometry, splitters, sections, recent files, dialog folders). ZULF_STUDIO_SETTINGS=FILE
+    keeps them in that INI file instead (tests, so they never touch the user's own settings)."""
+    path = os.environ.get("ZULF_STUDIO_SETTINGS")
+    return QSettings(path, QSettings.IniFormat) if path else QSettings("ZULF", "Studio")
+
+
+class Section(QWidget):
+    """A titled card whose body folds away (state kept in QSettings under section/<key>)."""
+
+    def __init__(self, title, key, settings, extra=None, parent=None):
+        super().__init__(parent)
+        self.key, self.settings = key, settings
+        self.setObjectName("section")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        head = QWidget(objectName="sectionHead")
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(12, 7, 10, 7)
+        self.toggle = QToolButton(objectName="sectionToggle", text=title, checkable=True)
+        self.toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toggle.setArrowType(Qt.DownArrow)
+        hl.addWidget(self.toggle)
+        hl.addStretch(1)
+        if extra is not None:
+            hl.addWidget(extra)
+        self.body = QWidget(objectName="sectionBody")
+        self.body_lay = QVBoxLayout(self.body)
+        self.body_lay.setContentsMargins(12, 2, 12, 10)
+        outer.addWidget(head)
+        outer.addWidget(self.body)
+        collapsed = str(settings.value(f"section/{key}", "false")).lower() == "true"
+        self.toggle.setChecked(not collapsed)
+        self._apply(not collapsed)
+        self.toggle.toggled.connect(self._apply)
+
+    def _apply(self, open_):
+        self.body.setVisible(open_)
+        self.toggle.setArrowType(Qt.DownArrow if open_ else Qt.RightArrow)
+        self.settings.setValue(f"section/{self.key}", "false" if open_ else "true")
+
+    def add(self, widget_or_layout):
+        if isinstance(widget_or_layout, QWidget):
+            self.body_lay.addWidget(widget_or_layout)
+        else:
+            self.body_lay.addLayout(widget_or_layout)
 
 
 class Console(QWidget):
@@ -313,24 +373,46 @@ class StudioWindow(QMainWindow):
         self.status_timer.timeout.connect(self.update_jobs)
         self.status_timer.start()
 
-        left = QWidget()
+        self.settings_store = studio_settings()
+        # ---- left: the workflow in order (data, structure, couplings, field), folding sections ----
+        left = QWidget(objectName="sidebar")
         self.left_lay = QVBoxLayout(left)
-        self.left_lay.addWidget(self._structure_box())
-        self.coupling_box = QGroupBox("Couplings (Hz)")
+        self.left_lay.setContentsMargins(8, 8, 16, 8)
+        self.left_lay.setSpacing(8)
+        self.fine_toggle = QCheckBox("fine sliders")
+        self.fine_toggle.setToolTip("a second, fine slider under every coupling, field and phase slider")
+        self.fine_toggle.setChecked(str(self.settings_store.value("fine_sliders", "false")).lower() == "true")
+        self.fine_toggle.toggled.connect(self._show_fine)
+        self.json_toggle = QPushButton("JSON", objectName="small", checkable=True)
+        self.json_toggle.setToolTip("show the structure specification as editable JSON")
+        sec_data = Section("1  Data", "data", self.settings_store)
+        sec_data.add(self._data_box())
+        sec_struct = Section("2  Structure", "structure", self.settings_store, extra=self.json_toggle)
+        sec_struct.add(self._structure_box())
+        self.coupling_box = QWidget()
         self.coupling_lay = QVBoxLayout(self.coupling_box)
-        self.left_lay.addWidget(self.coupling_box)
-        self.left_lay.addWidget(self._field_box())
-        self.left_lay.addWidget(self._data_box())
+        self.coupling_lay.setContentsMargins(0, 0, 0, 0)
+        self.coupling_lay.setSpacing(0)
+        sec_coup = Section("3  Couplings (Hz)", "couplings", self.settings_store, extra=self.fine_toggle)
+        sec_coup.add(self.coupling_box)
+        sec_field = Section("4  Field and line width", "field", self.settings_store)
+        sec_field.add(self._field_box())
+        for sec in (sec_data, sec_struct, sec_coup, sec_field):
+            self.left_lay.addWidget(sec)
         self.left_lay.addStretch(1)
         scroll = QScrollArea()
         scroll.setWidget(left)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(500)
+        scroll.setMinimumWidth(440)
 
-        center = QWidget()
+        # ---- centre: the plot with one slim bar; below it a drawer (lines, jobs, log, AI) ----
+        center = QWidget(objectName="plotCard")
         cl = QVBoxLayout(center)
+        cl.setContentsMargins(10, 6, 10, 4)
+        cl.setSpacing(2)
         bar = QHBoxLayout()
+        bar.setSpacing(6)
         self.view_lo = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.view_hi = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.part = QComboBox()
@@ -342,14 +424,17 @@ class StudioWindow(QMainWindow):
         self.lock_scale.toggled.connect(lambda on: self._guard(self.session.lock_scale, on))
         self.field_label = QLabel()
         self.field_label.setObjectName("badge")
-        for w in (QLabel("View"), self.view_lo, QLabel("to"), self.view_hi, QLabel("Hz"), QLabel("   Part"), self.part,
-                  QLabel("  "), self.show_sticks, self.show_trace, self.lock_scale):
-            bar.addWidget(w)
-        bar.addStretch(1)
+        self.field_label.setWordWrap(True)
         self.fig = Figure(figsize=(8, 6), layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        nav = NavigationToolbar2QT(self.canvas, self)
+        nav.setIconSize(QSize(15, 15))
+        for w in (QLabel("View"), self.view_lo, QLabel("to"), self.view_hi, QLabel("Hz"), QLabel("  Part"), self.part,
+                  QLabel(" "), self.show_sticks, self.show_trace, self.lock_scale):
+            bar.addWidget(w)
+        bar.addStretch(1)
+        bar.addWidget(nav)
         cl.addLayout(bar)
-        cl.addWidget(NavigationToolbar2QT(self.canvas, self))
         cl.addWidget(self.canvas, 1)
         self.view_lo.valueChanged.connect(self._view_from_spins)
         self.view_hi.valueChanged.connect(self._view_from_spins)
@@ -357,34 +442,45 @@ class StudioWindow(QMainWindow):
         self.show_sticks.toggled.connect(lambda _: self.schedule())
         self.show_trace.toggled.connect(lambda _: self.schedule())
 
-        self.tabs = QTabWidget()
-        self.tabs.addTab(self._lines_tab(), "Lines")
-        self.tabs.addTab(self._fit_tab(), "Fit")
-        self.tabs.addTab(self._figure_tab(), "Figure")
-        self.analysis_panel = AnalysisPanel(self.session, self)
-        self.tabs.addTab(self.analysis_panel, "Analysis")
+        self.info_tabs = QTabWidget(objectName="drawer")
+        self.info_tabs.addTab(self._lines_tab(), "Lines")
         self.jobs_panel = JobsPanel(self.session)
-        self.tabs.addTab(self.jobs_panel, "Jobs")
+        self.info_tabs.addTab(self.jobs_panel, "Jobs")
         self.log_view = QPlainTextEdit(readOnly=True)
         self.log_view.setObjectName("mono")
         self.log_view.setMaximumBlockCount(5000)
-        self.tabs.addTab(self.log_view, "Log")
-        self.tabs.addTab(self._ai_tab(), "AI assistant")
+        self.info_tabs.addTab(self.log_view, "Log")
+        self.info_tabs.addTab(self._ai_tab(), "AI assistant")
+
+        # ---- right: what to run (fit, blind analysis, publication figure) ----
+        self.run_tabs = QTabWidget(objectName="runTabs")
+        self.fit_page = self._fit_tab()
+        self.run_tabs.addTab(self.fit_page, "Fit")
+        self.analysis_panel = AnalysisPanel(self.session, self)
+        self.run_tabs.addTab(self.analysis_panel, "Analysis")
+        self.figure_page = self._figure_tab()
+        self.run_tabs.addTab(self.figure_page, "Figure")
+        self.run_tabs.setMinimumWidth(360)
+        self.tabs = self.run_tabs                        # old name (scripts, tests)
         self.settings = self._settings_dialog()          # AI configuration, API, appearance (menu: Settings)
         self.tools = self._tools_window()                # terminal and Python console (menu: Tools)
 
-        right = QSplitter(Qt.Vertical)
-        right.addWidget(center)
-        right.addWidget(self.tabs)
-        right.setSizes([620, 330])
+        middle = QSplitter(Qt.Vertical)
+        middle.addWidget(center)
+        middle.addWidget(self.info_tabs)
+        middle.setCollapsible(0, False)
+        middle.setSizes([720, 190])
         main = QSplitter(Qt.Horizontal)
         main.addWidget(scroll)
-        main.addWidget(right)
-        main.setSizes([510, 990])
-        self.splitters = {"right": right, "main": main}
+        main.addWidget(middle)
+        main.addWidget(self.run_tabs)
+        main.setCollapsible(1, False)
+        main.setSizes([450, 720, 360])
+        main.setStretchFactor(1, 1)
+        self.splitters = {"middle3": middle, "main3": main}
         header = QWidget(objectName="header")
         hl = QHBoxLayout(header)
-        hl.setContentsMargins(16, 10, 16, 10)
+        hl.setContentsMargins(16, 8, 16, 8)
         title = QLabel("ZULF Studio", objectName="title")
         self.subtitle = QLabel(objectName="subtitle")
         hl.addWidget(title)
@@ -394,8 +490,6 @@ class StudioWindow(QMainWindow):
         self.busy_pill = QLabel(objectName="pill")
         self.busy_pill.hide()
         hl.addWidget(self.busy_pill)
-        hl.addSpacing(8)
-        hl.addWidget(self.field_label)
         root = QWidget(objectName="root")
         rl = QVBoxLayout(root)
         rl.setContentsMargins(0, 0, 0, 0)
@@ -403,7 +497,7 @@ class StudioWindow(QMainWindow):
         rl.addWidget(header)
         body = QWidget()
         bl = QVBoxLayout(body)
-        bl.setContentsMargins(10, 8, 10, 6)
+        bl.setContentsMargins(8, 8, 8, 6)
         bl.addWidget(main)
         rl.addWidget(body, 1)
         self.setCentralWidget(root)
@@ -411,7 +505,6 @@ class StudioWindow(QMainWindow):
         self.machine = MachineLabel(self.session)
         self.statusBar().addPermanentWidget(self.machine)
         self.statusBar().addPermanentWidget(self.activity)
-        self.settings_store = QSettings("ZULF", "Studio")
         self.setAcceptDrops(True)
         self._menu()
         self._restore_layout()
@@ -423,9 +516,21 @@ class StudioWindow(QMainWindow):
         self.schedule()
 
     # ---- left panels -----------------------------------------------------------------------
+    def _show_fine(self, on):
+        self.settings_store.setValue("fine_sliders", "true" if on else "false")
+        for w in list(self.coupling_rows.values()) + [self.b_t, self.b_z, self.phase, self.delay]:
+            w.show_fine(on)
+
+    def show_page(self, widget):
+        """Bring a page forward in whichever tab group holds it (run panel or drawer)."""
+        for tabs in (self.run_tabs, self.info_tabs):
+            if tabs.indexOf(widget) >= 0:
+                tabs.setCurrentWidget(widget)
+
     def _structure_box(self):
-        box = QGroupBox("Structure")
+        box = QWidget()
         lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
         row = QHBoxLayout()
         self.motif = QComboBox()
         self.motif.addItem("(custom JSON below)")
@@ -436,12 +541,13 @@ class StudioWindow(QMainWindow):
         self.exchange.setToolTip("exchangeable N-H / O-H protons: fast = decoupled, slow = kept")
         row.addWidget(QLabel("motif"))
         row.addWidget(self.motif, 1)
-        row.addWidget(QLabel("N-H/O-H"))
-        row.addWidget(self.exchange)
         self.spec_edit = QPlainTextEdit()
         self.spec_edit.setObjectName("mono")
-        self.spec_edit.setFixedHeight(92)
+        self.spec_edit.setFixedHeight(120)
         build = QPushButton("Build")
+        self.spec_edit.setVisible(False)
+        build.setVisible(False)
+        self.json_toggle.toggled.connect(lambda on: (self.spec_edit.setVisible(on), build.setVisible(on)))
         build.clicked.connect(self.build_structure)
         self.motif.currentTextChanged.connect(self._motif_chosen)
         self.exchange.currentTextChanged.connect(lambda m: self._guard(self.session.set_exchange, m))
@@ -451,8 +557,10 @@ class StudioWindow(QMainWindow):
         lay.addWidget(self.spec_edit)
         r2 = QHBoxLayout()
         r2.addWidget(self.components_label, 1)
-        r2.addWidget(build)
+        r2.addWidget(QLabel("N-H/O-H"))
+        r2.addWidget(self.exchange)
         lay.addLayout(r2)
+        lay.addWidget(build)
         return box
 
     def _motif_chosen(self, name):
@@ -469,8 +577,9 @@ class StudioWindow(QMainWindow):
         self._guard(self.session.set_structure, spec)
 
     def _field_box(self):
-        box = QGroupBox("Static field and line width")
+        box = QWidget()
         lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
         s = self.session
         self.b_t = ValueSlider("B transverse", 0.0, 300.0, s.field_nt[0], 1, "nT", fine=5.0)
         self.b_z = ValueSlider("B z", 0.0, 300.0, s.field_nt[1], 1, "nT", fine=5.0)
@@ -479,22 +588,36 @@ class StudioWindow(QMainWindow):
         self.b_t.value_changed.connect(lambda v: self.session.set_field(transverse_nt=v))
         self.b_z.value_changed.connect(lambda v: self.session.set_field(z_nt=v))
         self.rate.value_changed.connect(self.session.set_linewidth)
-        for w in (self.b_t, self.b_z, self.b_mag, self.rate):
-            lay.addWidget(w)
-        zero = QPushButton("Zero field")
+        self.b_mag.setObjectName("hint")
+        zero = QPushButton("Zero field", objectName="small")
         zero.clicked.connect(lambda: self.session.set_field(0.0, 0.0))
-        lay.addWidget(zero)
+        mag_row = QHBoxLayout()
+        mag_row.addWidget(self.b_mag, 1)
+        mag_row.addWidget(zero)
+        for w in (self.b_t, self.b_z):
+            lay.addWidget(w)
+        lay.addLayout(mag_row)
+        lay.addWidget(self.rate)
+        for w in (self.b_t, self.b_z):
+            w.show_fine(self.fine_toggle.isChecked())
         return box
 
     def _data_box(self):
-        box = QGroupBox("Experimental spectrum")
+        box = QWidget()
         lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.data_label = QLabel("no spectrum: open a series, a session or a fit, import an averaged FID or a scan "
+                                 "folder, or drop one on the window")
+        self.data_label.setWordWrap(True)
+        self.data_label.setObjectName("hint")
+        lay.addWidget(self.data_label)
         row = QHBoxLayout()
-        self.data_label = QLabel("none")
-        load = QPushButton("Load series.json ...")
-        load.clicked.connect(self.load_series)
-        row.addWidget(self.data_label, 1)
-        row.addWidget(load)
+        for text, fn in (("Open ...", lambda: self.open_dialog()), ("Import FID ...", lambda: self.import_fid_dialog()),
+                         ("Scan folder ...", lambda: self.import_scans_dialog())):
+            b = QPushButton(text, objectName="small")
+            b.clicked.connect(fn)
+            row.addWidget(b)
+        row.addStretch(1)
         lay.addLayout(row)
         self.phase = ValueSlider("display phase", -180.0, 180.0, 0.0, 1, "deg")
         self.delay = ValueSlider("display delay", -10.0, 10.0, 0.0, 3, "ms", fine=0.2)
@@ -502,6 +625,8 @@ class StudioWindow(QMainWindow):
         self.delay.value_changed.connect(lambda v: self.session.set_display(delay_ms=v))
         lay.addWidget(self.phase)
         lay.addWidget(self.delay)
+        for w in (self.phase, self.delay):
+            w.show_fine(self.fine_toggle.isChecked())
         auto = QHBoxLayout()
         self.auto_method = QComboBox()
         self.auto_method.addItem("match the simulation", "model")
@@ -516,11 +641,8 @@ class StudioWindow(QMainWindow):
         for wdg in (auto_btn, self.auto_method, self.auto_delay, zero):
             auto.addWidget(wdg)
         lay.addLayout(auto)
-        hint = QLabel("The display phase only rotates the shown data; the simulation is a quick Lorentzian look. "
-                      "Use Fit for the model rendered through the data processing.")
-        hint.setWordWrap(True)
-        hint.setObjectName("hint")
-        lay.addWidget(hint)
+        auto_btn.setObjectName("small")
+        zero.setObjectName("small")
         return box
 
     def auto_phase(self):
@@ -542,6 +664,7 @@ class StudioWindow(QMainWindow):
                               fine=0.3)
             row.setToolTip("* not specified by the structure (built as 0 Hz)" if c["unspecified"] else "")
             row.value_changed.connect(lambda val, k=c["key"]: self._guard(self.session.set_couplings, {k: val}))
+            row.show_fine(self.fine_toggle.isChecked())
             self.coupling_lay.addWidget(row)
             self.coupling_rows[c["key"]] = row
         add = QWidget()
@@ -549,7 +672,7 @@ class StudioWindow(QMainWindow):
         al.setContentsMargins(0, 4, 0, 0)
         self.new_key = QLineEdit(placeholderText="J(a,b)")
         self.new_val = QDoubleSpinBox(decimals=3, minimum=-500.0, maximum=500.0)
-        btn = QPushButton("Add / set")
+        btn = QPushButton("Add / set", objectName="small")
         btn.clicked.connect(lambda: self._guard(self.session.set_couplings,
                                                 {self.new_key.text().strip(): self.new_val.value()}))
         al.addWidget(self.new_key, 1)
@@ -567,7 +690,7 @@ class StudioWindow(QMainWindow):
         row = QHBoxLayout()
         self.min_rel = QDoubleSpinBox(decimals=3, minimum=0.0, maximum=1.0, value=0.02, singleStep=0.01)
         self.min_rel.valueChanged.connect(lambda _: self.fill_lines())
-        export = QPushButton("Export (parameters, lines, spectrum, figure) ...")
+        export = QPushButton("Export ...")
         export.clicked.connect(self.export)
         row.addWidget(QLabel("min relative amplitude"))
         row.addWidget(self.min_rel)
@@ -583,7 +706,8 @@ class StudioWindow(QMainWindow):
 
     def _fit_tab(self):
         w = QWidget()
-        lay = QHBoxLayout(w)
+        lay = QVBoxLayout(w)
+        lay.addWidget(self.field_label)
         form = QFormLayout()
         self.f_starts = QSpinBox(minimum=1, maximum=200, value=8)
         self.f_workers = QSpinBox(minimum=1, maximum=os.cpu_count() or 8,
@@ -599,7 +723,7 @@ class StudioWindow(QMainWindow):
         self.f_precision.setCurrentIndex(1)
         self.f_precision.setToolTip("the fit stops when every coupling changes by less than this (and the fit no "
                                     "longer improves); also the decimals reported")
-        self.f_field = QCheckBox("fit the static field (starts from the sliders)", checked=True)
+        self.f_field = QCheckBox("fit the field (start: the sliders)", checked=True)
         self.f_edges = QLineEdit(placeholderText="e.g. 135.5,137.2,200 or auto (empty: one rate per isotopologue)")
         self.f_rates = QLineEdit("0.2,15")
         self.f_extra = QLineEdit(placeholderText="extra fit_joint_series options, e.g. --model-line-passes 1")
@@ -612,7 +736,7 @@ class StudioWindow(QMainWindow):
         self.f_start.setObjectName("primary")
         self.f_stop = QPushButton("Stop")
         self.f_apply = QPushButton("Apply result")
-        self.f_load = QPushButton("Load run ...")
+        self.f_load = QPushButton("Load run")
         for b in (self.f_start, self.f_stop, self.f_apply, self.f_load):
             btns.addWidget(b)
         self.f_start.clicked.connect(self.start_fit)
@@ -622,12 +746,11 @@ class StudioWindow(QMainWindow):
         left = QVBoxLayout()
         left.addLayout(form)
         left.addLayout(btns)
-        self.f_status = QLabel("no fit")
+        self.f_status = QLabel("no fit", objectName="hint")
         self.f_status.setWordWrap(True)
         left.addWidget(self.f_status)
-        left.addStretch(1)
         right = QVBoxLayout()
-        right.addWidget(QLabel("<b>Fit progress</b> (trace of the fit: drag through the evaluations)"))
+        right.addWidget(QLabel("<b>Fit progress</b>: drag through the evaluations of the fit"))
         self.trace_slider = QSlider(Qt.Horizontal)
         self.trace_slider.setEnabled(False)
         self.trace_slider.valueChanged.connect(lambda i: self._guard(self.session.trace_frame, i))
@@ -638,13 +761,15 @@ class StudioWindow(QMainWindow):
         right.addWidget(self.trace_slider)
         right.addWidget(self.trace_info, 1)
         right.addWidget(apply_frame)
-        lay.addLayout(left, 1)
-        lay.addLayout(right, 1)
+        self.trace_info.setMaximumHeight(170)
+        lay.addLayout(left)
+        lay.addLayout(right)
+        lay.addStretch(1)
         return w
 
     def _figure_tab(self):
         w = QWidget()
-        lay = QHBoxLayout(w)
+        lay = QVBoxLayout(w)
         form = QFormLayout()
         self.g_title = QLineEdit(placeholderText="title (default: the spectrum id)")
         self.g_wide = QLineEdit("5,300")
@@ -684,19 +809,19 @@ class StudioWindow(QMainWindow):
         self.g_status = QLabel("Draws the applied fit; after moving sliders, the current parameters, labelled "
                                "'manual parameters (not a fit)'.")
         self.g_status.setWordWrap(True)
+        self.g_status.setObjectName("hint")
         left = QVBoxLayout()
         left.addLayout(form)
         left.addLayout(btns)
         left.addWidget(self.g_status)
-        left.addStretch(1)
         self.g_preview = QLabel("no figure yet")
         self.g_preview.setAlignment(Qt.AlignCenter)
         self.g_preview.setMinimumSize(200, 120)
         scroll = QScrollArea()
         scroll.setWidget(self.g_preview)
         scroll.setWidgetResizable(True)
-        lay.addLayout(left, 1)
-        lay.addWidget(scroll, 2)
+        lay.addLayout(left)
+        lay.addWidget(scroll, 1)
         return w
 
     def make_figure(self):
@@ -1013,20 +1138,21 @@ class StudioWindow(QMainWindow):
         action(m, "Save session as ...", lambda: self.save_session(ask=True), QKeySequence.SaveAs)
         m.addSeparator()
         ex = m.addMenu("Export")
-        action(ex, "Parameters, couplings, lines and spectrum (JSON, CSV) ...", self.export, "Ctrl+E")
+        action(ex, "Export ... (spectrum, FID, parameters, fit, plot)", self.export, "Ctrl+E")
         action(ex, "Plot as image (PNG, PDF, SVG) ...", self.export_plot)
         action(ex, "Publication figure (paper_figure) ...", self.export_figure)
         action(m, "Generate publication figure", self.make_figure, "Ctrl+G")
         m.addSeparator()
         action(m, "Settings ...", lambda: self.open_settings(), QKeySequence.Preferences, QAction.PreferencesRole)
         v = self.menuBar().addMenu("&View")
-        for i in range(self.tabs.count()):
-            action(v, self.tabs.tabText(i), lambda i=i: self.tabs.setCurrentIndex(i), f"Ctrl+{i + 1}")
+        pages = [(t, t.widget(i), t.tabText(i)) for t in (self.run_tabs, self.info_tabs) for i in range(t.count())]
+        for n, (_, page, text) in enumerate(pages):
+            action(v, text, lambda pg=page: self.show_page(pg), f"Ctrl+{n + 1}")
         r = self.menuBar().addMenu("&Run")
         action(r, "Start fit", self.start_fit, "Ctrl+Return")
-        action(r, "Blind analysis ...", lambda: self.tabs.setCurrentWidget(self.analysis_panel), "Ctrl+B")
+        action(r, "Blind analysis ...", lambda: self.show_page(self.analysis_panel), "Ctrl+B")
         action(r, "Stop running job", self.activity._stop, "Ctrl+.")
-        action(r, "Jobs", lambda: self.tabs.setCurrentWidget(self.jobs_panel), "Ctrl+J")
+        action(r, "Jobs", lambda: self.show_page(self.jobs_panel), "Ctrl+J")
         t = self.menuBar().addMenu("&Tools")
         for text, key, page in (("Terminal", "Ctrl+Shift+T", "Terminal"), ("Python console", "Ctrl+Shift+P", "Python")):
             action(t, text, lambda pg=page: self.open_tools(pg), key)
@@ -1049,7 +1175,7 @@ class StudioWindow(QMainWindow):
     def _remember(self, path):
         paths = [str(path)] + [p for p in (self.settings_store.value("recent", []) or []) if p != str(path)]
         self.settings_store.setValue("recent", paths[:12])
-        self._fill_recent()
+        QTimer.singleShot(0, self._fill_recent)      # not now: the triggering action may be one of the menu's own
 
     def _start_dir(self, key, default):
         return self.settings_store.value(f"dir/{key}", str(default))
@@ -1058,15 +1184,27 @@ class StudioWindow(QMainWindow):
         self.settings_store.setValue(f"dir/{key}", str(Path(path).parent if Path(path).is_file() else path))
 
     def open_any(self, path):
-        """Open a session, series, fit run, FID (imported) or scan folder (averaged, then imported)."""
+        """Open a session, series or fit run directly; an averaged FID or a scan folder through the import dialog
+        (inspection first, then processing settings)."""
         if not self._discard_ok():
+            return
+        p = Path(path)
+        is_scans = p.is_dir() and any(p.glob("*.dat")) and not (p / "fit.json").exists()
+        if p.suffix == ".npy" or is_scans or (p.is_dir() and (p / "average_fid.npy").exists()
+                                              and not (p / "series.json").exists()):
+            target = p / "average_fid.npy" if p.is_dir() and not is_scans else p
+            dlg = ImportDialog(self.session, target, self.settings_store, self.t, self)
+            if dlg.exec() and dlg.result_status is not None:
+                self._remember(path)
+                self.show_page(self.jobs_panel)
+                self.statusBar().showMessage(f"importing {target.name} (Jobs tab)", 6000)
             return
         r = self._guard(self.session.open_path, path)
         if r:
             self._remember(path)
             self.statusBar().showMessage(f"opened {r['opened']}: {path}", 6000)
             if r["opened"] in ("FID", "scan folder"):
-                self.tabs.setCurrentWidget(self.jobs_panel)
+                self.show_page(self.jobs_panel)
 
     def open_dialog(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -1212,15 +1350,24 @@ class StudioWindow(QMainWindow):
                     precision=self.f_precision.currentData(),
                     family_edges=self.f_edges.text().strip(), rate_bounds=self.f_rates.text().strip() or "0.2,15",
                     extra_args=extra)
-        self.tabs.setCurrentIndex(1)
+        self.show_page(self.fit_page)
+        self.show_page(self.jobs_panel)
 
     def export(self):
-        d = QFileDialog.getExistingDirectory(self, "Export to", str(self.session.workspace))
-        if d:
-            r = self._guard(self.session.export, d)
-            if r:
-                self.fig.savefig(Path(d) / "figure.png", dpi=160)
-                self.statusBar().showMessage(f"exported to {d}", 6000)
+        dlg = ExportDialog(self.session, self.settings_store, self.fig, self)
+        if dlg.exec() and dlg.result:
+            r = dlg.result
+            self.statusBar().showMessage(f"exported {len(r['files'])} files to {r['directory']}", 8000)
+            box = QMessageBox(self)
+            box.setWindowTitle("Exported")
+            box.setText(f"{len(r['files'])} files in\n{r['directory']}")
+            box.setDetailedText("\n".join(r["files"]))
+            show = box.addButton("Show in Finder", QMessageBox.ActionRole)
+            box.addButton(QMessageBox.Ok)
+            if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+                box.exec()
+                if box.clickedButton() is show:
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(r["directory"]))
 
     def _view_from_spins(self):
         lo, hi = self.view_lo.value(), self.view_hi.value()
@@ -1262,9 +1409,11 @@ class StudioWindow(QMainWindow):
         self.rate.set_value(s.rate_per_s)
         bt, bz = s.field_nt
         txt = "zero field" if bt == 0 and bz == 0 else \
-            f"B\u22a5 {bt:.1f} nT   Bz {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT"
+            f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT"
         self.b_mag.setText(f"|B| = {math.hypot(bt, bz):.1f} nT   (FWHM {s.rate_per_s / math.pi:.3f} Hz)")
-        self.field_label.setText(txt)
+        src = "applied fit" if s.state_is_applied_fit() else "sliders"
+        self.field_label.setText(f"field ({src})<br>{txt}")
+        self.field_label.setToolTip("the static field of the model; a fit with 'fit the field' starts from it")
         name = s.spec.get("compound") or s.spec.get("motif") or ""
         comps = ", ".join(c["label"] for c in s.components())
         self.subtitle.setText(f"{name}   \u00b7   {comps}" + (f"   \u00b7   data: {s.data['label']}" if s.data else ""))
@@ -1278,7 +1427,15 @@ class StudioWindow(QMainWindow):
         self.lock_scale.blockSignals(True)
         self.lock_scale.setChecked(s.scale_lock is not None)
         self.lock_scale.blockSignals(False)
-        self.data_label.setText(s.data["label"] if s.data else "none")
+        if s.data:
+            f = s.data["freq"]
+            self.data_label.setObjectName("dataInfo")
+            self.data_label.setText(
+                f"<b>{s.data['label']}</b> &nbsp; {len(f)} points, {f.min():.0f}-{f.max():.0f} Hz, "
+                f"{len(s.data['ranges'])} fit ranges" + (f"<br>{Path(s.data['series']).parent.name}/series.json"
+                                                         if s.data.get("series") else ""))
+            self.data_label.style().unpolish(self.data_label)
+            self.data_label.style().polish(self.data_label)
         self.phase.set_value(s.data_phase_deg)
         self.delay.set_value(s.data_delay_ms)
         self.exchange.blockSignals(True)

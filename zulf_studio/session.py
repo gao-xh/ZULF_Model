@@ -892,7 +892,8 @@ class StudioSession:
         self._changed("import_started")
         return job.status()
 
-    def import_scans(self, run_folder: str, out: Optional[str] = None, exclude_z: float = 0.0) -> dict:
+    def import_scans(self, run_folder: str, out: Optional[str] = None, exclude_z: float = 0.0,
+                     fid_options: Optional[dict] = None) -> dict:
         """An instrument run folder (<n>.dat, <n>.ini; read-only) -> averaged FID (scripts/average_scans.py), then
         import_fid of the average. The average goes to `out` (default the workspace; averages kept for other work
         belong in ~/research/<project>/data/processed/<measurement>/)."""
@@ -907,7 +908,9 @@ class StudioSession:
 
         def done(job):
             if job.returncode == 0 and (dest / "average_fid.npy").exists():
-                self.import_fid(str(dest / "average_fid.npy"), label=run.name)
+                opts = dict(fid_options or {})
+                opts["label"] = opts.get("label") or run.name
+                self.import_fid(str(dest / "average_fid.npy"), **opts)
             self._changed("import_done")
         job = FitJob(argv, dest, self.log, done, source="import", kind="import", title=f"average {run.name}")
         self.jobs.append(job)
@@ -941,6 +944,180 @@ class StudioSession:
             if isinstance(content, list) and content and "freq" in content[0]:
                 return {"opened": "series", **self.load_spectrum(series=str(p))}
         raise ValueError(f"unknown file type: {p.name}")
+
+    # ---- inspection before an import ----------------------------------------------------------
+    def inspect_path(self, path: str) -> dict:
+        """What a path holds and what an import would use, without loading or writing anything: kind (scan folder,
+        FID, series, session, fit run), sampling rate and where it comes from, points, duration, scan count and
+        time span, cached averages of other tools (halp_compiled.npy), problems; plus a preview (the FID start and
+        its magnitude spectrum) as arrays."""
+        from zulf_processing import find_sampling_rate, read_settings
+        p = _resolve(path)
+        info = {"path": str(p), "kind": "unknown", "rows": [], "warnings": [], "preview": None, "cached": None}
+        rows, warn = info["rows"], info["warnings"]
+        fid = None
+        if p.is_dir() and any(p.glob("*.dat")):
+            info["kind"] = "scan folder"
+            scans = sorted(p.glob("*.dat"), key=lambda q: int(q.stem) if q.stem.isdigit() else 10 ** 9)
+            numbered = [q for q in scans if q.stem.isdigit()]
+            inis = {q.stem for q in p.glob("*.ini")}
+            missing = [q.stem for q in numbered if q.stem not in inis]
+            first = read_settings(p / f"{numbered[0].stem}.ini") if numbered and numbered[0].stem in inis else {}
+            last = read_settings(p / f"{numbered[-1].stem}.ini") if numbered and numbered[-1].stem in inis else {}
+            fs = first.get("sampling_rate_hz")
+            sizes = {q.stat().st_size for q in numbered[:50]}
+            rows += [("scans", f"{len(numbered)} (numbers {numbered[0].stem}-{numbered[-1].stem})" if numbered else "0"),
+                     ("sampling rate", f"{fs:g} Hz (0.ini)" if fs else "not in the .ini"),
+                     ("points per scan", str(first.get("points", "?"))),
+                     ("record", f"{first['points'] / fs:.2f} s" if fs and first.get("points") else "?"),
+                     ("sequence", Path(str(first.get("pulse_sequence", "?")).replace("\\", "/")).name),
+                     ("first / last scan", f"{first.get('date_time', '?')} / {last.get('date_time', '?')}"),
+                     ("size", f"{sum(q.stat().st_size for q in numbered) / 1e9:.2f} GB")]
+            if missing:
+                warn.append(f"{len(missing)} scans without .ini (e.g. {', '.join(missing[:5])})")
+            if len(sizes) > 1:
+                warn.append(f"scan files differ in size ({sorted(sizes)[:4]} bytes): different record lengths?")
+            cached = p / "halp_compiled.npy"
+            if cached.exists():
+                arr = np.load(cached, mmap_mode="r")
+                info["cached"] = str(cached)
+                rows.append(("cached average", f"halp_compiled.npy {arr.shape}, made by another tool (which scans "
+                                               "and how is not recorded)"))
+                fid = np.asarray(arr, float)
+            else:
+                from zulf_core.io import decode_dat
+                fid = np.asarray(decode_dat(numbered[0]), float) if numbered else None
+                rows.append(("preview", f"scan {numbered[0].stem} (one scan)" if numbered else "none"))
+        elif p.suffix == ".npy":
+            info["kind"] = "FID"
+            fid = np.asarray(np.load(p), float)
+            fs, source = find_sampling_rate(p, None) if (p.parent / "scans.json").exists() or \
+                any(p.parent.glob("*.ini")) else (None, "")
+            rows += [("points", str(len(fid))),
+                     ("sampling rate", f"{fs:g} Hz ({Path(source).name})" if fs else "not found next to the file: "
+                      "give it in the import (a wrong rate scales every frequency)"),
+                     ("record", f"{len(fid) / fs:.2f} s" if fs else "?")]
+            rec = p.parent / "scans.json"
+            if rec.exists():
+                meta = json.loads(rec.read_text())
+                rows.append(("average of", f"{meta.get('scans_kept')} of {meta.get('scans_found')} scans "
+                                           f"(exclude z {meta.get('exclude_z')}); {meta.get('run', '')}"))
+            if not fs:
+                warn.append("no sampling rate next to the FID (scans.json or .ini)")
+        elif p.is_dir() or p.suffix in (".json", SESSION_SUFFIX):
+            info["kind"] = "series, session or fit run (opened directly)"
+            return info
+        else:
+            warn.append("unknown file type")
+            return info
+        if fid is not None and len(fid) > 16:
+            fs = next((float(r[1].split()[0]) for r in rows if r[0] == "sampling rate" and r[1][0].isdigit()), None)
+            if fs:
+                from zulf_processing.diagnostics import switching_edge
+                try:
+                    edge = switching_edge(fid, fs)["edge_time_s"]
+                    rows.append(("switching edge", f"{1e3 * edge:.2f} ms"))
+                except ValueError:
+                    warn.append("no switching edge found in the FID start")
+                start = int(0.1 * fs)
+                seg = fid[start:start + int(min(8.0, (len(fid) - start) / fs) * fs)]
+                from scipy.signal import savgol_filter          # drift out, as in the processing (SG low-pass)
+                win = max(int(0.05 * fs) // 2 * 2 + 1, 5)
+                seg = seg - savgol_filter(seg, win, 2) if len(seg) > win else seg - seg.mean()
+                spec = np.abs(np.fft.rfft(seg * np.exp(-0.3 * np.arange(len(seg)) / fs), 4 * len(seg)))
+                freq = np.fft.rfftfreq(4 * len(seg), 1 / fs)
+                keep = (freq >= 20.0) & (freq <= min(400.0, fs / 2))      # above the drift region
+                n0 = int(0.1 * fs)
+                info["preview"] = {"t_ms": (np.arange(n0) / fs * 1e3).tolist(), "fid": fid[:n0].tolist(),
+                                   "f": freq[keep][::4].tolist(), "mag": spec[keep][::4].tolist()}
+        return info
+
+    # ---- export bundles ---------------------------------------------------------------------------
+    def export_bundle(self, directory: str, spectrum=("data", "simulation", "residual"), view_only: bool = False,
+                      formats=("csv",), fid: bool = False, parameters: bool = True, fit: bool = True) -> dict:
+        """One folder that can be shared: spectrum.csv (frequency_hz and, per chosen source, real, imaginary,
+        magnitude; header line), spectrum.npz (complex, with csv or alone), fid.csv (time_s, signal of the source
+        FID), parameters (parameters.json, couplings.csv, lines.csv, the session file), the applied fit
+        (fit.json, J_table.csv), and information.json: sources with sha256, time, settings and the code commit."""
+        import hashlib
+        import shutil
+        out = _resolve(directory)
+        out.mkdir(parents=True, exist_ok=True)
+        files, sources = [], {}
+
+        def sha(path):
+            h = hashlib.sha256()
+            with open(path, "rb") as fh:
+                for block in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(block)
+            return h.hexdigest()
+        if parameters:                       # first: export() writes its own spectrum.csv, replaced below
+            r = self.export(str(out))
+            (out / "spectrum.csv").unlink()
+            files += [f for f in r["files"] if f != "spectrum.csv" and (fit or not f.startswith("applied_"))]
+            if not fit:
+                for name in ("applied_fit.json", "applied_J_table.csv"):
+                    if (out / name).exists():
+                        (out / name).unlink()
+        fq = None
+        if spectrum:
+            if self.data is not None:
+                f = self.data["freq"]
+                view = list(self.view) if view_only else [float(f.min()), float(f.max())]
+                sim = self.simulate(points=len(f), view=view)
+            else:
+                sim = self.simulate(points=4000, view=list(self.view))
+            fq = np.asarray(sim["f"])
+            cols = {"frequency_hz": fq}
+            arrays = {"frequency_hz": fq}
+            series = {"simulation": np.asarray(sim["sim_re"]) + 1j * np.asarray(sim["sim_im"])}
+            if "data_re" in sim:
+                series["data"] = np.asarray(sim["data_re"]) + 1j * np.asarray(sim["data_im"])
+                series["residual"] = series["data"] - series["simulation"]
+            for name in spectrum:
+                if name in series:
+                    z = series[name]
+                    cols.update({f"{name}_real": z.real, f"{name}_imaginary": z.imag, f"{name}_magnitude": np.abs(z)})
+                    arrays[name] = z
+            if "csv" in formats:
+                with open(out / "spectrum.csv", "w", newline="") as fh:
+                    w = csv.writer(fh)
+                    w.writerow(list(cols))
+                    for row in zip(*cols.values()):
+                        w.writerow([f"{v:.10g}" for v in row])
+                files.append("spectrum.csv")
+            if "npz" in formats:
+                np.savez(out / "spectrum.npz", **arrays)
+                files.append("spectrum.npz")
+        if fid and self.data is not None and self.data.get("source_fid"):
+            from zulf_processing import find_sampling_rate
+            src = _resolve(self.data["source_fid"])
+            y = np.load(src)
+            fs, fs_source = find_sampling_rate(src, None)
+            with open(out / "fid.csv", "w", newline="") as fh:
+                w = csv.writer(fh)
+                w.writerow(["time_s", "signal"])
+                for k, v in enumerate(y):
+                    w.writerow([f"{k / fs:.9g}", f"{float(v):.10g}"])
+            files.append("fid.csv")
+            sources["fid"] = {"path": str(src), "sha256": sha(src), "sampling_rate_hz": fs,
+                              "sampling_rate_from": fs_source}
+        if self.data is not None and self.data.get("series"):
+            sp = Path(self.data["series"])
+            sources["series"] = {"path": str(sp), "sha256": sha(sp)}
+        if self.applied:
+            sources["applied_fit"] = {"path": self.applied["run"]}
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(ROOT), capture_output=True,
+                                text=True).stdout.strip()
+        info = {"exported": time.strftime("%Y-%m-%dT%H:%M:%S"), "program": "ZULF Studio", "commit": commit,
+                "range_hz": None if fq is None else [float(fq.min()), float(fq.max())],
+                "spectrum_sources": list(spectrum), "simulation": "quick look: Lorentzian lines, one decay rate "
+                "(not the processed fit model; the fit's own model is in the fit run)", "sources": sources,
+                "state": self.session_dict(), "files": sorted(set(files))}
+        (out / "information.json").write_text(json.dumps(info, indent=1))
+        files.append("information.json")
+        self.log(f"export bundle {out}: {', '.join(sorted(set(files)))}")
+        return {"directory": str(out), "files": sorted(set(files))}
 
     # ---- session files -------------------------------------------------------------------------
     def session_dict(self) -> dict:

@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -12,6 +13,7 @@ from zulf_studio.api import TOOLS, StudioAPI, serve
 from zulf_studio.session import StudioSession
 
 GAMMA_H, GAMMA_C = 42.577478, 10.708395          # Hz / uT
+os.environ.setdefault("ZULF_STUDIO_SETTINGS", str(Path(tempfile.mkdtemp()) / "studio-test.ini"))  # not the user's
 
 
 def session(spec=None, tmp=None):
@@ -521,7 +523,10 @@ class FilesAndJobsTests(unittest.TestCase):
         w.update_jobs()
         self.assertIn("idle", w.activity.text.text())
         self.assertIn("cores", w.machine.text())
-        self.assertIn("Jobs", [w.tabs.tabText(i) for i in range(w.tabs.count())])
+        pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
+        self.assertEqual(pages, ["Fit", "Analysis", "Figure", "Lines", "Jobs", "Log", "AI assistant"])
+        self.assertIn("field", w.field_label.text())                 # the field is on the Fit page, not the header
+        self.assertNotIn("field", w.subtitle.text())
         s.set_field(z_nt=10.0)
         app.processEvents()
         self.assertIn("\u2022", w.windowTitle())                      # unsaved change
@@ -529,3 +534,52 @@ class FilesAndJobsTests(unittest.TestCase):
         app.processEvents()
         self.assertNotIn("\u2022", w.windowTitle())
         w.close()
+
+
+class ImportExportTests(unittest.TestCase):
+    def test_inspect_a_scan_folder_and_a_fid_without_writing(self):
+        from zulf_core.io import DECODER  # noqa: F401  (the decoder the scans are read with)
+        tmp = Path(tempfile.mkdtemp())
+        fid = _synthetic_fid_2khz()
+        np.save(tmp / "average_fid.npy", fid)
+        (tmp / "scans.json").write_text(json.dumps({"sampling_rate_hz": 2000.0, "scans_kept": 10, "scans_found": 12,
+                                                    "exclude_z": 5.0, "run": "x"}))
+        before = sorted(p.name for p in tmp.iterdir())
+        info = session().inspect_path(str(tmp / "average_fid.npy"))
+        self.assertEqual(info["kind"], "FID")
+        rows = dict(info["rows"])
+        self.assertTrue(rows["sampling rate"].startswith("2000 Hz"))
+        self.assertIn("10 of 12", rows["average of"])
+        pv = info["preview"]
+        peak = pv["f"][int(np.argmax(pv["mag"]))]
+        self.assertTrue(abs(peak - 136.0) < 1.0 or abs(peak - 272.0) < 1.0, msg=str(peak))   # the methyl lines
+        self.assertEqual(sorted(p.name for p in tmp.iterdir()), before)                    # nothing written
+        bare = Path(tempfile.mkdtemp()) / "x.npy"
+        np.save(bare, fid)
+        self.assertTrue(any("sampling rate" in w for w in session().inspect_path(str(bare))["warnings"]))
+
+    def test_export_bundle_columns_sources_and_options(self):
+        tmp = Path(tempfile.mkdtemp())
+        f = np.linspace(100.0, 200.0, 2001)
+        v = 1.0 / (1.0 + 1j * (f - 136.0) / 0.2)
+        np.save(tmp / "f.npy", f)
+        np.save(tmp / "v.npy", v)
+        series = tmp / "series.json"
+        series.write_text(json.dumps([{"id": "m", "freq": str(tmp / "f.npy"), "values": str(tmp / "v.npy"),
+                                       "ranges": [[100.0, 200.0]]}]))
+        s = session(METHYL)
+        s.load_spectrum(series=str(series))
+        r = s.export_bundle(str(tmp / "out"), spectrum=("data", "simulation", "residual"), formats=("csv", "npz"),
+                            parameters=True, fit=False)
+        head = (tmp / "out" / "spectrum.csv").read_text().splitlines()[0].split(",")
+        self.assertEqual(head[:4], ["frequency_hz", "data_real", "data_imaginary", "data_magnitude"])
+        self.assertIn("residual_magnitude", head)
+        z = np.load(tmp / "out" / "spectrum.npz")
+        np.testing.assert_allclose(z["residual"], z["data"] - z["simulation"])
+        info = json.loads((tmp / "out" / "information.json").read_text())
+        self.assertEqual(info["sources"]["series"]["path"], str(series.resolve()))
+        self.assertEqual(len(info["sources"]["series"]["sha256"]), 64)
+        self.assertIn("couplings.csv", r["files"])
+        self.assertNotIn("applied_fit.json", r["files"])
+        only = s.export_bundle(str(tmp / "only"), spectrum=("simulation",), view_only=True, parameters=False)
+        self.assertEqual(sorted(only["files"]), ["information.json", "spectrum.csv"])

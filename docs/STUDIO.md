@@ -18,26 +18,30 @@ back to a free one, shown in the AI API tab), `--workspace` (default `runs/studi
 
 ## Window
 
-Left column (everything recomputes while a slider moves):
-- **Structure**: a registered motif or a structure JSON (`zulf_hypothesis.structure_spec`), then Build. The
-  natural-abundance 13C isotopologues are listed. N-H/O-H: fast (decoupled) or slow (kept).
-- **Couplings (Hz)**: coarse and fine slider per coupling; "Add / set" adds a coupling by key `J(a,b)` (for
-  example `J(C2,HC1)` makes the nitrile 13C isotopologue of acetonitrile visible).
-- **Static field and line width**: B transverse and B z in nT (fine +-5 nT), decay rate in 1/s (log scale),
-  the field magnitude and the Lorentzian FWHM (= rate / pi).
-- **Experimental spectrum**: load a `series.json`; display phase (deg) and delay (ms) rotate the shown data only.
-  **Auto phase**: "match the simulation" (phase and delay that best match the current simulation, delay within
-  +-3 ms; needs the lines roughly in place) or "data only" (model-free, delay within +-0.5 ms); "also delay"
-  off keeps the delay; Reset sets both to zero.
-
-Centre: data, simulation and residual; line sticks coloured by isotopologue. Part: real, imaginary or
-magnitude. **lock scale** freezes the display scale of the simulation (automatic: least squares on the
-magnitudes). The status bar shows the simulation time, the lines in view, the scale and the rms residual.
+Three columns in the order of the work (2026-10-08 layout):
+- **Left, the model in workflow order**, each a card that folds away (remembered):
+  1. **Data**: the loaded spectrum (points, range, fit ranges, series file); Open, Import FID, Scan folder; display
+     phase (deg) and delay (ms), which rotate the shown data only; **Auto phase** "match the simulation" (phase
+     and delay that best match the current simulation, delay within +-3 ms; needs the lines roughly in place) or
+     "data only" (model-free, delay within +-0.5 ms); "also delay" off keeps the delay; Reset sets both to zero.
+  2. **Structure**: a registered motif, or the structure JSON (button JSON shows the editor and Build); the
+     natural-abundance 13C isotopologues; N-H/O-H fast (decoupled) or slow (kept).
+  3. **Couplings (Hz)**: a slider and a spin box per coupling; "Add / set" adds a coupling by key `J(a,b)` (for
+     example `J(C2,HC1)` makes the nitrile 13C isotopologue of acetonitrile visible). **fine sliders** shows a
+     second, fine slider under every coupling, field and phase slider.
+  4. **Field and line width**: B transverse and B z in nT, |B|, Zero field, decay rate in 1/s (log scale) and the
+     Lorentzian FWHM (= rate / pi).
+- **Centre, the plot**: data, simulation and residual, line sticks coloured by isotopologue; one bar with the
+  view range, part (real, imaginary, magnitude), lines, fit trace, **lock scale** (freezes the display scale of
+  the simulation; automatic: least squares on the magnitudes) and the zoom tools. Below it a drawer (drag to
+  resize or close): **Lines**, **Jobs**, **Log**, **AI assistant**.
+- **Right, what to run**: **Fit**, **Analysis**, **Figure**. The Fit page shows the static field of the model
+  (from the sliders or the applied fit; the header does not).
 
 The simulation is a quick look: complex Lorentzian lines with one decay rate, sign convention of the processed
 spectra (numpy FFT). It is not the fit model.
 
-Bottom tabs:
+Pages:
 - **Lines**: every transition (isotopologue, frequency, amplitude, relative).
 - **Fit**: runs `scripts/fit_joint_series.py` in the background from the current couplings and field (starts,
   workers, evaluations, trace frames, coupling precision (0.01 Hz default, D55), field on/off, rate families, rate bounds, extra options). Apply result
@@ -73,23 +77,33 @@ free, and starting more than the free cores asks first. Several fits with many t
 (load 95 on 10 cores, 2026-10-08).
 
 **Files** (File menu; also drag files or folders onto the window):
-- **Open** (Cmd+O) by content: a session (`.zulfstudio`), a `series.json`, a fit run (folder or its fit.json), a
-  folder with series.json, an averaged FID (`.npy`: imported) or an instrument scan folder (averaged, then
-  imported). **Open recent** keeps the last 12; the dialogs remember their folders.
-- **Import averaged FID** (Cmd+I): `make_series_entry.py` into `runs/studio/series/<name>` (sampling rate from
-  scans.json or the .ini next to the FID; whole-grid fit ranges), loaded when done. **Import scan folder**:
-  `average_scans.py` into `runs/studio/averages/<folder>` (averages kept for other work belong in
-  `~/research/<project>/data/processed/<measurement>/`), then imported.
+- **Open** (Cmd+O) by content: a session (`.zulfstudio`), a `series.json`, a fit run (folder or its fit.json; the
+  fit's structure is taken over), a folder with series.json; an averaged FID (`.npy`) or an instrument scan folder
+  opens the import dialog. **Open recent** keeps the last 12; the dialogs remember their folders.
+- **Import** (Cmd+I for an FID, File > Import scan folder, or drop it on the window): first an inspection
+  (`StudioSession.inspect_path`, nothing written): scans (numbers), sampling rate and where it was read, points,
+  record, sequence, first and last scan time, size, a cached average of another tool (`halp_compiled.npy`),
+  switching edge, warnings (scans without .ini, unequal scan sizes, no sampling rate), and a preview of the FID
+  start and its spectrum. Then the source (average the scans with `average_scans.py`, optionally leaving out scans
+  above a robust z, into `runs/studio/averages/<folder>` or a chosen folder; or the cached average) and the
+  processing (`make_series_entry.py`: record, crop, frequency grid, bands left out of the fit ranges, sampling
+  rate override, name). The last settings are kept. The run folder is never written to; averages kept for other
+  work belong in `~/research/<project>/data/processed/<measurement>/`. The import runs as a job (Jobs tab) and the
+  spectrum is loaded when it is done.
 - **Save session** (Cmd+S) / **Save session as** (Shift+Cmd+S): structure, couplings, field, line width, view,
   display, and the paths of the loaded series and applied fit (JSON; data and fits stay where they are). Opening
   ignores unknown keys and reports a series or fit that no longer exists. The title shows the session name and a
   dot while there are unsaved changes; closing or opening another file asks first, and closing while jobs run
   asks too (they keep running).
-- **Export**: parameters, couplings, lines and spectrum (`parameters.json`, `couplings.csv`, `lines.csv`,
-  `spectrum.csv`, a session file and the applied fit's `fit.json` / `J_table.csv`; Cmd+E); the plot as PNG, PDF
-  or SVG; the publication figure.
+- **Export** (Cmd+E): a dialog for one folder (`<name>_<time>`, place remembered) with any of: the spectrum
+  (data, simulation, residual; whole spectrum or the view; `spectrum.csv` with the header `frequency_hz,
+  data_real, data_imaginary, data_magnitude, simulation_...` and/or `spectrum.npz` with complex arrays), the
+  FID (`fid.csv`: time_s, signal), the parameters (`parameters.json`, `couplings.csv`, `lines.csv`, the session
+  file), the applied fit (`applied_fit.json`, `applied_J_table.csv`), the plot (PNG, PDF, SVG), and always
+  `information.json` (sources with sha256, time, code commit, settings). File > Export also has the plot alone
+  and the publication figure.
 
-**View** menu: Cmd+1 ... switch the bottom tabs. **Run** menu: Start fit (Cmd+Return), Blind analysis (Cmd+B),
+**View** menu: Cmd+1 ... Cmd+7 bring a page forward (Fit, Analysis, Figure, Lines, Jobs, Log, AI assistant). **Run** menu: Start fit (Cmd+Return), Blind analysis (Cmd+B),
 Stop the running job (Cmd+.), Jobs (Cmd+J). The window size and splitters are remembered.
 
 **Settings** (File > Settings, on macOS ZULF Studio > Settings, Cmd+,): the AI assistant configuration
