@@ -354,7 +354,8 @@ flowchart LR
     python scripts/run_studio.py --series runs/series/NAME/series.json [--fit runs/processed/NAME]
 
 - Studio is a front end of W3, not a later step: its fit jobs are fit_joint_series.py runs (same options, same
-  fit.json), and a command-line fit can be loaded into it (`--fit`, trace slider). Use it to look, tune by hand,
+  fit.json), and a command-line fit can be loaded into it (`--fit`); while a fit runs the main view follows its
+  best point and any point chosen in the Monitor tab. Use it to look, tune by hand,
   start and watch fits, phase and make figures; record results as for W3.
 - Real-time simulation (structure, couplings, field, line width), auto phase, fits with a progress slider,
   figure export, log and terminal; AI keys in the macOS Keychain or environment only (docs/STUDIO.md).

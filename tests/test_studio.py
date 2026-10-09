@@ -171,6 +171,76 @@ class FitPlumbingTests(unittest.TestCase):
             s.set_couplings({"J(C1,HC1)": 136.0})                         # parameters no longer the fit's
             self.assertNotIn("fit_re", s.simulate())
 
+    def test_following_a_fit_and_applying_its_result(self):
+        """The main view follows a running fit (Monitor records), shows any chosen point, and applies the final
+        result when the fit ends. Reference: the fit process's own fit.json (couplings, spectrum parameters,
+        score), against fit_monitor.point_result rebuilt in Studio at the same vector."""
+        try:
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PySide6.QtWidgets import QApplication
+            from zulf_studio.app import StudioWindow
+        except ImportError:
+            self.skipTest("PySide6 not installed")
+        import time
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from fit_monitor import SpectrumCache, point_result
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            f = np.linspace(120, 290, 1500)
+            g = 1.0 / (2 * np.pi)
+            y = sum(a * g / (g + 1j * (f - c)) for a, c in ((1.0, 136.3), (0.8, 272.6))) * np.exp(0.3j)
+            y = y + np.random.default_rng(1).normal(0, 0.01, len(f))
+            np.save(tmp / "f.npy", f)
+            np.save(tmp / "y.npy", y)
+            json.dump([{"id": "x", "x": 1.0, "freq": str(tmp / "f.npy"), "values": str(tmp / "y.npy"),
+                        "ranges": [[120, 290]]}], open(tmp / "series.json", "w"))
+            s = session(METHYL, d)
+            s.load_spectrum(series=str(tmp / "series.json"))
+            w = StudioWindow(s)
+            w.f_starts.setValue(2)
+            w.f_workers.setValue(1)
+            w.f_nfev.setValue(30)
+            w.f_field.setChecked(False)
+            w.start_fit()
+            self.assertIsNotNone(w.follow)                               # following the new fit
+            self.assertFalse(w.sections["couplings"].body.isEnabled())   # sliders read-only meanwhile
+            t0 = time.time()
+            while s.fit_job.running and time.time() - t0 < 300:
+                app.processEvents()
+                time.sleep(0.05)
+            for _ in range(100):
+                app.processEvents()
+                time.sleep(0.02)
+            out = Path(s.fit_job.out_dir).resolve()
+            fit = json.loads((out / "fit.json").read_text())
+            self.assertIsNone(w.follow)                                  # finished: result applied, sliders free
+            self.assertTrue(w.sections["couplings"].body.isEnabled())
+            self.assertEqual(Path(s.applied["run"]).resolve(), out)
+            self.assertIsNone(s.applied.get("point"))
+            self.assertAlmostEqual(s.couplings()[0]["value"], fit["couplings"]["J(C1,HC1)"]["J_at_x"][0], places=9)
+            cache = SpectrumCache()                                      # any point, rebuilt: equals fit.json
+            r = point_result(cache.get(str(out)), fit["z_final"], cache.args[str(out)])
+            self.assertAlmostEqual(r["scores"][0], fit["scores"][0], places=10)
+            self.assertEqual(r["couplings"].keys(), fit["couplings"].keys())
+            for k, v in fit["spectrum_parameters"]["x"].items():
+                self.assertAlmostEqual(r["spectrum_parameters"]["x"][k], v, places=10)
+            w.monitor_panel.set_run(str(out))                            # a point chosen in the Monitor
+            w.monitor_panel.set_point(5, "start_000")
+            t0 = time.time()
+            while (not s.applied or not s.applied.get("point")) and time.time() - t0 < 30:
+                app.processEvents()
+                time.sleep(0.05)
+            for _ in range(20):
+                app.processEvents()
+                time.sleep(0.02)
+            self.assertEqual(s.applied["point"]["n"], 5)
+            self.assertEqual(s.applied["point"]["kind"], "evaluation")
+            self.assertIn("evaluation 5", w.follow_text.text())
+            w.stop_follow()
+            w.close()
+
     def test_apply_fit_and_trace_frames(self):
         with tempfile.TemporaryDirectory() as d:
             run = Path(d) / "run"

@@ -221,6 +221,34 @@ def text_view(run, interval=2.0):
         pass
 
 
+def point_result(prob, z, args=None) -> dict:
+    """A fit.json-like result at the parameter vector z of a run's problem: couplings (J_at_x, by the fit's keys),
+    spectrum_parameters (field, decay-rate families, phase delay, ...), family_edges_hz, z_final, the objective
+    as the fit ranks it (hard missing-peak rows) and, with the command's args, structure and exchange. Built the
+    way fit_joint_series writes fit.json, so Studio can apply any point of a run (running or finished)."""
+    joint = prob.joint
+    z = np.asarray(z, float)
+    out = {"couplings": {prob.key_of.get(n, n): {"J_at_x": joint.coupling_values(z, k).tolist()}
+                         for k, n in enumerate(joint.coupling)}}
+    shared = {n: float(z[joint.ntheta + i]) for i, n in enumerate(joint.shared)}
+    out["spectrum_parameters"] = {prob.series[si]["id"]: {**shared, **{n: float(z[joint.nt + si * joint.nl + i])
+                                                                        for i, n in enumerate(joint.local)}}
+                                  for si in range(joint.ns)}
+    out["family_edges_hz"] = [float(v) for v in joint.params[0].policy.family_edges_hz]
+    out["z_final"] = [float(v) for v in z]
+    smooth = getattr(joint, "peak_smooth", 0.0)
+    try:
+        if getattr(joint, "peaks", None) is not None:
+            joint.peak_smooth = 0.0
+        out["scores"] = [float(np.sum(joint.residual(z) ** 2))]
+    finally:
+        joint.peak_smooth = smooth
+    if args is not None:
+        out["structure"] = json.loads(args.structure)
+        out["exchange"] = args.exchange
+    return out
+
+
 def read_point(run, start, n):
     """Parameter vector at evaluation n of one start: that evaluation's own vector ("x", recorded since
     2026-10-08) or, for older records, the best point recorded up to n. Returns {n, cost, best, z, kind}."""
@@ -253,6 +281,7 @@ class SpectrumCache:
     def __init__(self):
         self.lock = threading.Lock()
         self.problems = {}
+        self.args = {}
 
     def get(self, run):
         run = str(run)
@@ -266,6 +295,7 @@ class SpectrumCache:
                 try:
                     os.chdir(st.get("cwd", cwd))
                     self.problems[run] = fj.build_problem(args)
+                    self.args[run] = args
                 finally:
                     os.chdir(cwd)
             return self.problems[run]

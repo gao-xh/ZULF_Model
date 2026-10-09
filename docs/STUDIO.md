@@ -115,9 +115,15 @@ Pages:
   export has both (decay_per_s, decay_time_s).
 - **Fit**: runs `scripts/fit_joint_series.py` in the background from the current couplings and field (starts,
   workers, evaluations, trace frames, coupling precision (0.01 Hz default, D55), field on/off, rate families, rate bounds, extra options). Apply result
-  copies couplings, field and decay rate into the sliders. **Fit progress**: drag through the trace frames
-  (objective and couplings along the fit path); "Copy this frame's couplings" sets them. The field start
-  matters: try several (D47).
+  copies couplings, field and decay rate into the sliders. The field start matters: try several (D47).
+  **Following a fit** (owner, 2026-10-09): when a fit starts, the main view follows it. Every second the best
+  point so far of the best start is applied (couplings, field, decay rates, the exact fit model in the plot),
+  rebuilt from the run's record with fit_monitor.point_result, the same way fit.json is written; the sliders are
+  read-only and a bar at the top of the left column names the run, start, evaluation and objective. A start or
+  point chosen in the Monitor tab (click, slider, Starts table) is applied the same way, so the main plot, the
+  sliders and the Monitor always show one point; "Latest best" goes back to following. **Stop following** frees
+  the sliders. When the followed fit ends, its final result (fit.json) is applied; a fit that was not followed
+  waits for Apply result. (The old trace-frame slider is gone; the Monitor records every evaluation.)
 - **Figure**: the publication figure of `scripts/paper_figure.py` (PNG at the chosen dpi, PDF, SVG and
   caption.txt), preview, Export to a folder, Open folder. If the sliders are exactly an applied fit, that fit is
   drawn; otherwise the current parameters are drawn and labelled "manual parameters (not a fit)".

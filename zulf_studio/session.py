@@ -717,8 +717,16 @@ class StudioSession:
         if run is None:
             raise ValueError("no run directory")
         fit = json.loads((run / "fit.json").read_text())
+        out = self._apply_fit_dict(run, fit, spectrum, fit_structure(run, fit))
+        if (run / "trace.json").exists():
+            self.load_trace(str(run))
+        return out
+
+    def _apply_fit_dict(self, run, fit: dict, spectrum=None, structure=None, point=None, quiet=False) -> dict:
+        """Couplings, field and decay rate of a fit result (fit.json, or fit_monitor.point_result of any point of
+        a run) into the session; point describes a followed point ({start, n, kind, objective})."""
+        run = Path(run)
         couplings = {k: float(v["J_at_x"][0]) for k, v in fit["couplings"].items()}
-        structure = fit_structure(run, fit)
         bare = {k: v for k, v in self.spec.items() if k != "molecule"}
         if isinstance(structure, dict) and {k: v for k, v in structure.items() if k != "molecule"} != bare:
             if ("molecule" in self.spec and "molecule" not in structure
@@ -743,13 +751,50 @@ class StudioSession:
             if rates:
                 self.rate_per_s = float(np.median(rates))
         self.applied = {"run": str(run), "fit": fit, "spectrum": spectrum or next(iter(sp_all), None),
-                        "state": self._snapshot()}
-        self.log(f"applied fit {run}: score {fit.get('scores', [None])[0]}, field {self.field_nt} nT, "
-                 f"rate {self.rate_per_s:.3g} 1/s (median of {len(rates)} families)")
-        if (run / "trace.json").exists():
-            self.load_trace(str(run))
+                        "state": self._snapshot(), "point": point}
+        if not quiet:
+            self.log(f"applied fit {run}: score {fit.get('scores', [None])[0]}, field {self.field_nt} nT, "
+                     f"rate {self.rate_per_s:.3g} 1/s (median of {len(rates)} families)")
         self._changed("couplings")
         return {"couplings": couplings, "field_nt": self.field_nt, "rate_per_s": self.rate_per_s}
+
+    def follow_point(self, run, start: Optional[str] = None, point: Optional[int] = None) -> Optional[dict]:
+        """Apply one point of a fit run, running or finished, from its monitor record: the best point so far of
+        the best start (start None), of one start, or that start's evaluation point. Couplings, field, decay rates
+        and the fit model (the exact curve) then show that point, which is how Studio follows a running fit. Slow
+        the first time per run (the problem is built from the recorded command): call it off the GUI thread.
+        None while the run has no record or no recorded point yet; unchanged points are not applied again."""
+        run = _resolve(run).resolve()
+        if not (run / "monitor" / "status.json").exists():
+            return None
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from fit_monitor import SpectrumCache, point_result, read_point, read_run
+        rec = read_run(run, max_points=2)
+        starts = {k: v for k, v in rec["starts"].items() if v["z"] is not None and v["best"] is not None}
+        if not starts:
+            return None
+        start = start if start in rec["starts"] else min(starts, key=lambda k: starts[k]["best"])
+        if point is None:
+            if start not in starts:
+                return None
+            z, n, kind = starts[start]["z"], starts[start]["evaluations"], "best so far"
+        else:
+            rp = read_point(run, start, int(point))
+            z, n, kind = rp["z"], rp["n"], rp["kind"]
+        key = (str(run), start, point, tuple(z))
+        if getattr(self, "_followed", None) == key and self.state_is_applied_fit():
+            return self.applied.get("point")
+        if self._fit_problems is None:
+            self._fit_problems = SpectrumCache()
+        prob = self._fit_problems.get(str(run))
+        fit = point_result(prob, z, self._fit_problems.args.get(str(run)))
+        info = {"start": start, "n": n, "kind": kind, "objective": fit["scores"][0], "evaluations":
+                rec["starts"][start]["evaluations"], "running": rec["status"].get("phase") != "finished"}
+        label = self.data["label"] if self.data is not None else None
+        spectrum = label if label in fit["spectrum_parameters"] else None
+        self._apply_fit_dict(run, fit, spectrum, fit.get("structure"), point=info, quiet=True)
+        self._followed = key
+        return info
 
     def fit_model_curve(self) -> Optional[dict]:
         """Exact model of the applied fit for the loaded spectrum: the fit's own forward model (phase, delay, decay
@@ -760,7 +805,8 @@ class StudioSession:
         if self.applied is None or self.data is None:
             return None
         run = _resolve(self.applied["run"]).resolve()
-        if self.fit_curve is not None and self.fit_curve["run"] == str(run):
+        zkey = tuple(self.applied["fit"].get("z_final") or ())
+        if self.fit_curve is not None and self.fit_curve["run"] == str(run) and self.fit_curve.get("zkey") == zkey:
             return self.fit_curve
         if not (run / "monitor" / "status.json").exists():
             raise ValueError(f"{run} has no monitor record (fit run with --monitor off)")
@@ -793,7 +839,8 @@ class StudioSession:
             objective = float(np.sum(joint.residual(z) ** 2))
         finally:
             joint.peak_smooth = smooth
-        curve = {"run": str(run), "spectrum": label, "f": np.asarray(fw.f, float), "model": np.asarray(model, complex),
+        curve = {"run": str(run), "zkey": zkey, "spectrum": label, "f": np.asarray(fw.f, float),
+                 "model": np.asarray(model, complex),
                  "objective": objective, "source": source}
         with self.lock:
             self.fit_curve = curve
@@ -806,6 +853,8 @@ class StudioSession:
         if c is None or self.applied is None or self.data is None or not self.state_is_applied_fit():
             return None
         if c["run"] != str(_resolve(self.applied["run"]).resolve()) or c["spectrum"] != self.data["label"]:
+            return None
+        if c.get("zkey") != tuple(self.applied["fit"].get("z_final") or ()):
             return None
         return c
 

@@ -419,6 +419,7 @@ class StudioWindow(QMainWindow):
         self.status_timer = QTimer(self, interval=1000)
         self.status_timer.timeout.connect(self.update_fit_status)
         self.status_timer.timeout.connect(self.update_jobs)
+        self.status_timer.timeout.connect(self._follow_tick)
         self.status_timer.start()
 
         self.settings_store = studio_settings()
@@ -427,6 +428,20 @@ class StudioWindow(QMainWindow):
         self.left_lay = QVBoxLayout(left)
         self.left_lay.setContentsMargins(8, 8, 16, 8)
         self.left_lay.setSpacing(8)
+        self.follow_bar = QWidget(objectName="followBar")
+        self.follow_bar.setAttribute(Qt.WA_StyledBackground, True)
+        fb = QHBoxLayout(self.follow_bar)
+        fb.setContentsMargins(10, 6, 8, 6)
+        self.follow_text = QLabel(wordWrap=True)
+        self.follow_stop = QPushButton("Stop following", objectName="small")
+        self.follow_stop.setToolTip("leave the fit's point: the sliders are yours again (the Monitor keeps running)")
+        self.follow_stop.clicked.connect(lambda: self.stop_follow())
+        fb.addWidget(self.follow_text, 1)
+        fb.addWidget(self.follow_stop)
+        self.follow_bar.setVisible(False)
+        self.left_lay.addWidget(self.follow_bar)
+        self.follow = None                            # {"run", "start", "point"} while the main view follows a fit
+        self._follow_busy = False
         self.fine_toggle = QCheckBox("fine sliders")
         self.fine_toggle.setToolTip("a second, fine slider under every coupling, field and phase slider")
         self.fine_toggle.setChecked(str(self.settings_store.value("fine_sliders", "false")).lower() == "true")
@@ -475,7 +490,7 @@ class StudioWindow(QMainWindow):
         self.part = QComboBox()
         self.part.addItems(["re", "im", "abs"])
         self.show_sticks = QCheckBox("lines", checked=True)
-        self.show_trace = QCheckBox("fit trace", checked=True)
+        self.show_trace = QCheckBox("fit trace", checked=False)   # superseded by following a fit (Monitor)
         self.baseline = QCheckBox("baseline")
         self.baseline.setToolTip("display only: the same baseline correction for data and model as the publication "
                                  "figures (spline through anchor points away from the lines, then AsLS under the line "
@@ -517,6 +532,7 @@ class StudioWindow(QMainWindow):
         self.monitor_panel = MonitorPanel(self.session, self)
         self.info_tabs.addTab(self.monitor_panel, "Monitor")
         self.jobs_panel.on_monitor = self.show_monitor
+        self.monitor_panel.on_select = lambda run, start, point: self.set_follow(run, start, point)
         self.log_view = QPlainTextEdit(readOnly=True)
         self.log_view.setObjectName("mono")
         self.log_view.setMaximumBlockCount(5000)
@@ -658,7 +674,7 @@ class StudioWindow(QMainWindow):
                 sec.toggle.setText(f"{n}  {names[key]}")
         self.show_sticks.setVisible(mode in ("simulate", "fit"))
         self.lock_scale.setVisible(mode not in ("process", "blind"))
-        self.show_trace.setVisible(mode == "fit")
+        self.show_trace.setVisible(False)
         pages = {"simulate": ("Lines", "Jobs", "Log", "AI assistant"),
                  "process": ("Scans", "Jobs", "Log", "AI assistant"),
                  "fit": ("Lines", "Jobs", "Monitor", "Log", "AI assistant"),
@@ -1073,20 +1089,12 @@ class StudioWindow(QMainWindow):
         self.f_status.setWordWrap(True)
         left.addWidget(self.f_status)
         right = QVBoxLayout()
-        prog = QLabel("<b>Fit progress</b>: drag through the evaluations of the fit")
+        prog = QLabel("<b>Fit progress</b>: while a fit runs, the main plot and the sliders follow its best point "
+                      "and the Monitor tab shows every start; click any point there to see it. When the fit "
+                      "ends, its result is applied (unless you stopped following).")
         prog.setWordWrap(True)
+        prog.setObjectName("hint")
         right.addWidget(prog)
-        self.trace_slider = QSlider(Qt.Horizontal)
-        self.trace_slider.setEnabled(False)
-        self.trace_slider.valueChanged.connect(lambda i: self._guard(self.session.trace_frame, i))
-        self.trace_info = QPlainTextEdit(readOnly=True)
-        self.trace_info.setObjectName("mono")
-        apply_frame = QPushButton("Copy frame couplings to sliders")
-        apply_frame.clicked.connect(lambda: self._guard(self.session.trace_frame, self.trace_slider.value(), True))
-        right.addWidget(self.trace_slider)
-        right.addWidget(self.trace_info, 1)
-        right.addWidget(apply_frame)
-        self.trace_info.setMaximumHeight(170)
         lay.addLayout(left)
         lay.addLayout(right)
         lay.addStretch(1)
@@ -1518,6 +1526,7 @@ class StudioWindow(QMainWindow):
         if run:
             self.monitor_panel.set_run(run)
         self._drawer("Monitor")
+        self.monitor_panel.refresh(force=True)         # asked for: read now, shown or not
 
     def _monitor_window(self):
         if not self.monitor_panel.run:
@@ -1758,6 +1767,9 @@ class StudioWindow(QMainWindow):
                     extra_args=extra)
         self.show_page(self.fit_page)
         self.show_monitor()
+        running = [st for st in self.session.job_list() if st["running"] and st["kind"] == "fit"]
+        if running:
+            self.set_follow(running[0]["out_dir"])         # the main view follows the new fit
 
     def export(self):
         dlg = ExportDialog(self.session, self.settings_store, self.fig, self)
@@ -1781,6 +1793,82 @@ class StudioWindow(QMainWindow):
             self._guard(self.session.set_view, lo, hi)
 
     # ---- session events ----------------------------------------------------------------------
+    # ---- following a fit (owner, 2026-10-09): main plot, sliders and Monitor show one point ----------
+    def set_follow(self, run, start=None, point=None):
+        """The main view follows a fit run: its best point so far (start None: the best start; point None: that
+        start's latest best), or one evaluation of one start. The sliders show the point and are read-only until
+        Stop following."""
+        self.follow = {"run": str(run), "start": start, "point": point}
+        self._show_follow()
+        self._follow_tick(force=True)
+
+    def stop_follow(self):
+        self.follow = None
+        self._show_follow()
+
+    def _show_follow(self):
+        on = self.follow is not None
+        self.follow_bar.setVisible(on)
+        for key in ("couplings", "field"):
+            self.sections[key].body.setEnabled(not on)
+        if hasattr(self, "spin_editor"):
+            self.model_editor.setEnabled(not on)
+        if on:
+            self._update_follow_text()
+
+    def _update_follow_text(self):
+        f, s = self.follow, self.session
+        pt = (s.applied or {}).get("point") if s.applied and s.applied.get("run") and \
+            Path(s.applied["run"]).resolve() == Path(f["run"]).resolve() else None
+        where = "waiting for the fit's first recorded point"
+        if pt:
+            where = (f"start {pt['start'].replace('start_', '')}, "
+                     + (f"best so far (evaluation {pt['n']})" if pt["kind"] == "best so far"
+                        else f"evaluation {pt['n']} of {pt['evaluations']}")
+                     + f", objective {pt['objective']:.5g}" + (" - running" if pt.get("running") else ""))
+        self.follow_text.setText(f"<b>Following fit</b> {Path(f['run']).name}<br>{where}")
+
+    def _follow_tick(self, force=False):
+        """Apply the followed point in the background when the run has moved on (every second)."""
+        if self.follow is None or self._follow_busy:
+            return
+        f = dict(self.follow)
+        self._follow_busy = True
+
+        def work():
+            try:
+                self.session.follow_point(f["run"], f["start"], f["point"])
+            except Exception as exc:
+                self.session.log(f"following {f['run']}: {type(exc).__name__}: {exc}", "session")
+            finally:
+                self._follow_busy = False
+            self.session._changed("follow")
+        threading.Thread(target=work, daemon=True, name="follow-fit").start()
+
+    def _fit_finished(self):
+        """A fit of this session ended: when the main view was following it, its final result is applied."""
+        job = self.session.fit_job
+        if job is None:
+            return
+        out = Path(job.out_dir).resolve()
+        if (self.follow is not None and Path(self.follow["run"]).resolve() == out and job.returncode == 0
+                and (out / "fit.json").exists()):
+            self.stop_follow()
+            self._guard(self.session.apply_fit, str(out))
+            self.statusBar().showMessage(f"fit finished: result of {out.name} applied", 12000)
+        elif job.returncode == 0:
+            self.statusBar().showMessage(f"fit finished ({out.name}): Apply result loads it", 12000)
+
+    def _fit_point_name(self):
+        """'run', or 'run, start 3, evaluation 25' for a followed point."""
+        a = self.session.applied or {}
+        name = Path(a.get("run", "")).name
+        pt = a.get("point")
+        if not pt:
+            return name
+        return (f"{name}, start {pt['start'].replace('start_', '')}, "
+                + ("best so far" if pt["kind"] == "best so far" else f"evaluation {pt['n']}"))
+
     def _request_fit_curve(self):
         """Compute the applied fit's exact model in the background (the first time per run builds the fit
         problem, about a second); the plot draws it instead of the quick look when it arrives."""
@@ -1831,6 +1919,10 @@ class StudioWindow(QMainWindow):
         self.refresh_widgets()
         if event in ("fit_done", "trace", "fit_started"):
             self.update_fit_status()
+        if event == "fit_done":
+            self._fit_finished()
+        if event == "follow" and self.follow is not None:
+            self._update_follow_text()
         if event == "figure_done":
             self.show_figure()
         self.schedule()
@@ -1887,20 +1979,6 @@ class StudioWindow(QMainWindow):
         self.exchange.blockSignals(False)
         if not self.spec_edit.hasFocus():
             self.spec_edit.setPlainText(json.dumps(s.spec, indent=1))
-        if s.trace is not None:
-            n = len(s.trace["meta"]["frames"])
-            self.trace_slider.blockSignals(True)
-            self.trace_slider.setEnabled(True)
-            self.trace_slider.setRange(0, n - 1)
-            self.trace_slider.setValue(max(s.trace_index, 0))
-            self.trace_slider.blockSignals(False)
-            fr = s.trace["meta"]["frames"][max(s.trace_index, 0)]
-            self.trace_info.setPlainText(
-                f"run {s.trace['run']}\nframe {s.trace_index + 1}/{n}  evaluation {fr['evaluation']}  "
-                f"stage {fr['stage']}\nobjective {fr['objective']:.6g}\n\n" +
-                "\n".join(f"{k:14s} {v[0]:10.4f} Hz" for k, v in fr["J"].items()))
-        else:
-            self.trace_slider.setEnabled(False)
 
     def update_fit_status(self):
         st = self.session.fit_status()
@@ -2085,7 +2163,7 @@ class StudioWindow(QMainWindow):
             each = mode == "simulate" and self.simulate_panel.per_component()
             ax.plot(f, m, color=t["sim"] if not each else t["muted"], lw=1.3 if not each else 1.0,
                     ls="-" if not each else "--", alpha=0.9, zorder=1 if each else 2,
-                    label=(f"fit model ({Path(s.applied['run']).name})" if exact else "simulation (quick look)")
+                    label=(f"fit model ({self._fit_point_name()})" if exact else "simulation (quick look)")
                     if mode != "simulate"
                     else "weighted sum")
         tr = s.trace if self.show_trace.isChecked() else None
@@ -2104,7 +2182,7 @@ class StudioWindow(QMainWindow):
         field = ("zero field" if bt == 0 and bz == 0 else
                  f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT")
         if show_model:
-            ax.text(0.01, 0.03, field + (f"   (applied fit {Path(s.applied['run']).name})"
+            ax.text(0.01, 0.03, field + (f"   ({self._fit_point_name()})"
                                          if s.state_is_applied_fit() else ""),
                     transform=ax.transAxes, ha="left", va="bottom", fontsize=8.5, color=t["accent"],
                     bbox=dict(boxstyle="round,pad=0.3", fc=t["accent_soft"], ec="none"))

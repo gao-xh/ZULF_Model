@@ -56,6 +56,7 @@ class MonitorPanel(QWidget):
         super().__init__(parent)
         self.session, self.window, self.large = session, window, large
         self.popout = None
+        self.on_select = None                          # Studio: the main view follows the point chosen here
         self.cache = SpectrumCache()
         self.relay = _Relay()
         self.relay.spectrum.connect(self._got_spectrum)
@@ -163,6 +164,7 @@ class MonitorPanel(QWidget):
         """The same monitor in a separate window of 85 % of the screen, on the run shown here."""
         if self.popout is None:
             self.popout = MonitorWindow(self.session, self.window)
+            self.popout.panel.on_select = self.on_select
         if self.run:
             self.popout.panel.set_run(self.run)
         self.popout.show()
@@ -198,7 +200,7 @@ class MonitorPanel(QWidget):
             self.runs.insertItem(0, _short(run), run)
         if run:
             self.runs.setCurrentIndex(self.runs.findData(run))
-        self.refresh(force=True)
+        self.refresh(force=self.isVisible())      # hidden: read when shown
 
     # ---- polling ---------------------------------------------------------------------------
     def refresh(self, force=False):
@@ -237,6 +239,8 @@ class MonitorPanel(QWidget):
         self._draw()
 
     def _fill_starts(self):
+        if not self.data:
+            return
         st, starts = self.data["status"], self.data["starts"]
         names = list(starts)
         self.starts.blockSignals(True)
@@ -262,6 +266,8 @@ class MonitorPanel(QWidget):
         names = list(self.data["starts"]) if self.data else []
         if 0 <= r < len(names) and names[r] != self.selected:
             self.selected, self.spec, self.spec_key, self.point = names[r], None, None, None
+            if self.on_select is not None and self.run:
+                self.on_select(self.run, self.selected, None)
             self._fill_couplings()
             self._request_spectrum()
             self._draw()
@@ -295,6 +301,8 @@ class MonitorPanel(QWidget):
             self._fill_starts()
         self.point = None if n is None else int(n)
         self.spec, self.spec_key = None, None
+        if self.on_select is not None and self.run:
+            self.on_select(self.run, self.selected, self.point)
         self._sync_slider()
         self._request_spectrum()
         self._fill_couplings()
