@@ -38,6 +38,7 @@ from .jobs_ui import ActivityIndicator, AnalysisPanel, JobsPanel, MachineLabel, 
 from .session import SESSION_SUFFIX  # noqa: E402
 from .dialogs import ExportDialog, ImportDialog  # noqa: E402
 from .modes_ui import SimulatePanel  # noqa: E402
+from .monitor_ui import MonitorPanel  # noqa: E402
 from .process_ui import ProcessPanel, RecipeBox, ScansPanel  # noqa: E402
 from .spinsystem_ui import SpinSystemEditor  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
@@ -504,6 +505,9 @@ class StudioWindow(QMainWindow):
         self.info_tabs.addTab(self.scans_panel, "Scans")
         self.jobs_panel = JobsPanel(self.session)
         self.info_tabs.addTab(self.jobs_panel, "Jobs")
+        self.monitor_panel = MonitorPanel(self.session, self)
+        self.info_tabs.addTab(self.monitor_panel, "Monitor")
+        self.jobs_panel.on_monitor = self.show_monitor
         self.log_view = QPlainTextEdit(readOnly=True)
         self.log_view.setObjectName("mono")
         self.log_view.setMaximumBlockCount(5000)
@@ -542,6 +546,8 @@ class StudioWindow(QMainWindow):
         main.setSizes([400, 760, 330])
         main.setStretchFactor(1, 1)
         self.splitters = {"middle3": middle, "main3": main}
+        self._drawer_sizes = None
+        self.info_tabs.currentChanged.connect(self._drawer_room)
         header = QWidget(objectName="header")
         hl = QHBoxLayout(header)
         hl.setContentsMargins(16, 8, 16, 8)
@@ -639,7 +645,8 @@ class StudioWindow(QMainWindow):
         self.show_trace.setVisible(mode == "fit")
         pages = {"simulate": ("Lines", "Jobs", "Log", "AI assistant"),
                  "process": ("Scans", "Jobs", "Log", "AI assistant"),
-                 "fit": ("Lines", "Jobs", "Log", "AI assistant"), "blind": ("Jobs", "Log", "AI assistant")}[mode]
+                 "fit": ("Lines", "Jobs", "Monitor", "Log", "AI assistant"),
+                 "blind": ("Jobs", "Monitor", "Log", "AI assistant")}[mode]
         for i in range(self.info_tabs.count()):
             self.info_tabs.setTabVisible(i, self.info_tabs.tabText(i) in pages)
         if self.info_tabs.tabText(self.info_tabs.currentIndex()) not in pages:
@@ -1371,18 +1378,47 @@ class StudioWindow(QMainWindow):
                                          ("blind", "Blind analysis"))):
             action(v, text, lambda k=key: self.session.set_mode(k), f"Ctrl+{n + 1}")
         v.addSeparator()
-        for text, page, key in (("Lines", 0, "Ctrl+Shift+1"), ("Scans", 1, "Ctrl+Shift+2"), ("Jobs", 2, "Ctrl+Shift+3"),
-                                ("Log", 3, "Ctrl+Shift+4"), ("AI assistant", 4, "Ctrl+Shift+5")):
-            action(v, text, lambda i=page: self.info_tabs.setCurrentIndex(i), key)
+        for text, key in (("Lines", "Ctrl+Shift+1"), ("Scans", "Ctrl+Shift+2"), ("Jobs", "Ctrl+Shift+3"),
+                          ("Monitor", "Ctrl+Shift+M"), ("Log", "Ctrl+Shift+4"), ("AI assistant", "Ctrl+Shift+5")):
+            action(v, text, lambda _=False, name=text: self.show_monitor() if name == "Monitor" else self._drawer(name), key)
         r = self.menuBar().addMenu("&Run")
         action(r, "Start fit", self.start_fit, "Ctrl+Return")
         action(r, "Blind analysis ...", lambda: self.show_page(self.analysis_panel), "Ctrl+B")
         action(r, "Stop running job", self.activity._stop, "Ctrl+.")
         action(r, "Jobs", lambda: self.show_page(self.jobs_panel), "Ctrl+J")
-        action(r, "Live fit monitor", self._open_monitor, "Ctrl+Shift+M")
+        action(r, "Live fit monitor in the browser", self._open_monitor)
         t = self.menuBar().addMenu("&Tools")
         for text, key, page in (("Terminal", "Ctrl+Shift+T", "Terminal"), ("Python console", "Ctrl+Shift+P", "Python")):
             action(t, text, lambda pg=page: self.open_tools(pg), key)
+
+    def _drawer_room(self, _index=None):
+        """The Monitor tab needs room: the drawer takes 65 % of the middle column while it is shown; the user's
+        split comes back when another tab is chosen."""
+        middle = self.splitters["middle3"]
+        if self.info_tabs.currentWidget() is self.monitor_panel:
+            if self._drawer_sizes is None:
+                self._drawer_sizes = middle.sizes()
+                total = sum(self._drawer_sizes)
+                middle.setSizes([int(total * 0.35), total - int(total * 0.35)])
+        elif self._drawer_sizes is not None:
+            middle.setSizes(self._drawer_sizes)
+            self._drawer_sizes = None
+
+    def _drawer(self, name):
+        for i in range(self.info_tabs.count()):
+            if self.info_tabs.tabText(i) == name:
+                if not self.info_tabs.isTabVisible(i):
+                    self.session.set_mode("fit")
+                self.info_tabs.setCurrentIndex(i)
+
+    def show_monitor(self, run=None):
+        """Monitor tab of the drawer on this run directory (default: the running fit of the session)."""
+        if run is None:
+            running = [st for st in self.session.job_list() if st["running"] and st["kind"] == "fit"]
+            run = running[0]["out_dir"] if running else None
+        if run:
+            self.monitor_panel.set_run(run)
+        self._drawer("Monitor")
 
     def _open_monitor(self):
         """Live fit monitor page: the running fit of the session if any, else the list of every run."""
@@ -1541,6 +1577,8 @@ class StudioWindow(QMainWindow):
         if not self._discard_ok():
             e.ignore()
             return
+        if self._drawer_sizes is not None:                 # save the user's split, not the Monitor one
+            self.splitters["middle3"].setSizes(self._drawer_sizes)
         self.settings_store.setValue("geometry", self.saveGeometry())
         for name, sp in self.splitters.items():
             self.settings_store.setValue(f"splitter/{name}", sp.saveState())
@@ -1590,7 +1628,7 @@ class StudioWindow(QMainWindow):
                     family_edges=_family_edges(self.f_edges.currentText()), rate_bounds=self.f_rates.text().strip() or "0.2,15",
                     extra_args=extra)
         self.show_page(self.fit_page)
-        self.show_page(self.jobs_panel)
+        self.show_monitor()
 
     def export(self):
         dlg = ExportDialog(self.session, self.settings_store, self.fig, self)

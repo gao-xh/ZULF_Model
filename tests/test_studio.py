@@ -227,6 +227,39 @@ class WindowSmokeTests(unittest.TestCase):
         self.assertGreater(w.lines_table.rowCount(), 0)
         w.close()
 
+    def test_monitor_tab_waits_for_a_record_then_shows_starts_and_couplings(self):
+        try:
+            import os
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PySide6.QtWidgets import QApplication
+            from zulf_studio.app import StudioWindow
+        except ImportError:
+            self.skipTest("PySide6 not installed")
+        app = QApplication.instance() or QApplication([])
+        s = session(METHYL)
+        w = StudioWindow(s)
+        run = Path(s.workspace) / "fit_run"
+        run.mkdir()
+        w.show_monitor(str(run))                                      # no record yet: a waiting line, no error
+        self.assertIn("waiting", w.monitor_panel.status.text())
+        mon = run / "monitor"
+        mon.mkdir()
+        (mon / "status.json").write_text(json.dumps({"argv": [], "started": 0.0, "phase": "fit", "starts": 2,
+                                                      "keys": ["J_a"], "finished": {}, "start_couplings": {}}))
+        rows = [{"event": "start", "t": 0}, {"n": 1, "t": 0.1, "cost": 2.0, "best": 2.0, "label": "fit",
+                                             "J0": {"J_a": [136.0]}},
+                {"n": 2, "t": 0.2, "cost": 1.0, "best": 1.0, "label": "fit", "J": {"J_a": [136.5]},
+                 "z": [136.5]}]
+        (mon / "start_000.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+        (mon / "console.log").write_text("start 0 running\n")
+        w.monitor_panel.refresh(force=True)
+        self.assertIn("fit", w.monitor_panel.status.text())
+        self.assertEqual(w.monitor_panel.starts.rowCount(), 1)
+        self.assertEqual(w.monitor_panel.couplings.item(0, 1).text(), "136.500")
+        self.assertEqual(w.monitor_panel.couplings.item(0, 2).text(), "+0.500")
+        self.assertIn("start 0 running", w.monitor_panel.console.toPlainText())
+        w.close()
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -539,7 +572,7 @@ class FilesAndJobsTests(unittest.TestCase):
         self.assertLessEqual(w.minimumSizeHint().width(), 1400)     # fits a 1470 px laptop screen
         self.assertIn("CPU", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
-        self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Log", "AI assistant"])
+        self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Monitor", "Log", "AI assistant"])
         for mode, visible in (("simulate", {"structure", "couplings", "field"}), ("process", {"recipe"}),
                               ("fit", {"data", "structure", "couplings", "field"}), ("blind", {"data"})):
             s.set_mode(mode)                                          # D58: one model, panels per task

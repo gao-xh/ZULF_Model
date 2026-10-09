@@ -178,8 +178,8 @@ class JobsPanel(QWidget):
         self.b_apply = QPushButton("Apply fit result")
         self.b_report = QPushButton("Open report")
         self.b_monitor = QPushButton("Live monitor")
-        self.b_monitor.setToolTip("open the live fit monitor page of this job in the browser (objective per start, "
-                                  "current simulated spectrum, console); double-click a job does the same")
+        self.b_monitor.setToolTip("live fit monitor of this job in the Monitor tab (objective per start, current "
+                                  "simulated spectrum, couplings, console); double-click a job does the same")
         for b in (self.b_stop, self.b_monitor, self.b_open, self.b_apply, self.b_report):
             row.addWidget(b)
         row.addStretch(1)
@@ -193,8 +193,12 @@ class JobsPanel(QWidget):
         self.b_monitor.clicked.connect(lambda: self._with(self._monitor))
         self.table.cellDoubleClicked.connect(lambda *_: self._with(self._monitor))
         self.rows = []
+        self.on_monitor = None
 
     def _monitor(self, st):
+        if self.on_monitor is not None:                   # Studio: the Monitor tab of the drawer
+            self.on_monitor(st["out_dir"])
+            return
         r = self.session.monitor_url(st["out_dir"])
         QDesktopServices.openUrl(QUrl(r["url"]))
         if not r["has_monitor"]:

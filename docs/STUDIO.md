@@ -100,10 +100,16 @@ Pages:
   next to the form when it is written. The ranking is a list of conditional candidates.
 - **Jobs**: every background job of the session (fits, blind analyses, imports, figures) with state, starts
   finished / total, stage, elapsed time, best objective and output folder; Stop, Live monitor, Open folder, Apply
-  fit result, Open report. **Live monitor** (or a double-click on a job, or Run > Live fit monitor, Cmd+Shift+M)
-  opens the fit monitor page of that job in the browser (objective of every start, current simulated spectrum,
-  console; WORKFLOW step 8). Studio serves the page itself on 127.0.0.1 (free port, started on first use, stopped
-  with Studio), so `scripts/fit_monitor.py` need not run separately.
+  fit result, Open report. **Live monitor** (or a double-click on a job) opens the job in the **Monitor** tab.
+- **Monitor** (drawer, Fit and Blind analysis modes; View > Monitor, Cmd+Shift+M; shown by itself when a fit
+  starts): the live view of a fit run inside Studio (WORKFLOW step 8), read from OUT/monitor every 2 s while the
+  tab is visible: objective of every start (thin: each evaluation, thick: best so far), data, model and residual
+  at the best point so far of the selected start (rendered in a background thread from the run's recorded
+  command; the fit is not touched; "follow" re-renders when the best point improves), and side tabs Couplings
+  (value and change from the start), Starts and Console. A run that has not written its record yet shows a
+  waiting line. While the tab is shown the drawer takes 65 % of the middle column; the previous split returns
+  with another tab. Run > "Live fit monitor in the browser" opens the same view as the web page of
+  `scripts/fit_monitor.py`, served by Studio on 127.0.0.1.
 - **Log**: everything the session did (sources session, api, ai, fit, figure, terminal); also written to
   `runs/studio/studio.log`.
 - **AI assistant**: the chat with a language model that operates the session (below); its status line shows the
@@ -150,7 +156,7 @@ free, and starting more than the free cores asks first. Several fits with many t
   and the publication figure.
 
 **View** menu: Cmd+1 ... Cmd+7 bring a page forward (Fit, Analysis, Figure, Lines, Jobs, Log, AI assistant). **Run** menu: Start fit (Cmd+Return), Blind analysis (Cmd+B),
-Stop the running job (Cmd+.), Jobs (Cmd+J), Live fit monitor (Cmd+Shift+M). The window size and splitters are remembered.
+Stop the running job (Cmd+.), Jobs (Cmd+J), Live fit monitor in the browser; View > Monitor (Cmd+Shift+M). The window size and splitters are remembered.
 
 **Settings** (File > Settings, on macOS ZULF Studio > Settings, Cmd+,): the AI assistant configuration
 (provider, model, steps, API key, Keychain, setup guide), the AI API address and tool list, and the appearance

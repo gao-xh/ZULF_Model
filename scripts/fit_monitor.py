@@ -144,15 +144,17 @@ class Tee:
 def read_run(run, max_points=400):
     """Status and per-start histories (decimated to max_points, best so far) of one run directory."""
     mon = Path(run) / "monitor"
-    status = json.load(open(mon / "status.json"))
+    with open(mon / "status.json") as fh:
+        status = json.load(fh)
     starts = {}
     for p in sorted(mon.glob("*.jsonl")):
         recs = []
-        for line in open(p):
-            try:
-                recs.append(json.loads(line))
-            except json.JSONDecodeError:            # a line being written
-                pass
+        with open(p) as fh:
+            for line in fh:
+                try:
+                    recs.append(json.loads(line))
+                except json.JSONDecodeError:        # a line being written
+                    pass
         evals = [r for r in recs if "cost" in r]
         snaps = [r for r in recs if "J" in r]
         first = next((r for r in recs if "J0" in r), None)
