@@ -876,6 +876,7 @@ class SpinSystemTests(unittest.TestCase):
         self.assertEqual(label_sites("13C@C1,C3+15N@N1 (x2)"), ["C1", "C3", "N1"])
         r = draw_molecule(Figure().add_subplot(111), s.spec, ["13C@C1 (x2)", "13C@C2"], w.t)
         self.assertEqual(r["atoms"], 4)                                  # C1, C2, C3, O1
+        self.assertEqual(r["hydrogens"], 8)                              # CH3, CH, CH3 and the O-H (faint)
         self.assertEqual(set(r["marked"]), {"C1", "C2"})                 # the labelled sites, in plot colours
         self.assertIn("isopropanol", w.model_summary.text())
         w.open_model_editor()                                            # the editor is its own window

@@ -70,7 +70,9 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
     orders appear only for a model built from a molecule (the structure itself has none). A spin system shows a
     network: one node per group of equivalent spins, one edge per nonzero coupling with its value (width ~ |J|,
     dashed when negative), a component chooser for several components. The labelled site of each isotopologue sits in
-    a pill of its plot colour. A spin system converted from a structure
+    a pill of its plot colour, written 13C. Protons are drawn as their own atoms ("H atoms"; exchangeable ones on O and
+    S faint, they are not in the spin model) or grouped on their atom ("CH3 groups"); the font follows the size of
+    the view. A spin system converted from a structure
     keeps the molecule; for any other one **Attach molecule ...** (SMILES or mol file, atoms C1, C2, O1, ... in order)
     adds it for drawing only (model, couplings and an applied fit unchanged); a switch shows molecule or network. **From molecule ...** builds the model
     from a SMILES string or mol-file text (zulf_hypothesis.molecule.structure_from_molecule; API tool

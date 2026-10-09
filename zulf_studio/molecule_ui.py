@@ -42,19 +42,27 @@ def _mix(colour, background, share):
     return tuple(share * c + (1 - share) * b)
 
 
-def draw_molecule(ax, spec, components, t, scale=1.0) -> dict:
+def draw_molecule(ax, spec, components, t, scale=1.0, explicit_h=True) -> dict:
     """Draw the molecule of a structure specification on ax; components: isotopologue labels (their sites are
-    marked in the isotopologue colours). Returns {"atoms": n, "marked": {site: colour}}."""
+    marked in the isotopologue colours, the labelled atom written 13C). explicit_h: every proton its own atom
+    (exchangeable ones on O and S faint: they are not in the spin model); else grouped (CH3, CH2).
+    Returns {"atoms": heavy atoms, "hydrogens": drawn H atoms, "marked": {site: colour}}."""
+    from rdkit import Chem
     from rdkit.Chem import rdDepictor
     from zulf_hypothesis.molecule import molecule_from_structure
     mol, sites = molecule_from_structure(spec)
+    heavy = mol.GetNumAtoms()
+    if explicit_h:
+        mol = Chem.AddHs(mol)                          # H atoms appended after the heavy atoms
     rdDepictor.SetPreferCoordGen(True)
     rdDepictor.Compute2DCoords(mol)
     conf = mol.GetConformer()
     n = mol.GetNumAtoms()
     xy = np.array([[conf.GetAtomPosition(i).x, conf.GetAtomPosition(i).y] for i in range(n)])
     bonds = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx(), str(b.GetBondType())) for b in mol.GetBonds()]
-    length = np.median([np.hypot(*(xy[i] - xy[j])) for i, j, _ in bonds]) if bonds else 1.0
+    heavy_bonds = [(i, j) for i, j, _ in bonds if i < heavy and j < heavy]
+    ref = heavy_bonds or [(i, j) for i, j, _ in bonds]
+    length = np.median([np.hypot(*(xy[i] - xy[j])) for i, j in ref]) if ref else 1.0
     xy = xy / length                                   # bond length 1
     label_of = {i: s for s, i in sites.items()}
     marked = {}
@@ -62,7 +70,18 @@ def draw_molecule(ax, spec, components, t, scale=1.0) -> dict:
         for site in label_sites(comp):
             if site in sites:
                 marked[site] = ISOTOPOLOGUE[k % len(ISOTOPOLOGUE)]
-    fs = 12 * scale
+    # font from the pixels per bond length, so labels never cover the bonds whatever the view size
+    pad = 0.5
+    span_x = np.ptp(xy[:, 0]) + 2 * pad
+    span_y = np.ptp(xy[:, 1]) + 2 * pad
+    w_in, h_in = ax.figure.get_size_inches()
+    bbox = ax.get_position()
+    px_per_unit = min(w_in * bbox.width / span_x, h_in * bbox.height / span_y) * 72.0   # in points
+    fs = float(np.clip(0.34 * px_per_unit, 5.5, 15.0 * scale))
+
+    def faint(i):                                      # exchangeable proton: not in the spin model
+        a = mol.GetAtomWithIdx(i)
+        return a.GetAtomicNum() == 1 and any(n.GetSymbol() in ("O", "S") for n in a.GetNeighbors())
     for i, j, kind in bonds:
         p, q = xy[i], xy[j]
         u = (q - p) / max(np.hypot(*(q - p)), 1e-9)
@@ -70,30 +89,48 @@ def draw_molecule(ax, spec, components, t, scale=1.0) -> dict:
         offsets = {"DOUBLE": (-0.07, 0.07), "TRIPLE": (-0.11, 0.0, 0.11), "AROMATIC": (-0.07, 0.07)}.get(kind, (0,))
         for m, off in enumerate(offsets):
             a, b = p + off * nrm, q + off * nrm
-            ax.plot([a[0], b[0]], [a[1], b[1]], color=t["ink"], lw=1.5 * scale, solid_capstyle="round", zorder=1,
+            h_bond = i >= heavy or j >= heavy
+            ax.plot([a[0], b[0]], [a[1], b[1]], color=t["muted"] if h_bond else t["ink"],
+                    lw=(1.0 if h_bond else 1.5) * scale, solid_capstyle="round", zorder=1,
+                    alpha=0.35 if (faint(i) or faint(j)) else 1.0,
                     ls=(0, (3, 2)) if kind == "AROMATIC" and m == 1 else "-")
     for i, atom in enumerate(mol.GetAtoms()):
-        el, n_h = atom.GetSymbol(), atom.GetTotalNumHs()
-        text = el + ("H" if n_h else "") + (f"$_{{{n_h}}}$" if n_h > 1 else "")
+        el, n_h = atom.GetSymbol(), (0 if explicit_h else atom.GetTotalNumHs())
         site = label_of.get(i)
         colour = marked.get(site)
-        box = (dict(boxstyle="round,pad=0.32,rounding_size=0.6", fc=_mix(colour, t["panel"], 0.22), ec=colour,
-                    lw=1.6 * scale) if colour else
+        if el == "H":
+            ax.text(*xy[i], "H", ha="center", va="center", fontsize=fs * 0.8, zorder=3, color=t["ink"],
+                    alpha=0.35 if faint(i) else 0.85, bbox=dict(boxstyle="round,pad=0.12", fc=t["panel"], ec="none"))
+            continue
+        iso = "".join(c for c in comp_isotope(components, site) if c.isdigit()) if colour else ""
+        text = (f"$^{{{iso}}}$" if iso else "") + el + ("H" if n_h else "") + (f"$_{{{n_h}}}$" if n_h > 1 else "")
+        box = (dict(boxstyle="round,pad=0.22,rounding_size=0.5", fc=_mix(colour, t["panel"], 0.22), ec=colour,
+                    lw=1.4) if colour else
                dict(boxstyle="round,pad=0.2", fc=t["panel"], ec="none"))
         ax.text(*xy[i], text, ha="center", va="center", fontsize=fs, zorder=3,
                 color=ELEMENT_COLOURS.get(el, t["ink"]), fontweight="bold" if colour else "normal", bbox=box)
-        if site:                                       # the site label outside, away from the neighbours
-            nb = [xy[a.GetIdx()] - xy[i] for a in atom.GetNeighbors()]
-            d = -np.sum(nb, axis=0) if nb else np.array([0.0, -1.0])
-            d = d / np.hypot(*d) if np.hypot(*d) > 1e-6 else np.array([0.0, -1.0])
-            ax.text(*(xy[i] + 0.5 * d), site, ha="center", va="center", fontsize=fs * 0.62, color=t["muted"],
-                    zorder=2)
-    pad = 0.75                                         # invisible corners: equal aspect without fixed limits
-    ax.plot([xy[:, 0].min() - pad, xy[:, 0].max() + pad], [xy[:, 1].min() - pad, xy[:, 1].max() + pad], alpha=0)
+        if site:                                       # the site label in the freest direction around the atom
+            nb = [(xy[a.GetIdx()] - xy[i]) / max(np.hypot(*(xy[a.GetIdx()] - xy[i])), 1e-9)
+                  for a in atom.GetNeighbors()]
+            cand = [np.array([np.cos(a), np.sin(a)]) for a in np.linspace(0, 2 * np.pi, 16, endpoint=False)]
+            d = max(cand, key=lambda c: min([np.hypot(*(c - v)) for v in nb] or [2.0]))
+            ax.text(*(xy[i] + 0.5 * d), site, ha="center", va="center", fontsize=fs * 0.58, color=t["muted"],
+                    zorder=4)
+    ax.plot(                                           # invisible corners: equal aspect without fixed limits
+        [xy[:, 0].min() - pad, xy[:, 0].max() + pad], [xy[:, 1].min() - pad, xy[:, 1].max() + pad], alpha=0)
     ax.set_aspect("equal", adjustable="datalim")
     ax.autoscale(tight=True)
     ax.set_axis_off()
-    return {"atoms": n, "marked": marked}
+    return {"atoms": heavy, "hydrogens": n - heavy, "marked": marked}
+
+
+def comp_isotope(components, site) -> str:
+    """The isotope labelling a site in the isotopologue labels ('13C@C1' -> '13C')."""
+    for comp in components:
+        for part in comp.split(" ")[0].split("+"):
+            if "@" in part and site in part.split("@", 1)[1].split(","):
+                return part.split("@", 1)[0]
+    return ""
 
 
 def draw_network(ax, spec, k, t, scale=1.0) -> dict:
@@ -152,6 +189,7 @@ class MoleculeView(QWidget):
             self.canvas.setMaximumHeight(170)
             self.canvas.setCursor(Qt.PointingHandCursor)
             self.canvas.mpl_connect("button_press_event", lambda _e: self.open_large())
+        self.canvas.mpl_connect("resize_event", lambda _e: self.refresh(force=True))   # fonts follow the size
         lay.addWidget(self.canvas, 1)
         self.caption = QLabel(objectName="hint", wordWrap=True)
         self.caption.setVisible(large)
@@ -164,8 +202,13 @@ class MoleculeView(QWidget):
         self.component = QComboBox()
         self.component.setToolTip("component of the spin system drawn")
         self.component.currentIndexChanged.connect(lambda _i: self.refresh(force=True))
+        self.hydrogens = QComboBox()
+        self.hydrogens.addItems(["H atoms", "CH3 groups"])
+        self.hydrogens.setToolTip("protons drawn as atoms, or grouped on their atom (CH3, CH2)")
+        self.hydrogens.currentIndexChanged.connect(lambda _i: self.refresh(force=True))
         row.addWidget(self.view)
         row.addWidget(self.component)
+        row.addWidget(self.hydrogens)
         row.addStretch(1)
         lay.addLayout(row)
         self._last = None
@@ -173,7 +216,8 @@ class MoleculeView(QWidget):
     def refresh(self, force=False):
         spec = self.session.spec
         t = self.window.t
-        key = (repr(spec), self.component.currentIndex(), self.view.currentIndex(), t["panel"])
+        key = (repr(spec), self.component.currentIndex(), self.view.currentIndex(), self.hydrogens.currentIndex(),
+               t["panel"])
         if key == self._last and not force:
             return
         self._last = key
@@ -181,6 +225,7 @@ class MoleculeView(QWidget):
         has_mol = bool(spec.get("molecule")) or not spin
         self.view.setVisible(spin and has_mol)
         network = spin and (not has_mol or self.view.currentIndex() == 1)
+        self.hydrogens.setVisible(not network)
         scale = 1.5 if self.large else 0.85
         with matplotlib.rc_context(matplotlib_style(t)):
             self.fig.clear()
@@ -204,7 +249,7 @@ class MoleculeView(QWidget):
                     self.component.setVisible(False)
                     comps = ([c.get("name", "") for c in spec["spin_system"]["components"]] if spin
                              else [c["label"] for c in self.session.components()])
-                    draw_molecule(ax, spec, comps, t, scale)
+                    draw_molecule(ax, spec, comps, t, scale, explicit_h=self.hydrogens.currentIndex() == 0)
                     smiles = spec.get("molecule", {}).get("smiles")
                     text = ((f"SMILES {smiles}" if smiles else "skeleton (bond orders are not part of the "
                              "structure)") + "; ringed: the labelled site of each isotopologue, in its plot colour")
@@ -258,6 +303,7 @@ class MoleculeView(QWidget):
                 self.big.resize(int(g.width() * 0.5), int(g.height() * 0.6))
         self.big.view.component.setCurrentIndex(self.component.currentIndex())
         self.big.view.view.setCurrentIndex(self.view.currentIndex())
+        self.big.view.hydrogens.setCurrentIndex(self.hydrogens.currentIndex())
         self.big.view.refresh(force=True)
         self.big.show()
         self.big.raise_()
