@@ -525,7 +525,7 @@ class FilesAndJobsTests(unittest.TestCase):
         w.update_jobs()
         self.assertIn("idle", w.activity.text.text())
         self.assertLessEqual(w.minimumSizeHint().width(), 1400)     # fits a 1470 px laptop screen
-        self.assertIn("cores", w.machine.text())
+        self.assertIn("CPU", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
         self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Log", "AI assistant"])
         for mode, visible in (("simulate", {"structure", "couplings", "field"}), ("process", {"recipe"}),

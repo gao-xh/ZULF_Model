@@ -20,12 +20,12 @@ for _var in ("VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS"
 import numpy as np
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QSplitter,
                                QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolButton,
-                               QVBoxLayout, QWidget, QButtonGroup)
+                               QVBoxLayout, QWidget, QButtonGroup, QStyledItemDelegate)
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -200,6 +200,22 @@ class ValueSlider(QWidget):
         if self.fine is not None:
             self.fine.setVisible(on)
             self.fine_label.setVisible(on)
+
+
+class BarDelegate(QStyledItemDelegate):
+    """Relative amplitude as a bar in the isotopologue's colour behind the number."""
+
+    def paint(self, painter, option, index):
+        value = index.data(Qt.DisplayRole)
+        colour = index.data(Qt.UserRole)
+        if isinstance(value, (int, float)) and colour:
+            r = option.rect.adjusted(4, 5, -4, -5)
+            c = QColor(colour)
+            c.setAlpha(70)
+            painter.save()
+            painter.fillRect(r.x(), r.y(), int(r.width() * max(0.0, min(1.0, float(value)))), r.height(), c)
+            painter.restore()
+        super().paint(painter, option, index)
 
 
 def studio_settings() -> QSettings:
@@ -601,6 +617,8 @@ class StudioWindow(QMainWindow):
         lay.setContentsMargins(0, 0, 0, 0)
         row = QHBoxLayout()
         self.motif = QComboBox()
+        self.motif.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.motif.setMinimumContentsLength(12)
         self.motif.addItem("(custom JSON below)")
         for m in self.session.list_motifs():
             self.motif.addItem(m["name"])
@@ -706,9 +724,14 @@ class StudioWindow(QMainWindow):
         auto_btn.clicked.connect(self.auto_phase)
         zero = QPushButton("Reset")
         zero.clicked.connect(lambda: self.session.set_display(phase_deg=0.0, delay_ms=0.0))
-        for wdg in (auto_btn, self.auto_method, self.auto_delay, zero):
-            auto.addWidget(wdg)
+        auto.addWidget(auto_btn)
+        auto.addWidget(self.auto_method, 1)
         lay.addLayout(auto)
+        auto2 = QHBoxLayout()
+        auto2.addWidget(self.auto_delay)
+        auto2.addStretch(1)
+        auto2.addWidget(zero)
+        lay.addLayout(auto2)
         auto_btn.setObjectName("small")
         zero.setObjectName("small")
         return box
@@ -755,22 +778,56 @@ class StudioWindow(QMainWindow):
     def _lines_tab(self):
         w = QWidget()
         lay = QVBoxLayout(w)
+        lay.setContentsMargins(8, 6, 8, 6)
         row = QHBoxLayout()
-        self.min_rel = QDoubleSpinBox(decimals=3, minimum=0.0, maximum=1.0, value=0.02, singleStep=0.01)
+        self.lines_count = QLabel(objectName="hint")
+        self.lines_comp = QComboBox()
+        self.lines_comp.addItem("all isotopologues", "")
+        self.lines_comp.currentIndexChanged.connect(lambda _: self.fill_lines())
+        self.min_rel = QDoubleSpinBox(decimals=1, minimum=0.0, maximum=100.0, value=2.0, singleStep=0.5, suffix=" %")
+        self.min_rel.setToolTip("lines weaker than this share of the strongest line are not listed")
         self.min_rel.valueChanged.connect(lambda _: self.fill_lines())
-        export = QPushButton("Export ...")
+        export = QPushButton("Export ...", objectName="small")
         export.clicked.connect(self.export)
-        row.addWidget(QLabel("min relative amplitude"))
-        row.addWidget(self.min_rel)
+        row.addWidget(self.lines_count)
         row.addStretch(1)
+        row.addWidget(self.lines_comp)
+        row.addWidget(QLabel("at least"))
+        row.addWidget(self.min_rel)
         row.addWidget(export)
-        self.lines_table = QTableWidget(0, 4)
-        self.lines_table.setHorizontalHeaderLabels(["isotopologue", "frequency (Hz)", "amplitude", "relative"])
-        self.lines_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.lines_table.setSortingEnabled(True)
+        t = self.lines_table = QTableWidget(0, 4)
+        t.setHorizontalHeaderLabels(["isotopologue", "frequency (Hz)", "relative", "amplitude"])
+        t.verticalHeader().setVisible(False)
+        t.verticalHeader().setDefaultSectionSize(22)
+        t.setShowGrid(False)
+        t.setAlternatingRowColors(True)
+        t.setSelectionBehavior(QTableWidget.SelectRows)
+        t.setEditTriggers(QTableWidget.NoEditTriggers)
+        h = t.horizontalHeader()
+        for c, mode in enumerate((QHeaderView.ResizeToContents, QHeaderView.ResizeToContents, QHeaderView.Stretch,
+                                  QHeaderView.ResizeToContents)):
+            h.setSectionResizeMode(c, mode)
+        t.setItemDelegateForColumn(2, BarDelegate(t))
+        t.setSortingEnabled(True)
+        t.itemSelectionChanged.connect(self._lines_selected)
+        t.cellDoubleClicked.connect(self._line_zoom)
+        t.setToolTip("click: mark the line on the plot; double click: view +-3 Hz around it")
         lay.addLayout(row)
-        lay.addWidget(self.lines_table)
+        lay.addWidget(t, 1)
+        self.marked_lines = []
         return w
+
+    def _lines_selected(self):
+        t = self.lines_table
+        self.marked_lines = sorted({float(t.item(r.row(), 1).data(Qt.UserRole)) for r in t.selectionModel().selectedRows()
+                                    if t.item(r.row(), 1) is not None})
+        self.schedule()
+
+    def _line_zoom(self, row, _col):
+        item = self.lines_table.item(row, 1)
+        if item is not None:
+            f = float(item.data(Qt.UserRole))
+            self._guard(self.session.set_view, f - 3.0, f + 3.0)
 
     def _fit_tab(self):
         w = QWidget()
@@ -1570,18 +1627,44 @@ class StudioWindow(QMainWindow):
         self.f_start.setEnabled(not st["running"])
 
     def fill_lines(self, lines=None):
-        lines = lines if lines is not None else self.session.lines(self.min_rel.value(), self.session.view)
-        lines = [r for r in lines if r["relative"] >= self.min_rel.value()]
+        comps = [c["label"] for c in self.session.components()]
+        if [self.lines_comp.itemData(i) for i in range(1, self.lines_comp.count())] != comps:
+            keep = self.lines_comp.currentData()
+            self.lines_comp.blockSignals(True)
+            while self.lines_comp.count() > 1:
+                self.lines_comp.removeItem(1)
+            for c in comps:
+                self.lines_comp.addItem(c, c)
+            self.lines_comp.setCurrentIndex(max(self.lines_comp.findData(keep), 0))
+            self.lines_comp.blockSignals(False)
+        lo = self.min_rel.value() / 100.0
+        lines = lines if lines is not None else self.session.lines(lo, self.session.view)
+        only = self.lines_comp.currentData()
+        lines = [r for r in lines if r["relative"] >= lo and (not only or r["component"] == only)]
+        self.lines_count.setText(f"{len(lines)} lines in {self.session.view[0]:.0f}-{self.session.view[1]:.0f} Hz")
         t = self.lines_table
+        mono = QFont("Menlo")
+        mono.setStyleHint(QFont.Monospace)
         t.setSortingEnabled(False)
         t.setRowCount(len(lines))
         for i, r in enumerate(lines):
-            for j, v in enumerate((r["component"], f"{r['frequency_hz']:.4f}", f"{r['amplitude']:.4g}",
-                                   f"{r['relative']:.4f}")):
-                item = QTableWidgetItem(v)
-                if j:
-                    item.setData(Qt.DisplayRole, float(v))
-                t.setItem(i, j, item)
+            col = QColor(COMPONENT_COLORS[comps.index(r["component"]) % 6]) if r["component"] in comps else None
+            name = QTableWidgetItem("\u25cf " + r["component"])
+            if col is not None:
+                name.setForeground(col)
+            freq = QTableWidgetItem()
+            freq.setData(Qt.DisplayRole, round(r["frequency_hz"], 4))
+            freq.setData(Qt.UserRole, r["frequency_hz"])
+            rel = QTableWidgetItem()
+            rel.setData(Qt.DisplayRole, round(r["relative"], 4))
+            rel.setData(Qt.UserRole, col.name() if col is not None else None)
+            amp = QTableWidgetItem()
+            amp.setData(Qt.DisplayRole, float(f"{r['amplitude']:.4g}"))
+            for it in (freq, rel, amp):
+                it.setFont(mono)
+                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            for j, it in enumerate((name, freq, rel, amp)):
+                t.setItem(i, j, it)
         t.setSortingEnabled(True)
 
     # ---- plot --------------------------------------------------------------------------------
@@ -1710,6 +1793,9 @@ class StudioWindow(QMainWindow):
         sax.set_yticks([])
         sax.spines["left"].set_visible(False)
         sax.set_ylabel("lines")
+        for fm in getattr(self, "marked_lines", []):
+            for a in axes:
+                a.axvline(fm, color=t["accent"], lw=1.0, alpha=0.8, zorder=0)
         sax.set_xlim(*s.view)
         sax.set_xlabel("frequency (Hz)")
         style.__exit__(None, None, None)

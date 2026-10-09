@@ -96,7 +96,9 @@ QTabBar::tab:selected {{ color: {t['ink']}; border-bottom: 2px solid {t['accent'
 QTabBar::tab:hover {{ color: {t['ink']}; }}
 QHeaderView::section {{ background: {t['panel2']}; border: none; border-bottom: 1px solid {t['line']};
                        padding: 4px 6px; color: {t['muted']}; }}
-QTableWidget {{ gridline-color: {t['line']}; }}
+QTableWidget {{ gridline-color: {t['line']}; alternate-background-color: {t['panel']}; }}
+QTableWidget::item {{ padding: 0 6px; }}
+QTableWidget::item:selected {{ background: {t['accent_soft']}; color: {t['ink']}; }}
 QCheckBox {{ spacing: 6px; }}
 QStatusBar {{ background: {t['panel']}; border-top: 1px solid {t['line']}; color: {t['muted']}; }}
 QStatusBar::item {{ border: none; }}

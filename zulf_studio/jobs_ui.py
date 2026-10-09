@@ -122,11 +122,13 @@ class MachineLabel(QLabel):
         cores = f"{c['logical']} cores" + (f" ({c['performance']}P+{c['efficiency']}E)" if c["performance"] else "")
         load = f"load {m['load_average'][0]:.1f}" if m["load_average"] else ""
         over = m["busy_workers"] > c["logical"]
-        self.setText(f"{cores}  \u00b7  {load}  \u00b7  analysis workers {m['busy_workers']}/{c['logical']}")
+        self.setText(f"CPU {m['busy_workers']}/{c['logical']}" + (f"  \u00b7  {load}" if load else ""))
+        self.setMinimumWidth(self.sizeHint().width())
         self.setObjectName("warn" if over else "idle")
-        self.setToolTip("\n".join(f"pid {p['pid']}: {p['script']}, {p['workers']} workers"
-                                  f"{' (this Studio)' if p['own'] else ''}  {p['out']}" for p in m["processes"])
-                        or "no analysis processes running")
+        self.setToolTip(f"{cores}; analysis workers in use / cores (all programs on this machine)\n" +
+                        ("\n".join(f"pid {p['pid']}: {p['script']}, {p['workers']} workers"
+                                    f"{' (this Studio)' if p['own'] else ''}  {p['out']}" for p in m["processes"])
+                         or "no analysis processes running"))
         self.style().unpolish(self)
         self.style().polish(self)
         return m
@@ -163,6 +165,9 @@ class JobsPanel(QWidget):
         self.table = QTableWidget(0, len(self.COLUMNS))
         self.table.setHorizontalHeaderLabels(self.COLUMNS)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(22)
+        self.table.setShowGrid(False)
+        self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(len(self.COLUMNS) - 1, QHeaderView.Stretch)
