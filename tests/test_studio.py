@@ -268,6 +268,8 @@ class WindowSmokeTests(unittest.TestCase):
         w.redraw()
         rows = [r.row() for r in t.selectionModel().selectedRows()]
         self.assertEqual([t.item(r, 1).text() for r in rows], [freq])
+        self.assertGreaterEqual(t.columnWidth(2), 100)                # the relative bar keeps its width
+        self.assertEqual(t.horizontalHeaderItem(4).text(), "decay (1/s)")
         w.close()
 
     def test_monitor_tab_waits_for_a_record_then_shows_starts_and_couplings(self):

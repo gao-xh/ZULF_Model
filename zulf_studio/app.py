@@ -905,9 +905,11 @@ class StudioWindow(QMainWindow):
         t.setSelectionBehavior(QTableWidget.SelectRows)
         t.setEditTriggers(QTableWidget.NoEditTriggers)
         h = t.horizontalHeader()
-        for c, mode in enumerate((QHeaderView.ResizeToContents, QHeaderView.ResizeToContents, QHeaderView.Stretch,
+        for c, mode in enumerate((QHeaderView.Stretch, QHeaderView.ResizeToContents, QHeaderView.Interactive,
                                   QHeaderView.ResizeToContents, QHeaderView.ResizeToContents)):
             h.setSectionResizeMode(c, mode)
+        h.resizeSection(2, 150)                       # the bar and its number never shrink away (drag to widen)
+        h.setMinimumSectionSize(64)                   # no column vanishes on a narrow drawer: it scrolls instead
         t.setItemDelegateForColumn(2, BarDelegate(t))
         t.setSortingEnabled(True)
         t.itemSelectionChanged.connect(self._lines_selected)
