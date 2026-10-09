@@ -91,9 +91,10 @@ couplings, field or line width goes back to the quick look.
 
 Pages:
 - **Lines**: every transition (isotopologue, frequency, relative = |amplitude| / strongest line of all
-  isotopologues, amplitude, decay). **decay (1/s)**: with an applied, unchanged fit the fitted decay rate of the
-  line's rate family (found from fit.json family_edges_hz as the forward model does); otherwise the one decay rate
-  of the quick look. Tooltip: FWHM = rate / pi Hz. Also in the lines.csv export (decay_per_s).
+  isotopologues, amplitude, decay time). **decay time (s)** = 1 / decay rate: with an applied, unchanged fit from
+  the fitted decay rate of the line's rate family (found from fit.json family_edges_hz as the forward model does);
+  otherwise from the one decay rate of the quick look. Tooltip: the rate and FWHM = rate / pi Hz. The lines.csv
+  export has both (decay_per_s, decay_time_s).
 - **Fit**: runs `scripts/fit_joint_series.py` in the background from the current couplings and field (starts,
   workers, evaluations, trace frames, coupling precision (0.01 Hz default, D55), field on/off, rate families, rate bounds, extra options). Apply result
   copies couplings, field and decay rate into the sliders. **Fit progress**: drag through the trace frames

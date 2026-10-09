@@ -1588,10 +1588,10 @@ class StudioSession:
                                 "view", "data")}, indent=1))
         with open(out / "lines.csv", "w", newline="") as fh:
             w = csv.writer(fh)
-            w.writerow(["component", "frequency_hz", "amplitude", "relative", "decay_per_s"])
+            w.writerow(["component", "frequency_hz", "amplitude", "relative", "decay_per_s", "decay_time_s"])
             for r in self.lines(min_relative=1e-4):
                 w.writerow([r["component"], f"{r['frequency_hz']:.6f}", f"{r['amplitude']:.6g}", f"{r['relative']:.6g}",
-                            f"{r['decay_per_s']:.6g}"])
+                            f"{r['decay_per_s']:.6g}", f"{1.0 / r['decay_per_s']:.6g}" if r["decay_per_s"] > 0 else ""])
         sim = self.simulate()
         with open(out / "spectrum.csv", "w", newline="") as fh:
             w = csv.writer(fh)

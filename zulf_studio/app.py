@@ -894,10 +894,11 @@ class StudioWindow(QMainWindow):
         row.addWidget(self.min_rel)
         row.addWidget(export)
         t = self.lines_table = QTableWidget(0, 5)
-        t.setHorizontalHeaderLabels(["isotopologue", "frequency (Hz)", "relative", "amplitude", "decay (1/s)"])
-        t.horizontalHeaderItem(4).setToolTip("decay rate of the line: with an applied, unchanged fit the fitted rate "
-                                             "of its family, otherwise the one decay rate of the quick look; line "
-                                             "width FWHM = rate / pi Hz")
+        t.setHorizontalHeaderLabels(["isotopologue", "frequency (Hz)", "relative", "amplitude", "decay time (s)"])
+        t.horizontalHeaderItem(4).setToolTip("decay time constant T = 1 / decay rate (the signal falls to 1/e): with "
+                                             "an applied, unchanged fit from the fitted rate of the line's family, "
+                                             "otherwise from the one decay rate of the quick look; line width FWHM = "
+                                             "1 / (pi T) Hz")
         t.verticalHeader().setVisible(False)
         t.verticalHeader().setDefaultSectionSize(22)
         t.setShowGrid(False)
@@ -1866,9 +1867,10 @@ class StudioWindow(QMainWindow):
             rel.setData(Qt.UserRole, col.name() if col is not None else None)
             amp = QTableWidgetItem()
             amp.setData(Qt.DisplayRole, float(f"{r['amplitude']:.4g}"))
+            rate = r.get("decay_per_s", float("nan"))
             decay = QTableWidgetItem()
-            decay.setData(Qt.DisplayRole, float(f"{r.get('decay_per_s', float('nan')):.3g}"))
-            decay.setToolTip(f"FWHM {r.get('decay_per_s', float('nan')) / np.pi:.3g} Hz")
+            decay.setData(Qt.DisplayRole, float(f"{1.0 / rate:.3g}") if rate > 0 else float("nan"))
+            decay.setToolTip(f"decay rate {rate:.3g} 1/s, FWHM {rate / np.pi:.3g} Hz")
             for it in (freq, rel, amp, decay):
                 it.setFont(mono)
                 it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
