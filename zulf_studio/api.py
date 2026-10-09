@@ -137,6 +137,13 @@ TOOLS: Dict[str, tuple] = {
     "save_processed": ("save_processed", "Process mode: save the spectrum of the recipe as a series with "
                        "recipe.json (make_series_entry.py) and load it for Fit.",
                        _obj({"label": STR, "out": STR, "load": {"type": "boolean"}})),
+    "structure_from_molecule": ("structure_from_molecule", "Build the model from a molecule: molecule is a "
+                                "SMILES string or mol-file text. Every heavy atom becomes a site (C1, C2, O1, ... in "
+                                "atom order), O-H/S-H protons are left out, symmetry is found automatically, 1J "
+                                "guesses come from the hybridisation (one_bond overrides them by site label). "
+                                "Couplings use saturated defaults; aromatic molecules are better taken from a motif.",
+                                _obj({"molecule": STR, "compound": STR, "one_bond": {"type": "object"}},
+                                     ["molecule"])),
     "machine_status": ("machine_status", "Cores (performance / efficiency), load average and the analysis processes "
                        "running on this machine with their workers; free and suggested workers. Check it before "
                        "starting a fit or analysis: more workers than cores slow every run down.", _obj({})),

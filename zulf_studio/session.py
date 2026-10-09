@@ -347,6 +347,20 @@ class StudioSession:
         return Protocol(field_ut=(1e-3 * bt, 0.0, 1e-3 * bz))
 
     # ---- setters (API tools) -------------------------------------------------------------
+    def structure_from_molecule(self, molecule: str, compound: Optional[str] = None,
+                                one_bond: Optional[Dict[str, float]] = None) -> dict:
+        """Build the model from a molecule (SMILES or mol-file text; zulf_hypothesis.molecule): every heavy atom a
+        site, protons on O and S left out (exchangeable), the symmetry found from the molecule, 1J starting guesses
+        from the hybridisation (one_bond overrides them by site label C1, C2, ...). The interface for drawing
+        molecules later. Returns the specification and its notes (warnings)."""
+        from zulf_hypothesis.molecule import structure_from_molecule
+        spec = structure_from_molecule(molecule, one_bond=one_bond, compound=compound)
+        notes = spec.pop("notes", [])
+        self.set_structure(spec)
+        for note in notes:
+            self.log(f"molecule: {note}", "session")
+        return {"structure": spec, "notes": notes, "components": [c["label"] for c in self.components()]}
+
     def set_structure(self, spec: dict, keep_couplings: bool = False):
         with self.lock:
             old = (self.spec, self.overrides, self.view)

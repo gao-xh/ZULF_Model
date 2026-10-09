@@ -40,6 +40,7 @@ from .session import SESSION_SUFFIX  # noqa: E402
 from .dialogs import ExportDialog, ImportDialog  # noqa: E402
 from .modes_ui import SimulatePanel  # noqa: E402
 from .monitor_ui import MonitorPanel  # noqa: E402
+from .molecule_ui import MoleculeView  # noqa: E402
 from .flow import FlowLayout, flow_policy  # noqa: E402
 from .process_ui import ProcessPanel, RecipeBox, ScansPanel  # noqa: E402
 from .spinsystem_ui import SpinSystemEditor  # noqa: E402
@@ -436,6 +437,9 @@ class StudioWindow(QMainWindow):
         sec_data.add(self._data_box())
         sec_struct = Section("2  Structure", "structure", self.settings_store, extra=self.json_toggle)
         sec_struct.add(self._structure_box())
+        self.molecule_view = MoleculeView(self.session, self)
+        sec_mol = Section("Molecule", "molecule", self.settings_store)
+        sec_mol.add(self.molecule_view)
         self.coupling_box = QWidget()
         self.coupling_lay = QVBoxLayout(self.coupling_box)
         self.coupling_lay.setContentsMargins(0, 0, 0, 0)
@@ -448,9 +452,9 @@ class StudioWindow(QMainWindow):
         self.recipe_box.delay.show_fine(self.fine_toggle.isChecked())
         sec_recipe = Section("1  Recipe", "recipe", self.settings_store)
         sec_recipe.add(self.recipe_box)
-        self.sections = {"recipe": sec_recipe, "data": sec_data, "structure": sec_struct, "couplings": sec_coup,
-                         "field": sec_field}
-        for sec in (sec_recipe, sec_data, sec_struct, sec_coup, sec_field):
+        self.sections = {"recipe": sec_recipe, "data": sec_data, "structure": sec_struct, "molecule": sec_mol,
+                         "couplings": sec_coup, "field": sec_field}
+        for sec in (sec_recipe, sec_data, sec_struct, sec_mol, sec_coup, sec_field):
             self.left_lay.addWidget(sec)
         self.left_lay.addStretch(1)
         scroll = QScrollArea()
@@ -634,12 +638,13 @@ class StudioWindow(QMainWindow):
             self.info_tabs.setCurrentWidget(widget)
 
     # left sections and right panel per mode (D58)
-    MODE_SECTIONS = {"simulate": ("structure", "couplings", "field"), "process": ("recipe",),
-                     "fit": ("data", "structure", "couplings", "field"), "blind": ("data",)}
+    MODE_SECTIONS = {"simulate": ("structure", "molecule", "couplings", "field"), "process": ("recipe",),
+                     "fit": ("data", "structure", "molecule", "couplings", "field"), "blind": ("data",)}
 
     def apply_mode(self):
         mode = self.session.mode
-        names = {"recipe": "FID and recipe", "data": "Data", "structure": "Model", "couplings": "Couplings (Hz)",
+        names = {"recipe": "FID and recipe", "data": "Data", "structure": "Model", "molecule": "Molecule",
+                 "couplings": "Couplings (Hz)",
                  "field": "Field and line width"}
         n = 0
         for key, sec in self.sections.items():
@@ -1753,6 +1758,10 @@ class StudioWindow(QMainWindow):
 
     def refresh_widgets(self):
         s = self.session
+        if hasattr(self, "molecule_view"):                # cached: redraws only when the model or theme changed
+            self.molecule_view.refresh()
+            if self.molecule_view.big is not None and self.molecule_view.big.isVisible():
+                self.molecule_view.big.view.refresh()
         for c in s.couplings():
             row = self.coupling_rows.get(c["key"])
             if row is not None and abs(row.value() - c["value"]) > 1e-9:
@@ -1990,7 +1999,8 @@ class StudioWindow(QMainWindow):
             each = mode == "simulate" and self.simulate_panel.per_component()
             ax.plot(f, m, color=t["sim"] if not each else t["muted"], lw=1.3 if not each else 1.0,
                     ls="-" if not each else "--", alpha=0.9, zorder=1 if each else 2,
-                    label=("fit model (applied fit)" if exact else "simulation (quick look)") if mode != "simulate"
+                    label=(f"fit model ({Path(s.applied['run']).name})" if exact else "simulation (quick look)")
+                    if mode != "simulate"
                     else "weighted sum")
         tr = s.trace if self.show_trace.isChecked() else None
         if tr is not None and s.trace_index >= 0:
@@ -2008,7 +2018,8 @@ class StudioWindow(QMainWindow):
         field = ("zero field" if bt == 0 and bz == 0 else
                  f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT")
         if show_model:
-            ax.text(0.01, 0.03, field + ("   (applied fit)" if s.state_is_applied_fit() else ""),
+            ax.text(0.01, 0.03, field + (f"   (applied fit {Path(s.applied['run']).name})"
+                                         if s.state_is_applied_fit() else ""),
                     transform=ax.transAxes, ha="left", va="bottom", fontsize=8.5, color=t["accent"],
                     bbox=dict(boxstyle="round,pad=0.3", fc=t["accent_soft"], ec="none"))
         ax.set_ylabel("signal")

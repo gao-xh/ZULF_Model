@@ -1017,6 +1017,24 @@ Tests: tests/test_joint_series.py test_peak_family_edges_give_every_data_peak_it
 Tests: tests/test_joint_series.py SpinSystemFitTests (two components, a variable and a numeric coupling recovered
 from a 0.4 Hz offset, amplitude ratio 0.5); tests/test_studio.py SpinSystemTests.
 
+## D61. Molecules as a source of structure specifications (2026-10-09)
+
+- Owner: draw the model as a molecule in Studio, and keep an interface so that a drawn molecule can build the
+  simulated system later.
+- zulf_hypothesis.molecule is that interface. structure_from_molecule(molecule) takes an RDKit molecule, SMILES or
+  mol-file text (later: a sketcher's output) and returns a chain specification: every heavy atom a site
+  (element + running number in atom order), its non-exchangeable protons (O-H and S-H left out unless
+  keep_exchangeable), the bonds, the symmetry as all graph automorphisms (with the proton groups mapped along),
+  and 1J starting guesses by element and hybridisation on one site of each symmetry orbit. The optional
+  "molecule" key ({"smiles", "sites"}) keeps the SMILES and the site-to-atom map for drawing; fragment_from_spec
+  and the fits ignore it, so existing specifications are unchanged. molecule_from_structure(spec) draws any
+  specification (recorded SMILES, else the fragment's skeleton with single bonds).
+- Limits: chain couplings are the saturated (sp3) defaults, so unsaturated or aromatic molecules convert with a
+  note pointing to the registered motifs.
+Tests: tests/test_molecule.py (ethanol from CCO against the hand-written ethanol chain, propane from CCC against
+the CH2(CH3)2 motif, compared by line frequencies and relative intensities; mol-file input; drawing);
+tests/test_studio.py (model from a molecule, the Molecule card, no #RRGGBBAA colours in the SVG).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.

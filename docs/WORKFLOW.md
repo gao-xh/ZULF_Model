@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09).
 
 ## Map
 
@@ -136,6 +136,8 @@ Phase (section 2 below; skills/zulf-phasing):
   by peak symmetry, checked against a model spectrum.
 - The fit then refines a residual zero-order phase (shared-phase gain) and the delay; a fitted delay far from the
   edge signals another problem.
+- Studio (W4): a model can come from a motif, structure JSON, a typed-in spin system (D60) or a molecule
+  (From molecule: SMILES or mol file -> chain specification, D61; API tool structure_from_molecule).
 - Studio (W4): auto phase against the current simulation ("model") or from the data alone ("data"), for display.
 
 Baseline (frequency domain):

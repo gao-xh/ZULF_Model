@@ -61,6 +61,15 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
        MATLAB. Fit works as for a structure (D60): the variables and numeric couplings are the fit parameters;
        **fit weights** (on for typed-in systems) fits every component's amplitude, off holds the weight ratios
        (a converted structure holds its abundance ratios).
+  - **Molecule** (Simulate and Fit; D61): the model drawn. A structure model shows its heavy-atom skeleton with
+    the protons (CH3, CH2), the site labels and the labelled site of every isotopologue in its plot colour; bond
+    orders appear only for a model built from a molecule (the structure itself has none). A spin system shows a
+    network: one node per group of equivalent spins, one edge per nonzero coupling with its value (width ~ |J|,
+    dashed when negative), a component chooser for several components. **From molecule ...** builds the model
+    from a SMILES string or mol-file text (zulf_hypothesis.molecule.structure_from_molecule; API tool
+    structure_from_molecule); **Large** opens the drawing in its own window. The plot legend and the field badge
+    name the applied fit's run, so the main plot and the Monitor tab can be told apart when they show different
+    runs.
   3. **Couplings (Hz)**: a slider and a spin box per coupling; "Add / set" adds a coupling by key `J(a,b)` (for
      example `J(C2,HC1)` makes the nitrile 13C isotopologue of acetonitrile visible). **fine sliders** shows a
      second, fine slider under every coupling, field and phase slider.

@@ -643,8 +643,8 @@ class FilesAndJobsTests(unittest.TestCase):
         self.assertIn("CPU", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
         self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Monitor", "Log", "AI assistant"])
-        for mode, visible in (("simulate", {"structure", "couplings", "field"}), ("process", {"recipe"}),
-                              ("fit", {"data", "structure", "couplings", "field"}), ("blind", {"data"})):
+        for mode, visible in (("simulate", {"structure", "molecule", "couplings", "field"}), ("process", {"recipe"}),
+                              ("fit", {"data", "structure", "molecule", "couplings", "field"}), ("blind", {"data"})):
             s.set_mode(mode)                                          # D58: one model, panels per task
             app.processEvents()
             self.assertEqual({k for k, sec in w.sections.items() if not sec.isHidden()}, visible, msg=mode)
@@ -782,6 +782,32 @@ class SpinSystemTests(unittest.TestCase):
         self.assertEqual([c["key"] for c in s.couplings()], ["a"])
         s.set_couplings({"a": 130.0})
         np.testing.assert_allclose(sorted(l["frequency_hz"] for l in s.lines(0.01)), [130.0, 260.0], atol=1e-9)
+
+    def test_model_from_a_molecule_and_the_molecule_card(self):
+        try:
+            import rdkit  # noqa: F401
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PySide6.QtWidgets import QApplication
+            from zulf_studio.app import StudioWindow
+        except ImportError:
+            self.skipTest("RDKit or PySide6 not installed")
+        app = QApplication.instance() or QApplication([])
+        s = session()
+        w = StudioWindow(s)
+        r = s.structure_from_molecule("CC(C)O", compound="isopropanol")
+        self.assertEqual(r["components"], ["13C@C1 (x2)", "13C@C2"])       # the methyls are equivalent
+        self.assertEqual(s.spec["molecule"]["smiles"], "CC(C)O")
+        app.processEvents()
+        w.molecule_view.refresh()
+        self.assertIn("SMILES CC(C)O", w.molecule_view.caption.text())
+        from zulf_studio.molecule_ui import label_sites, structure_svg
+        self.assertEqual(label_sites("13C@C1,C3+15N@N1 (x2)"), ["C1", "C3", "N1"])
+        svg = structure_svg(s.spec, ["13C@C1 (x2)", "13C@C2"], w.t)
+        self.assertNotRegex(svg, r"#[0-9A-F]{8}")                      # no #RRGGBBAA (Qt draws it black)
+        s.set_structure(self.METHYL_SPIN)                                # spin system: the network instead
+        w.molecule_view.refresh()
+        self.assertIn("4 spins in 2 groups", w.molecule_view.caption.text())
+        w.close()
 
     def test_apply_fit_of_a_spin_system_sets_its_variables(self):
         s = session()
