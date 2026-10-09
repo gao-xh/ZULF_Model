@@ -160,6 +160,11 @@ free, and starting more than the free cores asks first. Several fits with many t
 **View** menu: Cmd+1 ... Cmd+7 bring a page forward (Fit, Analysis, Figure, Lines, Jobs, Log, AI assistant). **Run** menu: Start fit (Cmd+Return), Blind analysis (Cmd+B),
 Stop the running job (Cmd+.), Jobs (Cmd+J), Live fit monitor in the browser; View > Monitor (Cmd+Shift+M). The window size and splitters are remembered.
 
+Window size on any screen: the window fits the screen it is on (restored or moved to another monitor: shrunk to
+that screen's free area and moved onto it). Tool rows (the plot bar, the Lines and Jobs buttons, the Monitor
+options) wrap onto a second row instead of widening the window, and the left and right columns scroll on short or
+narrow screens, so the smallest window is about 1040 x 470 px in every mode.
+
 **Settings** (File > Settings, on macOS ZULF Studio > Settings, Cmd+,): the AI assistant configuration
 (provider, model, steps, API key, Keychain, setup guide), the AI API address and tool list, and the appearance
 (theme: follow the system, light, dark).

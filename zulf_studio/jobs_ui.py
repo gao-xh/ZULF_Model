@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, Q
                                QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
 SPINNER = "\u25d0\u25d3\u25d1\u25d2"
+from .flow import FlowLayout, flow_policy
+
 KIND_NAMES = {"fit": "Fit", "blind": "Blind analysis", "figure": "Figure", "import": "Import"}
 
 
@@ -172,7 +174,8 @@ class JobsPanel(QWidget):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(len(self.COLUMNS) - 1, QHeaderView.Stretch)
         lay.addWidget(self.table, 1)
-        row = QHBoxLayout()
+        row_box = flow_policy(QWidget())
+        row = FlowLayout(row_box, spacing=6)
         self.b_stop = QPushButton("Stop")
         self.b_open = QPushButton("Open folder")
         self.b_apply = QPushButton("Apply fit result")
@@ -182,8 +185,7 @@ class JobsPanel(QWidget):
                                   "simulated spectrum, couplings, console); double-click a job does the same")
         for b in (self.b_stop, self.b_monitor, self.b_open, self.b_apply, self.b_report):
             row.addWidget(b)
-        row.addStretch(1)
-        lay.addLayout(row)
+        lay.addWidget(row_box)
         self.table.setToolTip("Jobs run as separate processes with one BLAS thread per worker; fits started outside "
                               "Studio are listed too. The status bar shows the running one on every tab.")
         self.b_stop.clicked.connect(lambda: self._with(lambda st: self.session.stop_job(st["index"])))

@@ -23,6 +23,7 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QHBoxLayout, QHeaderView, QLabel, QPlainTextEdit,
                                QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
+from .flow import FlowLayout, flow_policy
 from .session import ROOT, _resolve
 from .theme import ISOTOPOLOGUE, matplotlib_style
 
@@ -81,20 +82,23 @@ class MonitorPanel(QWidget):
         top.addWidget(QLabel("run"))
         top.addWidget(self.runs, 1)
         top.addWidget(self.b_reload)
-        top.addWidget(self.follow)
-        top.addWidget(self.part)
+        tools_box = flow_policy(QWidget())
+        tools = FlowLayout(tools_box, spacing=6)
+        top.addWidget(tools_box)
+        tools.addWidget(self.follow)
+        tools.addWidget(self.part)
         if not large:
             self.b_large = QPushButton("Large window", objectName="small")
             self.b_large.setToolTip("open this monitor in its own large window (resize or maximize it freely)")
             self.b_large.clicked.connect(self.open_large)
-            top.addWidget(self.b_large)
+            tools.addWidget(self.b_large)
         lay.addLayout(top)
         self.status = QLabel("", wordWrap=True)
         lay.addWidget(self.status)
         split = QSplitter(Qt.Horizontal)                  # plots | starts, couplings, console
         self.fig = Figure(figsize=(6, 4.2), layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
-        self.canvas.setMinimumSize(260, 200)
+        self.canvas.setMinimumSize(200, 200)
         split.addWidget(self.canvas)
         tables = QTabWidget()
         self.starts = QTableWidget(0, len(self.STARTS))
@@ -119,7 +123,7 @@ class MonitorPanel(QWidget):
         self.console.setMaximumBlockCount(400)
         self.console.setMinimumHeight(40)
         tables.addTab(self.console, "Console")
-        tables.setMinimumWidth(270)
+        tables.setMinimumWidth(200)
         split.addWidget(tables)
         split.setStretchFactor(0, 3)
         split.setStretchFactor(1, 2)

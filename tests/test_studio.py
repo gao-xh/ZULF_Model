@@ -574,7 +574,11 @@ class FilesAndJobsTests(unittest.TestCase):
         w = StudioWindow(s)
         w.update_jobs()
         self.assertIn("idle", w.activity.text.text())
-        self.assertLessEqual(w.minimumSizeHint().width(), 1400)     # fits a 1470 px laptop screen
+        for mode in ("simulate", "process", "fit", "blind"):          # fits a 1280 x 720 screen in every mode
+            w.session.set_mode(mode)
+            QApplication.processEvents()
+            self.assertLessEqual(w.minimumSizeHint().width(), 1100)
+            self.assertLessEqual(w.minimumSizeHint().height(), 600)
         self.assertIn("CPU", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
         self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Monitor", "Log", "AI assistant"])

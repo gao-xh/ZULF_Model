@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDou
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
                                QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSpinBox, QSplitter,
                                QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolButton,
-                               QVBoxLayout, QWidget, QButtonGroup, QStyledItemDelegate)
+                               QVBoxLayout, QWidget, QButtonGroup, QFrame, QStyledItemDelegate)
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -39,6 +39,7 @@ from .session import SESSION_SUFFIX  # noqa: E402
 from .dialogs import ExportDialog, ImportDialog  # noqa: E402
 from .modes_ui import SimulatePanel  # noqa: E402
 from .monitor_ui import MonitorPanel  # noqa: E402
+from .flow import FlowLayout, flow_policy  # noqa: E402
 from .process_ui import ProcessPanel, RecipeBox, ScansPanel  # noqa: E402
 from .spinsystem_ui import SpinSystemEditor  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
@@ -453,16 +454,16 @@ class StudioWindow(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidget(left)
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(370)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setMinimumWidth(300)
 
         # ---- centre: the plot with one slim bar; below it a drawer (lines, jobs, log, AI) ----
         center = QWidget(objectName="plotCard")
         cl = QVBoxLayout(center)
         cl.setContentsMargins(10, 6, 10, 4)
         cl.setSpacing(2)
-        bar = QHBoxLayout()
-        bar.setSpacing(6)
+        bar_box = flow_policy(QWidget())
+        bar = FlowLayout(bar_box, spacing=6, right_align_last=True)    # wraps on narrow windows
         self.view_lo = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.view_hi = QDoubleSpinBox(decimals=2, maximum=5000.0, keyboardTracking=False)
         self.part = QComboBox()
@@ -489,9 +490,8 @@ class StudioWindow(QMainWindow):
         for w in (QLabel("View"), self.view_lo, QLabel("-"), self.view_hi, QLabel("Hz"), self.part,
                   self.show_sticks, self.show_trace, self.baseline, self.lock_scale):
             bar.addWidget(w)
-        bar.addStretch(1)
         bar.addWidget(nav)
-        cl.addLayout(bar)
+        cl.addWidget(bar_box)
         cl.addWidget(self.canvas, 1)
         self.view_lo.valueChanged.connect(self._view_from_spins)
         self.view_hi.valueChanged.connect(self._view_from_spins)
@@ -528,7 +528,7 @@ class StudioWindow(QMainWindow):
                            "blind": self.analysis_panel}
         for page in self.mode_pages.values():
             self.right_stack.addWidget(page)
-        self.right_stack.setMinimumWidth(300)
+        self.right_stack.setMinimumWidth(270)
         self.tabs = self.run_tabs                        # old name (scripts, tests)
         self.settings = self._settings_dialog()          # AI configuration, API, appearance (menu: Settings)
         self.tools = self._tools_window()                # terminal and Python console (menu: Tools)
@@ -541,7 +541,13 @@ class StudioWindow(QMainWindow):
         main = QSplitter(Qt.Horizontal)
         main.addWidget(scroll)
         main.addWidget(middle)
-        main.addWidget(self.right_stack)
+        right_scroll = QScrollArea(objectName="rightScroll")     # short screens: scroll instead of a tall window
+        right_scroll.setWidget(self.right_stack)
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        right_scroll.setFrameShape(QFrame.NoFrame)
+        right_scroll.setMinimumWidth(280)
+        main.addWidget(right_scroll)
         main.setCollapsible(1, False)
         main.setSizes([400, 760, 330])
         main.setStretchFactor(1, 1)
@@ -869,7 +875,8 @@ class StudioWindow(QMainWindow):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(8, 6, 8, 6)
-        row = QHBoxLayout()
+        row_box = flow_policy(QWidget())
+        row = FlowLayout(row_box, spacing=6)
         self.lines_count = QLabel(objectName="hint")
         self.lines_comp = QComboBox()
         self.lines_comp.addItem("all isotopologues", "")
@@ -880,7 +887,6 @@ class StudioWindow(QMainWindow):
         export = QPushButton("Export ...", objectName="small")
         export.clicked.connect(self.export)
         row.addWidget(self.lines_count)
-        row.addStretch(1)
         row.addWidget(self.lines_comp)
         row.addWidget(QLabel("at least"))
         row.addWidget(self.min_rel)
@@ -902,7 +908,7 @@ class StudioWindow(QMainWindow):
         t.itemSelectionChanged.connect(self._lines_selected)
         t.cellDoubleClicked.connect(self._line_zoom)
         t.setToolTip("click: mark the line on the plot; double click: view +-3 Hz around it")
-        lay.addLayout(row)
+        lay.addWidget(row_box)
         lay.addWidget(t, 1)
         self.marked_lines = []
         return w
@@ -1099,7 +1105,7 @@ class StudioWindow(QMainWindow):
         lay = QVBoxLayout(w)
         self._ai_config_widgets()
         row = QHBoxLayout()
-        self.ai_status = QLabel()
+        self.ai_status = QLabel(wordWrap=True)
         settings_btn = QPushButton("Settings ...")
         settings_btn.clicked.connect(lambda: self.open_settings("AI assistant"))
         row.addWidget(self.ai_status, 1)
@@ -1558,20 +1564,41 @@ class StudioWindow(QMainWindow):
         geo = self.settings_store.value("geometry")
         if geo is not None:
             self.restoreGeometry(geo)
-        screen = QApplication.primaryScreen()
-        if screen is not None:                          # never larger than the screen (a laptop: 1470 x 867)
-            avail = screen.availableGeometry()
-            if geo is None or self.width() > avail.width() or self.height() > avail.height():
-                self.resize(min(1500, avail.width()), min(950, avail.height()))
-                self.move(avail.topLeft())
+        self._fit_screen(reset=geo is None)
         for name, sp in self.splitters.items():
             state = self.settings_store.value(f"splitter/{name}")
             if state is not None:
                 sp.restoreState(state)
-        screen = QApplication.primaryScreen()
-        if screen is not None and not screen.availableGeometry().intersects(self.frameGeometry()):
-            self.resize(min(1500, screen.availableGeometry().width()), min(950, screen.availableGeometry().height()))
-            self.move(screen.availableGeometry().topLeft())
+
+    def _fit_screen(self, reset=False, _screen=None):
+        """Keep the window on and within the screen it is on (any monitor, any resolution): a saved or moved window
+        larger than that screen is shrunk to it, one off every screen comes back to the primary screen."""
+        if self.isMaximized() or self.isFullScreen():
+            return
+        frame = self.frameGeometry()
+        screen = _screen or QApplication.screenAt(frame.center()) or QApplication.primaryScreen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        if reset:
+            self.resize(min(1500, avail.width()), min(950, avail.height()))
+            self.move(avail.topLeft())
+            return
+        w, h = min(self.width(), avail.width()), min(self.height(), avail.height())
+        if (w, h) != (self.width(), self.height()):
+            self.resize(w, h)
+        frame = self.frameGeometry()
+        x = min(max(frame.x(), avail.x()), avail.right() + 1 - frame.width())
+        y = min(max(frame.y(), avail.y()), avail.bottom() + 1 - frame.height())
+        if (x, y) != (frame.x(), frame.y()):
+            self.move(x, y)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        handle = self.windowHandle()
+        if handle is not None and not getattr(self, "_screen_hooked", False):
+            self._screen_hooked = True                  # moved to another monitor: fit it there
+            handle.screenChanged.connect(lambda sc: QTimer.singleShot(0, lambda: self._fit_screen(_screen=sc)))
 
     def closeEvent(self, e):
         running = [st for st in self.session.job_list() if st["running"]]
