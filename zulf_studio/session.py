@@ -516,17 +516,27 @@ class StudioSession:
 
     # ---- simulation ----------------------------------------------------------------------
     def lines(self, min_relative: float = 0.0, view: Optional[List[float]] = None) -> List[dict]:
-        """Every transition of every isotopologue: frequency, amplitude (times the abundance) and the amplitude
-        relative to the strongest line."""
+        """Every transition of every isotopologue: frequency, amplitude (times the abundance), the amplitude
+        relative to the strongest line, and its decay rate in 1/s (decay_per_s): with an applied, unchanged fit the
+        fitted rate of the line's family (the family is found from the fit's family edges as the forward model
+        does), otherwise the one decay rate of the quick look."""
         with self.lock:
             _, model = self._model_cache
             prot = self.protocol()
             rows = []
-            for lab, comp in zip(model.component_labels, model.interpretation.components):
+            fitted = self._fitted_rates()
+            for ci, (lab, comp) in enumerate(zip(model.component_labels, model.interpretation.components)):
                 tl = compute_transitions(comp.system, prot)
                 f = np.asarray(tl.frequencies_hz, float)
                 a = np.real(np.asarray(tl.amplitudes)) * float(comp.contribution)
-                rows += [{"component": lab, "frequency_hz": float(x), "amplitude": float(y)} for x, y in zip(f, a)]
+                rates = np.full(len(f), float(self.rate_per_s))
+                if fitted is not None and ci in fitted["rates"]:
+                    fam = np.searchsorted(fitted["edges"], f, side="right") if len(fitted["edges"]) else \
+                        np.zeros(len(f), int)
+                    fam = np.minimum(fam, len(fitted["rates"][ci]) - 1)
+                    rates = fitted["rates"][ci][fam]
+                rows += [{"component": lab, "frequency_hz": float(x), "amplitude": float(y), "decay_per_s": float(r)}
+                         for x, y, r in zip(f, a, rates)]
         top = max((abs(r["amplitude"]) for r in rows), default=1.0) or 1.0
         lo, hi = view if view is not None else (-np.inf, np.inf)
         out = []
@@ -535,6 +545,24 @@ class StudioSession:
             if r["relative"] >= min_relative and lo <= r["frequency_hz"] <= hi:
                 out.append(r)
         return out
+
+    def _fitted_rates(self) -> Optional[dict]:
+        """Decay rates of the applied fit per component index (family order) and its family edges in Hz; None
+        without an applied fit or once the parameters were changed."""
+        if self.applied is None or self.applied["state"] != self._snapshot():
+            return None
+        fit = self.applied["fit"]
+        sp_all = fit.get("spectrum_parameters", {})
+        sp = sp_all.get(self.applied.get("spectrum")) or next(iter(sp_all.values()), {})
+        rates = {}
+        for key, v in sp.items():
+            m = re.fullmatch(r"c(\d+)\.log_rate(\d+)", key)
+            if m:
+                rates.setdefault(int(m.group(1)), {})[int(m.group(2))] = math.exp(v)
+        if not rates:
+            return None
+        return {"edges": np.asarray(fit.get("family_edges_hz") or [], float),
+                "rates": {c: np.array([fams[k] for k in sorted(fams)]) for c, fams in rates.items()}}
 
     def _data_display(self, f: np.ndarray, values: np.ndarray) -> np.ndarray:
         phase = np.radians(self.data_phase_deg) + 2 * np.pi * f * 1e-3 * self.data_delay_ms
@@ -1560,9 +1588,10 @@ class StudioSession:
                                 "view", "data")}, indent=1))
         with open(out / "lines.csv", "w", newline="") as fh:
             w = csv.writer(fh)
-            w.writerow(["component", "frequency_hz", "amplitude", "relative"])
+            w.writerow(["component", "frequency_hz", "amplitude", "relative", "decay_per_s"])
             for r in self.lines(min_relative=1e-4):
-                w.writerow([r["component"], f"{r['frequency_hz']:.6f}", f"{r['amplitude']:.6g}", f"{r['relative']:.6g}"])
+                w.writerow([r["component"], f"{r['frequency_hz']:.6f}", f"{r['amplitude']:.6g}", f"{r['relative']:.6g}",
+                            f"{r['decay_per_s']:.6g}"])
         sim = self.simulate()
         with open(out / "spectrum.csv", "w", newline="") as fh:
             w = csv.writer(fh)

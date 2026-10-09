@@ -178,7 +178,8 @@ class FitPlumbingTests(unittest.TestCase):
             json.dump({"couplings": {"J(C1,HC1)": {"J_at_x": [135.5]}}, "scores": [0.1],
                        "spectrum_parameters": {"x": {"field_perp_ut": 0.03, "field_z_ut": 0.05,
                                                      "c0.log_rate0": np.log(2.0), "c0.log_rate1": np.log(4.0),
-                                                     "phase_delay": -0.004}}}, open(run / "fit.json", "w"))
+                                                     "phase_delay": -0.004}},
+                       "family_edges_hz": [200.0]}, open(run / "fit.json", "w"))
             f = np.linspace(120, 150, 50)
             np.savez(run / "trace.npz", f0=f, y0=np.zeros(50, complex), model0=np.zeros((2, 50), complex))
             json.dump({"evaluations": 7, "frames": [{"evaluation": 0, "stage": "fit", "objective": 1.0,
@@ -190,6 +191,11 @@ class FitPlumbingTests(unittest.TestCase):
             self.assertEqual(r["couplings"], {"J(C1,HC1)": 135.5})
             np.testing.assert_allclose(s.field_nt, [30.0, 50.0])        # the pre-rename field name is read too
             self.assertAlmostEqual(s.rate_per_s, 3.0)                     # median of the family rates
+            decay = {round(r["frequency_hz"], 1): r["decay_per_s"] for r in s.lines(0.01)}
+            self.assertAlmostEqual(decay[135.5], 2.0)                     # below the 200 Hz edge: family 0
+            self.assertAlmostEqual(decay[271.0], 4.0)                     # above it: family 1
+            s.set_linewidth(5.0)                                          # changed: the quick look's one rate
+            self.assertEqual({r["decay_per_s"] for r in s.lines(0.01)}, {5.0})
             self.assertEqual(s.trace_index, 1)
             fr = s.trace_frame(0, apply=True)
             self.assertEqual(fr["objective"], 1.0)

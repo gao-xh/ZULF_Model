@@ -893,8 +893,11 @@ class StudioWindow(QMainWindow):
         row.addWidget(QLabel("at least"))
         row.addWidget(self.min_rel)
         row.addWidget(export)
-        t = self.lines_table = QTableWidget(0, 4)
-        t.setHorizontalHeaderLabels(["isotopologue", "frequency (Hz)", "relative", "amplitude"])
+        t = self.lines_table = QTableWidget(0, 5)
+        t.setHorizontalHeaderLabels(["isotopologue", "frequency (Hz)", "relative", "amplitude", "decay (1/s)"])
+        t.horizontalHeaderItem(4).setToolTip("decay rate of the line: with an applied, unchanged fit the fitted rate "
+                                             "of its family, otherwise the one decay rate of the quick look; line "
+                                             "width FWHM = rate / pi Hz")
         t.verticalHeader().setVisible(False)
         t.verticalHeader().setDefaultSectionSize(22)
         t.setShowGrid(False)
@@ -903,7 +906,7 @@ class StudioWindow(QMainWindow):
         t.setEditTriggers(QTableWidget.NoEditTriggers)
         h = t.horizontalHeader()
         for c, mode in enumerate((QHeaderView.ResizeToContents, QHeaderView.ResizeToContents, QHeaderView.Stretch,
-                                  QHeaderView.ResizeToContents)):
+                                  QHeaderView.ResizeToContents, QHeaderView.ResizeToContents)):
             h.setSectionResizeMode(c, mode)
         t.setItemDelegateForColumn(2, BarDelegate(t))
         t.setSortingEnabled(True)
@@ -1835,7 +1838,7 @@ class StudioWindow(QMainWindow):
         self.lines_count.setText(f"{len(lines)} lines in {self.session.view[0]:.0f}-{self.session.view[1]:.0f} Hz")
         t = self.lines_table
         signature = tuple((r["component"], round(r["frequency_hz"], 6), round(r["relative"], 6),
-                           round(r["amplitude"], 6)) for r in lines)
+                           round(r["amplitude"], 6), round(r.get("decay_per_s", 0.0), 6)) for r in lines)
         if signature == getattr(self, "_lines_signature", None):
             return                                    # unchanged (a redraw for a marked line): keep rows, selection
         self._lines_signature = signature
@@ -1861,10 +1864,13 @@ class StudioWindow(QMainWindow):
             rel.setData(Qt.UserRole, col.name() if col is not None else None)
             amp = QTableWidgetItem()
             amp.setData(Qt.DisplayRole, float(f"{r['amplitude']:.4g}"))
-            for it in (freq, rel, amp):
+            decay = QTableWidgetItem()
+            decay.setData(Qt.DisplayRole, float(f"{r.get('decay_per_s', float('nan')):.3g}"))
+            decay.setToolTip(f"FWHM {r.get('decay_per_s', float('nan')) / np.pi:.3g} Hz")
+            for it in (freq, rel, amp, decay):
                 it.setFont(mono)
                 it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            for j, it in enumerate((name, freq, rel, amp)):
+            for j, it in enumerate((name, freq, rel, amp, decay)):
                 t.setItem(i, j, it)
         t.setSortingEnabled(True)
         for i in range(t.rowCount()):                 # the marked lines stay selected, by frequency (rows re-sort)
