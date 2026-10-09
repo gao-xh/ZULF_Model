@@ -97,6 +97,17 @@ Studio) it adds no noise ripple to the model, as "shared" (estimated on the data
 runs/figures/ethanol_overlay_final.{png,svg,pdf} and ethanol_overlay_final_120.png (final fit.json, baseline
 "model").
 
+### Halves (even / odd scans) with the stage-3 model
+
+Whole-grid series of the two halves made with the same command as ethanol_full
+(`make_series_entry.py --fid .../z5/average_{even,odd}.npy --id ethanol --record 7.5 --exclude 81.5,86`; the
+spectrum of average_fid.npy made this way equals ethanol_full point for point) and the fit ranges of
+ethanol_full copied into them (runs/series/ethanol_full_{even,odd}). Fits: the stage-3 command (same family
+edges, rate bounds, free amplitudes), started at the final stage-3 couplings and field, 2 starts each, no
+residual-peak stage (runs/processed/ethanol_lines_{even,odd}).
+
+(running)
+
 ## Conclusion
 
 Conditional numerical result for the ethyl spin system with a uniform static field: the visually best fit so
