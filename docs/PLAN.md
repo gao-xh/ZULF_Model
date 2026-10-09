@@ -528,7 +528,7 @@ Steps:
 - [x] 8a. Mode bar; Simulate, Fit, Blind analysis on the present widgets; the session records its mode (done, commit below; Process shows the import entry points until 8b).
 - [x] 8b. Process mode (done): scan table from average_scans metrics, recipe with live preview (debounced), averaging
   of the kept scans as a job, save the spectrum and the recipe (never into the data folder).
-- [ ] 8c. Custom spin system: isotopes, J matrix (upper-triangle table or text) with variables, component list
+- [x] 8c. Custom spin system (done; Studio editor, API, tests): isotopes, J matrix (upper-triangle table or text) with variables, component list
   with weights; sliders per variable; save / load models; import ZULF_NMR_Suite molecule folders.
 - [ ] 8d. Fits of a custom spin system (fit_joint_series model input {"spin_system": ...}; variables as fit
   parameters; weights as amplitudes).

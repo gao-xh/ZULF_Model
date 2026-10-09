@@ -46,8 +46,18 @@ Three columns in the order of the work (2026-10-08 layout; which cards and panel
      phase (deg) and delay (ms), which rotate the shown data only; **Auto phase** "match the simulation" (phase
      and delay that best match the current simulation, delay within +-3 ms; needs the lines roughly in place) or
      "data only" (model-free, delay within +-0.5 ms); "also delay" off keeps the delay; Reset sets both to zero.
-  2. **Structure**: a registered motif, or the structure JSON (button JSON shows the editor and Build); the
-     natural-abundance 13C isotopologues; N-H/O-H fast (decoupled) or slow (kept).
+  2. **Model**, from one of two sources (switch at the top of the card):
+     - **From structure**: a registered motif, or the structure JSON (button JSON shows the editor and Build);
+       the natural-abundance 13C isotopologues; N-H/O-H fast (decoupled) or slow (kept).
+     - **Spin system** (PLAN 8c): components, each with a name, a weight and its isotopes (`13C 1H 1H 1H`;
+       Set resizes the matrix), and the J matrix as an upper-triangle table (the lower triangle mirrors it) or as
+       JSON text. A cell holds Hz or a variable name; one name in several cells ties those couplings (the
+       Couplings card then has one slider per variable and per numeric coupling, key `component:J(i,j)`). Apply
+       builds the model (new variables start at 0 Hz). **From structure** turns the current structure into a spin
+       system (each isotopologue a component with its abundance weight; equal couplings share J1, J2, ...; rename
+       a cell to split two that are equal by chance); **Load** reads a model JSON or a ZULF_NMR_Suite molecule
+       folder (structure.csv); **Save** writes the model JSON. Exact diagonalisation (zulf_core.SpinSystem), no
+       MATLAB. Fits of a spin system are PLAN 8d.
   3. **Couplings (Hz)**: a slider and a spin box per coupling; "Add / set" adds a coupling by key `J(a,b)` (for
      example `J(C2,HC1)` makes the nitrile 13C isotopologue of acetonitrile visible). **fine sliders** shows a
      second, fine slider under every coupling, field and phase slider.
