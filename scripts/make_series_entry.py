@@ -80,6 +80,8 @@ def main():
     ap.add_argument("--grid", default="20,380", help="lo,hi of the processed frequency grid (Hz)")
     ap.add_argument("--crop", type=float, default=0.1, help="record start (s)")
     ap.add_argument("--record", type=float, default=8.0, help="record length (s)")
+    ap.add_argument("--crop-points", type=int, default=None, help="record start in samples (instead of --crop)")
+    ap.add_argument("--record-points", type=int, default=None, help="record length in samples (instead of --record)")
     ap.add_argument("--apodization", type=float, default=0.3, help="exponential window (1/s)")
     ap.add_argument("--zero-fill", type=int, default=3)
     ap.add_argument("--ranges", default="", help="lo,hi;lo,hi;... fit ranges (Hz); default: the whole grid minus "
@@ -93,6 +95,10 @@ def main():
     fs = args.sampling_rate or find_sampling_rate(args.fid, 4000.0)[0]
     grid = [float(v) for v in args.grid.split(",")]
     y = np.load(args.fid).astype(float)
+    if args.crop_points is not None:                 # samples given: seconds that round back to exactly them
+        args.crop = args.crop_points / fs
+    if args.record_points is not None:
+        args.record = args.record_points / fs
     sp = series_spectrum(y, fs, args.crop, args.record, args.apodization, args.zero_fill, grid,
                          sg_window_s=args.sg_window or None, phase0_deg=args.phase0_deg, delay_ms=args.delay_ms)
     f, r, edge = sp["f"], sp["spectrum"], sp["edge_s"]

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import (QCheckBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
@@ -42,8 +42,31 @@ class RecipeBox(QWidget):
             row.addWidget(b)
         row.addStretch(1)
         lay.addLayout(row)
+        unit_row = QHBoxLayout()
+        unit_row.addWidget(QLabel("crop and record in"))
+        self.unit = QComboBox()
+        self.unit.addItem("seconds", "s")
+        self.unit.addItem("points (samples)", "points")
+        self.unit.currentIndexChanged.connect(self._unit_changed)
+        unit_row.addWidget(self.unit, 1)
+        lay.addLayout(unit_row)
         self.crop = slider_cls("crop start", 0.0, 1.0, 0.1, 3, "s")
         self.record = slider_cls("record", 0.5, 30.0, 7.5, 2, "s")
+        pts = QFormLayout()
+        self.crop_pts = QSpinBox(minimum=0, maximum=10_000_000, suffix=" pts")
+        self.record_pts = QSpinBox(minimum=10, maximum=10_000_000, suffix=" pts")
+        self.crop_pts.setToolTip("first sample kept (0 = the first sample of the FID)")
+        self.record_pts.setToolTip("number of samples kept from the crop start")
+        for w in (self.crop_pts, self.record_pts):
+            w.setKeyboardTracking(False)
+        self.crop_pts.valueChanged.connect(lambda v: self._points("crop_s", v))
+        self.record_pts.valueChanged.connect(lambda v: self._points("record_s", v))
+        self.pts_box = QWidget()
+        pts.setContentsMargins(0, 0, 0, 0)
+        pts.addRow("crop start", self.crop_pts)
+        pts.addRow("record", self.record_pts)
+        self.pts_box.setLayout(pts)
+        self.pts_box.hide()
         self.apod = slider_cls("window", 0.02, 5.0, 0.3, 3, "1/s", log=True)
         self.sg = slider_cls("drift filter", 0.0, 0.3, 0.0, 3, "s")
         self.sg.setToolTip("Savitzky-Golay drift filter length; 0 = the plan's default (201 samples at 4 kHz)")
@@ -53,6 +76,8 @@ class RecipeBox(QWidget):
                        ("sg_window_s", self.sg), ("phase0_deg", self.phase), ("delay_ms", self.delay)):
             w.value_changed.connect(lambda v, k=key: self._queue(k, float(v)))
             lay.addWidget(w)
+            if key == "record_s":
+                lay.addWidget(self.pts_box)
         cal = QHBoxLayout()
         self.cal = QCheckBox("phase from the calibration and the switching edge", checked=True)
         self.cal.toggled.connect(self._calibration)
@@ -79,6 +104,20 @@ class RecipeBox(QWidget):
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
         self._calibration(True)
+
+    def _unit_changed(self, _):
+        points = self.unit.currentData() == "points"
+        self.crop.setVisible(not points)
+        self.record.setVisible(not points)
+        self.pts_box.setVisible(points)
+        self.refresh()
+
+    def _points(self, key, n):
+        """Crop or record given in samples: stored as seconds n / fs, which round back to exactly n samples."""
+        p = self.session.process
+        if p is None:
+            return
+        self._queue(key, int(n) / p["fs"])
 
     def _open_fid(self):
         path, _ = QFileDialog.getOpenFileName(self, "Averaged FID", self.window._start_dir(
@@ -127,12 +166,22 @@ class RecipeBox(QWidget):
         r = p["recipe"]
         st = self.session.process_status()
         self.source.setObjectName("dataInfo")
+        start, keep = int(round(r["crop_s"] * p["fs"])), int(round(r["record_s"] * p["fs"]))
         self.source.setText(f"<b>{Path(p['fid']).parent.name}/{Path(p['fid']).name}</b><br>{len(p['y'])} points, "
-                            f"{p['fs']:g} Hz ({Path(p['fs_source']).name}), record {len(p['y']) / p['fs']:.2f} s")
+                            f"{p['fs']:g} Hz ({Path(p['fs_source']).name}), record {len(p['y']) / p['fs']:.2f} s"
+                            f"<br>kept: samples {start} to {min(start + keep, len(p['y'])) - 1} "
+                            f"({min(keep, len(p['y']) - start)} points)")
         for w, k in ((self.crop, "crop_s"), (self.record, "record_s"), (self.apod, "apodization_per_s"),
                      (self.sg, "sg_window_s")):
             if not w.spin.hasFocus():
                 w.set_value(float(r[k] or 0.0))
+        n = len(p["y"])
+        for box, k, top in ((self.crop_pts, "crop_s", n - 10), (self.record_pts, "record_s", n)):
+            if not box.hasFocus():
+                box.blockSignals(True)
+                box.setMaximum(top)
+                box.setValue(int(round(r[k] * p["fs"])))
+                box.blockSignals(False)
         if self.cal.isChecked():
             self.phase.set_value(st["phase0_deg"] or 0.0)
             self.delay.set_value(st["delay_ms"] or 0.0)

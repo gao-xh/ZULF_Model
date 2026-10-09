@@ -25,7 +25,8 @@ else in Simulate (`--mode` chooses).
   weighted sum, or every component and the sum); the loaded spectrum only on request. Right: display, the model
   summary, export of the simulation, "Fit this model to data".
 - **Process**: scans or an FID to a spectrum, no model (PLAN 8b). Left: the averaged FID (FID ..., or Scan
-  folder ... which averages first) and the recipe: crop start, record, window (exponential, 1/s), drift filter
+  folder ... which averages first) and the recipe: crop start and record (in seconds, or in points: "crop and
+  record in" switches; the kept samples are shown), window (exponential, 1/s), drift filter
   (Savitzky-Golay length, 0 = default), phase0 and delay (from the calibration and the switching edge, or by
   hand), zero fill, frequency grid, bands not fitted. Every change recomputes the preview after 150 ms
   (`zulf_processing.series_spectrum`, the same steps a saved series uses). Plot: the FID start with the crop and

@@ -244,3 +244,17 @@ class SamplingRateTests(unittest.TestCase):
         self.assertEqual((fast["start_sample"], fast["stop_sample"], fast["sg_window"], fast["zero_fill"]),
                          (400, 8400, 403, 4))
         self.assertEqual(fast["sg_window"] % 2, 1)
+
+
+class SampleCountTests(unittest.TestCase):
+    def test_crop_and_record_given_in_samples_round_back_exactly(self):
+        # Studio's "points" unit and make_series_entry --crop-points store n / fs seconds; at 8333.33 Hz every n
+        # must come back as the same sample
+        from zulf_processing.series_spectrum import series_spectrum
+        fs = 8333.333333333334
+        t = np.arange(20000) / fs
+        fid = np.r_[np.full(30, 3000.0), np.cos(2 * np.pi * 136.0 * t[30:]) * np.exp(-t[30:])]
+        for start, keep in ((800, 15000), (833, 12345), (1, 19000)):
+            sp = series_spectrum(fid, fs, crop_s=start / fs, record_s=keep / fs)
+            self.assertEqual(sp["plan"].start_sample, start)
+            self.assertEqual(sp["plan"].stop_sample - sp["plan"].start_sample, keep)
