@@ -24,6 +24,11 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QHBoxLayout, QI
 
 from .theme import ISOTOPOLOGUE, matplotlib_style
 
+# spin-network node colours by nucleus (isotopes of one element in shades of one hue); others by element, then grey
+NUCLEUS_COLOURS = {"1H": "#8a96a8", "2H": "#4f5d73", "3H": "#2f3a4d", "13C": "#2f8f5b", "15N": "#3b6fb6",
+                   "14N": "#7fa3d6", "17O": "#d1495b", "19F": "#9ac23c", "31P": "#e08a1e", "29Si": "#b8936a",
+                   "77Se": "#b07cc6", "119Sn": "#7c8c99", "6Li": "#c26ab0", "7Li": "#a04f92", "11B": "#e0a3a3",
+                   "10B": "#c27a7a", "23Na": "#8d6cc4", "27Al": "#9aa3ad", "33S": "#c8a400", "35Cl": "#3fae8f"}
 ELEMENT_COLOURS = {"O": "#d1495b", "N": "#3b6fb6", "S": "#c8a400", "P": "#d1495b", "F": "#2f8f5b", "Cl": "#2f8f5b"}
 
 
@@ -133,6 +138,14 @@ def comp_isotope(components, site) -> str:
     return ""
 
 
+def nucleus_colour(nucleus: str) -> str:
+    """Colour of a nucleus ('13C', '2H', ...) in the spin network."""
+    if nucleus in NUCLEUS_COLOURS:
+        return NUCLEUS_COLOURS[nucleus]
+    el = re.sub(r"^\d+", "", nucleus)
+    return ELEMENT_COLOURS.get(el, "#8a8a8f")
+
+
 def draw_network(ax, spec, k, t, scale=1.0) -> dict:
     """Draw component k of a spin-system specification as a spin network on ax."""
     from zulf_hypothesis.spin_system import groups, numeric_matrix, tokens
@@ -155,21 +168,23 @@ def draw_network(ax, spec, k, t, scale=1.0) -> dict:
                     lw=(0.6 + 3.4 * np.sqrt(abs(j) / top)) * scale, alpha=0.85, zorder=1,
                     ls="-" if j > 0 else (0, (4, 2)))
             if n <= 8 or abs(j) >= 1.0:
-                ax.text(0.5 * (x0 + x1), 0.5 * (y0 + y1), f"{j:.4g}", fontsize=7.5 * scale, ha="center",
+                ax.text(0.6 * x0 + 0.4 * x1, 0.6 * y0 + 0.4 * y1, f"{j:.4g}", fontsize=7.5 * scale, ha="center",
                         va="center", color=t["ink"], zorder=3,
                         bbox=dict(boxstyle="round,pad=0.15", fc=t["panel"], ec="none", alpha=0.9))
+    colours = {}
     for a, g in enumerate(grp):
-        el = re.sub(r"^\d+", "", iso[g[0]])
-        col = ISOTOPOLOGUE[0] if el == "C" else ISOTOPOLOGUE[2] if el == "N" else t["panel2"]
+        col = colours.setdefault(iso[g[0]], nucleus_colour(iso[g[0]]))
         text = iso[g[0]] + (f" x{len(g)}" if len(g) > 1 else "")
         ax.text(*xy[a], text, ha="center", va="center", fontsize=9 * scale, color=t["ink"], zorder=4,
                 bbox=dict(boxstyle="round,pad=0.45,rounding_size=0.8", fc=_mix(col, t["panel"], 0.3), ec=col,
                           lw=1.4))
+    for m, (nuc, col) in enumerate(colours.items()):     # legend: the nuclei present
+        ax.text(-1.45 + 0.62 * m, -1.3, f"\u25cf {nuc}", color=col, fontsize=7.5 * scale, ha="left", va="center")
     ax.plot([-1.5, 1.5], [-1.35, 1.35], alpha=0)
     ax.set_aspect("equal", adjustable="datalim")
     ax.autoscale(tight=True)
     ax.set_axis_off()
-    return {"spins": len(iso), "groups": n, "name": comp.get("name", "")}
+    return {"spins": len(iso), "groups": n, "name": comp.get("name", ""), "colours": colours}
 
 
 class MoleculeView(QWidget):

@@ -904,6 +904,18 @@ class SpinSystemTests(unittest.TestCase):
         self.assertIn("molecule", s.spec)
         w.close()
 
+    def test_spin_network_colours_follow_the_nuclei(self):
+        from matplotlib.figure import Figure
+        from zulf_studio.molecule_ui import draw_network
+        from zulf_studio.theme import LIGHT
+        r = draw_network(Figure().add_subplot(111), self.METHYL_SPIN, 0, LIGHT)
+        deuterated = json.loads(json.dumps(self.METHYL_SPIN))
+        deuterated["spin_system"]["components"][0]["isotopes"] = ["13C", "2H", "2H", "2H"]
+        r2 = draw_network(Figure().add_subplot(111), deuterated, 0, LIGHT)
+        self.assertEqual(set(r["colours"]), {"13C", "1H"})
+        self.assertEqual(set(r2["colours"]), {"13C", "2H"})
+        self.assertNotEqual(r["colours"]["1H"], r2["colours"]["2H"])     # another nucleus, another colour
+
     def test_structure_to_spin_system_keeps_the_molecule(self):
         s = session(METHYL)
         s.spin_system_from_structure()
