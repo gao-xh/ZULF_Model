@@ -1928,6 +1928,10 @@ class StudioWindow(QMainWindow):
         self.refresh_widgets()
         if event in ("fit_done", "trace", "fit_started"):
             self.update_fit_status()
+        if event == "fit_started":                    # any fit of the session (button, API, AI): follow it
+            job = self.session.fit_job
+            if job is not None and job.running:
+                self.set_follow(job.out_dir)
         if event == "fit_done":
             self._fit_finished()
         if event == "follow" and self.follow is not None:
