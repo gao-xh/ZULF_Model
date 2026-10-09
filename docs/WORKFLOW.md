@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; Studio jobs, files and machine load).
+Last reviewed: 2026-10-08 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; Studio jobs, files and machine load; Studio modes D58).
 
 ## Map
 
@@ -72,7 +72,7 @@ flowchart LR
 ```
 
     python scripts/average_scans.py ~/research/zulf/data/original/MEAS ~/research/zulf/data/processed/MEAS \
-        [--exclude-z 3]
+        [--exclude-z 3] [--keep FILE|0-5989,6005]
 
 - The run folder is read-only; averages made by our code go to `data/processed/MEAS/`. Received averages (other
   tools, other groups) are in `data/raw/MEAS/`.
@@ -113,9 +113,11 @@ flowchart TD
     bfit -. "residual phase and delay refined in the fit" .-> p0
 ```
 
+Interactive: ZULF Studio, mode Process (scan selection, recipe with a live preview, save; docs/STUDIO.md).
+
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id NAME --out runs/series/NAME \
         [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--grid 20,380] [--sampling-rate HZ]
-        [--exclude lo,hi]
+        [--exclude lo,hi] [--sg-window S] [--phase0-deg D] [--delay-ms M]
 
 Processing (time domain; details and settings in section 1 below):
 - Diagnostics first: the switching edge (half height), the ringing end (near 50 ms on the NMRduino), the signal

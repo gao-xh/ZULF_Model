@@ -111,6 +111,23 @@ TOOLS: Dict[str, tuple] = {
     "set_mode": ("set_mode", "Task mode of the window: simulate (model only), process (scans to spectrum), fit "
                  "(spectrum and a known model) or blind (blind analysis). The model is shared by every mode.",
                  _obj({"mode": {"type": "string", "enum": ["simulate", "process", "fit", "blind"]}}, ["mode"])),
+    "set_process_source": ("set_process_source", "Process mode: the averaged FID (.npy) to process; its per-scan "
+                           "record (scans.json next to it) fills the scan table.", _obj({"fid": STR}, ["fid"])),
+    "set_recipe": ("set_recipe", "Process mode: change the recipe (crop_s, record_s, apodization_per_s, zero_fill, "
+                   "grid [lo, hi], sg_window_s (0 = default), phase0_deg and delay_ms (null = calibration and "
+                   "switching edge), exclude 'lo,hi;...'); the preview is recomputed.",
+                   _obj({"crop_s": NUM, "record_s": NUM, "apodization_per_s": NUM, "zero_fill": {"type": "integer"},
+                         "grid": {"type": "array", "items": NUM}, "sg_window_s": NUM, "phase0_deg": NUM,
+                         "delay_ms": NUM, "exclude": STR})),
+    "process_status": ("process_status", "Process mode: source FID, sampling rate, recipe, switching edge, phase "
+                       "and delay, scan counts.", _obj({})),
+    "average_selection": ("average_selection", "Process mode: average the chosen scans of the source run again "
+                          "(average_scans.py --keep; the run stays read only) and process the new average.",
+                          _obj({"keep": {"type": "array", "items": {"type": "integer"}}, "exclude_z": NUM,
+                                "out": STR}, ["keep"])),
+    "save_processed": ("save_processed", "Process mode: save the spectrum of the recipe as a series with "
+                       "recipe.json (make_series_entry.py) and load it for Fit.",
+                       _obj({"label": STR, "out": STR, "load": {"type": "boolean"}})),
     "machine_status": ("machine_status", "Cores (performance / efficiency), load average and the analysis processes "
                        "running on this machine with their workers; free and suggested workers. Check it before "
                        "starting a fit or analysis: more workers than cores slow every run down.", _obj({})),

@@ -24,9 +24,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from zulf_core.render.phasing import correction_phasor, reference_delay_s  # noqa: E402
-from zulf_processing import find_sampling_rate, plan_for_dataset, process_dataset  # noqa: E402
-from zulf_processing.diagnostics import switching_edge                     # noqa: E402
+from zulf_processing import find_sampling_rate  # noqa: E402
+from zulf_processing.series_spectrum import series_spectrum  # noqa: E402
 
 
 def whole_ranges(lo, hi, lines, exclude=()):
@@ -86,22 +85,17 @@ def main():
     ap.add_argument("--ranges", default="", help="lo,hi;lo,hi;... fit ranges (Hz); default: the whole grid minus "
                     "the power-line and instrument lines; 'bands': only the bands above 5 noise levels")
     ap.add_argument("--exclude", default="", help="lo,hi;... left out of the default ranges (e.g. 81.5,86)")
+    ap.add_argument("--sg-window", type=float, default=0.0, help="drift filter length (s); default the plan's")
+    ap.add_argument("--phase0-deg", type=float, default=None, help="zero-order phase; default the calibration")
+    ap.add_argument("--delay-ms", type=float, default=None, help="first-order delay; default minus the edge")
     args = ap.parse_args()
     cfg = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
-    cal = cfg["phase_calibration"]
     fs = args.sampling_rate or find_sampling_rate(args.fid, 4000.0)[0]
     grid = [float(v) for v in args.grid.split(",")]
     y = np.load(args.fid).astype(float)
-    edge = switching_edge(y, fs)["edge_time_s"] + cal["delay_offset_s"]
-    start = int(round(args.crop * fs))
-    plan = plan_for_dataset(len(y), fs, None, {"start_sample": start, "stop_sample": start + int(round(args.record * fs)),
-                                               "zero_fill": args.zero_fill,
-                                               "apodization_rate_per_s": args.apodization, "ranges": [grid]})
-    ds = process_dataset(y, fs, plan=plan, phase_criterion=None)
-    acq = plan.acquisition()
-    f = ds.frequencies_hz
-    phi0 = np.radians(cal["phase0_deg"])
-    r = ds.spectrum * correction_phasor(f, phi0, -(edge + acq.time_origin_s) + reference_delay_s(acq))
+    sp = series_spectrum(y, fs, args.crop, args.record, args.apodization, args.zero_fill, grid,
+                         sg_window_s=args.sg_window or None, phase0_deg=args.phase0_deg, delay_ms=args.delay_ms)
+    f, r, edge = sp["f"], sp["spectrum"], sp["edge_s"]
     lines = [60.06 * k for k in range(1, 7)] + [float(v) for v in cfg.get("instrument_lines_hz", []) if v % 60]
     if args.ranges == "bands":
         ranges = auto_ranges(f, r, lines, lo=grid[0], hi=grid[1])
@@ -115,7 +109,7 @@ def main():
     np.save(out / "frequency.npy", f)
     np.save(out / "amplitude.npy", r)
     entry = {"id": args.id, "x": 1.0, "freq": str(out / "frequency.npy"), "values": str(out / "amplitude.npy"),
-             "record": acq.to_dict(), "phasing": {"phase0_rad": float(phi0), "delay_s": float(-(edge + acq.time_origin_s))},
+             "record": sp["acquisition"], "phasing": sp["phasing"],
              "ranges": ranges, "source_fid": str(Path(args.fid).expanduser().resolve())}
     json.dump([entry], open(out / "series.json", "w"), indent=1)
     try:

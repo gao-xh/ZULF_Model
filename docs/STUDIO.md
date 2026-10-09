@@ -24,9 +24,17 @@ else in Simulate (`--mode` chooses).
 - **Simulate**: the model alone. Left: structure, couplings, field and line width. Plot: the simulation (the
   weighted sum, or every component and the sum); the loaded spectrum only on request. Right: display, the model
   summary, export of the simulation, "Fit this model to data".
-- **Process**: scans or an FID to a spectrum, no model. Left: the data; plot: the data spectrum. Right: import a
-  scan folder or FID (inspection and recipe), open a processed spectrum, then Fit or Blind analysis. (The recipe
-  editor with live preview and scan selection is PLAN 8b.)
+- **Process**: scans or an FID to a spectrum, no model (PLAN 8b). Left: the averaged FID (FID ..., or Scan
+  folder ... which averages first) and the recipe: crop start, record, window (exponential, 1/s), drift filter
+  (Savitzky-Golay length, 0 = default), phase0 and delay (from the calibration and the switching edge, or by
+  hand), zero fill, frequency grid, bands not fitted. Every change recomputes the preview after 150 ms
+  (`zulf_processing.series_spectrum`, the same steps a saved series uses). Plot: the FID start with the crop and
+  the switching edge, and the spectrum of the recipe. Drawer **Scans**: the per-scan deviation and late noise of
+  the run (from scans.json) as a plot and a table with keep boxes; keep z <= ..., keep a range (`0-5989`), all;
+  **Average the kept scans** runs `average_scans.py --keep` as a job into `runs/studio/averages/` (the run folder
+  stays read only) and processes the new average. Right: **Save spectrum and recipe** (`make_series_entry.py`
+  with the recipe; series.json, the spectrum and recipe.json; loaded for Fit when done), other sources, then Fit
+  or Blind analysis.
 - **Fit**: the data, the model and the residual; right: Fit and Figure.
 - **Blind analysis**: the data alone; right: the blind analysis and its report.
 

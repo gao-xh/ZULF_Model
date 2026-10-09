@@ -37,7 +37,8 @@ from .api import TOOLS, StudioAPI, serve  # noqa: E402
 from .jobs_ui import ActivityIndicator, AnalysisPanel, JobsPanel, MachineLabel, confirm_workers, job_line  # noqa: E402
 from .session import SESSION_SUFFIX  # noqa: E402
 from .dialogs import ExportDialog, ImportDialog  # noqa: E402
-from .modes_ui import ProcessPanel, SimulatePanel  # noqa: E402
+from .modes_ui import SimulatePanel  # noqa: E402
+from .process_ui import ProcessPanel, RecipeBox, ScansPanel  # noqa: E402
 from .theme import DARK, ISOTOPOLOGUE, LIGHT, matplotlib_style, stylesheet  # noqa: E402
 from .session import ROOT, StudioSession  # noqa: E402
 
@@ -398,8 +399,13 @@ class StudioWindow(QMainWindow):
         sec_coup.add(self.coupling_box)
         sec_field = Section("4  Field and line width", "field", self.settings_store)
         sec_field.add(self._field_box())
-        self.sections = {"data": sec_data, "structure": sec_struct, "couplings": sec_coup, "field": sec_field}
-        for sec in (sec_data, sec_struct, sec_coup, sec_field):
+        self.recipe_box = RecipeBox(self.session, self, ValueSlider)
+        self.recipe_box.delay.show_fine(self.fine_toggle.isChecked())
+        sec_recipe = Section("1  Recipe", "recipe", self.settings_store)
+        sec_recipe.add(self.recipe_box)
+        self.sections = {"recipe": sec_recipe, "data": sec_data, "structure": sec_struct, "couplings": sec_coup,
+                         "field": sec_field}
+        for sec in (sec_recipe, sec_data, sec_struct, sec_coup, sec_field):
             self.left_lay.addWidget(sec)
         self.left_lay.addStretch(1)
         scroll = QScrollArea()
@@ -446,6 +452,8 @@ class StudioWindow(QMainWindow):
 
         self.info_tabs = QTabWidget(objectName="drawer")
         self.info_tabs.addTab(self._lines_tab(), "Lines")
+        self.scans_panel = ScansPanel(self.session, self, self.t)
+        self.info_tabs.addTab(self.scans_panel, "Scans")
         self.jobs_panel = JobsPanel(self.session)
         self.info_tabs.addTab(self.jobs_panel, "Jobs")
         self.log_view = QPlainTextEdit(readOnly=True)
@@ -546,7 +554,8 @@ class StudioWindow(QMainWindow):
     # ---- left panels -----------------------------------------------------------------------
     def _show_fine(self, on):
         self.settings_store.setValue("fine_sliders", "true" if on else "false")
-        for w in list(self.coupling_rows.values()) + [self.b_t, self.b_z, self.phase, self.delay]:
+        for w in list(self.coupling_rows.values()) + [self.b_t, self.b_z, self.phase, self.delay,
+                                                       self.recipe_box.delay]:
             w.show_fine(on)
 
     def show_page(self, widget):
@@ -562,12 +571,12 @@ class StudioWindow(QMainWindow):
             self.info_tabs.setCurrentWidget(widget)
 
     # left sections and right panel per mode (D58)
-    MODE_SECTIONS = {"simulate": ("structure", "couplings", "field"), "process": ("data",),
+    MODE_SECTIONS = {"simulate": ("structure", "couplings", "field"), "process": ("recipe",),
                      "fit": ("data", "structure", "couplings", "field"), "blind": ("data",)}
 
     def apply_mode(self):
         mode = self.session.mode
-        names = {"data": "Data", "structure": "Structure", "couplings": "Couplings (Hz)",
+        names = {"recipe": "FID and recipe", "data": "Data", "structure": "Structure", "couplings": "Couplings (Hz)",
                  "field": "Field and line width"}
         n = 0
         for key, sec in self.sections.items():
@@ -1205,8 +1214,8 @@ class StudioWindow(QMainWindow):
                                          ("blind", "Blind analysis"))):
             action(v, text, lambda k=key: self.session.set_mode(k), f"Ctrl+{n + 1}")
         v.addSeparator()
-        for text, page, key in (("Lines", 0, "Ctrl+Shift+1"), ("Jobs", 1, "Ctrl+Shift+2"), ("Log", 2, "Ctrl+Shift+3"),
-                                ("AI assistant", 3, "Ctrl+Shift+4")):
+        for text, page, key in (("Lines", 0, "Ctrl+Shift+1"), ("Scans", 1, "Ctrl+Shift+2"), ("Jobs", 2, "Ctrl+Shift+3"),
+                                ("Log", 3, "Ctrl+Shift+4"), ("AI assistant", 4, "Ctrl+Shift+5")):
             action(v, text, lambda i=page: self.info_tabs.setCurrentIndex(i), key)
         r = self.menuBar().addMenu("&Run")
         action(r, "Start fit", self.start_fit, "Ctrl+Return")
@@ -1447,6 +1456,11 @@ class StudioWindow(QMainWindow):
             self.update_title()
         if event in ("mode", "session_opened"):
             self.apply_mode()
+        if event in ("process_source", "process_recipe"):
+            self.recipe_box.refresh()
+            self.scans_panel.refresh()
+            if event == "process_source" and self.session.mode == "process":
+                self.info_tabs.setCurrentWidget(self.scans_panel)
         if event == "structure":
             self.rebuild_couplings()
         elif event == "couplings" and set(self.coupling_rows) != {c["key"] for c in self.session.couplings()}:
@@ -1548,11 +1562,48 @@ class StudioWindow(QMainWindow):
         t.setSortingEnabled(True)
 
     # ---- plot --------------------------------------------------------------------------------
+    def _draw_process(self):
+        """Process: the FID start (crop and switching edge marked) and the spectrum of the current recipe."""
+        s, t = self.session, self.t
+        style = matplotlib.rc_context(matplotlib_style(t))
+        style.__enter__()
+        self.fig.clear()
+        self.fig.set_facecolor(t["panel"])
+        p = s.process
+        if p is None or p.get("preview") is None:
+            ax = self.fig.add_subplot(111)
+            ax.text(0.5, 0.5, "open an averaged FID or a scan folder (left)", ha="center", va="center",
+                    transform=ax.transAxes, color=t["muted"])
+            ax.set_axis_off()
+        else:
+            pv, r = p["preview"], p["recipe"]
+            a1, a2 = self.fig.subplots(2, 1, gridspec_kw={"height_ratios": [1, 2.2]})
+            a1.plot(pv["t_ms"], pv["fid"], color=t["data"], lw=0.7)
+            a1.axvline(1e3 * r["crop_s"], color=t["accent"], lw=1.0, label=f"crop {1e3 * r['crop_s']:.0f} ms")
+            a1.axvline(pv["edge_ms"], color=t["bad"], lw=0.8, ls="--", label=f"edge {pv['edge_ms']:.2f} ms")
+            a1.set_xlabel("time (ms)")
+            a1.set_title("FID start", loc="left")
+            a1.legend(loc="upper right")
+            f, z = pv["f"], pv["spectrum"]
+            part = s.display
+            y = z.real if part == "re" else z.imag if part == "im" else np.abs(z)
+            lo, hi = s.view if s.view else (f.min(), f.max())
+            sel = (f >= lo) & (f <= hi)
+            a2.plot(f[sel], y[sel], color=t["data"], lw=0.7)
+            a2.set_xlim(lo, hi)
+            a2.set_xlabel("frequency (Hz)")
+            a2.set_title(f"spectrum of the recipe ({part}): crop {r['crop_s']:g} s, record {r['record_s']:g} s, "
+                         f"window {r['apodization_per_s']:g} 1/s, zero fill {r['zero_fill']}", loc="left")
+        style.__exit__(None, None, None)
+        self.canvas.draw_idle()
+
     def schedule(self):
         self.redraw_timer.start()
 
     def redraw(self):
         s = self.session
+        if s.mode == "process":
+            return self._draw_process()
         try:
             sim = s.simulate()
         except Exception as exc:

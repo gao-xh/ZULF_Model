@@ -1,6 +1,6 @@
 """Average the scans of one NMRduino run, with per-scan screening metrics and two disjoint half averages.
 
-    python scripts/average_scans.py RUN_FOLDER OUT_DIR [--exclude-z 0] [--window 0.1,4.1]
+    python scripts/average_scans.py RUN_FOLDER OUT_DIR [--exclude-z 0] [--window 0.1,4.1] [--keep FILE|0-5989,6005]
 
 RUN_FOLDER holds <n>.dat / <n>.ini as written by the instrument (read-only; nothing is written there).
 Every scan is decoded with zulf_core.io.decode_dat. Per scan, on the window (s, after the record start):
@@ -35,12 +35,37 @@ def robust_z(v):
     return (v - med) / mad if mad > 0 else np.zeros_like(v)
 
 
+def parse_scan_list(text: str) -> set:
+    """Scan numbers from a JSON file holding a list, or from ranges like '0-5989,6005'."""
+    path = Path(text)
+    if path.exists():
+        return {int(v) for v in json.loads(path.read_text())}
+    out = set()
+    for part in text.split(","):
+        part = part.strip()
+        if "-" in part:
+            a, b = (int(v) for v in part.split("-"))
+            out.update(range(a, b + 1))
+        elif part:
+            out.add(int(part))
+    return out
+
+
+def _z_on(values, chosen):
+    """Robust z of every scan against the median and MAD of the chosen scans only."""
+    med = np.median(values[chosen])
+    mad = 1.4826 * np.median(np.abs(values[chosen] - med))
+    return (values - med) / mad if mad > 0 else np.zeros_like(values)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run")
     ap.add_argument("out")
     ap.add_argument("--exclude-z", type=float, default=0.0)
     ap.add_argument("--window", default="0.1,4.1", help="metric window lo,hi (s)")
+    ap.add_argument("--keep", default="", help="scans to use: a JSON file with a list of scan numbers, or ranges "
+                    "'0-5989,6005' (the others are left out; --exclude-z then screens the rest)")
     args = ap.parse_args()
     run, out = Path(args.run), Path(args.out)
     files = sorted((int(p.stem), p) for p in run.glob("*.dat") if p.stem.isdecimal())
@@ -60,14 +85,19 @@ def main():
         ref = detrended(mean_w, t[w])
         return np.array([np.sqrt(np.mean((detrended(row.astype(float), t[w]) - ref) ** 2)) for row in data[:, w]])
 
-    keep = np.ones(len(ids), bool)
+    chosen = np.ones(len(ids), bool)
+    if args.keep:
+        chosen = np.isin(ids, sorted(parse_scan_list(args.keep)))
+        if not chosen.any():
+            raise SystemExit("--keep selects no scan of this run")
+    keep = chosen.copy()
     dev = deviation(keep)
-    z = robust_z(dev)
+    z = _z_on(dev, chosen)
     if args.exclude_z > 0:
-        keep = z <= args.exclude_z
+        keep = chosen & (z <= args.exclude_z)
         dev = deviation(keep)
-        z = robust_z(dev)
-        keep = z <= args.exclude_z
+        z = _z_on(dev, chosen)
+        keep = chosen & (z <= args.exclude_z)
     kept = np.flatnonzero(keep)
     out.mkdir(parents=True, exist_ok=True)
     mean_all = data[kept].astype(float).mean(axis=0)
@@ -77,6 +107,7 @@ def main():
     record = {
         "run": str(run), "decoder": DECODER, "sampling_rate_hz": fs, "points": int(n), "scans_found": int(len(ids)),
         "scans_kept": int(len(kept)), "exclude_z": args.exclude_z, "metric_window_s": [lo, hi],
+        "selection": {"keep": args.keep or None, "chosen": int(chosen.sum())},
         "first_ini_sha256": info["sha256"], "excluded_scans": [int(i) for i in ids[~keep]],
         "deviation_median": float(np.median(dev)), "late_noise_median": float(np.median(late_noise)),
         "scans": [{"scan": int(i), "deviation": float(d), "deviation_z": float(q), "late_noise": float(s), "kept": bool(k)}

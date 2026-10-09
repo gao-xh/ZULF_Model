@@ -525,8 +525,8 @@ class FilesAndJobsTests(unittest.TestCase):
         self.assertIn("idle", w.activity.text.text())
         self.assertIn("cores", w.machine.text())
         pages = [t.tabText(i) for t in (w.run_tabs, w.info_tabs) for i in range(t.count())]
-        self.assertEqual(pages, ["Fit", "Figure", "Lines", "Jobs", "Log", "AI assistant"])
-        for mode, visible in (("simulate", {"structure", "couplings", "field"}), ("process", {"data"}),
+        self.assertEqual(pages, ["Fit", "Figure", "Lines", "Scans", "Jobs", "Log", "AI assistant"])
+        for mode, visible in (("simulate", {"structure", "couplings", "field"}), ("process", {"recipe"}),
                               ("fit", {"data", "structure", "couplings", "field"}), ("blind", {"data"})):
             s.set_mode(mode)                                          # D58: one model, panels per task
             app.processEvents()
@@ -594,3 +594,57 @@ class ImportExportTests(unittest.TestCase):
         self.assertNotIn("applied_fit.json", r["files"])
         only = s.export_bundle(str(tmp / "only"), spectrum=("simulation",), view_only=True, parameters=False)
         self.assertEqual(sorted(only["files"]), ["information.json", "spectrum.csv"])
+
+
+class ProcessModeTests(unittest.TestCase):
+    """PLAN 8b: an averaged FID, its recipe with the preview, and the saved series."""
+
+    def _source(self):
+        tmp = Path(tempfile.mkdtemp())
+        np.save(tmp / "average_fid.npy", _synthetic_fid_2khz())
+        (tmp / "scans.json").write_text(json.dumps({"sampling_rate_hz": 2000.0, "scans_found": 3, "scans_kept": 3,
+                                                    "run": "none", "scans": [
+            {"scan": i, "deviation": 1.0 + i, "deviation_z": float(i), "late_noise": 1.0, "kept": True}
+            for i in range(3)]}))
+        return tmp
+
+    def test_preview_follows_the_recipe_and_matches_the_saved_series(self):
+        import time
+        tmp = self._source()
+        s = session(METHYL)
+        st = s.set_process_source(str(tmp / "average_fid.npy"))
+        self.assertEqual(st["sampling_rate_hz"], 2000.0)
+        self.assertEqual(st["scans"]["found"], 3)
+        pv = s.process["preview"]
+        mag = np.abs(pv["spectrum"])
+        peak = pv["f"][int(np.argmax(np.where(pv["f"] > 100, mag, 0)))]
+        self.assertTrue(abs(peak - 136.0) < 0.5 or abs(peak - 272.0) < 0.5, msg=str(peak))   # the methyl lines
+        width = lambda: np.sum(np.abs(s.process["preview"]["spectrum"]) > 0.5 * np.abs(
+            s.process["preview"]["spectrum"]).max())
+        narrow = width()
+        s.set_recipe(apodization_per_s=3.0)                           # a stronger window broadens the lines
+        self.assertGreater(width(), narrow)
+        s.set_recipe(phase0_deg=90.0, delay_ms=-3.5)
+        self.assertAlmostEqual(s.process_status()["phase0_deg"], 90.0)
+        with self.assertRaises(ValueError):
+            s.set_recipe(nonsense=1)
+        s.save_processed(label="methyl-test")
+        t0 = time.time()
+        while any(job.running for job in s.jobs) and time.time() - t0 < 120:
+            time.sleep(0.2)
+        time.sleep(0.5)
+        out = Path(s.workspace) / "series" / "methyl-test"
+        self.assertTrue((out / "series.json").exists())
+        self.assertEqual(json.loads((out / "recipe.json").read_text())["recipe"]["apodization_per_s"], 3.0)
+        saved = np.load(out / "amplitude.npy")
+        np.testing.assert_allclose(saved, s.process["preview"]["spectrum"], rtol=1e-9, atol=1e-12)   # one operator
+        self.assertEqual(s.data["label"], "methyl-test")
+
+    def test_scan_lists_for_averaging(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from average_scans import parse_scan_list
+        self.assertEqual(parse_scan_list("0-3,7"), {0, 1, 2, 3, 7})
+        f = Path(tempfile.mkdtemp()) / "keep.json"
+        f.write_text("[5, 2]")
+        self.assertEqual(parse_scan_list(str(f)), {2, 5})

@@ -526,7 +526,7 @@ live in Simulate, not on the Fit screen; ZULF_NMR_Suite stays as it is, its mole
 
 Steps:
 - [x] 8a. Mode bar; Simulate, Fit, Blind analysis on the present widgets; the session records its mode (done, commit below; Process shows the import entry points until 8b).
-- [ ] 8b. Process mode: scan table from average_scans metrics, recipe with live preview (debounced), averaging
+- [x] 8b. Process mode (done): scan table from average_scans metrics, recipe with live preview (debounced), averaging
   of the kept scans as a job, save the spectrum and the recipe (never into the data folder).
 - [ ] 8c. Custom spin system: isotopes, J matrix (upper-triangle table or text) with variables, component list
   with weights; sliders per variable; save / load models; import ZULF_NMR_Suite molecule folders.

@@ -231,6 +231,7 @@ class StudioSession:
         self.jobs: List[FitJob] = []                 # every background job of the session (fits, blind, figures)
         self.session_file: Optional[str] = None      # last saved or opened session file
         self.mode = "simulate"                       # task mode of the window (D58): simulate, process, fit, blind
+        self.process: Optional[dict] = None          # Process mode: source FID, its scans record, recipe, preview
         self.figure: Optional[dict] = None           # last figure: directory, files, manual flag
         self.applied: Optional[dict] = None          # run directory of the applied fit and the state it gave
         self.trace: Optional[dict] = None
@@ -908,7 +909,7 @@ class StudioSession:
         return job.status()
 
     def import_scans(self, run_folder: str, out: Optional[str] = None, exclude_z: float = 0.0,
-                     fid_options: Optional[dict] = None) -> dict:
+                     fid_options: Optional[dict] = None, then: str = "series") -> dict:
         """An instrument run folder (<n>.dat, <n>.ini; read-only) -> averaged FID (scripts/average_scans.py), then
         import_fid of the average. The average goes to `out` (default the workspace; averages kept for other work
         belong in ~/research/<project>/data/processed/<measurement>/)."""
@@ -922,7 +923,9 @@ class StudioSession:
         self.log("average scans: " + " ".join(argv[1:]), "import")
 
         def done(job):
-            if job.returncode == 0 and (dest / "average_fid.npy").exists():
+            if job.returncode == 0 and (dest / "average_fid.npy").exists() and then == "process":
+                self.set_process_source(str(dest / "average_fid.npy"))
+            elif job.returncode == 0 and (dest / "average_fid.npy").exists():
                 opts = dict(fid_options or {})
                 opts["label"] = opts.get("label") or run.name
                 self.import_fid(str(dest / "average_fid.npy"), **opts)
@@ -959,6 +962,123 @@ class StudioSession:
             if isinstance(content, list) and content and "freq" in content[0]:
                 return {"opened": "series", **self.load_spectrum(series=str(p))}
         raise ValueError(f"unknown file type: {p.name}")
+
+    # ---- Process mode: an averaged FID and its recipe (PLAN 8b) ----------------------------------
+    RECIPE = {"crop_s": 0.1, "record_s": 7.5, "apodization_per_s": 0.3, "zero_fill": 3, "grid": [20.0, 380.0],
+              "sg_window_s": 0.0, "phase0_deg": None, "delay_ms": None, "exclude": "81.5,86"}
+
+    def set_process_source(self, fid: str) -> dict:
+        """The averaged FID to process (and, when average_scans.py made it, its per-scan record for the scan
+        table). The recipe keeps its values; the sampling rate comes from scans.json or the .ini next to the FID."""
+        from zulf_processing import find_sampling_rate
+        path = _resolve(fid)
+        y = np.asarray(np.load(path), float)
+        fs, fs_source = find_sampling_rate(path, None)
+        record = path.parent / "scans.json"
+        scans = json.loads(record.read_text()) if record.exists() else None
+        recipe = dict(self.RECIPE, **(self.process or {}).get("recipe", {}))
+        recipe["record_s"] = min(recipe["record_s"], len(y) / fs - recipe["crop_s"])
+        self.process = {"fid": str(path), "y": y, "fs": fs, "fs_source": fs_source, "scans": scans,
+                        "run": (scans or {}).get("run"), "recipe": recipe, "preview": None}
+        self.log(f"process source: {path} ({len(y)} points, {fs:g} Hz from {Path(fs_source).name})", "process")
+        self.process_preview()
+        self._changed("process_source")
+        return self.process_status()
+
+    def set_recipe(self, **values) -> dict:
+        if self.process is None:
+            raise ValueError("no FID to process (set_process_source)")
+        for k, v in values.items():
+            if k not in self.RECIPE:
+                raise ValueError(f"unknown recipe key {k!r}")
+            self.process["recipe"][k] = v
+        self.process_preview()
+        self._changed("process_recipe")
+        return self.process_status()
+
+    def process_preview(self) -> dict:
+        """The processed spectrum of the current recipe (zulf_processing.series_spectrum, the same steps as a
+        saved series) and the FID start, for the live preview."""
+        from zulf_processing.series_spectrum import series_spectrum
+        p = self.process
+        r = p["recipe"]
+        sp = series_spectrum(p["y"], p["fs"], r["crop_s"], r["record_s"], r["apodization_per_s"], r["zero_fill"],
+                             r["grid"], sg_window_s=r["sg_window_s"] or None, phase0_deg=r["phase0_deg"],
+                             delay_ms=r["delay_ms"])
+        n0 = min(int(0.15 * p["fs"]), len(p["y"]))
+        p["preview"] = {"f": sp["f"], "spectrum": sp["spectrum"], "t_ms": np.arange(n0) / p["fs"] * 1e3,
+                        "fid": p["y"][:n0], "edge_ms": 1e3 * sp["edge_s"],
+                        "phase0_deg": float(np.degrees(sp["phasing"]["phase0_rad"])),
+                        "delay_ms": 1e3 * sp["phasing"]["delay_s"]}
+        return p["preview"]
+
+    def process_status(self) -> dict:
+        if self.process is None:
+            return {"source": None}
+        p = self.process
+        pv = p["preview"] or {}
+        return {"source": p["fid"], "sampling_rate_hz": p["fs"], "points": len(p["y"]), "recipe": dict(p["recipe"]),
+                "edge_ms": pv.get("edge_ms"), "phase0_deg": pv.get("phase0_deg"), "delay_ms": pv.get("delay_ms"),
+                "scans": None if p["scans"] is None else {"found": p["scans"].get("scans_found"),
+                                                          "kept": p["scans"].get("scans_kept"), "run": p["run"]}}
+
+    def average_selection(self, keep: List[int], exclude_z: float = 0.0, out: Optional[str] = None) -> dict:
+        """Average the chosen scans of the source run again (average_scans.py --keep; the run stays read only),
+        then make the new average the process source."""
+        if self.process is None or not self.process.get("run"):
+            raise ValueError("the process source has no scan record (average a scan folder first)")
+        run = Path(self.process["run"])
+        dest = _resolve(out) if out else self.workspace / "averages" / f"{run.name}_{time.strftime('%Y%m%d-%H%M%S')}"
+        dest.mkdir(parents=True, exist_ok=True)
+        keep_file = dest / "keep.json"
+        keep_file.write_text(json.dumps(sorted(int(k) for k in keep)))
+        argv = [sys.executable, str(ROOT / "scripts" / "average_scans.py"), str(run), str(dest), "--keep",
+                str(keep_file)] + (["--exclude-z", str(exclude_z)] if exclude_z else [])
+        self.log(f"average {len(keep)} chosen scans: " + " ".join(argv[1:]), "process")
+
+        def done(job):
+            if job.returncode == 0 and (dest / "average_fid.npy").exists():
+                self.set_process_source(str(dest / "average_fid.npy"))
+            self._changed("import_done")
+        job = FitJob(argv, dest, self.log, done, source="process", kind="import", title=f"average {len(keep)} scans")
+        self.jobs.append(job)
+        self._changed("import_started")
+        return job.status()
+
+    def save_processed(self, label: str = "", out: Optional[str] = None, load: bool = True) -> dict:
+        """The processed spectrum of the current recipe as a series (make_series_entry.py with the same recipe,
+        whole-grid fit ranges minus the excluded bands) and the recipe as recipe.json beside it; loaded when done."""
+        if self.process is None:
+            raise ValueError("no FID to process")
+        p, r = self.process, self.process["recipe"]
+        src = Path(p["fid"])
+        label = re.sub(r"[^A-Za-z0-9]+", "-", label or f"{src.parent.name}-{src.stem}").strip("-")
+        dest = _resolve(out) if out else self.workspace / "series" / label
+        argv = [sys.executable, str(ROOT / "scripts" / "make_series_entry.py"), "--fid", str(src), "--id", label,
+                "--out", str(dest), "--record", str(r["record_s"]), "--crop", str(r["crop_s"]),
+                "--apodization", str(r["apodization_per_s"]), "--zero-fill", str(int(r["zero_fill"])),
+                "--grid", f"{r['grid'][0]},{r['grid'][1]}", "--sampling-rate", str(p["fs"])]
+        if r.get("exclude"):
+            argv += ["--exclude", r["exclude"]]
+        if r["sg_window_s"]:
+            argv += ["--sg-window", str(r["sg_window_s"])]
+        if r["phase0_deg"] is not None:
+            argv += ["--phase0-deg", str(r["phase0_deg"])]
+        if r["delay_ms"] is not None:
+            argv += ["--delay-ms", str(r["delay_ms"])]
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "recipe.json").write_text(json.dumps({"source_fid": str(src), "sampling_rate_hz": p["fs"],
+                                                      "recipe": r}, indent=1))
+        self.log("save processed spectrum: " + " ".join(argv[1:]), "process")
+
+        def done(job):
+            if load and job.returncode == 0 and (dest / "series.json").exists():
+                self.load_spectrum(series=str(dest / "series.json"))
+            self._changed("import_done")
+        job = FitJob(argv, dest, self.log, done, source="process", kind="import", title=f"save {label}")
+        self.jobs.append(job)
+        self._changed("import_started")
+        return job.status()
 
     # ---- inspection before an import ----------------------------------------------------------
     def inspect_path(self, path: str) -> dict:

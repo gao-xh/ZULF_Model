@@ -1,8 +1,7 @@
-"""Right-hand panels of the Studio task modes that are not fits (D58): Simulate and Process.
+"""Right-hand panel of the Studio Simulate mode (D58).
 
 Simulate works on the model alone (no data): how the spectrum is drawn (weighted sum or every component), what
-the model contains, and export of the simulated spectrum. Process turns scans or an averaged FID into a spectrum
-(no model); the full recipe editor with live preview and scan selection is PLAN 8b.
+the model contains, and export of the simulated spectrum. Process is in process_ui.py.
 """
 from __future__ import annotations
 
@@ -71,42 +70,3 @@ class SimulatePanel(QWidget):
             parts.append(f"<span style='color:{ISOTOPOLOGUE[i % 6]}'><b>{c['label']}</b></span>"
                          + (f" weight {ab:.3g}" if isinstance(ab, (int, float)) else "") + f", {n} lines")
         self.summary.setText("<br>".join(parts) + f"<br>{len(s.couplings())} couplings")
-
-
-class ProcessPanel(QWidget):
-    """Scans or an averaged FID to a spectrum (no model)."""
-
-    def __init__(self, session, window, parent=None):
-        super().__init__(parent)
-        self.session, self.window = session, window
-        lay = QVBoxLayout(self)
-        box = QGroupBox("Source")
-        bl = QVBoxLayout(box)
-        for text, fn in (("Import scan folder ...", window.import_scans_dialog),
-                         ("Import averaged FID ...", window.import_fid_dialog),
-                         ("Open a processed spectrum ...", window.open_dialog)):
-            b = QPushButton(text)
-            b.clicked.connect(fn)
-            bl.addWidget(b)
-        hint = QLabel("An import inspects the data first (scans, sampling rate, record, sequence, cached averages, "
-                      "preview), then averages and processes with the recipe of the dialog; it runs as a job.",
-                      objectName="hint")
-        hint.setWordWrap(True)
-        bl.addWidget(hint)
-        lay.addWidget(box)
-        self.info = QLabel(objectName="hint")
-        self.info.setWordWrap(True)
-        lay.addWidget(self.info)
-        go = QPushButton("Fit a model to this spectrum  \u2192")
-        go.clicked.connect(lambda: self.session.set_mode("fit"))
-        blind = QPushButton("Blind analysis of this FID  \u2192")
-        blind.clicked.connect(lambda: self.session.set_mode("blind"))
-        lay.addWidget(go)
-        lay.addWidget(blind)
-        lay.addStretch(1)
-
-    def refresh(self):
-        d = self.session.data
-        self.info.setText("no spectrum yet" if d is None else
-                          f"current spectrum: {d['label']}, {len(d['freq'])} points, {len(d['ranges'])} fit ranges"
-                          + (f"<br>from {d['source_fid']}" if d.get("source_fid") else ""))
