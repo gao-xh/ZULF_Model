@@ -192,6 +192,37 @@ def fit_structure(run: Path, fit: dict):
     return None
 
 
+_MONITOR_CACHE: Dict[str, tuple] = {}
+
+
+def monitor_progress(run: Path) -> dict:
+    """Progress of a fit_joint_series run from RUN/monitor (written while every start runs): elapsed seconds,
+    best objective so far, starts finished and total, phase with the number of evaluations. Empty without a
+    monitor; cached for 2 s per run."""
+    key = str(run)
+    hit = _MONITOR_CACHE.get(key)
+    if hit and time.time() - hit[0] < 2.0:
+        return hit[1]
+    out = {}
+    if (run / "monitor" / "status.json").exists():
+        try:
+            sys.path.insert(0, str(ROOT / "scripts"))
+            from fit_monitor import read_run
+            r = read_run(run, max_points=2)
+            starts = list(r["starts"].values())
+            bests = [v["best"] for v in starts if v["best"] is not None]
+            evals = sum(v["evaluations"] for v in starts)
+            out = {"seconds": max([v["seconds"] for v in starts] or [0.0]) or None,
+                   "best_objective": min(bests) if bests else None,
+                   "starts_finished": sum(not v["running"] for v in starts) if starts else None,
+                   "starts_total": r["status"].get("starts") or None,
+                   "phase": f"{r['status'].get('phase', 'running')}, {evals} evaluations" if starts else None}
+        except Exception:                               # a monitor being written: no progress this time
+            out = {}
+    _MONITOR_CACHE[key] = (time.time(), out)
+    return out
+
+
 def cpu_cores() -> dict:
     """Logical cores, and on Apple silicon the performance and efficiency cores."""
     info = {"logical": os.cpu_count() or 1, "performance": None, "efficiency": None}
@@ -813,6 +844,9 @@ class StudioSession:
         on this machine outside Studio (command line, other sessions) with their progress from RUN/monitor
         (index None: Studio does not stop them)."""
         own = [dict(job.status(), index=i, external=False) for i, job in reversed(list(enumerate(self.jobs)))]
+        for st in own:                             # live evaluations and best objective while a start runs
+            if st["kind"] == "fit" and st["running"]:
+                st.update({k: v for k, v in monitor_progress(Path(st["out_dir"])).items() if v is not None})
         return own + self.external_runs()
 
     def external_runs(self) -> List[dict]:
@@ -830,21 +864,7 @@ class StudioSession:
                   "running": True, "returncode": None, "out_dir": str(run), "seconds": 0.0, "best_objective": None,
                   "starts_finished": 0, "starts_total": None, "phase": "running", "last_line": "",
                   "has_result": (run / "fit.json").exists(), "index": None, "external": True}
-            if (run / "monitor" / "status.json").exists():
-                try:
-                    sys.path.insert(0, str(ROOT / "scripts"))
-                    from fit_monitor import read_run
-                    r = read_run(run, max_points=2)
-                    starts = r["starts"].values()
-                    bests = [v["best"] for v in starts if v["best"] is not None]
-                    st.update(seconds=max([v["seconds"] for v in starts] or [0.0]),
-                              best_objective=min(bests) if bests else None,
-                              starts_finished=sum(not v["running"] for v in starts),
-                              starts_total=r["status"].get("starts") or None,
-                              phase=f"{r['status'].get('phase', 'running')}, "
-                                    f"{sum(v['evaluations'] for v in starts)} evaluations")
-                except Exception as exc:                 # a monitor being written: show the run without progress
-                    st["last_line"] = f"monitor: {exc}"
+            st.update({k: v for k, v in monitor_progress(run).items() if v is not None})
             out.append(st)
         self._external_cache = (time.time(), out)
         return out
