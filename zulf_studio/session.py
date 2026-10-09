@@ -809,8 +809,45 @@ class StudioSession:
 
     # ---- jobs and machine load -----------------------------------------------------------
     def job_list(self) -> List[dict]:
-        """Every background job of the session, newest first, with its index for stop_job."""
-        return [dict(job.status(), index=i) for i, job in reversed(list(enumerate(self.jobs)))]
+        """Every background job of the session, newest first, with its index for stop_job; then the fits running
+        on this machine outside Studio (command line, other sessions) with their progress from RUN/monitor
+        (index None: Studio does not stop them)."""
+        own = [dict(job.status(), index=i, external=False) for i, job in reversed(list(enumerate(self.jobs)))]
+        return own + self.external_runs()
+
+    def external_runs(self) -> List[dict]:
+        """fit_joint_series runs of other programs, read from their monitor files (cached for 3 s)."""
+        cache = getattr(self, "_external_cache", None)
+        if cache and time.time() - cache[0] < 3.0:
+            return cache[1]
+        own = {job.pid for job in self.jobs}
+        out = []
+        for p in analysis_processes():
+            if p["pid"] in own or p["script"] != "fit_joint_series.py" or not p["out"]:
+                continue
+            run = _resolve(p["out"])
+            st = {"kind": "fit", "title": f"{run.name} (outside Studio)", "pid": p["pid"], "workers": p["workers"],
+                  "running": True, "returncode": None, "out_dir": str(run), "seconds": 0.0, "best_objective": None,
+                  "starts_finished": 0, "starts_total": None, "phase": "running", "last_line": "",
+                  "has_result": (run / "fit.json").exists(), "index": None, "external": True}
+            if (run / "monitor" / "status.json").exists():
+                try:
+                    sys.path.insert(0, str(ROOT / "scripts"))
+                    from fit_monitor import read_run
+                    r = read_run(run, max_points=2)
+                    starts = r["starts"].values()
+                    bests = [v["best"] for v in starts if v["best"] is not None]
+                    st.update(seconds=max([v["seconds"] for v in starts] or [0.0]),
+                              best_objective=min(bests) if bests else None,
+                              starts_finished=sum(not v["running"] for v in starts),
+                              starts_total=r["status"].get("starts") or None,
+                              phase=f"{r['status'].get('phase', 'running')}, "
+                                    f"{sum(v['evaluations'] for v in starts)} evaluations")
+                except Exception as exc:                 # a monitor being written: show the run without progress
+                    st["last_line"] = f"monitor: {exc}"
+            out.append(st)
+        self._external_cache = (time.time(), out)
+        return out
 
     def stop_job(self, index: int) -> dict:
         job = self.jobs[int(index)]

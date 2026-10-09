@@ -66,8 +66,9 @@ class ActivityIndicator(QWidget):
         self.refresh()
 
     def _stop(self):
-        if self.running:
-            self.session.stop_job(self.running[0]["index"])
+        own = [st for st in self.running if not st.get("external")]
+        if own:
+            self.session.stop_job(own[0]["index"])
 
     def refresh(self):
         self.running = [st for st in self.session.job_list() if st["running"]]
@@ -96,7 +97,7 @@ class ActivityIndicator(QWidget):
             else:
                 self.bar.setRange(0, 0)               # indeterminate: Qt animates it
             self.bar.show()
-            self.stop.show()
+            self.stop.setVisible(not st.get("external"))
         for w in (self.icon, self.text):
             w.style().unpolish(w)
             w.style().polish(w)
@@ -214,7 +215,7 @@ class JobsPanel(QWidget):
                 if item.text() != v:
                     item.setText(v)
         sel = self.rows[self.table.currentRow()] if 0 <= self.table.currentRow() < len(self.rows) else None
-        self.b_stop.setEnabled(bool(sel and sel["running"]))
+        self.b_stop.setEnabled(bool(sel and sel["running"] and not sel.get("external")))
         self.b_apply.setEnabled(bool(sel and sel["kind"] == "fit" and sel["has_result"]))
         self.b_report.setEnabled(bool(sel and sel["kind"] in ("blind", "fit")))
         self.b_open.setEnabled(sel is not None)
