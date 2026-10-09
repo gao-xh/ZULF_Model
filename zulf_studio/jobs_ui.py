@@ -13,7 +13,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QHeaderView, QLabel,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout,
+                               QHeaderView, QLabel,
                                QLineEdit, QMessageBox, QProgressBar, QPushButton, QSpinBox, QTableWidget,
                                QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
@@ -249,8 +250,10 @@ class AnalysisPanel(QWidget):
         self.run = QPushButton("Run analysis", objectName="primary")
         self.stop = QPushButton("Stop")
         self.report = QPushButton("Open report")
-        for b in (self.run, self.stop, self.report):
-            buttons.addWidget(b)
+        buttons = QGridLayout()
+        buttons.addWidget(self.run, 0, 0, 1, 2)
+        buttons.addWidget(self.stop, 1, 0)
+        buttons.addWidget(self.report, 1, 1)
         self.run.clicked.connect(self._run)
         self.stop.clicked.connect(lambda: self.session.blind_job and self.session.blind_job.stop())
         self.report.clicked.connect(self._open_report)

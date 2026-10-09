@@ -790,7 +790,8 @@ class StudioWindow(QMainWindow):
         self.f_precision.setCurrentIndex(1)
         self.f_precision.setToolTip("the fit stops when every coupling changes by less than this (and the fit no "
                                     "longer improves); also the decimals reported")
-        self.f_field = QCheckBox("fit the field (start: the sliders)", checked=True)
+        self.f_field = QCheckBox("fit the field", checked=True)
+        self.f_field.setToolTip("fit B transverse and B z, starting from the field sliders (D47)")
         self.f_edges = QComboBox(editable=True)
         for text, tip in (("", "one decay rate per isotopologue"),
                           ("peaks", "every data peak its own decay rate"),
@@ -812,9 +813,10 @@ class StudioWindow(QMainWindow):
         self.f_start.setObjectName("primary")
         self.f_stop = QPushButton("Stop")
         self.f_apply = QPushButton("Apply result")
-        self.f_load = QPushButton("Load run")
-        for b in (self.f_start, self.f_stop, self.f_apply, self.f_load):
-            btns.addWidget(b)
+        self.f_load = QPushButton("Load run ...")
+        btns = QGridLayout()                               # two by two: the right column is narrow
+        for i, b in enumerate((self.f_start, self.f_stop, self.f_apply, self.f_load)):
+            btns.addWidget(b, i // 2, i % 2)
         self.f_start.clicked.connect(self.start_fit)
         self.f_stop.clicked.connect(self.session.stop_fit)
         self.f_apply.clicked.connect(lambda: self._guard(self.session.apply_fit))
@@ -826,13 +828,15 @@ class StudioWindow(QMainWindow):
         self.f_status.setWordWrap(True)
         left.addWidget(self.f_status)
         right = QVBoxLayout()
-        right.addWidget(QLabel("<b>Fit progress</b>: drag through the evaluations of the fit"))
+        prog = QLabel("<b>Fit progress</b>: drag through the evaluations of the fit")
+        prog.setWordWrap(True)
+        right.addWidget(prog)
         self.trace_slider = QSlider(Qt.Horizontal)
         self.trace_slider.setEnabled(False)
         self.trace_slider.valueChanged.connect(lambda i: self._guard(self.session.trace_frame, i))
         self.trace_info = QPlainTextEdit(readOnly=True)
         self.trace_info.setObjectName("mono")
-        apply_frame = QPushButton("Copy this frame's couplings to the sliders")
+        apply_frame = QPushButton("Copy frame couplings to sliders")
         apply_frame.clicked.connect(lambda: self._guard(self.session.trace_frame, self.trace_slider.value(), True))
         right.addWidget(self.trace_slider)
         right.addWidget(self.trace_info, 1)
@@ -876,8 +880,10 @@ class StudioWindow(QMainWindow):
         self.g_make.setObjectName("primary")
         self.g_export = QPushButton("Export ...")
         self.g_open = QPushButton("Open folder")
-        for b in (self.g_make, self.g_export, self.g_open):
-            btns.addWidget(b)
+        btns = QGridLayout()
+        btns.addWidget(self.g_make, 0, 0, 1, 2)
+        btns.addWidget(self.g_export, 1, 0)
+        btns.addWidget(self.g_open, 1, 1)
         self.g_make.clicked.connect(self.make_figure)
         self.g_export.clicked.connect(self.export_figure)
         self.g_open.clicked.connect(lambda: self.session.figure and QDesktopServices.openUrl(
