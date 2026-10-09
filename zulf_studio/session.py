@@ -710,7 +710,14 @@ class StudioSession:
         return self.fit_job.status()
 
     def fit_status(self) -> dict:
-        return self.fit_job.status() if self.fit_job is not None else {"running": False, "out_dir": None}
+        """The session's fit job, with the live progress of its monitor record while it runs (phase, evaluations,
+        best objective), as in job_list."""
+        if self.fit_job is None:
+            return {"running": False, "out_dir": None}
+        st = self.fit_job.status()
+        if st["running"]:
+            st.update({k: v for k, v in monitor_progress(Path(st["out_dir"])).items() if v is not None})
+        return st
 
     def stop_fit(self) -> dict:
         if self.fit_job is not None:
