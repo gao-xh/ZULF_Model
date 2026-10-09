@@ -719,7 +719,11 @@ class StudioSession:
         fit = json.loads((run / "fit.json").read_text())
         couplings = {k: float(v["J_at_x"][0]) for k, v in fit["couplings"].items()}
         structure = fit_structure(run, fit)
-        if isinstance(structure, dict) and structure != self.spec:      # the fit's molecule, not the current one
+        bare = {k: v for k, v in self.spec.items() if k != "molecule"}
+        if isinstance(structure, dict) and {k: v for k, v in structure.items() if k != "molecule"} != bare:
+            if ("molecule" in self.spec and "molecule" not in structure
+                    and structure.get("compound") == self.spec.get("compound")):
+                structure = dict(structure, molecule=self.spec["molecule"])     # same compound: keep the drawing
             self.set_structure(structure)
             if fit.get("exchange") in ("fast", "slow"):
                 self.set_exchange(fit["exchange"])
@@ -806,7 +810,8 @@ class StudioSession:
         return c
 
     def _snapshot(self):
-        return (json.dumps(self.spec, sort_keys=True), self.exchange,
+        model_spec = {k: v for k, v in self.spec.items() if k != "molecule"}      # drawing only (D61)
+        return (json.dumps(model_spec, sort_keys=True), self.exchange,
                 tuple(sorted((c["key"], round(c["value"], 9)) for c in self.couplings())),
                 tuple(round(v, 9) for v in self.field_nt), round(self.rate_per_s, 9))
 
@@ -969,7 +974,25 @@ class StudioSession:
         from .spin_model import from_structure_model
         _, model = self._model_cache
         name = self.spec.get("compound") or self.spec.get("motif") or "custom"
-        return self.set_structure(from_structure_model(model, name))
+        spec = from_structure_model(model, name)
+        try:                                          # keep the molecule for drawing (D61)
+            from zulf_hypothesis.molecule import molecule_record
+            spec["molecule"] = molecule_record(self.spec)
+        except Exception as exc:
+            self.log(f"no molecule kept for the spin system: {exc}", "session")
+        return self.set_structure(spec)
+
+    def attach_molecule(self, molecule: str) -> dict:
+        """Attach a molecule (SMILES or mol-file text) to the current model for drawing only (D61): the model, its
+        couplings and an applied fit are unchanged. Sites are labelled C1, C2, O1, ... in atom order, so
+        isotopologue names such as 13C@C1 mark their atom."""
+        from zulf_hypothesis.molecule import molecule_record
+        rec = molecule_record(molecule)
+        with self.lock:
+            self.spec = dict(self.spec, molecule=rec)
+        self.log(f"molecule attached for drawing: {rec['smiles']}", "session")
+        self._changed("molecule")
+        return rec
 
     def load_model(self, path: str) -> dict:
         """A model file (a structure or spin-system specification as JSON) or a ZULF_NMR_Suite molecule folder."""

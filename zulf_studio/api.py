@@ -144,6 +144,9 @@ TOOLS: Dict[str, tuple] = {
                                 "Couplings use saturated defaults; aromatic molecules are better taken from a motif.",
                                 _obj({"molecule": STR, "compound": STR, "one_bond": {"type": "object"}},
                                      ["molecule"])),
+    "attach_molecule": ("attach_molecule", "Attach a molecule (SMILES or mol-file text) to the current model for "
+                        "drawing only (atoms labelled C1, C2, O1, ... in order); model, couplings and an applied fit "
+                        "are unchanged.", _obj({"molecule": STR}, ["molecule"])),
     "machine_status": ("machine_status", "Cores (performance / efficiency), load average and the analysis processes "
                        "running on this machine with their workers; free and suggested workers. Check it before "
                        "starting a fit or analysis: more workers than cores slow every run down.", _obj({})),

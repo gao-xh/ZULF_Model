@@ -91,6 +91,11 @@ class MoleculeView(QWidget):
         self.caption = QLabel(objectName="hint", wordWrap=True)
         lay.addWidget(self.caption)
         row = QHBoxLayout()
+        self.view = QComboBox()
+        self.view.addItems(["molecule", "spin network"])
+        self.view.setToolTip("a spin system with a molecule: draw the molecule or the spin network")
+        self.view.currentIndexChanged.connect(lambda _i: self.refresh())
+        row.addWidget(self.view)
         self.component = QComboBox()
         self.component.setToolTip("component of the spin system drawn")
         self.component.currentIndexChanged.connect(lambda _i: self.refresh())
@@ -101,6 +106,12 @@ class MoleculeView(QWidget):
             self.b_smiles.setToolTip("build the model from a SMILES string or a mol file (every heavy atom a site, "
                                      "symmetry found automatically, 1J guesses from the hybridisation)")
             self.b_smiles.clicked.connect(self.ask_molecule)
+            self.b_attach = QPushButton("Attach molecule ...", objectName="small")
+            self.b_attach.setToolTip("draw this spin system as a molecule: a SMILES string or a mol file whose "
+                                     "atoms are labelled C1, C2, O1, ... in order (so 13C@C1 marks its atom); "
+                                     "the model and its couplings are unchanged")
+            self.b_attach.clicked.connect(self.ask_attach)
+            row.addWidget(self.b_attach)
             self.b_large = QPushButton("Large", objectName="small")
             self.b_large.clicked.connect(self.open_large)
             row.addWidget(self.b_smiles)
@@ -111,11 +122,17 @@ class MoleculeView(QWidget):
     def refresh(self):
         spec = self.session.spec
         t = self.window.t
-        key = (repr(spec), self.component.currentIndex(), t["panel"])
+        key = (repr(spec), self.component.currentIndex(), self.view.currentIndex(), t["panel"])
         if key == self._last:
             return
         self._last = key
-        if "spin_system" in spec:
+        spin = "spin_system" in spec
+        has_mol = bool(spec.get("molecule")) or not spin
+        self.view.setVisible(spin and has_mol)
+        if not self.large:
+            self.b_smiles.setVisible(not spin)
+            self.b_attach.setVisible(spin)
+        if spin and (not has_mol or self.view.currentIndex() == 1):
             comps = spec["spin_system"]["components"]
             names = [c.get("name", f"component {i + 1}") for i, c in enumerate(comps)]
             if [self.component.itemText(i) for i in range(self.component.count())] != names:
@@ -126,10 +143,13 @@ class MoleculeView(QWidget):
             self.component.setVisible(len(names) > 1)
             self.stack.setCurrentWidget(self.canvas)
             self._draw_network(spec, max(self.component.currentIndex(), 0))
+            if not has_mol:
+                self.caption.setText(self.caption.text() + "; Attach molecule ... draws it as a molecule")
             return
         self.component.setVisible(False)
         self.stack.setCurrentWidget(self.svg)
-        comps = [c["label"] for c in self.session.components()]
+        comps = ([c.get("name", "") for c in spec["spin_system"]["components"]] if spin
+                 else [c["label"] for c in self.session.components()])
         try:
             self.svg.load(QByteArray(structure_svg(spec, comps, t, (720, 480) if self.large else (360, 240))
                                      .encode()))
@@ -199,6 +219,19 @@ class MoleculeView(QWidget):
         if r["notes"]:
             QMessageBox.information(self, "Molecule", "\n".join(r["notes"]))
 
+    def ask_attach(self):
+        text, ok = QInputDialog.getMultiLineText(self, "Draw as a molecule",
+                                                 "SMILES (e.g. CCO for ethanol: C1, C2, O1) or the text of a mol "
+                                                 "file; drawing only, the model is unchanged:")
+        if not ok or not text.strip():
+            return
+        try:
+            self.session.attach_molecule(text)
+        except Exception as exc:
+            QMessageBox.warning(self, "Molecule", f"{type(exc).__name__}: {exc}")
+            return
+        self.view.setCurrentIndex(0)
+
     def open_large(self):
         if self.big is None:
             self.big = QDialog(self.window)
@@ -211,6 +244,7 @@ class MoleculeView(QWidget):
                 g = screen.availableGeometry()
                 self.big.resize(int(g.width() * 0.5), int(g.height() * 0.6))
         self.big.view.component.setCurrentIndex(self.component.currentIndex())
+        self.big.view.view.setCurrentIndex(self.view.currentIndex())
         self.big.view._last = None
         self.big.view.refresh()
         self.big.show()

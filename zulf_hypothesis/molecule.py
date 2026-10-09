@@ -112,6 +112,20 @@ def structure_from_molecule(molecule, one_bond: Optional[Dict[str, float]] = Non
     return spec
 
 
+def molecule_record(spec_or_molecule) -> dict:
+    """The "molecule" entry ({"smiles", "sites"}) of a structure specification (its recorded one, else its
+    skeleton) or of a molecule (SMILES, mol-file text or RDKit molecule; sites labelled as in
+    structure_from_molecule). A spin-system specification carries it for drawing only."""
+    Chem = _rdkit()
+    if isinstance(spec_or_molecule, dict):
+        if spec_or_molecule.get("molecule"):
+            return dict(spec_or_molecule["molecule"])
+        mol, sites = molecule_from_structure(spec_or_molecule)
+        order = sorted(sites, key=sites.get)
+        return {"smiles": Chem.MolToSmiles(mol, canonical=False), "sites": {l: i for i, l in enumerate(order)}}
+    return dict(structure_from_molecule(spec_or_molecule)["molecule"])
+
+
 def _with_protons(perm: Dict[str, str]) -> Dict[str, str]:
     """A site permutation also maps the proton groups on the sites (H<site> -> H<image>)."""
     return {**perm, **{f"H{a}": f"H{b}" for a, b in perm.items()}}

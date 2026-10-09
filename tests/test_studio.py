@@ -807,7 +807,24 @@ class SpinSystemTests(unittest.TestCase):
         s.set_structure(self.METHYL_SPIN)                                # spin system: the network instead
         w.molecule_view.refresh()
         self.assertIn("4 spins in 2 groups", w.molecule_view.caption.text())
+        run = Path(s.workspace) / "spin_fit"                             # attach a molecule: drawing only,
+        run.mkdir()                                                      # an applied fit stays applied
+        (run / "fit.json").write_text(json.dumps({"structure": self.METHYL_SPIN, "couplings": {"a": {"J_at_x": [131.0]}},
+                                                  "spectrum_parameters": {}, "scores": [0.1]}))
+        s.apply_fit(str(run))
+        s.attach_molecule("C")
+        self.assertTrue(s.state_is_applied_fit())
+        self.assertEqual(s.spec["molecule"], {"smiles": "C", "sites": {"C1": 0}})
+        w.molecule_view.refresh()
+        self.assertIn("SMILES C", w.molecule_view.caption.text())
+        s.apply_fit(str(run))                                            # the same fit again keeps the drawing
+        self.assertIn("molecule", s.spec)
         w.close()
+
+    def test_structure_to_spin_system_keeps_the_molecule(self):
+        s = session(METHYL)
+        s.spin_system_from_structure()
+        self.assertEqual(s.spec["molecule"], {"smiles": "[CH3]", "sites": {"C1": 0}})   # the methyl fragment
 
     def test_apply_fit_of_a_spin_system_sets_its_variables(self):
         s = session()
