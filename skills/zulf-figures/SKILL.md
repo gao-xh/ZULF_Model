@@ -32,6 +32,12 @@ Worked example: isopropylamine, docs/analysis/2026-10-03_isopropylamine_complex-
 - A figure of a fit draws the fit's own model: in StudioSession call `fit_model_curve()` before `simulate()`, and
   check that the result has "fit_re"; without it `simulate()` returns only the quick-look simulation (other
   rates and gains), which made good fits look broad (2026-10-10, scripts/batch_figures.py).
+- Display baseline per experiment (owner, 2026-10-10): tune the AsLS (or spline) baseline separately for each
+  spectrum (SNR, line widths and spacings differ) and write its parameters on the figure; never reuse one set of
+  parameters for different experiments. Subtract the same data baseline from the simulation drawn over it. With
+  close lines (about 1 Hz) the crop wings between them cannot be removed by a smooth baseline without cutting the
+  lines; say what is left (acetonitrile 2 mL: smoothness 0.25 Hz, p 0.05; 250 uL: pre-smooth 0.15 Hz, 0.3 Hz,
+  p 0.05; a coarse smoothness makes broad humps beside the lines).
 - A display baseline ("model", D62) built from a wrong fit draws structure into the data trace (LF_1 wings); look at
   the plain real part too before reading features off a corrected figure.
 
