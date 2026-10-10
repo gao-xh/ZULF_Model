@@ -44,6 +44,54 @@ Notes from "Important Data Notes.docx" (owner's collaborator):
 6. Move the old Mac originals to the drive (step 2 checks), delete the Mac copies, delete the zips.
 7. Commit and push the logs; the morning summary lists what is done, what failed and what to check.
 
+## Changes during the night (owner)
+
+- The drive was reformatted with 4 KiB clusters (owner, `newfs_exfat -R -b 4096`), so raw data is stored as plain
+  folders (`~/code/extreme-drive/scripts/store_measurement.py`: the folder as received + `<folder>.files.txt` with
+  every file's sha256, read back from the drive and checked), no tar. `~/AGENTS.md`, the drive README and the
+  extreme-drive README say so. Speed of a 2 GiB file unchanged (write 892 / read 885 MB/s; 1 MiB clusters 918 / 888).
+- Processed data must be on the drive too (owner): `~/code/extreme-drive/scripts/sync-to-drive.sh` copies
+  `~/research` (with `processed/`) at the end.
+- Acetonitrile 250 uL first (owner): docs/analysis/2026-10-10_acetonitrile-250ul_runs.md.
+
+## What the downloads held
+
+Safari unpacked the zips itself (no .zip left). 18 new measurements, about 33 GB:
+
+| measurement (drive) | area | scans | rate |
+|---|---|---|---|
+| 2026-04-12-methyl-2-bromopropionate | original | 8296 | 4000 Hz |
+| 2025-11-04-n-n-dimethylethylenediamine | original | 6385 | 4000 Hz |
+| 2025-10-10-diethylamine | raw (selected scans) | 8001 | 4000 Hz |
+| 2025-11-07-dipropylamine | raw (selected scans) | 5707 | 4000 Hz |
+| 2025-09-27-ethylenediamine | raw (selected scans) | 5991 | 4000 Hz |
+| 2025-09-30-isopropylamine | raw (selected scans) | 5677 | 4000 Hz |
+| 2026-04-06-sec-butylamine | original | 6681 | 4000 Hz |
+| 2025-10-03-tert-butylamine | raw (selected scans) | 6713 | 4000 Hz |
+| 2026-04-09-tetramethylpiperidine | original | 5741 | 4000 Hz |
+| 2025-09-25-triethylamine | original | 2817 | 4000 Hz |
+| 2025-12-09-pyridine-dilutions-and-pyridinium | original (02, 10, 33, 66, 100 mol %, pyridinium 6 M) + raw (50, 75 mol %) | 89575 | 4000 Hz |
+| 2026-03-16-l-lactic-acid | raw (selected scans) | 7688 | 4000 Hz |
+| 2026-03-10-l-alanine | raw (selected scans) | 12124 | 4000 Hz |
+| 2026-03-20-glycerol-40wt-h2o | original | 7747 | 4000 Hz |
+| 2026-04-01-serine | original | 7711 | 4000 Hz |
+| 2026-07-30-methyl-dimethylphosphonate-double-acq | original | 15962 | 8333 Hz (recorded; 4167 Hz real) |
+| ethanol, isopropanol (real_world_samples) | duplicates of the drive copies, checked file by file | | |
+| acetonitrile 250 uL (received again) | original/2026-09-28-.../received-2026-10-10/: scans 0-8384 a new run (2026-10-03 to 10-09), 8385-13923 the old run renumbered | 13924 | 2000 Hz |
+
+"raw (selected scans)": folders with `data/` (the kept scans, renumbered) and `selection_info.txt` of the old
+ScanSelector (e.g. diethylamine 8001 of 10000 kept). The extra files in tetramethylpiperidine are named
+`5_4_26_sec_butylamine_*` (probably misnamed spectra of another tool; kept as received).
+
+## Fits
+
+Batch: `scripts/run_batch.py configs/batch_2026-10-10.json --parallel 3 --workers 3` (results table:
+docs/analysis/2026-10-10_batch_results.md). Structures: the confirmed specifications of configs/confirmed_samples.json
+(triethylamine, ethylenediamine, lactic acid, alanine, pyridine and pyridinium), the others from SMILES
+(zulf_hypothesis.molecule; generic 2J/3J, 1J guesses), methyl dimethylphosphonate as a spin system (31P with the
+P-CH3 and two O-CH3 protons, 13C at either carbon; literature-range starts). Not fitted: tetramethylpiperidine
+(18-19 protons per isotopologue; the simulation stops, needs a reduced model).
+
 ## Progress
 
 (filled in during the night)
