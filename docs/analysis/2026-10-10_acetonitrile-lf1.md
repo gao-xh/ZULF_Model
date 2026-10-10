@@ -42,16 +42,63 @@ Decay time T = 1 / rate (s) of the model lines (relative intensity > 0.05; FWHM 
   a wide spread. Plausibly a larger sample volume reaching further into the fringe-field gradient (the name gives
   no volume; to confirm with the collaborator).
 
+## Diagnosis and refit with crop 0.3 s (owner: "the wings come from the baseline correction; higher SNR makes
+its effect larger")
+
+- The real part of the processed spectra (no display baseline; runs/figures/acn_lf1_vs_250ul_experiment.png) has no
+  positive wings: the sharp lines sit on broad negative troughs, in LF_1 and (smaller against the noise) in 250 uL.
+  The wings of the first figure were made by the "model" display baseline from the wrong fit.
+- Reprocessing LF_1 (scratch test, zulf_processing.series_spectrum): the broad structure grows with the drift-filter
+  window (0.05 / 0.1 s equal, 0.4 / 2 s much larger) and is gone when the record starts at 0.3 s instead of 0.1 s.
+  It is an early transient after the field switch that the drift filter (SG, 0.1 s, mirror edges) does not
+  remove; the model has no such term, and with the high SNR of LF_1 (J line 15 x the 250 uL height) the fit
+  bent the field (108 nT transverse) to imitate it.
+- Refit of both with `--crop 0.3` (make_series_entry; series runs/series/acn_lf1_c03, acn250_combined_c03; fits
+  runs/processed/<series>_fit, same fit command; script runs/processed/acn_c03_fits.sh). Figure:
+  runs/figures/acn_lf1_vs_250ul_crop03.png (fitted spectra and the fits' own models, real part, no display
+  baseline; residual offset): both fit to the noise.
+
+| | LF_1, crop 0.3 | 250 uL both, crop 0.3 | 250 uL both, crop 0.1 |
+|---|---|---|---|
+| 1J(C1,H1) (Hz) | 136.283 | 136.280 | 136.286 |
+| B transverse / z (nT) | 30.0 / 56.1 | 41.7 / 44.9 | 39.4 / 43.9 |
+| \|B\| (nT) | 63.6 | 61.3 | 59.0 |
+| score | 0.0040 | 0.109 | 0.165 |
+
+Decay time T (s) per model line (FWHM = 1 / (pi T)):
+
+| line (Hz) | LF_1, crop 0.3 | 250 uL, crop 0.3 | 250 uL, crop 0.1 |
+|---|---|---|---|
+| 136.3 (J line, field-insensitive) | 2.57 | 2.85 | 2.26 |
+| 134.6-134.7 (J sideband) | 0.48 | 1.29 | 1.05 |
+| 137.9-138.0 (J sideband) | 0.31 | 0.52 | 0.32 |
+| 270.4-270.5 (weak) | 0.33 | 0.59 | 0.13 |
+| 271.4 / 271.6 | 0.43 | 0.54 | 0.44 |
+| 272.6 | 0.43 | 0.45 | 0.48 |
+| 273.6 / 273.7 | 0.39 | 0.38 | 0.37 |
+| 274.7-274.8 (weak) | 0.16 | 0.37 | 0.07 |
+
+- The crop changes the 250 uL decay times by up to 25 % on the strong lines (J line 2.26 -> 2.85 s) and much more
+  on the weak outer lines: the crop-0.1 values are biased by the transient too.
+- With crop 0.3: the J line decays alike (2.6 vs 2.9 s); the 2J triplet decays alike (0.39-0.43 vs 0.38-0.54 s);
+  the J sidebands and the weak outer 2J lines decay faster in LF_1 (0.3-0.5 s vs 0.5-1.3 s).
+- Field: |B| 64 vs 61 nT, but split differently (LF_1 30 transverse / 56 z, 250 uL 42 / 45 nT); a different sample
+  position or a trade-off between the components (the fit gives no uncertainty for the field here).
+
 ## Conclusion
 
-Conditional numerical result. Intrinsic (field-insensitive) decay: T 2.6 s (LF_1) vs 2.26 s (250 uL). The
-field-sensitive lines of LF_1 are not described by a uniform-field model; the 250 uL decay times (triplet 0.37-0.48 s,
-J sidebands 0.3-1.1 s) have no valid LF_1 counterpart from this fit.
+Conditional numerical result. With the record starting at 0.3 s (no early transient), LF_1 and 250 uL give the same
+1J (136.28 Hz), a similar field size (64 / 61 nT) and the same decay of the J line (2.6 / 2.9 s) and of the 2J
+triplet (0.4 / 0.4-0.5 s); the J sidebands decay faster in LF_1 (0.3-0.5 s vs 0.5-1.3 s). The crop-0.1 fit of LF_1
+(first section) is not valid: the fit imitated the transient with a 117 nT field.
 
 ## Open points
 
-- Fit LF_1 with two field components (two copies of the acetonitrile model with separate fields and amplitudes,
-  or a field distribution) to get the decay times of the triplet and of the wings separately.
+- The crop 0.1 s of every earlier whole-grid fit (ethanol, the overnight batch) can carry the same transient bias;
+  compare with crop 0.3 s for the high-SNR data sets. A model term for the transient would keep the early signal.
+- Field uncertainty (transverse / z split) not estimated.
+- A second field region (two copies with their own field) was implemented and tested before the diagnosis; it is
+  kept unmerged on branch xuehan/second-field (not needed here).
 - Sample volume and position of LF_1 (collaborator).
 
-Commit: (this commit)
+Commits: d3cf6a5 (first section); this commit (crop 0.3 s).
