@@ -123,3 +123,43 @@ P-CH3 and two O-CH3 protons, 13C at either carbon; literature-range starts). Not
   125 Hz line, low SNR with strong drift below 100 Hz.
 - Load: at most about 9.5 of 10 cores (batch 3 x 3 workers + one 3-worker fit), no thermal or performance warning
   (pmset); no extra parallel jobs added.
+
+## Morning summary (state 07:30; updated as the batch finishes)
+
+Data: all 28 measurement folders on the drive, checked file by file, registered as drive-only in the drive README
+and in ~/research/zulf/data/README.md; Downloads data folders removed; the collaborator's note in
+~/research/zulf/notes/2026-10-10-collaborator-important-data-notes.docx. Machine log:
+~/agent-logs/2026-10-10-drive-data-intake.md.
+
+Fits (conditional numerical results of the given structures; figures runs/figures/batch/<id>[_v2].png):
+
+| data set | stage 2 score | assessment |
+|---|---|---|
+| acetonitrile 250 uL (2 acquisitions) | 0.11 (crop 0.3) | good; 1J 136.28 Hz, \|B\| 61 nT |
+| acetonitrile LF_1 | 0.004 (crop 0.3) | good after crop 0.3 s (early transient); \|B\| 64 nT |
+| tert-butylamine | 0.121 | good |
+| triethylamine | 0.090 | good |
+| ethylenediamine | 0.062 | good on the main band; sharp peaks at 190.7 / 192.2 / 200.3 Hz not in the model |
+| isopropylamine | 0.063 (second pass) | good; couplings agree with the 2026-10-03 analysis within 0.1-0.2 Hz |
+| N,N-dimethylethylenediamine | 0.141 (second pass) | partial: sharp triplet near 131 Hz drawn as one broad line |
+| diethylamine | 0.559 (second pass) | poor: 125 Hz line missed; low SNR, strong drift below 100 Hz |
+| lactic acid | 0.223 | lines followed; score from the noise |
+| alanine | 0.383 | lines followed; score from the noise |
+| pyridine 2 mol % | 0.438 | band fitted to the noise; score from drift below 50 Hz |
+| pyridine 10 / 33 mol % | 0.064 / 0.099 | good |
+
+Still running at 07:30: pyridine 50 / 66 / 75 / 100 mol %, pyridinium, methyl dimethylphosphonate (main);
+sec-butylamine, dipropylamine, methyl 2-bromopropionate, glycerol, serine, isopropanol (second pass).
+Not fitted: tetramethylpiperidine (too many spins for the simulation; needs a reduced model).
+
+For the owner to decide or check:
+
+- Crop 0.1 s vs 0.3 s for the high-SNR data sets (the early transient found on LF_1).
+- The scores of low-SNR data sets (alanine, lactic acid, pyridine 2 %) are dominated by noise and drift; compare
+  fits by figure and residual structure, not by score alone.
+- Diethylamine and the N,N-dimethylethylenediamine triplet need a closer look (structure, exchange, field).
+- Tetramethylpiperidine folder holds extra files named 5_4_26_sec_butylamine_* (kept as received).
+- Methyl dimethylphosphonate: hand-written spin system (31P + 9 H, 13C at either carbon), double-acquisition data
+  processed at half the recorded rate.
+- Branch xuehan/second-field (second field region, tested, not merged) can be deleted if not wanted.
+- Before unplugging: run sync-to-drive.sh (processed data to the drive), then eject.
