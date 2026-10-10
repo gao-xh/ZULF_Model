@@ -7,7 +7,8 @@ same compound (e.g. two sample volumes in one fringe field).
 dnu/d|B|: the transition frequencies of every isotopologue of the fit's structure at the fit's field and at the
 field magnitude scaled by 1 + 1e-3 (direction fixed; zulf_core compute_transitions), finite difference over the change
 of |B|, at the field of each fit. Decay rates: the fit's rate of each model line (ZULF Studio session lines(), one rate
-per family). Lines of the two fits are matched by frequency (0.08 Hz). Expected for field inhomogeneity:
+per family). Lines of the two fits are matched as the same transition: same band (within 5 Hz), nearest dnu/dB (within
+0.002 Hz/nT). Expected for field inhomogeneity:
 rate = R0 + pi |dnu/dB| dB, so the difference of two fits is pi |dnu/dB| (dB_A - dB_B). Conditional numerical
 results of the fitted model; no uncertainties.
 """
@@ -76,8 +77,10 @@ def main():
     (la, ba), (lb, bb) = res[0], res[1]
     rows = []
     for f, rel, rate, slope in la:
-        match = min(lb, key=lambda x: abs(x[0] - f))
-        rate_b = match[2] if abs(match[0] - f) < 0.08 else float("nan")
+        # the same transition in the other fit: same band, nearest dnu/dB (positions move with the field)
+        same_band = [x for x in lb if abs(x[0] - f) < 5.0]
+        match = min(same_band, key=lambda x: abs(x[3] - slope)) if same_band else None
+        rate_b = match[2] if match is not None and abs(match[3] - slope) < 0.002 else float("nan")
         diff = rate - rate_b
         db = diff / (math.pi * abs(slope)) if abs(slope) > 1e-3 else float("nan")
         rows.append({"frequency_hz": f, "slope_hz_per_nt": slope, "rate_a": rate, "rate_b": rate_b,

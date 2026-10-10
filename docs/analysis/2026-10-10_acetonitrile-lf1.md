@@ -134,6 +134,16 @@ the 2J lines follow the trend but scatter (8-11 nT for the low-frequency side, a
 the weak 274.8 Hz line). Proportionality is supported qualitatively; a quantitative test needs uncertainties of the
 rates (not estimated yet).
 
+Lower-noise refit of both (record 8 s, window 1.0 1/s, crop 0.3 s; runs/series/acn_2ml_c03_w1, acn250_c03_w1; fits
+runs/processed/<series>_fit): 2 mL 1J 136.281 Hz, B 28.6 / 56.6 nT; 250 uL 1J 136.271 Hz, B 39.9 / 45.0 nT. Lines of the
+two fits are now matched as the same transition by dnu/dB (scripts/field_sensitivity.py; the field differs, so
+the outer lines move by about 0.1 Hz). Rate difference 2 mL - 250 uL (1/s): 136.3: +0.09, 272.6: +0.18,
+271.4/271.6: +0.60, 273.6/273.8: +0.02, 134.6: +1.34, 138.0: +1.10, 270.4: +1.81; 274.8 Hz: the 2 mL rate went to the
+bound (40 1/s, the weak line suppressed), not usable. Fit through the origin without 274.8 Hz: dB difference
+13.7 nT, rms 0.35 1/s (runs/figures/acn_delta_rate_vs_slope_w1both.png). The rates of the same sample change by
+0.1-0.3 1/s between processings (e.g. 250 uL 134.6 Hz: 0.86 with 16 s / no window, 0.54 with 8 s / 1.0 1/s): an
+estimate of their uncertainty. Next: tie the rates of mirror lines and fit R = R0 + pi |dnu/dB| dB directly.
+
 ## Conclusion
 
 Conditional numerical result. With the record starting at 0.3 s (no early transient), LF_1 and 250 uL give the same
