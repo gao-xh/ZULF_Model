@@ -38,14 +38,30 @@ rate per model line and rate bounds 0.1-40 1/s as for ethanol, D59 amendment):
 
 ## Results
 
-(running)
+| | run 1 (z5, 4907 scans) | run 2 (z5, 7324 scans) | both (z5, 12242 scans) |
+|---|---|---|---|
+| 1J(C1,H1) (Hz) | 136.282 +- 0.001 | 136.289 +- 0.001 | 136.286 +- 0.001 |
+| B transverse / z (nT) | 38.4 / 43.1 | 39.8 / 45.0 | 39.4 / 43.9 |
+| \|B\| (nT) | 57.7 | 60.1 | 59.0 |
+| delay (ms) | 3.33 | 3.30 | 3.31 |
+| score / residual | 0.233 / 0.490 | 0.214 / 0.466 | 0.165 / 0.405 |
+| best starts | 0.2331, 0.2545 x3 | 0.2143, 0.2450 x3 | 0.1649, 0.1917, 0.2012 |
+
+Each fit 8 starts in about 6 min; one of 8 rates at a bound (run 2). The whole-grid score is not comparable with
+the two-band score 0.0439 of acn_rerun_fam2 (different fitted region, most of the grid holds only noise).
 
 ## Conclusion
 
-(pending)
+Conditional numerical result for CH3-CN with a uniform static field: the new acquisition (2026-10-03 to 10-09)
+reproduces run 1: 1J(C,H) within 0.007 Hz (136.28-136.29 Hz) and the field within 2.4 nT in size and a few
+nT per component (|B| 58-60 nT, transverse 38-40 nT, z 43-45 nT), the same delay (3.3 ms). The field estimate of
+the earlier two-band fits (37 / 45 nT, |B| 59 nT) holds on the whole spectrum. Both acquisitions together:
+1J(C,H) 136.286 Hz, |B| 59.0 nT (transverse 39.4, z 43.9 nT).
 
 ## Open points
 
-- (pending)
+- The field of the rubbing alcohols should be compared with these 59 nT (overnight batch: isopropanol, MDMP;
+  ethanol stage 3 gave 63.6 nT, z only).
+- Run 2 alone vs run 1: the field size differs by 2.4 nT; a drift between the acquisitions or the fit spread.
 
-Commit: (pending)
+Commit: (this commit)
