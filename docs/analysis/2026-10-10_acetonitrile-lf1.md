@@ -1,7 +1,7 @@
 # acetonitrile fringe field LF_1 vs 250 uL: decay times per line (2026-10-10)
 
 - Data (drive only): `original/2026-09-23-acetonitrile-fringe-field/ACN_fringe_field_ms1_LF_1/`, 2000 scans,
-  2026-09-23 to 09-25, 2000 Hz, no volume in the name. z5 average (--exclude-z 5): 1744 scans,
+  2026-09-23 to 09-25, 2000 Hz; sample volume 2 mL (owner, 2026-10-10; not in the name), 8 x the 250 uL sample. z5 average (--exclude-z 5): 1744 scans,
   ~/research/zulf/data/processed/2026-09-23-acetonitrile-fringe-field/z5/.
 - Question (Xuehan): fit it as the 250 uL data and compare the decay rates per line.
 - Series runs/series/acn_lf1_full (same defaults as acn250_*_full); fit runs/processed/acn_lf1_full_fit with the
@@ -85,6 +85,14 @@ Decay time T (s) per model line (FWHM = 1 / (pi T)):
 - Field: |B| 64 vs 61 nT, but split differently (LF_1 30 transverse / 56 z, 250 uL 42 / 45 nT); a different sample
   position or a trade-off between the components (the fit gives no uncertainty for the field here).
 
+Volume (owner: LF_1 is 2 mL). Expected: a larger sample spans a wider range of the fringe-field gradient, so the
+field-sensitive lines broaden more (inhomogeneous, about proportional to gradient x size and to each line's
+dnu/dB), while the field-insensitive J line keeps the intrinsic decay. Observed: J line alike (2.6 / 2.9 s), J
+sidebands and weak outer 2J lines faster in the 2 mL sample (0.2-0.5 s vs 0.4-1.3 s): consistent. The central 2J
+triplet decays alike (about 0.4 s in both): not explained by the volume alone (smaller dnu/dB of these lines, or
+widths from unresolved lines). Signal per scan 15 x the 250 uL one (J line 0.5 vs 0.034 in the averages) for 8 x
+the volume: the rest from geometry (filling closer to the sensor) or other conditions, not checked.
+
 ## Conclusion
 
 Conditional numerical result. With the record starting at 0.3 s (no early transient), LF_1 and 250 uL give the same
@@ -99,6 +107,6 @@ triplet (0.4 / 0.4-0.5 s); the J sidebands decay faster in LF_1 (0.3-0.5 s vs 0.
 - Field uncertainty (transverse / z split) not estimated.
 - A second field region (two copies with their own field) was implemented and tested before the diagnosis; it is
   kept unmerged on branch xuehan/second-field (not needed here).
-- Sample volume and position of LF_1 (collaborator).
+- Position of the 2 mL sample relative to the 250 uL one; dnu/dB of each line to test the broadening quantitatively.
 
 Commits: d3cf6a5 (first section); this commit (crop 0.3 s).
