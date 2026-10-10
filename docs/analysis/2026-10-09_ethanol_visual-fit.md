@@ -104,9 +104,24 @@ Whole-grid series of the two halves made with the same command as ethanol_full
 spectrum of average_fid.npy made this way equals ethanol_full point for point) and the fit ranges of
 ethanol_full copied into them (runs/series/ethanol_full_{even,odd}). Fits: the stage-3 command (same family
 edges, rate bounds, free amplitudes), started at the final stage-3 couplings and field, 2 starts each, no
-residual-peak stage (runs/processed/ethanol_lines_{even,odd}).
+residual-peak stage (runs/processed/ethanol_lines_{even,odd}); 10400 s each (both halves at once, 2 workers each).
 
-(running)
+| Hz | full (stage 3) | even | odd | even - odd |
+|---|---|---|---|---|
+| 1J(C1,H1) | 125.410 | 125.431 | 125.493 | -0.06 |
+| 1J(C2,H2) | 141.389 | 141.503 | 141.514 | -0.01 |
+| 2J(C1,H2) | -2.424 | -2.362 | -2.093 | -0.27 |
+| 2J(C2,H1) | -4.821 | -4.847 | -4.758 | -0.09 |
+| 3J(H,H) | 7.043 | 7.012 | 7.214 | -0.20 |
+| B transverse / z (nT) | 0 / 63.6 | 0 / 62.0 | 16.3 / 56.9 | |
+| delay (ms) | -3.68 | -3.68 | -3.02 | |
+| score / residual | 0.112 / 0.338 | 0.182 / 0.432 | 0.244 / 0.491 | |
+
+The even half reproduces the full fit (all within 0.12 Hz, same field and delay). The odd half went to another
+field direction and delay (B transverse 16 nT, delay -3.0 ms) from the same start, and its small couplings moved
+with them: 2J(C1,H2) by +0.33 and 3J by +0.17 Hz against the full fit. Both halves give 1J(C2,H2) 0.12 Hz above
+the full fit (whose final candidate was chosen by the residual-peak ranking). Linearised J_std (0.002-0.03 Hz)
+underestimate all of this by an order of magnitude.
 
 ## Conclusion
 
@@ -117,9 +132,17 @@ lines. The couplings are stable to about 0.1 Hz across the decay-rate models (1J
 2J -2.40 to -2.42 / -4.78 to -4.88, 3J 7.04-7.15 Hz); the field direction fit (transverse at 0) differs from the
 earlier fits (2.6-12 nT transverse) and is not determined by these data at this level.
 
+Reproducibility over the halves (half the even - odd difference, plus the 0.1 Hz spread between decay-rate
+models): 1J(C1,H1) 125.41-125.49 (about +-0.05), 1J(C2,H2) 141.39-141.51 (+-0.1), 2J(C2,H1) -4.76 to -4.85
+(+-0.05), 2J(C1,H2) -2.09 to -2.42 (+-0.2), 3J(H,H) 7.01-7.21 Hz (+-0.15). The small couplings trade off with the
+field direction and the delay; the field direction is not determined by these data.
+
 ## Open points
 
-- Halves (even / odd scans) and more starts for stage 3; profile 3J(H,H).
+- Odd half: refit with the field direction fixed to the full fit's (B transverse 0) and the delay held at
+  -3.68 ms, to see whether the small couplings then agree (field / delay trade-off).
+- Profile 3J(H,H) and 2J(C1,H2) over the field direction.
+- Fit time: 2.9 h per half with 76 rate families; coarse-to-fine families could speed this up.
 - Small features still above the model: 126.9 Hz, 196-200 Hz, 245-247 Hz (no or weak model lines).
 - The 1-2 assignable residual peaks per candidate: which transitions (fit.json residual_peaks).
 
