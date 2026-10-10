@@ -156,6 +156,7 @@ def main():
     ap.add_argument("--wait", type=float, default=6.0, help="hours to wait for an entry's data on the drive")
     ap.add_argument("--only", default="")
     ap.add_argument("--table", default="docs/analysis/2026-10-10_batch_results.md")
+    ap.add_argument("--skip", default="", help="entry ids reported from their existing results but not run")
     ap.add_argument("--tag", default="", help="suffix of the fit folders and logs (a second pass with other "
                                              "structures reuses the averages and spectra), e.g. _v2")
     args = ap.parse_args()
@@ -165,7 +166,17 @@ def main():
         entries = [e for e in entries if e["id"] in keep]
     table = ROOT / args.table
 
+    skip = set(filter(None, args.skip.split(",")))
+
     def job(e):
+        if e["id"] in skip:                            # reported from what exists, not run
+            for stage in ("s1", "s2"):
+                fj = ROOT / "runs/processed" / f"batch_{e['id']}{args.tag}_{stage}" / "fit.json"
+                if fj.exists():
+                    note(e["id"], **{stage: summary(fj)})
+            note(e["id"], status="done" if "s2" in STATE.get(e["id"], {}) else "skipped (see the second pass)")
+            write_table(table, entries)
+            return
         try:
             process(e, args)
         except Exception as exc:                       # one entry failing never stops the batch

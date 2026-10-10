@@ -104,5 +104,15 @@ P-CH3 and two O-CH3 protons, 13C at either carbon; literature-range starts). Not
   log). The batch keeps crop 0.1 s (the plan); a crop-0.3 check of the high-SNR entries is an open point.
 - ~02:00 session restart: the batch, the intake and the LF_1 fit had stopped. Batch restarted (resumable); the
   intake had stopped inside 02_mol_pyridine: the partial drive copy was removed and the intake restarted at 02:46.
+- ~03:30: the isopropylamine stage 2 fit failed (broad model, the sharp 133-135 Hz lines missed;
+  runs/figures/batch/isopropylamine.png). Cause: the SMILES structures started every sp3 1J at 125 Hz, but CH
+  next to N is 133.5 Hz (2026-10-03 analysis); diethylamine's 2J -10 Hz likely the same. New 1J starts from the
+  neighbours (D61 amendment, 8e713a7). The batch was stopped (running then: diethylamine s2, sec-butylamine s2,
+  dipropylamine s1, all redone) and restarted with `--parallel 2 --workers 2 --skip <the SMILES entries>`; the
+  SMILES entries with changed starts run as a second pass: `scripts/run_batch.py configs/batch_2026-10-10_v2.json
+  --parallel 2 --workers 2 --tag _v2 --table docs/analysis/2026-10-10_batch_results_v2.md` (fits
+  runs/processed/batch_<id>_v2_s1|s2; the first-pass fits stay for comparison). At most 8 fit processes.
+- Diagnostic figures of finished entries (experiment, stage-2 model, residual): runs/figures/batch/<id>.png
+  (runs/figures/batch/make_batch_figures.py).
 - Load: at most about 9.5 of 10 cores (batch 3 x 3 workers + one 3-worker fit), no thermal or performance warning
   (pmset); no extra parallel jobs added.
