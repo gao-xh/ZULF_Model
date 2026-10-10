@@ -94,4 +94,15 @@ P-CH3 and two O-CH3 protons, 13C at either carbon; literature-range starts). Not
 
 ## Progress
 
-(filled in during the night)
+- 2026-10-10 ~01:00: all measurements except the pyridine series on the drive and checked; Mac originals and
+  Downloads folders removed after the check.
+- Acetonitrile 250 uL (two acquisitions) fitted first (owner): docs/analysis/2026-10-10_acetonitrile-250ul_runs.md.
+- Acetonitrile LF_1 (downloaded during the night) fitted and compared with 250 uL:
+  docs/analysis/2026-10-10_acetonitrile-lf1.md. Finding: with crop 0.1 s an early transient after the field
+  switch (not removed by the drift filter) biases the fit; with the high SNR of LF_1 the fit imitated it with a
+  117 nT field. With crop 0.3 s both fit to the noise (1J 136.28 Hz, |B| 64 / 61 nT; decay times per line in the
+  log). The batch keeps crop 0.1 s (the plan); a crop-0.3 check of the high-SNR entries is an open point.
+- ~02:00 session restart: the batch, the intake and the LF_1 fit had stopped. Batch restarted (resumable); the
+  intake had stopped inside 02_mol_pyridine: the partial drive copy was removed and the intake restarted at 02:46.
+- Load: at most about 9.5 of 10 cores (batch 3 x 3 workers + one 3-worker fit), no thermal or performance warning
+  (pmset); no extra parallel jobs added.
