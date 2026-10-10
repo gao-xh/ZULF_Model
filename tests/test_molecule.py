@@ -12,6 +12,11 @@ except ImportError:                                   # pragma: no cover
     HAVE_RDKIT = False
 
 
+def lines_components(spec):
+    from zulf_studio.session import StudioSession
+    return [c["label"] for c in StudioSession(spec, log_file=False).components()]
+
+
 def lines(spec):
     from zulf_studio.session import StudioSession
     s = StudioSession(spec, log_file=False)
@@ -37,6 +42,13 @@ class MoleculeTests(unittest.TestCase):
         # the motif labels the CH2 C1 and the methyls C2, C3; SMILES order gives CH3 C1, CH2 C2, CH3 C3
         motif = {"motif": "CH2(CH3)2", "one_bond": {"C1": 128.0, "C2": 126.0}}
         self.assertEqual(lines(spec), lines(motif))
+
+    def test_symmetry_with_unprotonated_sites(self):
+        from zulf_hypothesis.molecule import structure_from_molecule
+        glycerol = structure_from_molecule("OCC(O)CO")                   # O-H dropped: the O sites have no H
+        self.assertTrue(any(p.get("C1") == "C3" and p.get("HC1") == "HC3" and "HO1" not in p
+                            for p in glycerol["chain"]["sym"]))
+        self.assertEqual([c for c in lines_components(glycerol)], ["13C@C1 (x2)", "13C@C2"])
 
     def test_mol_block_input_unsaturation_warning_and_errors(self):
         from rdkit import Chem

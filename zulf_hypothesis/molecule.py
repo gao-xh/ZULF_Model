@@ -99,7 +99,8 @@ def structure_from_molecule(molecule, one_bond: Optional[Dict[str, float]] = Non
         for a, b in perm.items():
             if a in guesses and b in guesses and order[b] < order[a]:
                 guesses.pop(a)
-    sym = [_with_protons(p) for p in sym]
+    with_h = {g[0] for g in groups if g[2] > 0}
+    sym = [_with_protons(p, with_h) for p in sym]
     smiles = Chem.MolToSmiles(mol)
     spec = {"compound": compound or smiles,
             "chain": {"groups": groups, "bonds": bonds, "sym": sym},
@@ -126,9 +127,10 @@ def molecule_record(spec_or_molecule) -> dict:
     return dict(structure_from_molecule(spec_or_molecule)["molecule"])
 
 
-def _with_protons(perm: Dict[str, str]) -> Dict[str, str]:
-    """A site permutation also maps the proton groups on the sites (H<site> -> H<image>)."""
-    return {**perm, **{f"H{a}": f"H{b}" for a, b in perm.items()}}
+def _with_protons(perm: Dict[str, str], with_h) -> Dict[str, str]:
+    """A site permutation also maps the proton groups on the sites (H<site> -> H<image>), for sites that carry
+    protons (a symmetry maps a protonated site onto one with the same proton count)."""
+    return {**perm, **{f"H{a}": f"H{b}" for a, b in perm.items() if a in with_h}}
 
 
 def molecule_from_structure(spec: dict) -> Tuple[object, Dict[str, int]]:
