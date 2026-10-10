@@ -1042,6 +1042,11 @@ Tests: tests/test_molecule.py (ethanol from CCO against the hand-written ethanol
 the CH2(CH3)2 motif, compared by line frequencies and relative intensities; mol-file input; drawing);
 tests/test_studio.py (model from a molecule, the Molecule card, no #RRGGBBAA colours in the SVG).
 
+Amendment (2026-10-10): the 1J start of an sp3 carbon adds the usual increments of its heavy neighbours to 125 Hz
+(N +8, O +16, Br +27, unsaturated C +4, ...; ONE_BOND_SP3_INCREMENT). With 125 Hz for every sp3 carbon the
+overnight batch fit of isopropylamine stayed in a wrong minimum (CH next to N, true 133.5 Hz) and diethylamine gave
+a 2J of -10 Hz. Test: tests/test_molecule.py (methylamine 133, methanol 141, bromomethane 152, isopropylamine).
+
 ## D62. One display baseline for data and model (2026-10-09)
 
 - Owner: the ethanol overlays looked worse after the baseline correction than before; fix it, or give both

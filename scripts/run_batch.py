@@ -1,6 +1,7 @@
 """Unattended batch of known-structure fits: scans on the drive -> averages -> whole-grid spectrum -> two fits.
 
     python scripts/run_batch.py configs/batch_2026-10-10.json [--parallel 3] [--workers 3] [--only ID,...]
+        [--tag _v2 --table docs/analysis/OTHER.md]
 
 Per entry (resumable: a step whose output exists is skipped):
   1. averages of the scans (scripts/average_scans.py, read from the drive): `all-scans/` and `z5/`
@@ -9,9 +10,9 @@ Per entry (resumable: a step whose output exists is skipped):
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
      `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/;
   3. stage 1 fit (fit_joint_series.py): one decay rate per isotopologue, component search at the start, 6 starts,
-     field fitted only when the entry says `field` (else zero field): runs/processed/batch_<id>_s1/;
+     field fitted only when the entry says `field` (else zero field): runs/processed/batch_<id><tag>_s1/;
   4. stage 2 fit from stage 1 (--from-joint): one decay rate per model line (--family-edges lines), rate bounds
-     0.1-40 1/s, 2 starts: runs/processed/batch_<id>_s2/.
+     0.1-40 1/s, 2 starts: runs/processed/batch_<id><tag>_s2/.
 Waits (up to --wait hours) for an entry's scans folder to appear on the drive. Writes a results table
 (docs/analysis/2026-10-10_batch_results.md by default) after every finished entry; a failed step is recorded and
 the entry skipped. Fit results are conditional numerical results of the given structure, not assignments.
@@ -69,7 +70,7 @@ def process(entry, args):
     eid = entry["id"]
     scans = DRIVE / entry["scans"]
     meas, given = measurement_of(entry["scans"])
-    log = ROOT / "runs/processed" / f"batch_{eid}.log"
+    log = ROOT / "runs/processed" / f"batch_{eid}{args.tag}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     while not scans.is_dir():
@@ -108,7 +109,7 @@ def process(entry, args):
               "--workers", str(args.workers), "--max-nfev", "300"]
     if entry.get("field"):
         common += ["--fit-field", "--field-start", entry.get("field_start", "0.037,0.045")]
-    s1 = ROOT / "runs/processed" / f"batch_{eid}_s1"
+    s1 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s1"
     if not (s1 / "fit.json").exists():
         note(eid, status="stage 1 fit")
         if run(common + ["--starts", "6", "--rate-bounds", "0.2,15", "--component-search", "start",
@@ -116,7 +117,7 @@ def process(entry, args):
             note(eid, status="failed: stage 1")
             return
     note(eid, s1=summary(s1 / "fit.json"))
-    s2 = ROOT / "runs/processed" / f"batch_{eid}_s2"
+    s2 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s2"
     if not (s2 / "fit.json").exists():
         note(eid, status="stage 2 fit")
         if run(common + ["--starts", "2", "--rate-bounds", "0.1,40", "--component-search", "off",
@@ -155,6 +156,8 @@ def main():
     ap.add_argument("--wait", type=float, default=6.0, help="hours to wait for an entry's data on the drive")
     ap.add_argument("--only", default="")
     ap.add_argument("--table", default="docs/analysis/2026-10-10_batch_results.md")
+    ap.add_argument("--tag", default="", help="suffix of the fit folders and logs (a second pass with other "
+                                             "structures reuses the averages and spectra), e.g. _v2")
     args = ap.parse_args()
     entries = json.loads(Path(args.plan).read_text())["entries"]
     if args.only:

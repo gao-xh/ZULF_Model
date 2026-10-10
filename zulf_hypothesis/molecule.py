@@ -8,7 +8,8 @@ mol-file text; later a molecule sketcher) and the structure specifications the s
 A chain specification lists every heavy atom as a site (element and the number of non-exchangeable protons on it)
 and the bonds between them; zulf_hypothesis.motifs._chain then assigns the couplings by bond distance with
 saturated (sp3) defaults, and the 1J of every protonated site comes from "one_bond". structure_from_molecule
-fills "one_bond" with starting guesses from the hybridisation (to be refined or fitted) and finds the symmetry
+fills "one_bond" with starting guesses from the hybridisation and, for sp3 carbon, additive increments of the
+heteroatom and unsaturated neighbours (to be refined or fitted) and finds the symmetry
 of the molecule (its graph automorphisms) so that equivalent sites share couplings. The "molecule" entry keeps the
 SMILES and the site-to-atom map, so a drawing shows the real bond orders; the fits ignore it.
 
@@ -26,6 +27,10 @@ from .structure_spec import fragment_from_spec
 # chain factory applies the sign itself
 ONE_BOND_GUESS = {("C", "SP3"): 125.0, ("C", "SP2"): 160.0, ("C", "SP"): 250.0, ("N", "SP3"): 75.0,
                   ("N", "SP2"): 90.0}
+# sp3 carbon: increments of 1J(C,H) per heavy neighbour other than sp3 carbon (Hz; e.g. CH3-CH3 125, CH3-NH2 133,
+# CH3-OH 141, CH3-Br 152, CH3-C(=O) 129), the usual additive estimate; a start for the fit, not a value
+ONE_BOND_SP3_INCREMENT = {"N": 8.0, "O": 16.0, "S": 13.0, "F": 24.0, "Cl": 25.0, "Br": 27.0, "I": 26.0, "P": 3.0,
+                          "C_unsat": 4.0}
 EXCHANGEABLE_ON = ("O", "S")
 MAX_SYMMETRY_GENERATORS = 48
 
@@ -79,6 +84,8 @@ def structure_from_molecule(molecule, one_bond: Optional[Dict[str, float]] = Non
         if n_h:
             hyb = str(atom.GetHybridization()).split(".")[-1]
             guess = ONE_BOND_GUESS.get((el, hyb))
+            if guess is not None and (el, hyb) == ("C", "SP3"):
+                guess += _sp3_increment(atom)
             if guess is not None:
                 guesses[label] = guess
             elif el in ("C", "N"):
@@ -111,6 +118,19 @@ def structure_from_molecule(molecule, one_bond: Optional[Dict[str, float]] = Non
     if notes:
         spec["notes"] = notes
     return spec
+
+
+def _sp3_increment(atom) -> float:
+    """Sum of ONE_BOND_SP3_INCREMENT over the heavy neighbours of an sp3 carbon (sp2 / sp carbon as "C_unsat")."""
+    total = 0.0
+    for nb in atom.GetNeighbors():
+        el = nb.GetSymbol()
+        if el == "C":
+            if str(nb.GetHybridization()).split(".")[-1] != "SP3":
+                total += ONE_BOND_SP3_INCREMENT["C_unsat"]
+        else:
+            total += ONE_BOND_SP3_INCREMENT.get(el, 0.0)
+    return total
 
 
 def molecule_record(spec_or_molecule) -> dict:

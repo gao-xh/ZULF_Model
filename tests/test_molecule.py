@@ -50,6 +50,18 @@ class MoleculeTests(unittest.TestCase):
                             for p in glycerol["chain"]["sym"]))
         self.assertEqual([c for c in lines_components(glycerol)], ["13C@C1 (x2)", "13C@C2"])
 
+    def test_one_bond_guesses_follow_the_neighbours(self):
+        from zulf_hypothesis.molecule import structure_from_molecule
+        # literature 1J(C,H): ethane 125, methylamine 133, methanol 141, bromomethane 152, isopropylamine CH 133.5
+        # / CH3 124.4 (docs/analysis/2026-10-03_isopropylamine_complex-fit.md)
+        self.assertEqual(structure_from_molecule("CC")["one_bond"], {"C1": 125.0})
+        self.assertEqual(structure_from_molecule("CN")["one_bond"]["C1"], 133.0)
+        self.assertEqual(structure_from_molecule("CO")["one_bond"]["C1"], 141.0)
+        self.assertEqual(structure_from_molecule("CBr")["one_bond"]["C1"], 152.0)
+        ipa = structure_from_molecule("CC(C)N")["one_bond"]
+        self.assertEqual((ipa["C1"], ipa["C2"]), (125.0, 133.0))
+        self.assertEqual(structure_from_molecule("CC(=O)O")["one_bond"]["C1"], 129.0)
+
     def test_mol_block_input_unsaturation_warning_and_errors(self):
         from rdkit import Chem
         from zulf_hypothesis.molecule import structure_from_molecule
