@@ -93,6 +93,26 @@ triplet decays alike (about 0.4 s in both): not explained by the volume alone (s
 widths from unresolved lines). Signal per scan 15 x the 250 uL one (J line 0.5 vs 0.034 in the averages) for 8 x
 the volume: the rest from geometry (filling closer to the sensor) or other conditions, not checked.
 
+Check without the exponential window (owner: "remove the added decay and fit again"; then a longer record): series
+runs/series/acn_2ml_c03_a0_r16 and acn250_c03_a0_r16 (`--crop 0.3 --record 16 --apodization 0`), same fit command
+with 2 workers (runs/processed/acn_c03_a0_fits.sh). The window never entered the fitted rates (the model is
+rendered through the same processing; data and model |J line| widths agree, 0.285 / 0.283 Hz), and the refit
+confirms it:
+
+| line (Hz) | 2 mL, 8 s + 0.3 1/s window | 2 mL, 16 s, no window | 250 uL, 8 s + window | 250 uL, 16 s, no window |
+|---|---|---|---|---|
+| 136.3 (J line) | 2.57 | 2.56 | 2.85 | 2.69 |
+| 134.6 (J sideband) | 0.48 | 0.46 | 1.29 | 1.17 |
+| 138.0 (J sideband) | 0.31 | 0.30 | 0.52 | 0.52 |
+| 270.4 (weak) | 0.33 | 0.35 | 0.59 | 0.58 |
+| 271.4 / 271.6 | 0.43 | 0.42 | 0.54 | 0.53 |
+| 272.6 | 0.43 | 0.43 | 0.45 | 0.44 |
+| 273.6 / 273.7 | 0.39 | 0.39 | 0.38 | 0.38 |
+| 274.7 (weak) | 0.16 | 0.14 | 0.37 | 0.35 |
+
+1J 136.283 / 136.282 Hz, field 30.8 / 55.6 nT (2 mL) and 42.4 / 45.1 nT (250 uL), unchanged. Scores (0.020 / 0.400)
+are not comparable with the 8 s fits (twice the points, the added half mostly noise, no window).
+
 ## Conclusion
 
 Conditional numerical result. With the record starting at 0.3 s (no early transient), LF_1 and 250 uL give the same
