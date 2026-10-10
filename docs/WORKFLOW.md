@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10).
 
 ## Map
 
@@ -335,6 +335,26 @@ Key algorithms (sections 3-9 below give the detail):
   move the lines of one band, then a global refit (section 8).
 - Reliability: linearised errors are 10-30 x too small; the budget adds the spread of near-equivalent solutions
   (3 % set), processing variants and a recovery test on synthetic data with the real residual (section 9).
+
+Unattended batch of quick known-structure fits (many data sets; 2026-10-10):
+
+    python scripts/run_batch.py configs/batch_2026-10-10.json --parallel 2 --workers 2 [--only IDS] [--skip IDS] \
+        [--tag _v2 --table docs/analysis/OTHER.md]
+    python scripts/batch_figures.py [--tag=_v2] [--redo]
+
+| step | output |
+|---|---|
+| averages from the scans on the drive (`average_scans.py`, all scans and `--exclude-z 5`) | `~/research/zulf/data/processed/<measurement>/{all-scans,z5}/` |
+| whole-grid spectrum of the z5 average (`make_series_entry.py --exclude 81.5,86`) | `runs/series/batch_<id>/` |
+| stage 1: one rate per isotopologue, component search, 6 starts | `runs/processed/batch_<id><tag>_s1/` |
+| stage 2 from stage 1: one rate per model line, rates 0.1-40 1/s, 2 starts | `runs/processed/batch_<id><tag>_s2/` |
+| results table after every entry | `docs/analysis/2026-10-10_batch_results*.md` |
+| diagnostic figures (experiment, the stage-2 fit's own model, residual) | `runs/figures/batch/<id><tag>.png` |
+
+Resumable (a step whose output exists is skipped); `--skip` reports entries without running them; `--tag` writes a
+second pass (other structures) next to the first. Structures from SMILES get neighbour-based 1J starts (D61
+amendment). Crop 0.1 s (the plan); an early transient after the field switch can bias high-SNR fits, check with
+`make_series_entry.py --crop 0.3` (docs/analysis/2026-10-10_acetonitrile-lf1.md).
 
 ## W4. The same fit, interactive: ZULF Studio
 

@@ -112,7 +112,14 @@ P-CH3 and two O-CH3 protons, 13C at either carbon; literature-range starts). Not
   SMILES entries with changed starts run as a second pass: `scripts/run_batch.py configs/batch_2026-10-10_v2.json
   --parallel 2 --workers 2 --tag _v2 --table docs/analysis/2026-10-10_batch_results_v2.md` (fits
   runs/processed/batch_<id>_v2_s1|s2; the first-pass fits stay for comparison). At most 8 fit processes.
-- Diagnostic figures of finished entries (experiment, stage-2 model, residual): runs/figures/batch/<id>.png
-  (runs/figures/batch/make_batch_figures.py).
+- Diagnostic figures of finished entries (experiment, the stage-2 fit's own model, residual):
+  runs/figures/batch/<id><tag>.png (scripts/batch_figures.py). The first version silently drew the Studio quick
+  look instead of the fit's model when the exact curve had not been computed; that made good fits (alanine) look
+  broad. Fixed (it computes fit_model_curve first and skips an entry without it); all figures redrawn.
+- ~04:40 assessment from the corrected figures: tert-butylamine, triethylamine, ethylenediamine good; alanine and
+  lactic acid follow their lines (scores high from the noise of the data); isopropylamine first pass misses the
+  134.8 Hz line (1J start), the second pass fits (stage 2 0.0626; couplings within 0.1-0.2 Hz of the 2026-10-03
+  analysis: 1J 133.47 / 124.37, 2J -4.12 / -1.47, 3J 5.23 / 6.00 Hz); diethylamine (second pass 0.559) misses the
+  125 Hz line, low SNR with strong drift below 100 Hz.
 - Load: at most about 9.5 of 10 cores (batch 3 x 3 workers + one 3-worker fit), no thermal or performance warning
   (pmset); no extra parallel jobs added.
