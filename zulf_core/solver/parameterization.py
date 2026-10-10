@@ -59,6 +59,11 @@ class ParameterPolicy:
     field_bounds_ut: Tuple[float, float] = (0.0, 1.0)
     initial_field_ut: Tuple[float, float] = (0.02, 0.02)     # (transverse, z) starts
     field_fixed: bool = False                                  # hold the field at initial_field_ut (a known field)
+    # A second field region (D63): components whose label matches this regex (e.g. "^P2:", the second copy of a
+    # combined model) evolve in their own fitted field ("field2_transverse_ut", "field2_z_ut"; same axes and
+    # bounds), the others in the first. Models a sample that sees two field regions. Empty: one field.
+    second_field_components: str = ""
+    initial_field2_ut: Tuple[float, float] = (0.1, 0.05)       # (transverse, z) starts of the second field
     # Fitted gyromagnetic ratios (D53): gamma / (2 pi) in Hz/uT of the named nuclei as free parameters, used by the
     # field term and the gamma weights. Only meaningful with a known (fixed) field: the splittings scale with
     # gamma B, so gamma and a free field trade against each other.
@@ -140,6 +145,15 @@ class Parameterization:
                 start = float(np.clip(policy.initial_field_ut[0 if axis == "transverse" else 1], lo, hi))
                 params.append(Parameter(f"field_{axis}_ut", start, lo, hi, not policy.field_fixed, "field", -1,
                                         (axis,)))
+            if policy.second_field_components:
+                import re
+                pattern = re.compile(policy.second_field_components)
+                if not any(pattern.search(lay.label) for lay in layouts):
+                    raise ValueError(f"second_field_components {policy.second_field_components!r} matches no "
+                                     f"component of {[lay.label for lay in layouts]}")
+                for axis in policy.field_axes:
+                    start = float(np.clip(policy.initial_field2_ut[0 if axis == "transverse" else 1], lo, hi))
+                    params.append(Parameter(f"field2_{axis}_ut", start, lo, hi, True, "field", -1, (axis,)))
         if policy.fit_gamma:
             from ..nuclei import get_registry
             lo, hi = policy.gamma_bounds_hz_per_ut
@@ -281,11 +295,22 @@ class Parameterization:
     def has_field(self) -> bool:
         return any(p.kind == "field" for p in self.parameters.values())
 
-    def field_ut(self, values: Dict[str, float]) -> Optional[Tuple[float, float, float]]:
-        """(Bx, By, Bz) in microtesla from the field parameters (B_transverse along x), or None without them."""
+    def in_second_field(self, component: Optional[int]) -> bool:
+        """Whether a component evolves in the second field region (policy.second_field_components)."""
+        pattern = self.policy.second_field_components
+        if not pattern or component is None or not 0 <= component < len(self.layouts):
+            return False
+        import re
+        return re.search(pattern, self.layouts[component].label) is not None
+
+    def field_ut(self, values: Dict[str, float], component: Optional[int] = None
+                 ) -> Optional[Tuple[float, float, float]]:
+        """(Bx, By, Bz) in microtesla from the field parameters (B_transverse along x), or None without them. With
+        a second field region, the field of that region for its components."""
         if not self.has_field():
             return None
-        return (float(values.get("field_transverse_ut", 0.0)), 0.0, float(values.get("field_z_ut", 0.0)))
+        pre = "field2_" if self.in_second_field(component) else "field_"
+        return (float(values.get(pre + "transverse_ut", 0.0)), 0.0, float(values.get(pre + "z_ut", 0.0)))
 
     def interpretation(self, values: Dict[str, float], contributions: Sequence[float]) -> Interpretation:
         comps = [Component(system, float(max(c, 0.0)), layout.label, {"refined": True})

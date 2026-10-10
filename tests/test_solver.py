@@ -1,3 +1,4 @@
+import dataclasses
 import unittest
 import math
 
@@ -421,6 +422,44 @@ class FieldFitTests(unittest.TestCase):
         obs = self.field_observation((0.0, 0.0, 0.0))
         forward = MixtureForward(param, obs)
         self.assertIs(forward.protocol_for(param.values()), forward.protocol)
+
+    def test_second_field_region(self):
+        """Two field regions (D63): the columns of each component equal those of a one-field model in its field,
+        and refinement recovers both fields from data propagated by brute force in two fields."""
+        b1, b2 = (0.03, 0.0, 0.05), (0.09, 0.0, 0.04)
+        obs = self.field_observation(b1)
+        interp = Interpretation((Component(self.methyl_13c(), label="A"), Component(self.methyl_13c(), label="B")))
+        policy = ParameterPolicy(fit_field=True, initial_field_ut=(b1[0], b1[2]), second_field_components="^B$",
+                                 initial_field2_ut=(b2[0], b2[2]), fit_phase_delay=False)
+        param = Parameterization.from_interpretation(interp, policy)
+        values = param.values()
+        self.assertEqual(param.field_ut(values, 0), b1)
+        self.assertEqual(param.field_ut(values, 1), b2)
+        cols = MixtureForward(param, obs).component_columns(values)
+        for c, field in ((0, b1), (1, b2)):
+            single = Parameterization.from_interpretation(Interpretation((Component(self.methyl_13c()),)),
+                                                          ParameterPolicy(fit_field=True, field_fixed=True,
+                                                                          initial_field_ut=(field[0], field[2]),
+                                                                          fit_phase_delay=False))
+            ref = MixtureForward(single, obs).component_columns(single.values())[0]
+            np.testing.assert_allclose(cols[c], ref, rtol=1e-9, atol=1e-12)
+        with self.assertRaises(ValueError):
+            Parameterization.from_interpretation(interp, ParameterPolicy(fit_field=True, second_field_components="^C"))
+        # data: 60 % of the signal in field b1, 40 % in field b2 (brute-force propagation)
+        from zulf_core.physics.protocol import Protocol
+        from zulf_core.physics.transitions import reference_signal
+        acq = Acquisition(1000.0, 4000, start_sample=40, sg_window=101, sg_order=2)
+        t = acq.times()
+        fid = 50.0 * (0.6 * reference_signal(self.methyl_13c(), t, Protocol(field_ut=b1))
+                      + 0.4 * reference_signal(self.methyl_13c(), t, Protocol(field_ut=b2))) * np.exp(-t)
+        obs2 = ObservedSpectrum.from_fid(fid, acq, [(125.0, 147.0), (258.0, 286.0)])
+        start_policy = dataclasses.replace(policy, initial_field_ut=(0.025, 0.055), initial_field2_ut=(0.085, 0.045))
+        res = refine(interp, obs2, RefineSettings(policy=start_policy, starts=1))
+        self.assertAlmostEqual(res.parameters["field_transverse_ut"], b1[0], delta=3e-3)
+        self.assertAlmostEqual(res.parameters["field_z_ut"], b1[2], delta=3e-3)
+        self.assertAlmostEqual(res.parameters["field2_transverse_ut"], b2[0], delta=3e-3)
+        self.assertAlmostEqual(res.parameters["field2_z_ut"], b2[2], delta=3e-3)
+        self.assertLess(res.relative_residual, 1e-2)
 
     def test_field_is_recovered_from_a_nonzero_start(self):
         truth = (0.03, 0.0, 0.06)

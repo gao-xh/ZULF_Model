@@ -236,9 +236,10 @@ class MixtureForward:
         return int(new.sum())
 
     # -- columns ----------------------------------------------------------------------
-    def protocol_for(self, values: Dict[str, float]) -> Protocol:
-        """The protocol of this evaluation: the fixed one, with the fitted field when the parameterization has one."""
-        field_ut = self.p.field_ut(values) if hasattr(self.p, "field_ut") else None
+    def protocol_for(self, values: Dict[str, float], component: Optional[int] = None) -> Protocol:
+        """The protocol of this evaluation: the fixed one, with the fitted field when the parameterization has one
+        (that of the component's field region)."""
+        field_ut = self.p.field_ut(values, component) if hasattr(self.p, "field_ut") else None
         protocol = self.protocol if field_ut is None else self.protocol.with_field(field_ut)
         gammas = self.p.gamma_overrides(values) if hasattr(self.p, "gamma_overrides") else {}
         return protocol.with_gamma(gammas) if gammas else protocol
@@ -248,13 +249,13 @@ class MixtureForward:
         (physics.exchange; the lines then carry their own decay rates)."""
         ex = self.p.exchange_rates(values, c) if hasattr(self.p, "exchange_rates") else {}
         if not ex:
-            tl = self.cache.get(system, self.protocol_for(values))
+            tl = self.cache.get(system, self.protocol_for(values, c))
             return tl.within(*self.line_band_hz) if self.line_band_hz is not None else tl
         if self.exchange_cache is None:
             from ..physics.exchange import ExchangeCache
             self.exchange_cache = ExchangeCache(64)
         spins = {spin: k for g, k in ex.items() for spin in system.groups[g]}
-        return self.exchange_cache.get(system, spins, self.protocol_for(values))
+        return self.exchange_cache.get(system, spins, self.protocol_for(values, c))
 
     def component_columns(self, values: Dict[str, float]) -> List[np.ndarray]:
         cols = []
@@ -625,7 +626,7 @@ class MixtureForward:
         if ex:
             return self._exchange_component_derivatives(values, c, names, system, coupling_names, pairs, ex)
         with self.timer.section("solver.transition_derivatives"):
-            d = transition_derivatives(system, pairs, self.protocol_for(values))
+            d = transition_derivatives(system, pairs, self.protocol_for(values, c))
         if self.line_band_hz is not None:
             from ..physics.derivatives import TransitionDerivatives
             keep = (d.frequencies_hz >= self.line_band_hz[0]) & (d.frequencies_hz <= self.line_band_hz[1])
@@ -671,7 +672,7 @@ class MixtureForward:
         spin_pairs = [[(p, q) for p in system.groups[a] for q in system.groups[b]] for a, b in pairs]
         ex_spins = [list(system.groups[self.p.parameters[n].detail[0]]) for n in ex_names]
         with self.timer.section("solver.exchange_derivatives"):
-            d = exchange_transition_derivatives(system, spins, spin_pairs, ex_spins, self.protocol_for(values))
+            d = exchange_transition_derivatives(system, spins, spin_pairs, ex_spins, self.protocol_for(values, c))
         tl = d.transitions
         edges = self.p.policy.family_edges_hz
         families = np.searchsorted(np.asarray(edges, float), tl.frequencies_hz, side="right") if edges else \

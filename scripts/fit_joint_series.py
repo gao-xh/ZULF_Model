@@ -106,6 +106,13 @@ def _rate_policy(base, args):
             print("warning: a field start of exactly 0 has zero gradient and stays there (D47)")
         policy = dataclasses.replace(policy, fit_field=True, field_axes=axes, field_bounds_ut=(lo, hi),
                                      initial_field_ut=start)
+        if getattr(args, "second_field", ""):
+            start2 = tuple(float(v) for v in args.field2_start.split(","))
+            if len(start2) != 2:
+                raise SystemExit("--field2-start: transverse,z (uT)")
+            policy = dataclasses.replace(policy, second_field_components=args.second_field, initial_field2_ut=start2)
+    elif getattr(args, "second_field", ""):
+        raise SystemExit("--second-field needs --fit-field")
     if getattr(args, "field", ""):
         if getattr(args, "fit_field", False):
             raise SystemExit("--field (a known, fixed field) and --fit-field exclude each other")
@@ -771,7 +778,7 @@ class JointSeries:
         for c, system in enumerate(P.systems(values)):
             names = P.coupling_names(c)
             pairs = [P.parameters[n].detail for n in names]
-            d = transition_derivatives(system, pairs, f.protocol_for(values))
+            d = transition_derivatives(system, pairs, f.protocol_for(values, c))
             if not len(d):
                 continue
             amp = np.abs(d.amplitudes)
@@ -1606,6 +1613,10 @@ def make_parser():
     ap.add_argument("--field-axes", default="transverse,z", help="fitted field components: transverse and/or z")
     ap.add_argument("--field-bounds", default="0,1", help="lo,hi of each fitted field component (uT)")
     ap.add_argument("--field-start", default="0.02,0.02", help="start transverse,z (uT); not 0 (zero gradient there)")
+    ap.add_argument("--second-field", default="",
+                    help="regex on component labels (e.g. '^P2:', the second copy of a combined model): those "
+                         "components evolve in a second fitted field (field2_*; D63): two field regions")
+    ap.add_argument("--field2-start", default="0.1,0.05", help="start transverse,z of the second field (uT)")
     ap.add_argument("--precision", type=float, default=0.01,
                     help="coupling precision in Hz at which a fit stops (default 0.01; e.g. 0.001 for finer fits; "
                          "0: run to the tolerances or --max-nfev as before D55). Also sets the reported decimals")
