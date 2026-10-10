@@ -113,6 +113,27 @@ confirms it:
 1J 136.283 / 136.282 Hz, field 30.8 / 55.6 nT (2 mL) and 42.4 / 45.1 nT (250 uL), unchanged. Scores (0.020 / 0.400)
 are not comparable with the 8 s fits (twice the points, the added half mostly noise, no window).
 
+Field sensitivity of every line vs the volume effect (scripts/field_sensitivity.py on the 16 s window-free fits;
+figure runs/figures/acn_rate_vs_field_sensitivity.png, numbers in runs/figures/acn_rate_vs_field_sensitivity.json).
+dnu/d|B| from the fitted spin system at each fit's field (|B| scaled by 1.001, direction fixed). Expected:
+rate difference = pi |dnu/dB| dB (dB: the extra field spread of the 2 mL sample).
+
+| line (Hz) | dnu/d\|B\| (Hz/nT) | rate 2 mL (1/s) | rate 250 uL (1/s) | difference (1/s) | dB (nT) |
+|---|---|---|---|---|---|
+| 134.6 (1J, Delta m = -1) | -0.026 | 2.18 | 0.86 | +1.32 | 15.9 |
+| 136.3 (1J, Delta m = 0) | +0.000 | 0.39 | 0.37 | +0.02 | - |
+| 138.0 (1J, Delta m = +1) | +0.027 | 3.39 | 1.93 | +1.46 | 17.2 |
+| 270.4 (2J) | -0.034 | 2.90 | 1.74 | +1.16 | 10.7 |
+| 271.4 / 271.6 (2J, one shared rate) | -0.019 / -0.016 | 2.38 | 1.89 | +0.49 | 8.4 / 9.9 |
+| 272.6 (2J, center) | +0.000 | 2.31 | 2.30 | +0.01 | - |
+| 273.6 / 273.8 (2J, one shared rate) | +0.016 / +0.019 | 2.58 | 2.67 | -0.09 | -1.8 / -1.5 |
+| 274.8 (2J, weak) | +0.035 | 7.36 | 2.84 | +4.52 | 41.3 |
+
+The slope-zero lines (1J 136.3 and 2J 272.6 Hz) do not change; the 1J sidebands give a consistent dB of 16-17 nT;
+the 2J lines follow the trend but scatter (8-11 nT for the low-frequency side, about 0 for 273.6/273.8, 41 nT for
+the weak 274.8 Hz line). Proportionality is supported qualitatively; a quantitative test needs uncertainties of the
+rates (not estimated yet).
+
 ## Conclusion
 
 Conditional numerical result. With the record starting at 0.3 s (no early transient), LF_1 and 250 uL give the same
