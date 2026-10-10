@@ -38,7 +38,7 @@ STATE: dict = {}
 
 def measurement_of(scans: str):
     parts = Path(scans).parts                      # original|raw / <measurement> / <folder> [/ data]
-    return parts[1], parts[2]
+    return parts[1], parts[2]                      # (measurement, folder as received)
 
 
 def run(cmd, log: Path) -> int:
@@ -68,7 +68,7 @@ def summary(fit_json: Path) -> dict:
 def process(entry, args):
     eid = entry["id"]
     scans = DRIVE / entry["scans"]
-    _, meas = measurement_of(entry["scans"])
+    meas, given = measurement_of(entry["scans"])
     log = ROOT / "runs/processed" / f"batch_{eid}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -78,7 +78,7 @@ def process(entry, args):
             return
         note(eid, status="waiting for data")
         time.sleep(60)
-    folder = Path(entry["scans"]).parts[3] if "series" in meas or "dilution" in meas else ""
+    folder = given if "series" in meas or "dilution" in meas else ""   # one measurement, several runs
     proc = PROCESSED / meas / folder
     note(eid, status="averaging", measurement=meas)
     for name, extra in (("z5", ["--exclude-z", "5"]), ("all-scans", [])):
