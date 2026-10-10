@@ -134,6 +134,13 @@ docs/analysis/2026-10-01_blake-pyridine_data-consistency.md).
   rest of the record is noise. The solver models the finite record exactly.
 - Show full, about 1 s and about 0.3 s windows; the 0.3 s window has the
   best SNR for broad features, the full record the best resolution.
+- Start of the record (2026-10-10, acetonitrile LF_1): right after the field
+  switch there can be a transient that the SG drift filter does not remove. It
+  shows as broad troughs or humps under every band, scales with the signal and
+  grows with the SG window. The model has no such term; on high-SNR data a fit
+  bends other parameters to imitate it (LF_1: a 117 nT field instead of 64 nT).
+  Check: reprocess with crop 0.3 s; if the broad structure goes away, fit with
+  `make_series_entry.py --crop 0.3` (the solver models the crop exactly).
 
 ## Truncation and apodization
 

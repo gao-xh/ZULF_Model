@@ -29,6 +29,12 @@ Worked example: isopropylamine, docs/analysis/2026-10-03_isopropylamine_complex-
 
 ## Display processing (not the fit's)
 
+- A figure of a fit draws the fit's own model: in StudioSession call `fit_model_curve()` before `simulate()`, and
+  check that the result has "fit_re"; without it `simulate()` returns only the quick-look simulation (other
+  rates and gains), which made good fits look broad (2026-10-10, scripts/batch_figures.py).
+- A display baseline ("model", D62) built from a wrong fit draws structure into the data trace (LF_1 wings); look at
+  the plain real part too before reading features off a corrected figure.
+
 - Thinner lines: the whole record (crop 0.1 s to the end, 16.2 s), window 0.1 1/s (0 is sharper but noisy in weak
   bands), zero fill 4; phase from the instrument calibration.
 - The model is rendered through the same processing with the fitted couplings, rates and delay; gains solved on
