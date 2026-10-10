@@ -508,8 +508,7 @@ class StudioWindow(QMainWindow):
         self.fig = Figure(figsize=(8, 6))            # margins in pixels (theme.pixel_margins)
         self.canvas = FigureCanvasQTAgg(self.fig)
         self._margins = {"nrows": 1}
-        self.canvas.mpl_connect("resize_event", lambda _e: (pixel_margins(self.fig, self.canvas, **self._margins),
-                                                            self.canvas.draw_idle()))
+        self.canvas.mpl_connect("resize_event", lambda _e: self.schedule())   # margins and label rows anew
         self.plot_kit = PlotKit(self)                  # zoom, pan, reset, readout, save (tied to the session view)
         for spin in (self.view_lo, self.view_hi):
             spin.setMaximumWidth(84)
@@ -1835,7 +1834,7 @@ class StudioWindow(QMainWindow):
             Path(s.applied["run"]).resolve() == Path(f["run"]).resolve() else None
         where = "waiting for the fit's first recorded point"
         if pt:
-            where = (f"start {pt['start'].replace('start_', '')}, "
+            where = (f"{self._start_label(pt['start'])}, "
                      + (f"best so far (evaluation {pt['n']})" if pt["kind"] == "best so far"
                         else f"evaluation {pt['n']} of {pt['evaluations']}")
                      + f", objective {pt['objective']:.5g}" + (" - running" if pt.get("running") else ""))
@@ -1850,7 +1849,8 @@ class StudioWindow(QMainWindow):
 
         def work():
             try:
-                self.session.follow_point(f["run"], f["start"], f["point"])
+                r = self.session.follow_point(f["run"], f["start"], f["point"])
+                self._follow_final = bool(r and r.get("final"))
             except Exception as exc:
                 self.session.log(f"following {f['run']}: {type(exc).__name__}: {exc}", "session")
             finally:
@@ -1872,15 +1872,39 @@ class StudioWindow(QMainWindow):
         elif job.returncode == 0:
             self.statusBar().showMessage(f"fit finished ({out.name}): Apply result loads it", 12000)
 
+    @staticmethod
+    def _start_label(name):
+        """'start_003' -> 'start 3', 'residual_peak_stage' -> 'residual-peak stage'."""
+        if name.startswith("start_"):
+            return f"start {int(name[6:]) if name[6:].isdigit() else name[6:]}"
+        return name.replace("_stage", " stage").replace("_", "-")
+
     def _fit_point_name(self):
-        """'run', or 'run, start 3, evaluation 25' for a followed point."""
+        """'run', or 'run, start 3, evaluation 25' for a followed point (short: it goes into the legend)."""
         a = self.session.applied or {}
         name = Path(a.get("run", "")).name
         pt = a.get("point")
         if not pt:
             return name
-        return (f"{name}, start {pt['start'].replace('start_', '')}, "
-                + ("best so far" if pt["kind"] == "best so far" else f"evaluation {pt['n']}"))
+        return (f"{name}, {self._start_label(pt['start'])}"
+                + ("" if pt["kind"] == "best so far" else f", evaluation {pt['n']}"))
+
+    def _place_field_text(self):
+        """The field shares the legend's row when both fit, else it goes one row above the legend."""
+        txt = getattr(self, "_field_text", None)
+        axes = self.fig.axes
+        if txt is None or not axes or axes[0].get_legend() is None:
+            return
+        try:
+            renderer = self.canvas.get_renderer()
+            leg = axes[0].get_legend().get_window_extent(renderer)
+            box = txt.get_window_extent(renderer)
+        except Exception:
+            return
+        if leg.x1 + 12 > box.x0:                       # overlap: lift the field above the legend rows
+            txt.xyann = (0, 3 + 17 * getattr(self, "_legend_rows", 1))
+            self._margins["top"] = 10 + 17 * (getattr(self, "_legend_rows", 1) + 1)
+            pixel_margins(self.fig, self.canvas, **self._margins)
 
     def _request_fit_curve(self):
         """Compute the applied fit's exact model in the background (the first time per run builds the fit
@@ -1939,7 +1963,13 @@ class StudioWindow(QMainWindow):
         if event == "fit_done":
             self._fit_finished()
         if event == "follow" and self.follow is not None:
-            self._update_follow_text()
+            if getattr(self, "_follow_final", False):   # a finished run: its result is applied, sliders free
+                self._follow_final = False
+                run = Path(self.follow["run"]).name
+                self.stop_follow()
+                self.statusBar().showMessage(f"result of {run} applied (the fit has finished)", 8000)
+            else:
+                self._update_follow_text()
         if event == "figure_done":
             self.show_figure()
         self.schedule()
@@ -2170,7 +2200,7 @@ class StudioWindow(QMainWindow):
                 self.statusBar().showMessage(f"baseline: {exc}", 6000)
         if has_data:
             ax.plot(f, d, color=t["data"], lw=0.8,
-                    label="experiment, baseline corrected" if corrected else f"experiment ({s.data['label']})")
+                    label=f"experiment ({s.data['label']})")
         if show_model and mode == "simulate" and self.simulate_panel.per_component():
             gamma = s.rate_per_s / (2 * np.pi)
             labels = [c["label"] for c in s.components()]
@@ -2186,7 +2216,7 @@ class StudioWindow(QMainWindow):
             each = mode == "simulate" and self.simulate_panel.per_component()
             ax.plot(f, m, color=t["sim"] if not each else t["muted"], lw=1.3 if not each else 1.0,
                     ls="-" if not each else "--", alpha=0.9, zorder=1 if each else 2,
-                    label=(f"fit model ({self._fit_point_name()})" if exact else "simulation (quick look)")
+                    label=(f"fit: {self._fit_point_name()}" if exact else "simulation (quick look)")
                     if mode != "simulate"
                     else "weighted sum")
         tr = s.trace if self.show_trace.isChecked() else None
@@ -2202,11 +2232,20 @@ class StudioWindow(QMainWindow):
         bt, bz = s.field_nt
         field = ("zero field" if bt == 0 and bz == 0 else
                  f"B transverse {bt:.1f} nT   B z {bz:.1f} nT   |B| {math.hypot(bt, bz):.1f} nT")
-        # the field heads the legend (the fit's run is in the model's entry): one box, nothing over the data's left
-        leg = ax.legend(loc="upper right", title=field if show_model else None, title_fontsize=8.5,
-                        alignment="right", frameon=True, facecolor=t["panel"], edgecolor="none", framealpha=0.85)
+        # legend and field above the axes, never over the data: legend on the left, field on the right
+        n_items = len(ax.get_legend_handles_labels()[1])
+        ncol = max(1, min(n_items, 4))
+        rows = -(-n_items // ncol) if n_items else 1
+        if n_items:
+            ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=ncol, frameon=False, borderaxespad=0.15,
+                      handlelength=1.5, columnspacing=1.2, fontsize=8.5)
+        self._field_text = None
         if show_model:
-            leg.get_title().set_color(t["accent"])
+            self._field_text = ax.annotate(field, xy=(1.0, 1.0), xycoords="axes fraction", xytext=(0, 3),
+                                           textcoords="offset points", ha="right", va="bottom", fontsize=8.5,
+                                           color=t["accent"])
+        self._margins["top"] = 10 + 17 * rows
+        self._legend_rows = rows
         self.simulate_panel.refresh()
         ax.set_ylabel("signal")
         self.plot_kit.apply_ylim(ax)                   # a box zoom's signal range (Auto y clears it)
@@ -2242,6 +2281,7 @@ class StudioWindow(QMainWindow):
         sax.set_xlabel("frequency (Hz)")
         style.__exit__(None, None, None)
         pixel_margins(self.fig, self.canvas, **self._margins)
+        self._place_field_text()
         self.canvas.draw_idle()
         self.fill_lines(sim["lines"])
         msg = (f"{1e3 * sim['seconds']:.0f} ms \u00b7 {len(sim['lines'])} lines \u00b7 scale {sim['scale']:.3g}"

@@ -811,6 +811,14 @@ class StudioSession:
         sys.path.insert(0, str(ROOT / "scripts"))
         from fit_monitor import SpectrumCache, point_result, read_point, read_run
         rec = read_run(run, max_points=2)
+        if (start is None and point is None and rec["status"].get("phase") == "finished"
+                and (run / "fit.json").exists()):     # a finished run: its result, not a stage's record
+            key = (str(run), "final")
+            if getattr(self, "_followed", None) == key and self.state_is_applied_fit():
+                return {"final": True}
+            self.apply_fit(str(run))
+            self._followed = key
+            return {"final": True}
         starts = {k: v for k, v in rec["starts"].items() if v["z"] is not None and v["best"] is not None}
         if not starts:
             return None

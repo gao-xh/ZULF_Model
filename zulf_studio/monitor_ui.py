@@ -301,8 +301,8 @@ class MonitorPanel(QWidget):
             self._fill_starts()
         self.point = None if n is None else int(n)
         self.spec, self.spec_key = None, None
-        if self.on_select is not None and self.run:
-            self.on_select(self.run, self.selected, self.point)
+        if self.on_select is not None and self.run:  # Latest best: the run's best (a finished run: its result)
+            self.on_select(self.run, self.selected if self.point is not None else None, self.point)
         self._sync_slider()
         self._request_spectrum()
         self._fill_couplings()

@@ -241,6 +241,14 @@ class FitPlumbingTests(unittest.TestCase):
             self.assertEqual(s.applied["point"]["n"], 5)
             self.assertEqual(s.applied["point"]["kind"], "evaluation")
             self.assertIn("evaluation 5", w.follow_text.text())
+            w.monitor_panel.set_point(None)                              # Latest best of a finished run:
+            t0 = time.time()                                             # its final result, then no following
+            while w.follow is not None and time.time() - t0 < 30:
+                app.processEvents()
+                time.sleep(0.05)
+            self.assertIsNone(w.follow)
+            self.assertIsNone(s.applied.get("point"))
+            self.assertAlmostEqual(s.couplings()[0]["value"], fit["couplings"]["J(C1,HC1)"]["J_at_x"][0], places=9)
             w.stop_follow()
             w.close()
 
@@ -818,8 +826,10 @@ class FilesAndJobsTests(unittest.TestCase):
             self.assertTrue(w.mode_buttons[mode].isChecked())
         w.show_page(w.figure_page)
         self.assertEqual(s.mode, "fit")
-        w.redraw()                                                     # the field heads the plot's legend
-        self.assertIn("field", w.fig.axes[0].get_legend().get_title().get_text())
+        w.redraw()                                                     # the field above the plot, right
+        self.assertTrue(any("field" in txt.get_text() for txt in w.fig.axes[0].texts))
+        leg = w.fig.axes[0].get_legend()                               # the legend sits above the axes
+        self.assertGreaterEqual(leg.get_bbox_to_anchor().transformed(w.fig.axes[0].transAxes.inverted()).y0, 0.99)
         self.assertNotIn("nT", w.subtitle.text())
         s.set_field(z_nt=10.0)
         app.processEvents()
