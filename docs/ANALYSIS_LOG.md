@@ -1387,3 +1387,4 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-10: acetonitrile 250 uL, second acquisition (2026-10-03 to 10-09, received with the old run renumbered):
   1J(C,H) 136.289 Hz and |B| 60.1 nT, run 1 136.282 Hz / 57.7 nT, both 136.286 Hz / 59.0 nT (transverse 39, z 44).
   docs/analysis/2026-10-10_acetonitrile-250ul_runs.md
+- 2026-10-10 acetonitrile LF_1 vs 250 uL decay times: docs/analysis/2026-10-10_acetonitrile-lf1.md (J line T 2.6 vs 2.3 s; LF_1 2J band needs two field regions)
