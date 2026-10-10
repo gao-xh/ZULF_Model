@@ -2304,6 +2304,8 @@ def main(argv=None):
     ap.add_argument("--no-gui", action="store_true", help="API server only (for agents; Ctrl+C to quit)")
     ap.add_argument("--mode", default="", choices=["", "simulate", "process", "fit", "blind"],
                     help="task mode at start (default: fit with data, else simulate)")
+    ap.add_argument("--monitor", default="", help="fit run directory (running or finished): open the Monitor tab on it "
+                                                  "and let the main view follow it")
     args = ap.parse_args(argv)
     session = StudioSession(json.loads(args.structure) if args.structure else None, workspace=args.workspace)
     from . import credentials
@@ -2332,4 +2334,7 @@ def main(argv=None):
     app = QApplication.instance() or QApplication(sys.argv)
     win = StudioWindow(session, server)
     win.show()
+    if args.monitor:
+        win.set_follow(args.monitor)
+        win.show_monitor(args.monitor)
     sys.exit(app.exec())
