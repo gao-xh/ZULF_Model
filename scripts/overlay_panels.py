@@ -44,9 +44,15 @@ DRAWINGS = {
 CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json", "configs/batch_2026-10-10.json"]
 
 
+# the pass chosen per data set after comparing the passes (docs/analysis/2026-10-10_overnight_plan.md); others: the
+# latest of v3 / v2 / v1
+CHOSEN = {"methyl-2-bromopropionate": "_v4", "serine": "_v3", "n-n-dimethylethylenediamine": "_v4"}
+
+
 def latest_fit(eid):
-    """(run directory, tag) of the latest finished pass of a batch entry."""
-    for tag in ("_v3", "_v2", ""):
+    """(run directory, tag) of the chosen pass (CHOSEN) or the latest finished pass of a batch entry."""
+    order = [CHOSEN[eid]] if eid in CHOSEN else ["_v3", "_v2", ""]
+    for tag in order:
         for stage in ("s2", "s1"):
             run = ROOT / "runs/processed" / f"batch_{eid}{tag}_{stage}"
             if (run / "fit.json").exists():
@@ -56,7 +62,8 @@ def latest_fit(eid):
 
 def entry_spec(eid, tag):
     """Structure specification of the pass used (v3 / v2 configs override the first pass)."""
-    order = {"v3": CONFIGS, "v2": CONFIGS[1:], "v1": CONFIGS[2:]}[tag.split()[0]]
+    order = {"v4": ["configs/batch_2026-10-10_v4.json"] + CONFIGS, "v3": CONFIGS, "v2": CONFIGS[1:],
+             "v1": CONFIGS[2:]}[tag.split()[0]]
     for cfg in order:
         for e in json.load(open(ROOT / cfg))["entries"]:
             if e["id"] == eid:

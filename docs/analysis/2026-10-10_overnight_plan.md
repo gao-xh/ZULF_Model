@@ -198,3 +198,12 @@ pass missed, but not the 155-158 Hz lines. A fifth pass from C2 153.5 Hz (to cov
 stage 1 0.411 (worse); the multi-start probe also prefers C2 near 147 Hz. The 155-158 Hz lines are not C2 in this
 model; their origin is open (impurity, 13C at the carbonyl, bromine isotopes). The fifth pass was stopped after
 stage 1. Best: fourth pass.
+
+Fourth pass and the last stage-2 runs (2026-10-10, 22:00): N,N-dimethylethylenediamine with slow N-H exchange:
+stage 1 0.198 (fast 0.303), stage 2 0.124 (fast 0.141), chosen; diethylamine with slow exchange: stage 2 0.573
+(fast 0.559), fast kept. The slow-exchange stage-2 runs and dipropylamine (second pass) were far too slow for
+max_nfev 300 (hundreds of parameters; dipropylamine about 40 evaluations in 9 h) and were stopped by hand; their
+fit.json is the best point of the monitor record (fit_monitor.point_result, marked "stopped_early"): dipropylamine
+0.066 (stage 1 0.132), N,N-dimethylethylenediamine 0.124, diethylamine 0.573. Overlay figures with the chosen pass
+per data set: runs/figures/overlay_{amines,metabolites,pyridines}.png (scripts/overlay_panels.py; methyl
+2-bromopropionate fourth pass, serine third, N,N-dimethylethylenediamine fourth).

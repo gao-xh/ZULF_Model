@@ -146,7 +146,8 @@ def write_table(path: Path, entries):
             jtxt = ", ".join(f"{k} {v[0]:.2f}" for k, v in (s2 or s1 or {}).get("J", {}).items())
             rows.append(f"| {e['id']} | {st.get('status', 'queued')} | {s1['score']:.4f} |" if s1 else
                         f"| {e['id']} | {st.get('status', 'queued')} | - |")
-            rows[-1] += (f" {s2['score']:.4f} / {s2['residual']:.3f} |" if s2 else " - |")
+            res = "-" if not s2 or s2.get("residual") is None else f"{s2['residual']:.3f}"
+            rows[-1] += (f" {s2['score']:.4f} / {res} |" if s2 else " - |")
             rows[-1] += (f" {f[0]:.1f} / {f[1]:.1f} |" if f else " zero field |" if not e.get("field") else " - |")
             rows[-1] += f" {jtxt} |"
     path.write_text("\n".join(rows) + "\n")
