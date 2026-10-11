@@ -1415,8 +1415,11 @@ def one_bond_from_bands(joint, z, spec, s=0, scan_hz=12.0, min_relative=0.05):
         if not m:
             continue
         site = m.group(1)
-        key = f"J({site},H{site})"
-        names = [n for n in model.coupling_names.get(key, []) if P.parameters[n].component == c]
+        keys = [f"J({site},H{site})"]
+        frag = getattr(model, "fragment", None)
+        if frag is not None:                   # motifs name proton groups freely (H1, HX, ...): the groups on the site
+            keys += [f"J({site},{g.label})" for g in frag.protons if g.site == site]
+        names = [n for key in keys for n in model.coupling_names.get(key, []) if P.parameters[n].component == c]
         if not names:
             continue
         pair = tuple(P.parameters[names[0]].detail)

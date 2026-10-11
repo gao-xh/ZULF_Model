@@ -7,6 +7,7 @@ Per entry (resumable: a step whose output exists is skipped):
   1. averages of the scans (scripts/average_scans.py, read from the drive): `all-scans/` and `z5/`
      (--exclude-z 5) in ~/research/zulf/data/processed/<measurement>/[<scans folder>/] (the folder name is added
      when one measurement holds several runs, e.g. a dilution series);
+  (an entry may set "exchange": "slow" for N-H / O-H protons that couple; default fast, decoupled)
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
      `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/;
   3. stage 1 fit (fit_joint_series.py): one decay rate per isotopologue, component search at the start, 6 starts
@@ -104,7 +105,8 @@ def process(entry, args):
             return
     lo, hi = (entry.get("grid") or "20,380").split(",")
     common = [PY, "scripts/fit_joint_series.py", "--series", str((series / "series.json").relative_to(ROOT)),
-              "--real-only", "false", "--shape", "free", "--exchange", "fast", "--range", f"{lo},{hi}",
+              "--real-only", "false", "--shape", "free", "--exchange", entry.get("exchange", "fast"),
+              "--range", f"{lo},{hi}",
               "--structure", json.dumps(entry["structure"]), "--signal-threshold", "2.5", "--signal-taper", "4.0",
               "--peak-penalty", "5", "--peak-smooth", "0.03", "--peak-min-sigma", "3",
               "--workers", str(args.workers), "--max-nfev", "300"]

@@ -1,0 +1,273 @@
+{
+ "note": "Fourth pass 2026-10-10: methyl 2-bromopropionate with 1J starts from the observed bands (D64); diethylamine and N,N-dimethylethylenediamine with slow N-H exchange (N-H protons coupled)",
+ "entries": [
+  {
+   "id": "methyl-2-bromopropionate",
+   "scans": "original/2026-04-12-methyl-2-bromopropionate/Methyl 2-bromopropionate",
+   "structure": {
+    "compound": "methyl 2-bromopropionate",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "Br1",
+       "Br",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       0
+      ],
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "Br1"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O1"
+      ],
+      [
+       "C3",
+       "O2"
+      ],
+      [
+       "O2",
+       "C4"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 156.0,
+     "C4": 141.0
+    },
+    "molecule": {
+     "smiles": "CC(Br)C(=O)OC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "Br1": 2,
+      "C3": 3,
+      "O1": 4,
+      "O2": 5,
+      "C4": 6
+     }
+    },
+    "notes": [
+     "unsaturated or aromatic bonds: the chain uses saturated (sp3) 2J/3J defaults; a registered motif (e.g. 'benzene ring') models aromatic couplings"
+    ]
+   },
+   "field": false,
+   "one_bond_from_data": true
+  },
+  {
+   "id": "diethylamine",
+   "scans": "raw/2025-10-10-diethylamine/diethylamine/data",
+   "structure": {
+    "compound": "diethylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C4",
+       "C2": "C3",
+       "C3": "C2",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC2": "HC3",
+       "HC3": "HC2",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 133.0,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCNCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "N1": 2,
+      "C3": 3,
+      "C4": 4
+     }
+    }
+   },
+   "field": false,
+   "exchange": "slow"
+  },
+  {
+   "id": "n-n-dimethylethylenediamine",
+   "scans": "original/2025-11-04-n-n-dimethylethylenediamine/N,N_dimethylethylenediamine",
+   "structure": {
+    "compound": "N,N-dimethylethylenediamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       0
+      ],
+      [
+       "C2",
+       "C",
+       3
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       2
+      ],
+      [
+       "N2",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "N1"
+      ],
+      [
+       "N1",
+       "C2"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C4",
+       "N2"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C2",
+       "C2": "C1",
+       "HC1": "HC2",
+       "HC2": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 133.0,
+     "C3": 133.0,
+     "C4": 133.0,
+     "N2": 75.0
+    },
+    "molecule": {
+     "smiles": "CN(C)CCN",
+     "sites": {
+      "C1": 0,
+      "N1": 1,
+      "C2": 2,
+      "C3": 3,
+      "C4": 4,
+      "N2": 5
+     }
+    }
+   },
+   "field": false,
+   "exchange": "slow"
+  }
+ ]
+}
