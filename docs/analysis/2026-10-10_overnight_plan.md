@@ -207,3 +207,11 @@ fit.json is the best point of the monitor record (fit_monitor.point_result, mark
 0.066 (stage 1 0.132), N,N-dimethylethylenediamine 0.124, diethylamine 0.573. Overlay figures with the chosen pass
 per data set: runs/figures/overlay_{amines,metabolites,pyridines}.png (scripts/overlay_panels.py; methyl
 2-bromopropionate fourth pass, serine third, N,N-dimethylethylenediamine fourth).
+
+Methyl 2-bromopropionate, sixth pass (configs/batch_2026-10-10_v6.json): the clear triplet at 155-158 Hz was not
+fitted with natural-abundance amplitude ratios. With free isotopologue amplitudes (--variant free) and C2 started at
+155.4 Hz: stage 2 0.0387 (fourth pass 0.209), 1J 130.67 / 155.78 / 147.66 Hz, the triplet and every other band fitted
+(runs/figures/batch/methyl-2-bromopropionate_v4_v6.png). Amplitude of 13C@C2 0.025 vs 0.036 / 0.034 for C1 / C4
+(about 72 %): the carbon bound to bromine loses signal, as expected from scalar relaxation by the fast-relaxing
+quadrupolar 79Br / 81Br (decoupled; no Br splittings). Bromine is therefore not added as a coherent spin; its effect
+is the free amplitude (and decay) of the bound carbon's isotopologue. Chosen: sixth pass.

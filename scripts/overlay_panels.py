@@ -46,7 +46,7 @@ CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json
 
 # the pass chosen per data set after comparing the passes (docs/analysis/2026-10-10_overnight_plan.md); others: the
 # latest of v3 / v2 / v1
-CHOSEN = {"methyl-2-bromopropionate": "_v4", "serine": "_v3", "n-n-dimethylethylenediamine": "_v4"}
+CHOSEN = {"methyl-2-bromopropionate": "_v6", "serine": "_v3", "n-n-dimethylethylenediamine": "_v4"}
 
 
 def latest_fit(eid):
@@ -62,7 +62,7 @@ def latest_fit(eid):
 
 def entry_spec(eid, tag):
     """Structure specification of the pass used (v3 / v2 configs override the first pass)."""
-    order = {"v4": ["configs/batch_2026-10-10_v4.json"] + CONFIGS, "v3": CONFIGS, "v2": CONFIGS[1:],
+    order = {"v6": ["configs/batch_2026-10-10_v6.json"] + CONFIGS, "v4": ["configs/batch_2026-10-10_v4.json"] + CONFIGS, "v3": CONFIGS, "v2": CONFIGS[1:],
              "v1": CONFIGS[2:]}[tag.split()[0]]
     for cfg in order:
         for e in json.load(open(ROOT / cfg))["entries"]:
