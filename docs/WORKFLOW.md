@@ -349,7 +349,7 @@ Unattended batch of quick known-structure fits (many data sets; 2026-10-10):
 | step | output |
 |---|---|
 | averages from the scans on the drive (`average_scans.py`, all scans and `--exclude-z 5`) | `~/research/zulf/data/processed/<measurement>/{all-scans,z5}/` |
-| whole-grid spectrum of the z5 average (`make_series_entry.py --exclude 81.5,86`; entry keys `apodization`, `record` for a stronger noise filter, `series` suffix) | `runs/series/batch_<id>[<series>]/` |
+| whole-grid spectrum of the z5 average (`make_series_entry.py --exclude 81.5,86`; entry keys `apodization`, `record`, `crop` for a stronger noise filter, `series` suffix) | `runs/series/batch_<id>[<series>]/` |
 | stage 1: one rate per isotopologue, component search, 6 starts | `runs/processed/batch_<id><tag>_s1/` |
 | stage 2 from stage 1: one rate per model line, rates 0.1-40 1/s, 2 starts | `runs/processed/batch_<id><tag>_s2/` |
 | results table after every entry | `docs/analysis/2026-10-10_batch_results*.md` |
