@@ -163,3 +163,22 @@ For the owner to decide or check:
   processed at half the recorded rate.
 - Branch xuehan/second-field (second field region, tested, not merged) can be deleted if not wanted.
 - Before unplugging: run sync-to-drive.sh (processed data to the drive), then eject.
+
+## Batch state (2026-10-10, 17:50)
+
+All entries finished except dipropylamine (second pass, stage 2 running; stage 1 0.132). Figures:
+runs/figures/batch/<id>[_v2].png (the fits' own models). Additional results since 07:30:
+
+| data set | stage 2 score | assessment |
+|---|---|---|
+| pyridine 50 / 66 / 75 / 100 mol % | 0.016 / 0.016 / 0.022 / 0.039 | good |
+| pyridinium 6 M acidic | 0.125 | good |
+| isopropanol (field, second pass) | 0.160 | good; B 15.7 / 65.6 nT (\|B\| about 67 nT, the order of the acetonitrile field) |
+| sec-butylamine (second pass) | 0.070 | good |
+| methyl 2-bromopropionate (second pass) | 0.194 | partial: 147.5 Hz line fitted, 155-158 Hz lines incomplete |
+| methyl dimethylphosphonate (field) | 0.194 | partial: 31P band roughly; the 148 Hz 13C line too weak in the model; B 8.5 / 10.5 nT |
+| glycerol (second pass) | 0.759 | main band (210-220 Hz) followed; score from drift below 60 Hz and the mains line |
+| serine (second pass) | 0.711 | poor: the sharp 144-146 Hz lines fitted as one broad hump |
+
+To check: serine, diethylamine, the 13C line of methyl dimethylphosphonate, the narrow triplet near 131 Hz of
+N,N-dimethylethylenediamine; tetramethylpiperidine not fitted (too many spins).
