@@ -215,3 +215,12 @@ fitted with natural-abundance amplitude ratios. With free isotopologue amplitude
 (about 72 %): the carbon bound to bromine loses signal, as expected from scalar relaxation by the fast-relaxing
 quadrupolar 79Br / 81Br (decoupled; no Br splittings). Bromine is therefore not added as a coherent spin; its effect
 is the free amplitude (and decay) of the bound carbon's isotopologue. Chosen: sixth pass.
+
+Methyl 2-bromopropionate refinements: stage 3 from the sixth pass (rates <= 10 1/s, 8 starts, component search at
+start and end; runs/processed/batch_methyl-2-bromopropionate_v6_s3) did not help (0.0384). The chain rule gives
+couplings up to three bonds only, so the OCH3 group is isolated. Long-range couplings across the ester added as free
+parameters (--couplings, start 0.5 Hz, no prior; runs/processed/batch_methyl-2-bromopropionate_v7_longrange,
+runs/processed/mbp_v7_longrange.sh): objective 0.0282 (-27 %), 4J(C4,H2) -0.25, 4J(C2,H4) +0.45, 5J(C1,H4) -0.27,
+5J(H2,H4) +0.26 Hz; the third line of the C2 triplet (158.2 Hz) is now fitted. Still missed: the 128.0 / 129.0 Hz pair
+and the 260-264 Hz fine structure of the C1 methyl, a shoulder at 294.5 Hz (residual 4-6 noise levels). Figure:
+runs/figures/batch/methyl-2-bromopropionate_longrange.png. Chosen for the overlay.

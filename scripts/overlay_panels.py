@@ -46,11 +46,15 @@ CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json
 
 # the pass chosen per data set after comparing the passes (docs/analysis/2026-10-10_overnight_plan.md); others: the
 # latest of v3 / v2 / v1
+# a value may also be a run directory name (a refinement outside run_batch) with the config pass of its structure
+RUNS = {"methyl-2-bromopropionate": ("batch_methyl-2-bromopropionate_v7_longrange", "v6")}
 CHOSEN = {"methyl-2-bromopropionate": "_v6", "serine": "_v3", "n-n-dimethylethylenediamine": "_v4"}
 
 
 def latest_fit(eid):
     """(run directory, tag) of the chosen pass (CHOSEN) or the latest finished pass of a batch entry."""
+    if eid in RUNS and (ROOT / "runs/processed" / RUNS[eid][0] / "fit.json").exists():
+        return ROOT / "runs/processed" / RUNS[eid][0], RUNS[eid][1] + " refined"
     order = [CHOSEN[eid]] if eid in CHOSEN else ["_v3", "_v2", ""]
     for tag in order:
         for stage in ("s2", "s1"):
