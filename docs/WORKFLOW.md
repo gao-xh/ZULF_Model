@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma 2026-10-10).
 
 ## Map
 
@@ -330,7 +330,8 @@ Key algorithms (sections 3-9 below give the detail):
   and the cost no longer falls (D55).
 - Objective: signal-weighted complex residual plus missing-peak rows (soft max / soft hinge while optimising,
   hard rows for ranking) and optional coupling priors and residual-peak rows.
-- Decay-rate families: one rate per frequency family of each isotopologue's lines (`--family-edges`).
+- Decay-rate families: one rate per frequency family of each isotopologue's lines (`--family-edges`). Optional Voigt
+  lines: `--fit-sigma` adds one Gaussian width per isotopologue (`--sigma-bounds`, `--sigma-start`, Hz).
 - Fine structure: line table with dJ derivatives, peak sources, residual peaks, local fits of the couplings that
   move the lines of one band, then a global refit (section 8).
 - Reliability: linearised errors are 10-30 x too small; the budget adds the spread of near-equivalent solutions
