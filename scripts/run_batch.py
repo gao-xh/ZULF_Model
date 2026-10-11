@@ -9,7 +9,8 @@ Per entry (resumable: a step whose output exists is skipped):
      when one measurement holds several runs, e.g. a dilution series);
   (an entry may set "exchange": "slow" for N-H / O-H protons that couple, default fast, decoupled; and
   "variant": "free" for free isotopologue amplitudes, default "ratios" = natural-abundance ratios; and
-  "background_order" for the per-band background of the fit, default 1, -1 off)
+  "background_order" for the per-band background of the fit, default 1, -1 off; "nh_exchange": start value
+  (1/s) of a fitted N-H / O-H exchange rate, with "exchange": "slow")
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
      `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/; entries may
      set `apodization` (1/s), `record` (s) and `crop` (s) for a stronger noise filter, written to runs/series/batch_<id><series>/
@@ -117,6 +118,8 @@ def process(entry, args):
               "--structure", json.dumps(entry["structure"]), "--signal-threshold", "2.5", "--signal-taper", "4.0",
               "--peak-penalty", "5", "--peak-smooth", "0.03", "--peak-min-sigma", "3",
               "--workers", str(args.workers), "--max-nfev", "300"]
+    if entry.get("nh_exchange"):
+        common += ["--nh-exchange", str(entry["nh_exchange"])]
     if entry.get("background_order") is not None:
         common += ["--background-order", str(entry["background_order"])]
     if entry.get("field"):

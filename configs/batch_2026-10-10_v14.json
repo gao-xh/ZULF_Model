@@ -1,0 +1,282 @@
+{
+ "note": "Slow N-H exchange (N-H protons coupled, static; the 15N isotopologue then has its 1J(N,H) lines) for the amines whose fits stay weak; starting from the chosen pass of each entry (2026-10-11).",
+ "entries": [
+  {
+   "id": "tert-butylamine",
+   "scans": "raw/2025-10-03-tert-butylamine/tertbutylamine/data",
+   "structure": {
+    "compound": "tert-butylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "C4"
+      ],
+      [
+       "C2",
+       "N1"
+      ]
+     ],
+     "sym": [
+      {
+       "C3": "C4",
+       "C4": "C3",
+       "HC3": "HC4",
+       "HC4": "HC3"
+      },
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      },
+      {
+       "C1": "C3",
+       "C3": "C4",
+       "C4": "C1",
+       "HC1": "HC3",
+       "HC3": "HC4",
+       "HC4": "HC1"
+      },
+      {
+       "C1": "C4",
+       "C3": "C1",
+       "C4": "C3",
+       "HC1": "HC4",
+       "HC3": "HC1",
+       "HC4": "HC3"
+      },
+      {
+       "C1": "C4",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.49,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CC(C)(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "C4": 3,
+      "N1": 4
+     }
+    }
+   },
+   "field": false,
+   "exchange": "slow"
+  },
+  {
+   "id": "isopropylamine",
+   "scans": "raw/2025-09-30-isopropylamine/isopropylamine/data",
+   "structure": {
+    "compound": "isopropylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "N1"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.37,
+     "C2": 133.47,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "N1": 3
+     }
+    }
+   },
+   "field": false,
+   "exchange": "slow"
+  },
+  {
+   "id": "ethylenediamine",
+   "scans": "raw/2025-09-27-ethylenediamine/ethylenediamine/data",
+   "structure": {
+    "compound": "ethylenediamine",
+    "motif": "H2N-CH2-CH2-NH2",
+    "one_bond": {
+     "C1": 131.87,
+     "N1": 68.0
+    }
+   },
+   "field": false,
+   "exchange": "slow"
+  },
+  {
+   "id": "diethylamine",
+   "scans": "raw/2025-10-10-diethylamine/diethylamine/data",
+   "structure": {
+    "compound": "diethylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C4",
+       "C2": "C3",
+       "C3": "C2",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC2": "HC3",
+       "HC3": "HC2",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 125.52,
+     "C2": 133.94,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCNCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "N1": 2,
+      "C3": 3,
+      "C4": 4
+     }
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0,
+   "exchange": "slow"
+  }
+ ]
+}
