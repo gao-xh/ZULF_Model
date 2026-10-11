@@ -422,6 +422,46 @@ class FieldFitTests(unittest.TestCase):
         forward = MixtureForward(param, obs)
         self.assertIs(forward.protocol_for(param.values()), forward.protocol)
 
+    def test_field_distribution_widths(self):
+        """Field-distribution line shapes (D63): family widths = |dnu/dB| x sigma_B; sigma_B is recovered from data
+        propagated by brute force and averaged over a Gaussian distribution of the field magnitude."""
+        from zulf_core.physics.protocol import Protocol
+        from zulf_core.physics.transitions import reference_signal
+        field, sigma_b, rate = np.array([0.03, 0.0, 0.05]), 8.0, 0.5
+        bnt = 1e3 * np.linalg.norm(field)
+        system = self.methyl_13c()
+        tl0 = compute_transitions(system, Protocol(field_ut=tuple(field)))
+        tl1 = compute_transitions(system, Protocol(field_ut=tuple(field * 1.001)))
+        f0, a0 = np.asarray(tl0.frequencies_hz), np.abs(tl0.amplitudes)
+        keep = a0 > 1e-6 * a0.max()
+        f0, a0 = f0[keep], a0[keep]
+        f1 = np.asarray(tl1.frequencies_hz)
+        slope = np.array([abs(f1[np.argmin(np.abs(f1 - v))] - v) / (1e-3 * bnt) for v in f0])
+        order = np.argsort(f0)
+        edges = tuple(0.5 * (f0[order][1:] + f0[order][:-1]))
+        fam = np.searchsorted(np.asarray(edges), f0, side="right")
+        slopes = tuple(float(np.sum(a0[fam == k] * slope[fam == k]) / np.sum(a0[fam == k])) for k in range(len(edges) + 1))
+        policy = ParameterPolicy(fit_field=True, field_fixed=True, initial_field_ut=(field[0], field[2]),
+                                 family_edges_hz=edges, field_sigma_slopes=(slopes,), initial_field_sigma_nt=4.0,
+                                 initial_rate_per_s=rate, fit_phase_delay=False)
+        interp = Interpretation((Component(system),))
+        param = Parameterization.from_interpretation(interp, policy)
+        self.assertIn("field_sigma_nt", param.parameters)
+        self.assertNotIn("c0.sigma", param.parameters)
+        values = param.values()
+        np.testing.assert_allclose(param.sigma(values, 0), np.array(slopes) * 4.0)
+        # data: brute-force signal averaged over |B| ~ N(|B0|, sigma_b), direction fixed (Gauss-Hermite)
+        acq = Acquisition(1000.0, 6000, start_sample=40, sg_window=101, sg_order=2)
+        t = acq.times()
+        nodes, weights = np.polynomial.hermite_e.hermegauss(21)
+        sig = sum(w * reference_signal(system, t, Protocol(field_ut=tuple(field * (1 + x * sigma_b / bnt))))
+                  for x, w in zip(nodes, weights)) / weights.sum()
+        obs = ObservedSpectrum.from_fid(50.0 * sig * np.exp(-rate * t), acq, [(125.0, 147.0), (258.0, 286.0)])
+        # the model reproduces the averaged data with sigma_B = 8 nT (first order in the field spread)
+        res = refine(interp, obs, RefineSettings(policy=policy, starts=1))
+        self.assertAlmostEqual(res.parameters["field_sigma_nt"], sigma_b, delta=0.1 * sigma_b)
+        self.assertLess(res.relative_residual, 2e-2)
+
     def test_field_is_recovered_from_a_nonzero_start(self):
         truth = (0.03, 0.0, 0.06)
         obs = self.field_observation(truth)

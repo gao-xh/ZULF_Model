@@ -46,6 +46,13 @@ class ParameterPolicy:
     fit_sigma: bool = False
     sigma_bounds_hz: Tuple[float, float] = (1e-3, 5.0)
     initial_sigma_hz: float = 0.05
+    # Field-distribution line shapes (D63): with per-component, per-family field sensitivities |dnu/dB| (Hz/nT) the
+    # Gaussian width of family f of component c is field_sigma_slopes[c][f] * field_sigma_nt, one fitted field
+    # spread sigma_B (nT, standard deviation) for the whole sample instead of one width per component: lines that do
+    # not move with the field stay Lorentzian, the most field-sensitive ones get the widest Gaussian.
+    field_sigma_slopes: Tuple[Tuple[float, ...], ...] = ()
+    field_sigma_bounds_nt: Tuple[float, float] = (0.0, 200.0)
+    initial_field_sigma_nt: float = 5.0
     # First-order phase as a time delay. Fitted by default: every acquisition has one (dead time,
     # switching), and a shared zero-order phase alone forces the couplings to absorb it (D24).
     fit_phase_delay: bool = True
@@ -124,10 +131,17 @@ class Parameterization:
                 guess = float(np.clip(guess, lo, hi))
                 params.append(Parameter(f"c{c_index}.log_rate{f}", math.log(guess), math.log(lo), math.log(hi), True,
                                         "log_rate", c_index, (f,)))
-            if policy.fit_sigma:
+            if policy.fit_sigma and not policy.field_sigma_slopes:
                 lo, hi = policy.sigma_bounds_hz
                 params.append(Parameter(f"c{c_index}.sigma", float(np.clip(policy.initial_sigma_hz, lo, hi)), lo, hi,
                                         True, "sigma", c_index))
+        if policy.field_sigma_slopes:
+            if len(policy.field_sigma_slopes) != len(layouts) or any(
+                    len(row) != len(policy.family_edges_hz) + 1 for row in policy.field_sigma_slopes):
+                raise ValueError("field_sigma_slopes needs one row per component and one value per rate family")
+            lo, hi = policy.field_sigma_bounds_nt
+            params.append(Parameter("field_sigma_nt", float(np.clip(policy.initial_field_sigma_nt, lo, hi)), lo, hi,
+                                    True, "sigma", -1))
         if policy.fit_phase_delay:
             lo, hi = policy.phase_delay_bounds_s
             start = 0.0 if lo <= 0.0 <= hi else 0.5 * (lo + hi)     # an instrument prior may exclude zero
@@ -262,7 +276,11 @@ class Parameterization:
         families = len(self.policy.family_edges_hz) + 1
         return np.array([math.exp(values[f"c{component}.log_rate{f}"]) for f in range(families)])
 
-    def sigma(self, values: Dict[str, float], component: int) -> float:
+    def sigma(self, values: Dict[str, float], component: int):
+        """Gaussian width (Hz) of a component: a scalar, or one value per rate family with field_sigma_slopes."""
+        slopes = self.policy.field_sigma_slopes
+        if slopes:
+            return np.asarray(slopes[component], float) * float(values.get("field_sigma_nt", 0.0))
         return values.get(f"c{component}.sigma", 0.0)
 
     def phase_delay(self, values: Dict[str, float]) -> float:

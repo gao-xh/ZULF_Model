@@ -163,6 +163,16 @@ Mirror-pair asymmetry checks (8 s, window 1.0 1/s fits):
 - Model-free envelope decay (demodulate, Gaussian low-pass): the J line gives 0.39 / 0.38 1/s as the fits, but the
   sidebands reach the noise floor within the window; inconclusive.
 
+- Field-distribution line shapes (D63, --field-sigma, same family edges; runs/processed/<series>_fieldsigma_fit):
+  sigma_B 6.5 nT (2 mL) and 6.0 nT (250 uL), objective -0.3 % / -1.5 %. Lorentzian rates of the field-sensitive
+  families drop (2 mL 1J sidebands 1.40 / 2.28, 2J inner 2.10 / 2.30; 250 uL 0.10 (bound) / 1.32, 1.44 / 2.24), the
+  asymmetry stays. The extra width of the 2 mL sample is mostly not Gaussian.
+- Phase check (fit model, best extra complex scale per window): whole bands need 0.0-0.6 deg and x1.00; the
+  high-frequency sides need more (2 mL 2J high +1.9 deg, x1.013, residual -18 %; 250 uL 2J high -8.4 deg, x1.044,
+  -21 %; 250 uL 1J high x0.905, -10 %), the low sides little (-1 to -3 %). The delay and zero-order phase are right;
+  the high-side lines differ from the model's fixed relative amplitudes/phases by a few percent, which the fit can
+  only absorb in their decay rates. Next: one free amplitude (and phase) per family.
+
 ## Conclusion
 
 Conditional numerical result. With the record starting at 0.3 s (no early transient), LF_1 and 250 uL give the same

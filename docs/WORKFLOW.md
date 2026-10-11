@@ -331,7 +331,8 @@ Key algorithms (sections 3-9 below give the detail):
 - Objective: signal-weighted complex residual plus missing-peak rows (soft max / soft hinge while optimising,
   hard rows for ranking) and optional coupling priors and residual-peak rows.
 - Decay-rate families: one rate per frequency family of each isotopologue's lines (`--family-edges`). Optional Voigt
-  lines: `--fit-sigma` adds one Gaussian width per isotopologue (`--sigma-bounds`, `--sigma-start`, Hz).
+  lines: `--fit-sigma` adds one Gaussian width per isotopologue (`--sigma-bounds`, `--sigma-start`, Hz);
+  `--field-sigma` gives each family the width |dnu/dB| x one fitted field spread sigma_B (nT, D63).
 - Fine structure: line table with dJ derivatives, peak sources, residual peaks, local fits of the couplings that
   move the lines of one band, then a global refit (section 8).
 - Reliability: linearised errors are 10-30 x too small; the budget adds the spread of near-equivalent solutions

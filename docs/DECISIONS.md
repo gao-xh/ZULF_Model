@@ -1078,3 +1078,20 @@ Tests: tests/test_processing.py DisplayBaselineTests (shared keeps the residual;
 - Q7. GPU model and memory for training.
 - Q8. Whether solver tools are exposed through an MCP server.
 - Q9. Blind-test molecule list.
+
+## D63. Field-distribution line shapes (2026-10-10)
+
+A sample in an inhomogeneous static field broadens each line by its own field sensitivity |dnu/dB|; lines that do
+not move with the field (dnu/dB = 0, e.g. the acetonitrile J line and 2J centre line) stay narrow. One Gaussian
+width per isotopologue (fit_sigma) cannot describe that. ParameterPolicy.field_sigma_slopes gives each rate family of
+each component its |dnu/dB| (Hz/nT); the Gaussian width of the family is then |dnu/dB| x field_sigma_nt, one fitted
+field spread sigma_B (nT, standard deviation) for the sample, on top of the Lorentzian rate of every family.
+fit_joint_series --field-sigma computes the slopes at the start field (the transitions at the field and at its
+magnitude x 1.001, direction fixed; amplitude-weighted mean per family) and rebuilds the problem with them;
+--fit-sigma exposes the per-component width. The derivative of the new parameter is a central difference of the
+columns (as for the other Gaussian widths and the field). Test: tests/test_solver.py
+test_field_distribution_widths (data propagated by brute force and averaged over a Gaussian distribution of |B|,
+sigma_B 8 nT recovered within 10 %). First use (acetonitrile 2 mL / 250 uL): sigma_B 6.5 / 6.0 nT, objective
+-0.3 % / -1.5 %: the data hardly prefer a Gaussian field distribution
+(docs/analysis/2026-10-10_acetonitrile-lf1.md).
+

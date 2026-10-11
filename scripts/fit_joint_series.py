@@ -104,6 +104,12 @@ def _rate_policy(base, args):
             raise SystemExit("--sigma-bounds: 0 < lo < hi (Hz)")
         policy = dataclasses.replace(policy, fit_sigma=True, sigma_bounds_hz=(lo, hi),
                                      initial_sigma_hz=float(np.clip(args.sigma_start, lo, hi)))
+    if getattr(args, "field_sigma_slopes", ""):
+        # field-distribution line shapes (D63): Gaussian width of each family = |dnu/dB| x one fitted sigma_B (nT)
+        lo, hi = (float(v) for v in args.field_sigma_bounds.split(","))
+        policy = dataclasses.replace(policy, field_sigma_slopes=tuple(tuple(row) for row in json.loads(args.field_sigma_slopes)),
+                                     field_sigma_bounds_nt=(lo, hi),
+                                     initial_field_sigma_nt=float(np.clip(args.field_sigma_start, lo, hi)))
     if getattr(args, "fit_field", False):
         axes = tuple(a.strip() for a in args.field_axes.split(",") if a.strip())
         lo, hi = (float(v) for v in args.field_bounds.split(","))
@@ -1337,7 +1343,43 @@ def build_problem(args):
                 merged.append(e)
         args.family_edges = ",".join(f"{e:.3f}" for e in merged)
         print(f"--family-edges {mode}: {len(merged)} edges ({'; '.join(notes)}): {args.family_edges}", flush=True)
+    if getattr(args, "field_sigma", False) and not getattr(args, "field_sigma_slopes", ""):
+        import copy
+        first = copy.copy(args)
+        first.field_sigma = False
+        p = _build_problem(first)
+        slopes = field_sigma_slopes(p.joint, p.z0)
+        args.field_sigma_slopes = json.dumps([[round(v, 6) for v in row] for row in slopes])
+        print(f"--field-sigma: |dnu/dB| per rate family (Hz/nT): {args.field_sigma_slopes}", flush=True)
     return _build_problem(args)
+
+
+def field_sigma_slopes(joint, z, s=0, eps=1e-3):
+    """|dnu/dB| (Hz/nT) of every rate family of every component at the start vector z (D63): the transitions of each
+    component at the fitted field and at its magnitude scaled by 1 + eps (direction fixed), matched by frequency;
+    per family the amplitude-weighted mean of |dnu/dB| over its lines (0 for families without lines)."""
+    f = joint.forwards[s]
+    P = joint.params[s]
+    values = P.values(joint.spectrum_vector(z, s))
+    field = np.asarray(P.field_ut(values) or (0.0, 0.0, 0.0), float)
+    bnt = 1e3 * float(np.linalg.norm(field))
+    if bnt <= 0:
+        raise SystemExit("--field-sigma needs a nonzero field (--fit-field or --field)")
+    edges = np.asarray(P.policy.family_edges_hz, float)
+    n_fam = len(edges) + 1
+    out = []
+    for c, system in enumerate(P.systems(values)):
+        tl0 = f.cache.get(system, f.protocol_for(values))
+        tl1 = f.cache.get(system, f.protocol_for(values).with_field(tuple(field * (1 + eps))))
+        f0, a0, f1 = np.asarray(tl0.frequencies_hz), np.abs(np.asarray(tl0.amplitudes)), np.asarray(tl1.frequencies_hz)
+        slope = np.array([abs(f1[np.argmin(np.abs(f1 - v))] - v) / (eps * bnt) for v in f0]) if len(f1) else np.zeros(0)
+        fam = np.searchsorted(edges, f0, side="right") if len(edges) else np.zeros(len(f0), int)
+        row = []
+        for k in range(n_fam):
+            m = fam == k
+            row.append(float(np.sum(a0[m] * slope[m]) / np.sum(a0[m])) if m.any() and np.sum(a0[m]) > 0 else 0.0)
+        out.append(row)
+    return out
 
 
 def peak_family_edges(joint, s=0, smooth_hz=0.15, k_sigma=4.0, min_distance_hz=0.5):
@@ -1613,6 +1655,12 @@ def make_parser():
                     help="Voigt lines: fit one Gaussian width per isotopologue (Hz) on top of the Lorentzian rates")
     ap.add_argument("--sigma-bounds", default="0.001,2", help="lo,hi of the Gaussian width (Hz, standard deviation)")
     ap.add_argument("--sigma-start", type=float, default=0.1, help="start of the Gaussian width (Hz)")
+    ap.add_argument("--field-sigma", action="store_true",
+                    help="field-distribution line shapes (D63): Gaussian width of each rate family = its |dnu/dB| "
+                         "(computed at the start field) x one fitted field spread sigma_B (nT); needs a field")
+    ap.add_argument("--field-sigma-bounds", default="0,200", help="lo,hi of sigma_B (nT)")
+    ap.add_argument("--field-sigma-start", type=float, default=5.0, help="start of sigma_B (nT)")
+    ap.add_argument("--field-sigma-slopes", default="", help=argparse.SUPPRESS)
     ap.add_argument("--fit-field", action="store_true",
                     help="fit a static field during evolution (D47); default: zero field")
     ap.add_argument("--field-axes", default="transverse,z", help="fitted field components: transverse and/or z")

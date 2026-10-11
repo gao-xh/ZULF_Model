@@ -315,17 +315,17 @@ class MixtureForward:
             if not len(tl) or c >= len(gains):
                 continue
             rates = _per_transition(self.p.rates(values, c), tl, "decay rate") + tl.rates_of_lines()
-            sigma = self.p.sigma(values, c)
+            sigmas = _per_transition(self.p.sigma(values, c), tl, "Gaussian sigma")
             weight = np.abs(gains[c] * tl.amplitudes)
-            for r in np.unique(rates):
-                members = np.flatnonzero((rates == r) & (weight > 0))
+            for r, sigma in np.unique(np.stack([rates, sigmas], axis=1), axis=0):
+                members = np.flatnonzero((rates == r) & (sigmas == sigma) & (weight > 0))
                 if not len(members):
                     continue
                 # smooth mode: one reference frequency for every profile (the median line of a rate group jumps
                 # when two families reach the same rate, e.g. both at a bound, and the groups merge)
                 f0 = float(np.median(grid)) if taper else float(np.median(tl.frequencies_hz[members]))
                 pair = self.renderer.render_pair(TransitionList(np.array([f0]), np.array([1.0 + 0j])), float(r),
-                                                 f0 + offsets, delay, sigma)
+                                                 f0 + offsets, delay, float(sigma))
                 profile = np.abs(pair[:, 0])
                 if taper:
                     u = np.clip((np.abs(offsets) - 0.7 * half_width_hz) / (0.3 * half_width_hz), 0.0, 1.0)
@@ -635,7 +635,7 @@ class MixtureForward:
         families = np.searchsorted(np.asarray(edges, float), d.frequencies_hz, side="right") if edges else \
             np.zeros(len(d), int)
         rates = self.p.rates(values, c)[families]
-        sigma = np.full(len(d), float(self.p.sigma(values, c)))
+        sigma = self._sigma_per_line(values, c, families)
         delay = self.p.phase_delay(values)
         a = d.amplitudes
         rows_b, rows_c, keys = [], [], []
@@ -678,7 +678,7 @@ class MixtureForward:
             np.zeros(len(tl), int)
         comp_rates = self.p.rates(values, c)[families]
         rates = comp_rates + tl.rates_of_lines()
-        sigma = np.full(len(tl), float(self.p.sigma(values, c)))
+        sigma = self._sigma_per_line(values, c, families)
         delay = self.p.phase_delay(values)
         a = tl.amplitudes
         rows_b, rows_c, keys = [], [], []
@@ -705,6 +705,13 @@ class MixtureForward:
         if self.correction is not None:
             cols = cols * self.correction[:, None, None]
         return {k: cols[:, :, i] for i, k in enumerate(keys)}
+
+    def _sigma_per_line(self, values: Dict[str, float], c: int, families: np.ndarray) -> np.ndarray:
+        """Gaussian width of every line of component c from its rate family (scalar or per-family table)."""
+        s = self.p.sigma(values, c)
+        if np.ndim(s) == 0:
+            return np.full(len(families), float(s))
+        return np.asarray(s, float)[families]
 
     def _numeric_column_derivatives(self, values: Dict[str, float], names: Sequence[str]):
         """Central differences of the component pair columns and nuisance columns (no closed form)."""
