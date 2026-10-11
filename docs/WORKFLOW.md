@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record 2026-10-11).
 
 ## Map
 
@@ -349,7 +349,7 @@ Unattended batch of quick known-structure fits (many data sets; 2026-10-10):
 | step | output |
 |---|---|
 | averages from the scans on the drive (`average_scans.py`, all scans and `--exclude-z 5`) | `~/research/zulf/data/processed/<measurement>/{all-scans,z5}/` |
-| whole-grid spectrum of the z5 average (`make_series_entry.py --exclude 81.5,86`) | `runs/series/batch_<id>/` |
+| whole-grid spectrum of the z5 average (`make_series_entry.py --exclude 81.5,86`; entry keys `apodization`, `record` for a stronger noise filter, `series` suffix) | `runs/series/batch_<id>[<series>]/` |
 | stage 1: one rate per isotopologue, component search, 6 starts | `runs/processed/batch_<id><tag>_s1/` |
 | stage 2 from stage 1: one rate per model line, rates 0.1-40 1/s, 2 starts | `runs/processed/batch_<id><tag>_s2/` |
 | results table after every entry | `docs/analysis/2026-10-10_batch_results*.md` |
