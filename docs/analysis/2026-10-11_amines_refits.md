@@ -34,6 +34,26 @@ Objectives of passes with the noise filter are not comparable with the 0.3 1/s p
   lines, or the early switching transient (compare crop 0.3 s for these slow-decaying spectra).
 - diethylamine: spurious model lines near 200 Hz.
 
+## Slow N-H exchange and the 15N isotopologue (v14, v15; owner's suggestion)
+
+With fast exchange the N-H protons are decoupled and the 15N isotopologue has only small couplings to
+carbon-bound protons, so its lines fall below the fitted range; with slow exchange the N-H protons stay in the
+spin system and both the 13C and the 15N isotopologues gain lines (1J(N,H)). Triethylamine has no N-H: neither
+applies. Command: `python scripts/run_batch.py configs/batch_2026-10-10_v14.json --parallel 2 --workers 2 --tag
+_v14` (exchange slow, static; start from the chosen pass of each entry). v15 (one fitted exchange rate k,
+`nh_exchange` 50 1/s) did not finish one evaluation of stage 1 in 46 min (exact Liouville model with the
+component search) and was stopped.
+
+| entry | previous (same data) | v14 objective | 1J(N,H) (Hz) | verdict |
+|---|---|---|---|---|
+| tert-butylamine | v1 s2 0.121 | 0.110 | -75.76 +- 0.05 | **v14**, 2J band slightly better |
+| isopropylamine | v2 s2 0.063 | 0.116 (stage 2 stopped) | -75.80 (stage 1) | worse, keep v2 |
+| ethylenediamine | v1 s2 0.062 | **0.033** | -65.00 +- 0.31 | **v14**: the small lines at 190-193 Hz now fitted |
+| diethylamine | v13 s2 0.855 | **0.535** | -75.89 +- 0.15 | **v14**: 251 / 255 Hz lines better, spurious 200 Hz lines weaker; 2J(C2,HN1) -11.6 Hz implausibly large |
+
+Figure runs/figures/batch/amines_v14_compare.png; the overlay draws v14 for these three.
+Isopropylamine and triethylamine keep a too-weak 2J band: not explained by N-H coupling.
+
 Conditional numerical results of the given structures.
 
 Commit: (this commit)
