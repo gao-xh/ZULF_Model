@@ -1653,6 +1653,8 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         base = dataclasses.replace(base, signal_taper_hz=args.signal_taper)
     if getattr(args, "signal_height_power", 0.0):
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
+    if getattr(args, "background_order", None) is not None:
+        base = dataclasses.replace(base, background_order=args.background_order)
     base = _rate_policy(base, args)
     settings = _settings_for(model, args.variant, base)
     exchange = None
@@ -1783,6 +1785,10 @@ def make_parser():
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--background-order", type=int, default=None,
+                    help="per-band complex polynomial background (default 1, linear; -1 off). It is smooth in the "
+                         "record's frame, so with crop + delay c it shows as a ripple of period 1/c in the spectrum "
+                         "(glycerol, 2026-10-11: 10 Hz ripples not in the data)")
     ap.add_argument("--signal-height-power", type=float, default=0.0,
                     help="extra weight (local peak height / max)^-power: small peaks count more (0 = off)")
     ap.add_argument("--guard-penalty", type=float, default=5.0,

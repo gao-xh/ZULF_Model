@@ -37,7 +37,34 @@
 - Glycerol v9 model shows a ripple (period about 10 Hz, 160-245 Hz, broken at the mains gaps 180 / 240 Hz) that
   the data do not show. Not the 0-14 Hz lines outside the grid: a stage-2 refit with rates >= 2 1/s
   (runs/processed/batch_glycerol_v9_rate2_s2; their rate 0.51 -> 3.17 1/s) leaves it unchanged (objective
-  0.834). Cause open.
+  0.834). Cause: the per-band background (below).
+
+## Glycerol ripple: cause and fix (later the same night)
+
+- Decomposition of the v9 model (forward predict: component spectra and background): the components are below
+  0.0005 in 225-240 Hz, the model 0.0023 there. The ripple is the per-band linear background
+  (`default_fit_base` background_order 1), which is smooth in the record's frame and multiplied by the
+  first-order phase correction, i.e. a ripple of period 1/(crop + delay) = 10 Hz, broken at the band gaps.
+  With signal weighting the empty regions cost little, so the fit used it to absorb broad structure near the
+  lines. Not the AsLS display baseline (raw model, no AsLS) and not broad lines (rate caps 8 and 12 1/s:
+  unchanged).
+- New option `fit_joint_series.py --background-order` (default unchanged: 1) and run_batch entry key
+  `background_order`.
+
+| version | change | objective | 1J C1 / C2 (Hz) | result |
+|---|---|---|---|---|
+| glycerol_v9_s2 | background linear | 0.832 | 142.73 / 143.06 | ripple 160-245 Hz |
+| glycerol_v9_bg0_s2 | background constant, stage 2 only | 0.869 | 142.76 / 143.03 | ripple smaller |
+| glycerol_v9_bgoff_s2 | background off, stage 2 only | 1.011 | 142.79 / 143.08 | no ripple, CH2 band shifted |
+| glycerol_v11_s2 | background off, both stages | 0.989 | 144.05 / 141.08 | no ripple; half of the middle CH2 doublet (213.3 Hz) and the 147 Hz CH line missed |
+| **glycerol_v12_s2** | as v11, 1J starts from the bands | 0.962 | 142.32 / 143.13 | both bands fitted, no ripple |
+| serine_v11_s2 | background off | 0.857 | 146.55 / 144.52 | as serine_v9 |
+
+Objectives with and without background are on the same data, but the background lowers the objective by
+absorbing structure; v12 is chosen by the bands (runs/figures/batch/glycerol_zoom.png, raw real part, model
+lines marked; runs/figures/batch/glycerol_background.png). glycerol_v12 couplings: 2J(C1,H2) -1.98,
+3J(C1,H3) 2.93, 3J(H1,H2) 5.11, 2J(C2,H1) -1.98 Hz (not determined: they moved by several Hz between passes).
+The overlay now draws glycerol_v12 and serine_v11, with the version printed in every panel.
 
 ## Conclusion
 
@@ -47,8 +74,7 @@ numerical results of the given structures.
 
 ## Open points
 
-- Origin of the 10 Hz ripple in the glycerol model (crop wings of the strong broad J-band lines with crop 0.1 s
-  are the candidate; compare with the model rendered without the SG drift filter).
+- Other fits with the default linear background may carry the same ripple: check the model away from the lines.
 - Glycerol and serine long-range couplings: a prior or a scan, as for methyl 2-bromopropionate.
 
 Commit: (this commit)

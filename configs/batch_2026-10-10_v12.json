@@ -1,0 +1,99 @@
+{
+ "note": "As v11 (background off, window 1.5 1/s) with the stage-1 1J starts read from the observed bands (D64): v11 lost the third CH-band line at 147 Hz.",
+ "entries": [
+  {
+   "id": "glycerol",
+   "scans": "original/2026-03-20-glycerol-40wt-h2o/glycerol_40weight_H2O",
+   "structure": {
+    "compound": "glycerol",
+    "chain": {
+     "groups": [
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "C1",
+       "C",
+       2
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "O3",
+       "O",
+       0
+      ]
+     ],
+     "bonds": [
+      [
+       "O1",
+       "C1"
+      ],
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "O2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O3"
+      ]
+     ],
+     "sym": [
+      {
+       "O1": "O3",
+       "C1": "C3",
+       "C3": "C1",
+       "O3": "O1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 145.41,
+     "C2": 142.68
+    },
+    "molecule": {
+     "smiles": "OCC(O)CO",
+     "sites": {
+      "O1": 0,
+      "C1": 1,
+      "C2": 2,
+      "O2": 3,
+      "C3": 4,
+      "O3": 5
+     }
+    }
+   },
+   "field": false,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0,
+   "background_order": -1,
+   "one_bond_from_data": true
+  }
+ ]
+}

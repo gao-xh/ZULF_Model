@@ -102,6 +102,13 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 - Default: complex data, `gain_model="shared_phase"`, delay fitted,
   background_order 1, 3 starts, analytic (Kaufman) Jacobian.
+- Check the model away from the lines. The per-band background is smooth in
+  the record's frame, so in the spectrum it is a ripple of period
+  1/(crop + delay) (10 Hz with crop 0.1 s) that breaks at the band gaps; with
+  signal weighting the empty regions cost little, so the fit can use it to
+  absorb broad structure near the lines. Glycerol (2026-10-11): ripples of a
+  third of the line height not in the data; `--background-order -1` removed
+  them, and with the 1J starts from the bands (v12) both bands fitted.
 - Prefer `band_weighting="signal"`: noise-scaled chi-square; the weight is 1
   at peak cores and falls off smoothly (Gaussian, `signal_taper_hz` 2 Hz) to
   `signal_outside_weight` (0.2) far from any core - no hard edges. Cores come

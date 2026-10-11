@@ -48,8 +48,8 @@ CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json
 # latest of v3 / v2 / v1
 # a value may also be a run directory name (a refinement outside run_batch) with the config pass of its structure
 RUNS = {"methyl-2-bromopropionate": ("batch_methyl-2-bromopropionate_v7_longrange", "v6")}
-CHOSEN = {"methyl-2-bromopropionate": "_v6", "serine": "_v9", "n-n-dimethylethylenediamine": "_v4",
-          "lactic-acid": "_v9", "alanine": "_v9", "glycerol": "_v9"}   # v9: window 1.5 1/s (owner, 2026-10-11)
+CHOSEN = {"methyl-2-bromopropionate": "_v6", "serine": "_v11", "n-n-dimethylethylenediamine": "_v4",
+          "lactic-acid": "_v9", "alanine": "_v9", "glycerol": "_v12"}   # v9: window 1.5 1/s; v11, v12: background off (2026-10-11)
 
 
 def latest_fit(eid):
@@ -212,6 +212,10 @@ def panel(ax, eid, view):
     fit = json.load(open(run / "fit.json"))
     ax.text(0.07, 0.22, f"{eid.replace('-', ' ')}", transform=ax.transAxes, fontsize=8, fontweight="bold",
             ha="center", va="top")
+    # which pass is drawn, in plain sight (owner, 2026-10-11): the fit folder names the version and stage
+    ax.text(0.07, 0.13, f"version: {run.name.removeprefix(f'batch_{eid}').strip('_') or 'v1'}", transform=ax.transAxes, fontsize=7.5,
+            fontweight="bold", color="#8a3b12", ha="center", va="top",
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d4682e", lw=0.6))
     def describe(st):
         pre = f"pre {st['pre']} Hz, " if st["pre"] else ""
         return f"{pre}{st['smooth']} Hz, p {st['p']}"
