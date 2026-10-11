@@ -96,6 +96,14 @@ def _rate_policy(base, args):
         if not lo < hi:
             raise SystemExit("--phase-delay-bounds: lo < hi (ms)")
         policy = dataclasses.replace(policy, phase_delay_bounds_s=(lo, hi))
+    if getattr(args, "fit_sigma", False):
+        # Voigt lines: one Gaussian width sigma (Hz, standard deviation of a frequency distribution) per
+        # isotopologue on top of the Lorentzian rate of every family (ParameterPolicy.fit_sigma, renderer D6)
+        lo, hi = (float(v) for v in args.sigma_bounds.split(","))
+        if not 0.0 < lo < hi:
+            raise SystemExit("--sigma-bounds: 0 < lo < hi (Hz)")
+        policy = dataclasses.replace(policy, fit_sigma=True, sigma_bounds_hz=(lo, hi),
+                                     initial_sigma_hz=float(np.clip(args.sigma_start, lo, hi)))
     if getattr(args, "fit_field", False):
         axes = tuple(a.strip() for a in args.field_axes.split(",") if a.strip())
         lo, hi = (float(v) for v in args.field_bounds.split(","))
@@ -1601,6 +1609,10 @@ def make_parser():
                     "or a combination with '+', e.g. 'peaks+lines'")
     ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
+    ap.add_argument("--fit-sigma", action="store_true",
+                    help="Voigt lines: fit one Gaussian width per isotopologue (Hz) on top of the Lorentzian rates")
+    ap.add_argument("--sigma-bounds", default="0.001,2", help="lo,hi of the Gaussian width (Hz, standard deviation)")
+    ap.add_argument("--sigma-start", type=float, default=0.1, help="start of the Gaussian width (Hz)")
     ap.add_argument("--fit-field", action="store_true",
                     help="fit a static field during evolution (D47); default: zero field")
     ap.add_argument("--field-axes", default="transverse,z", help="fitted field components: transverse and/or z")

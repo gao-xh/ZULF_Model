@@ -144,6 +144,25 @@ bound (40 1/s, the weak line suppressed), not usable. Fit through the origin wit
 0.1-0.3 1/s between processings (e.g. 250 uL 134.6 Hz: 0.86 with 16 s / no window, 0.54 with 8 s / 1.0 1/s): an
 estimate of their uncertainty. Next: tie the rates of mirror lines and fit R = R0 + pi |dnu/dB| dB directly.
 
+Mirror-pair asymmetry checks (8 s, window 1.0 1/s fits):
+- One rate free, everything else held (scratch scripts on the fits' own objective): 250 uL 273.5/273.7 started at
+  1.7 or 2.3 returns to 2.48, 271.4/271.6 started at 2.3 returns to 1.70; 2 mL cross-starts return to 2.31 / 2.50.
+  Profiles (runs/figures/acn_w1_rate_profiles_both.png) have clear minima (about +-0.3 1/s for +1 % in 250 uL,
+  +-0.1 in 2 mL). Within this model the high-frequency member is faster in both samples.
+- Magnitude spectrum (2J band, the two pair rates free): 2 mL 2.19 / 2.40, 250 uL 1.43 / 2.26 1/s; one shared rate
+  costs +64 % / +117 %: not a phase effect (runs/figures/acn_2j_magnitude_fit.png).
+- No fixed narrow line at 273-275 Hz in any other data set (4000 / 8333 Hz); acetonitrile is the only 2000 Hz data,
+  so an aliased instrument line is not excluded. Residuals (runs/figures/acn_residual_mirror_pairs.png): no isolated
+  extra peak at 273.6; 2 mL shows band-wide ripples in the 2J residual (line-shape mismatch).
+- Second-order Zeeman shifts make the high-frequency member slightly more field sensitive (1-2 %), the right sign
+  but 0.01-0.03 1/s instead of 0.2-0.8 1/s.
+- Voigt (new fit_joint_series --fit-sigma: one Gaussian width per isotopologue on top of the per-line Lorentzian
+  rates; runs/processed/<series>_voigt_fit, same family edges): 2 mL sigma 0.008 Hz (none; score unchanged), 250 uL
+  sigma 0.069 Hz (score -1.3 %, all rates about 0.2 1/s lower); the asymmetry is unchanged. A uniform Gaussian
+  cannot describe field broadening, which scales with each line's dnu/dB; next: sigma_k = |dnu/dB|_k sigma_B.
+- Model-free envelope decay (demodulate, Gaussian low-pass): the J line gives 0.39 / 0.38 1/s as the fits, but the
+  sidebands reach the noise floor within the window; inconclusive.
+
 ## Conclusion
 
 Conditional numerical result. With the record starting at 0.3 s (no early transient), LF_1 and 250 uL give the same
