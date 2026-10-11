@@ -224,3 +224,11 @@ runs/processed/mbp_v7_longrange.sh): objective 0.0282 (-27 %), 4J(C4,H2) -0.25, 
 5J(H2,H4) +0.26 Hz; the third line of the C2 triplet (158.2 Hz) is now fitted. Still missed: the 128.0 / 129.0 Hz pair
 and the 260-264 Hz fine structure of the C1 methyl, a shoulder at 294.5 Hz (residual 4-6 noise levels). Figure:
 runs/figures/batch/methyl-2-bromopropionate_longrange.png. Chosen for the overlay.
+
+Methyl 2-bromopropionate, model lines and C1 coupling scan: with the model lines drawn under the spectrum
+(runs/figures/batch/methyl-2-bromopropionate_lines.png), the experimental peaks at 128.0 and 263.0 Hz have no model line
+(nearest 128.5 and 263.5 Hz); every other peak has one. A grid scan of 2J(C1,H2) (-8..8 Hz) x 3J(H1,H2) (-2..12 Hz),
+step 0.25 Hz, all else held (runs/figures/batch/mbp_c1_scan.png, script runs/figures/batch/mbp_c1_scan.py, 7 min):
+the current values (-2.56 / 6.48 Hz) are the only deep minimum (objective 0.029; the next local minima 0.110), also
+for the residual in the C1 bands alone. So the two unexplained peaks are not a wrong C1 coupling combination; a
+second species with a CH3-CH fragment (e.g. the hydrolysis product 2-bromopropionic acid) is the next hypothesis.
