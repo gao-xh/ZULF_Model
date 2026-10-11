@@ -64,10 +64,17 @@ def latest_fit(eid):
     return None, None
 
 
+def fit_series(run):
+    """The series file a fit was made on (its command line), so a pass with another window is drawn on its own data."""
+    argv = json.loads((Path(run) / "monitor" / "status.json").read_text())["argv"]
+    return argv[argv.index("--series") + 1]
+
+
 def entry_spec(eid, tag):
-    """Structure specification of the pass used (v3 / v2 configs override the first pass)."""
-    order = {"v6": ["configs/batch_2026-10-10_v6.json"] + CONFIGS, "v4": ["configs/batch_2026-10-10_v4.json"] + CONFIGS, "v3": CONFIGS, "v2": CONFIGS[1:],
-             "v1": CONFIGS[2:]}[tag.split()[0]]
+    """Structure specification of the pass used: the config of that pass first, then the earlier configs."""
+    version = tag.split()[0]
+    own = "configs/batch_2026-10-10.json" if version == "v1" else f"configs/batch_2026-10-10_{version}.json"
+    order = [own] + [c for c in CONFIGS if c != own]
     for cfg in order:
         for e in json.load(open(ROOT / cfg))["entries"]:
             if e["id"] == eid:
@@ -154,7 +161,7 @@ def panel(ax, eid, view):
         return
     spec, entry = entry_spec(eid, tag)
     s = StudioSession(log_file=False)
-    s.load_spectrum(series=str(ROOT / f"runs/series/batch_{eid}/series.json"))
+    s.load_spectrum(series=str(ROOT / fit_series(run)))
     s.apply_fit(str(run))
     s.set_view(*view)
     s.fit_model_curve()

@@ -10,7 +10,9 @@ Per entry (resumable: a step whose output exists is skipped):
   (an entry may set "exchange": "slow" for N-H / O-H protons that couple, default fast, decoupled; and
   "variant": "free" for free isotopologue amplitudes, default "ratios" = natural-abundance ratios)
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
-     `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/;
+     `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/; entries may
+     set `apodization` (1/s) and `record` (s) for a stronger noise filter, written to runs/series/batch_<id><series>/
+     with the entry's `series` suffix (the model goes through the same window, so the fitted rates do not change);
   3. stage 1 fit (fit_joint_series.py): one decay rate per isotopologue, component search at the start, 6 starts
      (with --one-bond-from-data the 1J starts are first read from the observed bands, D64),
      field fitted only when the entry says `field` (else zero field): runs/processed/batch_<id><tag>_s1/;
@@ -90,13 +92,16 @@ def process(entry, args):
             if run([PY, "scripts/average_scans.py", str(scans), str(proc / name), *extra], log):
                 note(eid, status=f"failed: average {name}")
                 return
-    series = ROOT / "runs/series" / f"batch_{eid}"
+    series = ROOT / "runs/series" / f"batch_{eid}{entry.get('series', '')}"
     if not (series / "series.json").exists():
         note(eid, status="spectrum")
         cmd = [PY, "scripts/make_series_entry.py", "--fid", str(proc / "z5/average_fid.npy"), "--id", eid,
                "--out", str(series.relative_to(ROOT)), "--exclude", "81.5,86"]
         if entry.get("grid"):
             cmd += ["--grid", entry["grid"]]
+        for key in ("apodization", "record"):
+            if entry.get(key) is not None:
+                cmd += [f"--{key}", str(entry[key])]
         if entry.get("sampling_rate_factor"):
             scans_json = json.loads((proc / "z5/scans.json").read_text())
             fs = float(scans_json.get("sampling_rate_hz") or scans_json.get("settings", {}).get("sampling_rate_hz"))
