@@ -1111,6 +1111,11 @@ still refines every coupling. Test: tests/test_j_tuner.py OneBondFromBandsTests 
 1J 146 Hz, found from a 138 Hz start within 0.15 Hz). Real data from the batch starts: isopropylamine 124.20 /
 133.20 Hz (fitted 124.37 / 133.47), serine 146.20 / 144.65 Hz (fitted 146.42 / 144.95); glycerol and diethylamine
 flagged ambiguous. Limit: bands of different sites can overlap; the scan of one site then locks onto a
-strong line of another (methyl 2-bromopropionate: C2 put on the OCH3 J line at 147.6 Hz, true about 153.5 Hz). The
-scan treats sites one at a time; check the result when another site's band lies within the scan range.
+strong line of another (methyl 2-bromopropionate: C2 put on the OCH3 J line at 147.6 Hz, true about 153.5 Hz). Multi-start probe (added the same day): each site keeps up to four candidates (local maxima of its scan at least
+1.5 Hz apart, above 0.25 x the best); every combination is scored by the fit's objective at the start, and the four
+best plus the best combination containing each candidate get a short least-squares run (15 evaluations, every
+parameter free); the best refined combination becomes the start. Serine and isopropylamine: the same starts as
+the single scan. Methyl 2-bromopropionate: C2 147.0 (refined objective 0.354) still beats 155.85 Hz (0.396), so
+in this model the data prefer C2 near 147 Hz and the 155-158 Hz lines may not belong to C2 (a full fit from 153.5 Hz
+is the check).
 

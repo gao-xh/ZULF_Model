@@ -1324,13 +1324,15 @@ def build_problem(args):
         p = _build_problem(first)
         found = one_bond_from_bands(p.joint, p.z0, json.loads(args.structure), scan_hz=args.one_bond_scan)
         spec = json.loads(args.structure)
-        if isinstance(spec, dict) and "spin_system" not in spec:
+        if isinstance(spec, dict) and "spin_system" not in spec and found:
+            for site, (j0, j1, margin, cands, _) in found.items():
+                note = "" if margin >= 0.1 else "  (ambiguous: another 1J matches about as well)"
+                print(f"--one-bond-from-data: {site}: 1J start {j0:.2f} -> scan {j1:.2f} Hz, margin {margin:.2f}, "
+                      f"candidates {', '.join(f'{c:.2f}' for c in cands)}{note}", flush=True)
+            best = one_bond_probe(p.joint, p.z0, found, bounds=(p.lower, p.upper))
             spec.setdefault("one_bond", {})
-            for site, (j0, j1, margin) in found.items():
-                spec["one_bond"][site] = round(j1, 2)
-                note = "" if margin >= 0.1 else "  (ambiguous: another 1J matches about as well, check)"
-                print(f"--one-bond-from-data: {site}: 1J start {j0:.2f} -> {j1:.2f} Hz, margin {margin:.2f}{note}",
-                      flush=True)
+            for site, j in best.items():
+                spec["one_bond"][site] = round(j, 2)
             args.structure = json.dumps(spec)
         args._one_bond_done = True
     mode = str(getattr(args, "family_edges", "")).strip().lower()
@@ -1394,11 +1396,31 @@ def scan_one_bond(freqs, amps, slopes, f, ymag, scan_hz=12.0, step_hz=0.05, widt
     return float(shifts[best]), margin, scores
 
 
+def scan_candidates(scores, scan_hz=12.0, step_hz=0.05, k=4, separation_hz=1.5, floor=0.25):
+    """Shifts of the k best local maxima of a scan_one_bond score curve, at least separation_hz apart and above
+    floor x the best score (candidates for the joint probe of --one-bond-from-data)."""
+    scores = np.asarray(scores, float)
+    shifts = np.arange(-scan_hz, scan_hz + step_hz / 2, step_hz)[:len(scores)]
+    peaks = [i for i in range(len(scores)) if (i == 0 or scores[i] >= scores[i - 1]) and
+             (i == len(scores) - 1 or scores[i] >= scores[i + 1])]
+    peaks.sort(key=lambda i: -scores[i])
+    out = []
+    for i in peaks:
+        if scores[i] < floor * scores[peaks[0]]:
+            break
+        if all(abs(shifts[i] - v) >= separation_hz for v in out):
+            out.append(float(shifts[i]))
+        if len(out) == k:
+            break
+    return out
+
+
 def one_bond_from_bands(joint, z, spec, s=0, scan_hz=12.0, min_relative=0.05):
     """1J starts of every protonated 13C site from the observed bands (D64): for each component labelled
     13C@<site> the lines inside the fit band with their df/d1J (physics.lines.line_table, Hellmann-Feynman) at the
     start structure, scanned against the smoothed observed magnitude (scan_one_bond). Returns
-    {site: (start 1J, new 1J, margin)}; sites whose 1J key is not a coupling of the model are skipped."""
+    {site: (start 1J, new 1J, margin, candidate 1J values, solver parameter names of the site's 1J)}; sites whose
+    1J key is not a coupling of the model are skipped."""
     import re
     from scipy.ndimage import gaussian_filter1d
     from zulf_core.physics.lines import line_table
@@ -1429,11 +1451,72 @@ def one_bond_from_bands(joint, z, spec, s=0, scan_hz=12.0, min_relative=0.05):
         lines = [ln for ln in lines if ln.df_dj.get("1J", 0.0) > 0.3]      # the lines the one-bond coupling places
         if not lines:
             continue
-        dj, margin, _ = scan_one_bond([ln.frequency_hz for ln in lines], [abs(ln.amplitude) for ln in lines],
-                                        [ln.df_dj["1J"] for ln in lines], fq, ymag, scan_hz=scan_hz)
+        dj, margin, scores = scan_one_bond([ln.frequency_hz for ln in lines], [abs(ln.amplitude) for ln in lines],
+                                           [ln.df_dj["1J"] for ln in lines], fq, ymag, scan_hz=scan_hz)
+        cands = [j0 + v for v in scan_candidates(scores, scan_hz=scan_hz)]
+        all_names = [n for key in keys for n in model.coupling_names.get(key, [])]
         if site not in out:                    # symmetric sites (x2) share one start
-            out[site] = (j0, j0 + dj, margin)
+            out[site] = (j0, j0 + dj, margin, cands, all_names)
     return out
+
+
+def one_bond_probe(joint, z, found, max_combinations=64, bounds=None, short_fits=8, short_nfev=15):
+    """Joint probe of the 1J candidates of all sites (D64): every combination of the sites' candidates is written
+    into the start vector and scored by the fit's objective there (linear gains solved). With bounds, the best
+    combinations (the four best and, for every candidate of every site, the best combination that contains it; at
+    most short_fits) are then refined by a short least-squares run (short_nfev evaluations, every parameter free)
+    and ranked by the refined objective, because at the start the other couplings and rates are not yet adapted.
+    Returns the sites' 1J of the best combination. Overlapping bands of different sites (one site's scan locked on
+    another site's strong line) are resolved here: one line cannot serve two sites in the full model."""
+    import itertools
+    sites = list(found)
+    cands = [found[site][3] or [found[site][1]] for site in sites]
+    while np.prod([len(c) for c in cands]) > max_combinations:
+        longest = int(np.argmax([len(c) for c in cands]))
+        cands[longest] = cands[longest][:-1]
+    blocks = {}
+    for site in sites:
+        idx = [joint.coupling.index(n) for n in found[site][4] if n in joint.coupling]
+        blocks[site] = idx
+    results = []
+    for combo in itertools.product(*cands):
+        zz = np.array(z, float).copy()
+        for site, j in zip(sites, combo):
+            for k in blocks[site]:
+                zz[k * joint.m:(k + 1) * joint.m] = j
+        r = joint.residual(zz)
+        results.append((float(r @ r), dict(zip(sites, combo))))
+    results.sort(key=lambda t: t[0])
+    if len(results) > 1:
+        top = "; ".join(f"{cost:.4g}: " + ", ".join(f"{k} {v:.2f}" for k, v in combo.items())
+                        for cost, combo in results[:3])
+        print(f"--one-bond-from-data: joint probe of {len(results)} combinations at the start, best: {top}",
+              flush=True)
+    if bounds is None or len(results) == 1:
+        return results[0][1]
+    chosen = results[:4]
+    for site, cl in zip(sites, cands):
+        for c in cl:
+            first = next(r for r in results if r[1][site] == c)
+            if first not in chosen:
+                chosen.append(first)
+    chosen = chosen[:max(short_fits, 4)]
+    lower, upper = bounds
+    refined = []
+    for cost0, combo in chosen:
+        zz = np.array(z, float).copy()
+        for site, j in combo.items():
+            for k in blocks[site]:
+                zz[k * joint.m:(k + 1) * joint.m] = j
+        zz = np.clip(zz, lower + 1e-9 * (upper - lower), upper - 1e-9 * (upper - lower))
+        sol = least_squares(joint.residual, zz, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
+                            max_nfev=short_nfev)
+        refined.append((float(2 * sol.cost), cost0, combo))
+    refined.sort(key=lambda t: t[0])
+    for cost, cost0, combo in refined:
+        print(f"--one-bond-from-data: short fit from " + ", ".join(f"{k} {v:.2f}" for k, v in combo.items())
+              + f": objective {cost0:.4g} -> {cost:.4g}", flush=True)
+    return refined[0][2]
 
 
 def field_sigma_slopes(joint, z, s=0, eps=1e-3):
