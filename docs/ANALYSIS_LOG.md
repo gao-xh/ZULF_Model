@@ -1388,3 +1388,4 @@ skills under `skills/`; this file keeps the history.
   1J(C,H) 136.289 Hz and |B| 60.1 nT, run 1 136.282 Hz / 57.7 nT, both 136.286 Hz / 59.0 nT (transverse 39, z 44).
   docs/analysis/2026-10-10_acetonitrile-250ul_runs.md
 - 2026-10-10 acetonitrile LF_1 vs 250 uL decay times: docs/analysis/2026-10-10_acetonitrile-lf1.md (early transient after the switch biased the crop-0.1 fits; with crop 0.3 s: 1J 136.28 Hz, |B| 64 / 61 nT, J line T 2.6 / 2.9 s, 2J triplet 0.4 / 0.4-0.5 s)
+- 2026-10-11 methyl 2-bromopropionate, passes 1-7, coupling scan, mixture test: docs/analysis/2026-10-11_methyl-2-bromopropionate_fits.md (best: long-range couplings + free amplitudes, objective 0.028; 128.0 / 263.0 Hz unexplained)
