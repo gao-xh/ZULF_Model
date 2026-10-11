@@ -1390,3 +1390,4 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-10 acetonitrile LF_1 vs 250 uL decay times: docs/analysis/2026-10-10_acetonitrile-lf1.md (early transient after the switch biased the crop-0.1 fits; with crop 0.3 s: 1J 136.28 Hz, |B| 64 / 61 nT, J line T 2.6 / 2.9 s, 2J triplet 0.4 / 0.4-0.5 s)
 - 2026-10-11 methyl 2-bromopropionate, passes 1-7, coupling scan, mixture test: docs/analysis/2026-10-11_methyl-2-bromopropionate_fits.md (best: long-range couplings + free amplitudes, objective 0.028; 128.0 / 263.0 Hz unexplained)
 - 2026-10-11 lactic acid slow O-H exchange test: docs/analysis/2026-10-11_lactic-acid_slow-exchange.md (slow 0.263 vs fast 0.223; rejected, 127.33 / 149.58 Hz unexplained)
+- 2026-10-11 noise-filtered refits (window 1.5 1/s) of lactic acid, alanine, glycerol, serine: docs/analysis/2026-10-11_metabolites_noise-filtered.md (1J stable; glycerol / serine small couplings undetermined; crop 0.3 s rejected; glycerol model ripple open)

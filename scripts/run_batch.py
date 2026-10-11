@@ -11,7 +11,7 @@ Per entry (resumable: a step whose output exists is skipped):
   "variant": "free" for free isotopologue amplitudes, default "ratios" = natural-abundance ratios)
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
      `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/; entries may
-     set `apodization` (1/s) and `record` (s) for a stronger noise filter, written to runs/series/batch_<id><series>/
+     set `apodization` (1/s), `record` (s) and `crop` (s) for a stronger noise filter, written to runs/series/batch_<id><series>/
      with the entry's `series` suffix (the model goes through the same window, so the fitted rates do not change);
   3. stage 1 fit (fit_joint_series.py): one decay rate per isotopologue, component search at the start, 6 starts
      (with --one-bond-from-data the 1J starts are first read from the observed bands, D64),
@@ -99,7 +99,7 @@ def process(entry, args):
                "--out", str(series.relative_to(ROOT)), "--exclude", "81.5,86"]
         if entry.get("grid"):
             cmd += ["--grid", entry["grid"]]
-        for key in ("apodization", "record"):
+        for key in ("apodization", "record", "crop"):
             if entry.get(key) is not None:
                 cmd += [f"--{key}", str(entry[key])]
         if entry.get("sampling_rate_factor"):
