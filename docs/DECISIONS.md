@@ -1110,5 +1110,7 @@ margin of the best match over the best alternative more than 1.5 Hz away; below 
 still refines every coupling. Test: tests/test_j_tuner.py OneBondFromBandsTests (13C-H2 propagated by brute force with
 1J 146 Hz, found from a 138 Hz start within 0.15 Hz). Real data from the batch starts: isopropylamine 124.20 /
 133.20 Hz (fitted 124.37 / 133.47), serine 146.20 / 144.65 Hz (fitted 146.42 / 144.95); glycerol and diethylamine
-flagged ambiguous.
+flagged ambiguous. Limit: bands of different sites can overlap; the scan of one site then locks onto a
+strong line of another (methyl 2-bromopropionate: C2 put on the OCH3 J line at 147.6 Hz, true about 153.5 Hz). The
+scan treats sites one at a time; check the result when another site's band lies within the scan range.
 
