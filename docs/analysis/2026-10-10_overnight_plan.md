@@ -191,3 +191,10 @@ rates 0.4-6.6 1/s, the sharp CH lines and the 219 / 223 Hz CH2 lines fitted
 (runs/figures/batch/serine_v2_v3.png); stage 2 score 0.663 (dominated by the drift below 60 Hz and the mains line).
 Lesson: the neighbour rule underestimates 1J of carbons with several heteroatom neighbours by 5-8 Hz; read the
 1J starts from the observed band positions when they are clear.
+
+Methyl 2-bromopropionate, fourth and fifth passes: from the band scan (C1 130.9, C2 147.0, C4 147.65 Hz) the fourth
+pass fits the CH3 J and 2J bands and the OCH3 2J band (stage 1 0.334; 1J 130.54 / 147.07 / 147.60 Hz) that the second
+pass missed, but not the 155-158 Hz lines. A fifth pass from C2 153.5 Hz (to cover them) ends at C2 155.39 Hz with
+stage 1 0.411 (worse); the multi-start probe also prefers C2 near 147 Hz. The 155-158 Hz lines are not C2 in this
+model; their origin is open (impurity, 13C at the carbonyl, bromine isotopes). The fifth pass was stopped after
+stage 1. Best: fourth pass.
