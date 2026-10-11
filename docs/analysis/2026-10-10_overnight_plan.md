@@ -182,3 +182,12 @@ runs/figures/batch/<id>[_v2].png (the fits' own models). Additional results sinc
 
 To check: serine, diethylamine, the 13C line of methyl dimethylphosphonate, the narrow triplet near 131 Hz of
 N,N-dimethylethylenediamine; tetramethylpiperidine not fitted (too many spins).
+
+Serine third pass (configs/batch_2026-10-10_v3.json, `--tag _v3`, table docs/analysis/2026-10-10_batch_results_v3.md):
+the second pass started 1J at 141 / 137 Hz (neighbour rule) and stayed in a wrong minimum (3J(H,H) 15 Hz, rates at
+the 40 1/s bound, the sharp lines drawn as broad humps). Started from the observed bands (CH2 band near
+219 Hz = 1.5 x 1J(C1), CH lines 143-146 Hz): 1J(C1,H) 146.42, 1J(C2,H) 144.95, 2J -3.67 / -3.46, 3J(H,H) 5.37 Hz,
+rates 0.4-6.6 1/s, the sharp CH lines and the 219 / 223 Hz CH2 lines fitted
+(runs/figures/batch/serine_v2_v3.png); stage 2 score 0.663 (dominated by the drift below 60 Hz and the mains line).
+Lesson: the neighbour rule underestimates 1J of carbons with several heteroatom neighbours by 5-8 Hz; read the
+1J starts from the observed band positions when they are clear.
