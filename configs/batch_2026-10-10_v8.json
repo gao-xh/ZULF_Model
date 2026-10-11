@@ -1,0 +1,47 @@
+{
+ "note": "Lactic acid with slow O-H exchange (the hydroxyl proton coupled): the CH3 J-band line at 127.33 Hz and the CH line at 149.58 Hz are not produced by any 2J(C2,H1) / 3J(H1,H2) combination with the OH decoupled (grid scan, 2026-10-11)",
+ "entries": [
+  {
+   "id": "lactic-acid",
+   "scans": "raw/2026-03-16-l-lactic-acid/L_+_lactic_acid/data",
+   "structure": {
+    "compound": "lactic acid",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       1
+      ],
+      [
+       "C2",
+       "C",
+       3
+      ],
+      [
+       "O1",
+       "O",
+       1
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C1",
+       "O1"
+      ]
+     ]
+    },
+    "one_bond": {
+     "C1": 147.0,
+     "C2": 129.0
+    }
+   },
+   "field": false,
+   "exchange": "slow"
+  }
+ ]
+}
