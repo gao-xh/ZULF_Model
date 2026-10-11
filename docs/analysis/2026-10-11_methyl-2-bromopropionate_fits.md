@@ -40,7 +40,7 @@ nearest 263.5 Hz); a shoulder at 294.5 Hz (OCH3 2J band) is also missing.
 | missing long-range couplings | pass 7 | helps the C2 triplet, not 128.0 / 263.0 Hz; the couplings that reach C1 (5J, 6J) are far too small for a 0.5-1 Hz shift |
 | bromine as a coherent spin | not done: 79Br / 81Br relax in microseconds (quadrupolar) and are self-decoupled; no Br splittings are expected, and the solver has no quadrupolar relaxation | its effect is the weaker C2 isotopologue (pass 6) |
 | slow O-H / N-H exchange | not applicable: no exchangeable protons | - |
-| second species: 2-bromopropionic acid (hydrolysis) | ester + acid as one model (`--structure` list; runs/processed/mbp_mix_acid_s1, _s2; runs/processed/mbp_mix_acid.sh), free amplitudes | stage 1 0.102; the acid's part is broad and does not reach 128.0 / 263.0 Hz; acid amplitudes as large as the ester's and 2J(C1,H2) -12 Hz (implausible); no methanol band near 282 Hz as hydrolysis would give: very unlikely (stage 2 pending) |
+| second species: 2-bromopropionic acid (hydrolysis) | ester + acid as one model (`--structure` list; runs/processed/mbp_mix_acid_s1, _s2; runs/processed/mbp_mix_acid.sh), free amplitudes | stage 1 0.102; the acid's part is broad and does not reach 128.0 / 263.0 Hz; acid amplitudes as large as the ester's and 2J(C1,H2) -12 Hz (implausible); no methanol band near 282 Hz as hydrolysis would give. Stage 2 stopped by hand after 10 h (best monitor point, objective 0.0165 vs 0.0282 of pass 7, with about 6 more couplings and the acid amplitudes free): the acid keeps 2J(C1,H2) -12.1 Hz, and the ester's couplings move to implausible values (3J(H1,H2) 8.2, long-range up to 1.7 Hz). The lower objective is the extra freedom: very unlikely |
 
 ## Conclusion
 
@@ -61,6 +61,5 @@ shoulder (294.5 Hz) remain unexplained by this structure.
 
 - Origin of 128.0 / 263.0 / 294.5 Hz: sample purity and preparation (collaborator); a high-field 1H spectrum would show
   impurities directly.
-- Stage 2 of the mixture test (running when this was written).
 
 Commit: (this commit)

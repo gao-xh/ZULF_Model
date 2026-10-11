@@ -1,0 +1,581 @@
+{
+ "note": "Amines improved with the metabolites recipe (2026-10-11): per-band background off, 1J starts from the bands (starting near the previous best pass), noise filter (window 1.5 1/s, record 4 s) for the noisy spectra (diethylamine, n,n-dimethylethylenediamine, sec-butylamine).",
+ "entries": [
+  {
+   "id": "tert-butylamine",
+   "scans": "raw/2025-10-03-tert-butylamine/tertbutylamine/data",
+   "structure": {
+    "compound": "tert-butylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "C4"
+      ],
+      [
+       "C2",
+       "N1"
+      ]
+     ],
+     "sym": [
+      {
+       "C3": "C4",
+       "C4": "C3",
+       "HC3": "HC4",
+       "HC4": "HC3"
+      },
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      },
+      {
+       "C1": "C3",
+       "C3": "C4",
+       "C4": "C1",
+       "HC1": "HC3",
+       "HC3": "HC4",
+       "HC4": "HC1"
+      },
+      {
+       "C1": "C4",
+       "C3": "C1",
+       "C4": "C3",
+       "HC1": "HC4",
+       "HC3": "HC1",
+       "HC4": "HC3"
+      },
+      {
+       "C1": "C4",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.49,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CC(C)(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "C4": 3,
+      "N1": 4
+     }
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true
+  },
+  {
+   "id": "isopropylamine",
+   "scans": "raw/2025-09-30-isopropylamine/isopropylamine/data",
+   "structure": {
+    "compound": "isopropylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "N1"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.37,
+     "C2": 133.47,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "N1": 3
+     }
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true
+  },
+  {
+   "id": "triethylamine",
+   "scans": "original/2025-09-25-triethylamine/triethylamine",
+   "structure": {
+    "compound": "triethylamine",
+    "motif": "N-ethyl (Et3N)",
+    "one_bond": {
+     "C1": 132.39,
+     "C2": 125.03
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true
+  },
+  {
+   "id": "ethylenediamine",
+   "scans": "raw/2025-09-27-ethylenediamine/ethylenediamine/data",
+   "structure": {
+    "compound": "ethylenediamine",
+    "motif": "H2N-CH2-CH2-NH2",
+    "one_bond": {
+     "C1": 131.87,
+     "N1": 68.0
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true
+  },
+  {
+   "id": "diethylamine",
+   "scans": "raw/2025-10-10-diethylamine/diethylamine/data",
+   "structure": {
+    "compound": "diethylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C4",
+       "C2": "C3",
+       "C3": "C2",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC2": "HC3",
+       "HC3": "HC2",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 122.66,
+     "C2": 133.11,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCNCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "N1": 2,
+      "C3": 3,
+      "C4": 4
+     }
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0
+  },
+  {
+   "id": "n-n-dimethylethylenediamine",
+   "scans": "original/2025-11-04-n-n-dimethylethylenediamine/N,N_dimethylethylenediamine",
+   "structure": {
+    "compound": "N,N-dimethylethylenediamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       0
+      ],
+      [
+       "C2",
+       "C",
+       3
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       2
+      ],
+      [
+       "N2",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "N1"
+      ],
+      [
+       "N1",
+       "C2"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C4",
+       "N2"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C2",
+       "C2": "C1",
+       "HC1": "HC2",
+       "HC2": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 133.33,
+     "C3": 133.96,
+     "C4": 130.26,
+     "N2": 75.0
+    },
+    "molecule": {
+     "smiles": "CN(C)CCN",
+     "sites": {
+      "C1": 0,
+      "N1": 1,
+      "C2": 2,
+      "C3": 3,
+      "C4": 4,
+      "N2": 5
+     }
+    }
+   },
+   "field": false,
+   "exchange": "slow",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0
+  },
+  {
+   "id": "sec-butylamine",
+   "scans": "original/2026-04-06-sec-butylamine/sec_butylamine",
+   "structure": {
+    "compound": "sec-butylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "C3",
+       "C",
+       1
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C3",
+       "N1"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 124.97,
+     "C2": 124.45,
+     "C3": 132.89,
+     "C4": 125.09,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "C4": 3,
+      "N1": 4
+     }
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0
+  },
+  {
+   "id": "dipropylamine",
+   "scans": "raw/2025-11-07-dipropylamine/dipropylamine/data",
+   "structure": {
+    "compound": "dipropylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C4",
+       "C",
+       2
+      ],
+      [
+       "C5",
+       "C",
+       2
+      ],
+      [
+       "C6",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "N1"
+      ],
+      [
+       "N1",
+       "C4"
+      ],
+      [
+       "C4",
+       "C5"
+      ],
+      [
+       "C5",
+       "C6"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C6",
+       "C2": "C5",
+       "C3": "C4",
+       "C4": "C3",
+       "C5": "C2",
+       "C6": "C1",
+       "HC1": "HC6",
+       "HC2": "HC5",
+       "HC3": "HC4",
+       "HC4": "HC3",
+       "HC5": "HC2",
+       "HC6": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.81,
+     "C2": 125.27,
+     "C3": 135.08,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCCNCCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "N1": 3,
+      "C4": 4,
+      "C5": 5,
+      "C6": 6
+     }
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true
+  }
+ ]
+}
