@@ -9,7 +9,8 @@ Per entry (resumable: a step whose output exists is skipped):
      when one measurement holds several runs, e.g. a dilution series);
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
      `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/;
-  3. stage 1 fit (fit_joint_series.py): one decay rate per isotopologue, component search at the start, 6 starts,
+  3. stage 1 fit (fit_joint_series.py): one decay rate per isotopologue, component search at the start, 6 starts
+     (with --one-bond-from-data the 1J starts are first read from the observed bands, D64),
      field fitted only when the entry says `field` (else zero field): runs/processed/batch_<id><tag>_s1/;
   4. stage 2 fit from stage 1 (--from-joint): one decay rate per model line (--family-edges lines), rate bounds
      0.1-40 1/s, 2 starts: runs/processed/batch_<id><tag>_s2/.
@@ -112,7 +113,8 @@ def process(entry, args):
     s1 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s1"
     if not (s1 / "fit.json").exists():
         note(eid, status="stage 1 fit")
-        if run(common + ["--starts", "6", "--rate-bounds", "0.2,15", "--component-search", "start",
+        extra = ["--one-bond-from-data"] if (args.one_bond_from_data or entry.get("one_bond_from_data")) else []
+        if run(common + ["--starts", "6", "--rate-bounds", "0.2,15", "--component-search", "start", *extra,
                          "--out", str(s1.relative_to(ROOT))], log):
             note(eid, status="failed: stage 1")
             return
@@ -156,6 +158,9 @@ def main():
     ap.add_argument("--wait", type=float, default=6.0, help="hours to wait for an entry's data on the drive")
     ap.add_argument("--only", default="")
     ap.add_argument("--table", default="docs/analysis/2026-10-10_batch_results.md")
+    ap.add_argument("--one-bond-from-data", action="store_true",
+                    help="stage 1 reads the 1J starts from the observed bands (fit_joint_series, D64); an entry can "
+                         "also set \"one_bond_from_data\": true")
     ap.add_argument("--skip", default="", help="entry ids reported from their existing results but not run")
     ap.add_argument("--tag", default="", help="suffix of the fit folders and logs (a second pass with other "
                                              "structures reuses the averages and spectra), e.g. _v2")

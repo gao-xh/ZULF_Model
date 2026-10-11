@@ -90,6 +90,11 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   cores). Free ratios remain a check, not the default.
 - Start from literature-like values, say where they come from, and give
   uncertain small couplings wide bounds (coupling_margin_hz 6-12).
+- A 1J start 5-8 Hz off traps the fit (serine 2026-10-10: rates at the 40 1/s
+  bound, a 15 Hz 3J(H,H), sharp lines drawn as broad humps). When the bands are
+  visible, read the 1J starts from them: `fit_joint_series --one-bond-from-data`
+  (D64; run_batch has the same flag). A margin below 0.1 means two positions
+  match about equally: check that site by eye before trusting the start.
 - Include every isotopologue that can put lines in the fitted range; state
   which ones are omitted because their lines fall outside it.
 

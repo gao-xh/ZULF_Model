@@ -1095,3 +1095,20 @@ sigma_B 8 nT recovered within 10 %). First use (acetonitrile 2 mL / 250 uL): sig
 -0.3 % / -1.5 %: the data hardly prefer a Gaussian field distribution
 (docs/analysis/2026-10-10_acetonitrile-lf1.md).
 
+## D64. 1J starts read from the observed bands (2026-10-10)
+
+The neighbour rule of D61 (sp3 carbon 125 Hz plus heteroatom increments) misses carbons with several polar
+neighbours by 5-8 Hz (serine C-alpha 137 -> 145, C-beta 141 -> 146 Hz); a fit started there stays in a wrong
+minimum (serine second pass: 3J(H,H) 15 Hz, rates at the 40 1/s bound, sharp lines drawn as broad humps).
+fit_joint_series --one-bond-from-data (and run_batch --one-bond-from-data or an entry's "one_bond_from_data") first
+builds the problem at the given starts, then for every component labelled 13C@<site> whose J(<site>,H<site>) is a
+model coupling takes the lines inside the fit band with their df/d1J (physics.lines.line_table, Hellmann-Feynman),
+moves them as f + df/d1J dJ over +-12 Hz (--one-bond-scan), correlates their Lorentzian magnitude profile with the
+smoothed observed magnitude and puts the best 1J into the structure's one_bond before the real build. It prints the
+margin of the best match over the best alternative more than 1.5 Hz away; below 0.1 the start is flagged ambiguous
+(another position matches about as well) and should be checked by eye. It changes starting values only; the fit
+still refines every coupling. Test: tests/test_j_tuner.py OneBondFromBandsTests (13C-H2 propagated by brute force with
+1J 146 Hz, found from a 138 Hz start within 0.15 Hz). Real data from the batch starts: isopropylamine 124.20 /
+133.20 Hz (fitted 124.37 / 133.47), serine 146.20 / 144.65 Hz (fitted 146.42 / 144.95); glycerol and diethylamine
+flagged ambiguous.
+

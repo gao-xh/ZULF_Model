@@ -633,3 +633,32 @@ class PrecisionOptionTests(unittest.TestCase):
             self.assertTrue(out["0.01"][2])
             self.assertLessEqual(out["0.01"][0], out["0"][0])       # savings measured on real data (D55)
             np.testing.assert_allclose(out["0.01"][1], out["0"][1], atol=0.01)
+
+
+class OneBondFromBandsTests(unittest.TestCase):
+    """--one-bond-from-data (D64): the 1J start is read from the observed band. Reference: the spectrum of a
+    13C-H2 group propagated by brute force in the time domain with 1J = 146 Hz (zulf_core reference_signal), the
+    scan started from 138 Hz with the lines of the line table (df/d1J)."""
+
+    def test_scan_finds_the_one_bond_coupling(self):
+        from zulf_core.physics.lines import line_table
+        from zulf_core.physics.transitions import reference_signal
+        from zulf_core.spinsystem import SpinSystem
+
+        def ch2(j):
+            m = np.zeros((3, 3))
+            m[0, 1:] = m[1:, 0] = j
+            return SpinSystem(("13C", "1H", "1H"), m)
+
+        fs, n, rate = 1000.0, 8000, 1.5
+        t = np.arange(n) / fs
+        fid = reference_signal(ch2(146.0), t) * np.exp(-rate * t)
+        fid = fid + 0.02 * np.std(fid) * np.random.default_rng(3).standard_normal(n)
+        spec = np.fft.rfft(fid * np.exp(-0.3 * t), 4 * n)
+        f = np.fft.rfftfreq(4 * n, 1 / fs)
+        lines = [ln for ln in line_table(ch2(138.0), {(0, 1): "1J"}, min_relative_amplitude=0.05)
+                 if ln.df_dj["1J"] > 0.3]
+        dj, margin, _ = fj.scan_one_bond([ln.frequency_hz for ln in lines], [abs(ln.amplitude) for ln in lines],
+                                           [ln.df_dj["1J"] for ln in lines], f, np.abs(spec))
+        self.assertAlmostEqual(138.0 + dj, 146.0, delta=0.15)
+        self.assertGreater(margin, 0.1)

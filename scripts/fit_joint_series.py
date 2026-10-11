@@ -1317,6 +1317,22 @@ def build_problem(args):
     """The fit problem of the command line. --family-edges auto: the problem is first built with one rate family,
     the edges are read from its start vector (auto_family_edges: line clusters and sharp data lines), and the
     problem is rebuilt with them (args.family_edges then holds the edges used)."""
+    if getattr(args, "one_bond_from_data", False) and not getattr(args, "_one_bond_done", False):
+        import copy
+        first = copy.copy(args)
+        first.one_bond_from_data, first.family_edges, first.field_sigma = False, "", False
+        p = _build_problem(first)
+        found = one_bond_from_bands(p.joint, p.z0, json.loads(args.structure), scan_hz=args.one_bond_scan)
+        spec = json.loads(args.structure)
+        if isinstance(spec, dict) and "spin_system" not in spec:
+            spec.setdefault("one_bond", {})
+            for site, (j0, j1, margin) in found.items():
+                spec["one_bond"][site] = round(j1, 2)
+                note = "" if margin >= 0.1 else "  (ambiguous: another 1J matches about as well, check)"
+                print(f"--one-bond-from-data: {site}: 1J start {j0:.2f} -> {j1:.2f} Hz, margin {margin:.2f}{note}",
+                      flush=True)
+            args.structure = json.dumps(spec)
+        args._one_bond_done = True
     mode = str(getattr(args, "family_edges", "")).strip().lower()
     parts = set(mode.split("+"))
     if mode and parts <= FAMILY_MODES:
@@ -1352,6 +1368,69 @@ def build_problem(args):
         args.field_sigma_slopes = json.dumps([[round(v, 6) for v in row] for row in slopes])
         print(f"--field-sigma: |dnu/dB| per rate family (Hz/nT): {args.field_sigma_slopes}", flush=True)
     return _build_problem(args)
+
+
+def scan_one_bond(freqs, amps, slopes, f, ymag, scan_hz=12.0, step_hz=0.05, width_hz=0.4):
+    """Best shift of a one-bond coupling from the observed band (--one-bond-from-data). The lines of one
+    isotopologue at the start 1J (frequencies, |amplitudes|, df/d1J) move as f_k + slope_k dJ; for every dJ in
+    [-scan_hz, scan_hz] their Lorentzian magnitude profile (half width width_hz) is correlated with the observed
+    magnitude ymag on the grid f (window around the band, median removed); returns (dJ, margin, scores) with
+    margin = (best - best alternative more than 1.5 Hz away) / best: near 0 when two positions match about equally."""
+    freqs, amps, slopes = (np.asarray(v, float) for v in (freqs, amps, slopes))
+    f, ymag = np.asarray(f, float), np.asarray(ymag, float)
+    reach = scan_hz * float(np.max(np.abs(slopes))) + 4 * width_hz + 2.0
+    win = (f >= freqs.min() - reach) & (f <= freqs.max() + reach)
+    fw, yw = f[win], ymag[win] - np.median(ymag[win])
+    shifts = np.arange(-scan_hz, scan_hz + step_hz / 2, step_hz)
+    scores = np.empty(len(shifts))
+    for i, dj in enumerate(shifts):
+        pos = freqs + slopes * dj
+        m = (amps[None, :] * width_hz / (width_hz ** 2 + (fw[:, None] - pos[None, :]) ** 2)).sum(axis=1)
+        scores[i] = float(yw @ m) / (float(np.linalg.norm(m)) or 1.0)
+    best = int(np.argmax(scores))
+    away = np.abs(shifts - shifts[best]) > 1.5
+    alt = float(scores[away].max()) if away.any() else 0.0
+    margin = (float(scores[best]) - alt) / abs(float(scores[best])) if scores[best] > 0 else 0.0
+    return float(shifts[best]), margin, scores
+
+
+def one_bond_from_bands(joint, z, spec, s=0, scan_hz=12.0, min_relative=0.05):
+    """1J starts of every protonated 13C site from the observed bands (D64): for each component labelled
+    13C@<site> the lines inside the fit band with their df/d1J (physics.lines.line_table, Hellmann-Feynman) at the
+    start structure, scanned against the smoothed observed magnitude (scan_one_bond). Returns
+    {site: (start 1J, new 1J, margin)}; sites whose 1J key is not a coupling of the model are skipped."""
+    import re
+    from scipy.ndimage import gaussian_filter1d
+    from zulf_core.physics.lines import line_table
+    f = joint.forwards[s]
+    P = joint.params[s]
+    values = P.values(joint.spectrum_vector(z, s))
+    fq = np.asarray(f.f, float)
+    step = float(np.median(np.diff(fq)))
+    ymag = gaussian_filter1d(np.abs(np.asarray(f.y)), 0.15 / step)
+    model = joint.model
+    out = {}
+    for c, (label, system) in enumerate(zip(model.component_labels, P.systems(values))):
+        m = re.match(r"13C@([A-Za-z]+\d*)", label)
+        if not m:
+            continue
+        site = m.group(1)
+        key = f"J({site},H{site})"
+        names = [n for n in model.coupling_names.get(key, []) if P.parameters[n].component == c]
+        if not names:
+            continue
+        pair = tuple(P.parameters[names[0]].detail)
+        j0 = float(values[names[0]])
+        lines = line_table(system, {pair: "1J"}, f.protocol_for(values), band_hz=(float(fq.min()), float(fq.max())),
+                           min_relative_amplitude=min_relative)
+        lines = [ln for ln in lines if ln.df_dj.get("1J", 0.0) > 0.3]      # the lines the one-bond coupling places
+        if not lines:
+            continue
+        dj, margin, _ = scan_one_bond([ln.frequency_hz for ln in lines], [abs(ln.amplitude) for ln in lines],
+                                        [ln.df_dj["1J"] for ln in lines], fq, ymag, scan_hz=scan_hz)
+        if site not in out:                    # symmetric sites (x2) share one start
+            out[site] = (j0, j0 + dj, margin)
+    return out
 
 
 def field_sigma_slopes(joint, z, s=0, eps=1e-3):
@@ -1655,6 +1734,10 @@ def make_parser():
                     help="Voigt lines: fit one Gaussian width per isotopologue (Hz) on top of the Lorentzian rates")
     ap.add_argument("--sigma-bounds", default="0.001,2", help="lo,hi of the Gaussian width (Hz, standard deviation)")
     ap.add_argument("--sigma-start", type=float, default=0.1, help="start of the Gaussian width (Hz)")
+    ap.add_argument("--one-bond-from-data", action="store_true",
+                    help="read the 1J start of every protonated 13C site from the observed band (D64): its lines are "
+                         "moved with df/d1J over +-scan Hz and matched to the magnitude spectrum")
+    ap.add_argument("--one-bond-scan", type=float, default=12.0, help="half range of the 1J scan (Hz)")
     ap.add_argument("--field-sigma", action="store_true",
                     help="field-distribution line shapes (D63): Gaussian width of each rate family = its |dnu/dB| "
                          "(computed at the start field) x one fitted field spread sigma_B (nT); needs a field")
