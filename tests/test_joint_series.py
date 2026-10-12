@@ -317,6 +317,17 @@ class JointSeriesTests(unittest.TestCase):
         self.assertEqual(groups, [[100.0, 100.1], [105.0], [110.0]])   # 0.1 Hz apart: one family
         np.testing.assert_allclose(edges, [102.55, 107.5])
 
+    def test_line_groups_stop_chaining_at_the_span_limit(self):
+        # a dense run of lines 0.2 Hz apart chains into one group; with a 0.4 Hz span limit it splits every
+        # 0.4 Hz (hand-counted reference)
+        from fit_joint_series import edges_between_lines
+        lines = [100.0, 100.2, 100.4, 100.6, 100.8, 101.0]
+        _, chained = edges_between_lines(lines, min_distance_hz=0.25)
+        self.assertEqual(len(chained), 1)
+        edges, groups = edges_between_lines(lines, min_distance_hz=0.25, max_span_hz=0.4)
+        self.assertEqual(groups, [[100.0, 100.2, 100.4], [100.6, 100.8, 101.0]])
+        np.testing.assert_allclose(edges, [100.5])
+
     def test_line_band_and_local_fit(self):
         # a line band that holds every line changes nothing; a narrow one keeps the Jacobian exact (finite
         # differences); the local fit recovers a coupling shift from one window

@@ -12,7 +12,7 @@ Per entry (resumable: a step whose output exists is skipped):
   "field_axes": "z" with "field_start": "0,0.045" fits a z field only; "fixed_field": "0,0.046" holds a known
   field (transverse,z in uT; no field parameter, much faster); "background_order" for the
   per-band background of the fit, default 1, -1 off; "average": "all-scans" to fit
-  the average of every scan instead of z5; "band_weighting": signal (default) | equal | none; "nh_exchange": start value
+  the average of every scan instead of z5; "band_weighting": signal (default) | equal | none; "line_group_span": largest span (Hz) of one stage-2 line group; "nh_exchange": start value
   (1/s) of a fitted N-H / O-H exchange rate, with "exchange": "slow")
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
      `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/; entries may
@@ -122,6 +122,8 @@ def process(entry, args):
               "--structure", json.dumps(entry["structure"]), "--signal-threshold", "2.5", "--signal-taper", "4.0",
               "--peak-penalty", "5", "--peak-smooth", "0.03", "--peak-min-sigma", "3",
               "--workers", str(args.workers), "--max-nfev", "300"]
+    if entry.get("line_group_span"):
+        common += ["--line-group-span", str(entry["line_group_span"])]
     if entry.get("band_weighting"):
         common += ["--band-weighting", entry["band_weighting"]]
     if entry.get("nh_exchange"):

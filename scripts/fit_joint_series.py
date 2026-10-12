@@ -222,12 +222,15 @@ def model_lines(joint, z, s=0, min_relative=0.02):
     return sorted(lines)
 
 
-def edges_between_lines(lines, min_distance_hz=0.25):
+def edges_between_lines(lines, min_distance_hz=0.25, max_span_hz=0.0):
     """Edges midway between neighbouring lines; lines closer than min_distance_hz (not resolved) share one
-    family. Returns (edges, groups of lines)."""
+    family. Grouping chains (each line joins the group of its neighbour), so in a dense multiplet one family can
+    span hertz; max_span_hz > 0 starts a new group once a group would span more than that (2026-10-12: one rate
+    for 2 Hz of DMEDA / sec-butylamine lines merged resolved small peaks into their neighbours). Returns (edges,
+    groups of lines)."""
     groups = []
     for x in sorted(lines):
-        if groups and x - groups[-1][-1] < min_distance_hz:
+        if groups and x - groups[-1][-1] < min_distance_hz and not (max_span_hz > 0 and x - groups[-1][0] > max_span_hz + 1e-9):
             groups[-1].append(x)
         else:
             groups.append([x])
@@ -235,12 +238,12 @@ def edges_between_lines(lines, min_distance_hz=0.25):
     return edges, groups
 
 
-def line_family_edges(joint, z, s=0, min_relative=0.05, min_distance_hz=0.25):
+def line_family_edges(joint, z, s=0, min_relative=0.05, min_distance_hz=0.25, max_span_hz=0.0):
     """Edges for --family-edges lines: one decay-rate family per model line (owner 2026-10-09), the lines of the
     start vector with |gain a| >= min_relative of their component's strongest line; lines closer than
     min_distance_hz share a family. Unlike 'peaks' (data peaks) it also separates model lines whose data peak is
     weak. Returns (edges, groups of lines)."""
-    return edges_between_lines(model_lines(joint, z, s, min_relative), min_distance_hz)
+    return edges_between_lines(model_lines(joint, z, s, min_relative), min_distance_hz, max_span_hz)
 
 
 def auto_family_edges(joint, z, s=0, min_relative=0.02, sharp_width_hz=0.8, prominence=0.05, **rule):
@@ -1352,7 +1355,7 @@ def build_problem(args):
             edges += list(pe)
             notes.append(f"{len(pe)} between {len(peaks)} data peaks")
         if "lines" in parts:
-            le, groups = line_family_edges(p.joint, p.z0)
+            le, groups = line_family_edges(p.joint, p.z0, max_span_hz=getattr(args, "line_group_span", 0.0))
             edges += list(le)
             notes.append(f"{len(le)} between {len(groups)} model lines (or unresolved groups)")
         merged = []
@@ -1787,6 +1790,9 @@ def make_parser():
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--line-group-span", type=float, default=0.0,
+                    help="--family-edges lines: largest span (Hz) of one group of unresolved lines (0: no limit, "
+                         "groups chain through dense multiplets)")
     ap.add_argument("--band-weighting", default=None, choices=["signal", "equal", "none"],
                     help="residual weighting (default signal: noise-scaled, weight 1 at the data and model cores and "
                          "0.2 far from them; equal: one weight per band). With low SNR, signal weighting lets model "

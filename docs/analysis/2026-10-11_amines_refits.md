@@ -193,3 +193,10 @@ dipropylamine and diethylamine (v22 settings).
   amplitudes, background off, equal weighting, window.
 - sec-butylamine 115-140 Hz (C2 XA band and the methyl J bands) poorly fitted: v26 slow N-H exchange at zero field
   (window 1.5 1/s), v27 the same with the default window 0.3 1/s (narrow lines below 1 Hz spacing).
+- Owner: some small lines are in the model but merged into the big neighbour. Cause: the stage-2 `lines` families
+  chain (each line within 0.25 Hz joins its neighbour's group), so DMEDA 131.25-131.98 Hz (30 lines) shared one
+  rate, 132.04-133.98 Hz another, and each sec-butylamine isotopologue had one rate over 123.5-126.5 Hz (C4: FWHM
+  1.9 Hz, wider than the 0.7 Hz splitting at 124.7 / 125.4 Hz). New `--line-group-span` (default 0 = unchanged;
+  run_batch key `line_group_span`) caps a group's span; test tests/test_joint_series.py
+  test_line_groups_stop_chaining_at_the_span_limit. Stage-2 refits from v13 stage 1 with span 0.4 Hz:
+  runs/processed/batch_{n-n-dimethylethylenediamine,sec-butylamine}_v13span_s2.

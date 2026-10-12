@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans, select_scans, --band-weighting 2026-10-12).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans, select_scans, --band-weighting, --line-group-span 2026-10-12).
 
 ## Map
 
@@ -359,7 +359,7 @@ Unattended batch of quick known-structure fits (many data sets; 2026-10-10):
 
 Resumable (a step whose output exists is skipped); an entry key `background_order` passes `--background-order` to
 both fits, `average: all-scans` fits the average of every scan instead of z5, `band_weighting: equal` passes
-`--band-weighting` (-1 off; the default linear background can show as a 1/(crop + delay) ripple, glycerol 2026-10-11);
+`--band-weighting`, `line_group_span` passes `--line-group-span` (cap of one stage-2 line group) (-1 off; the default linear background can show as a 1/(crop + delay) ripple, glycerol 2026-10-11);
 `--one-bond-from-data` reads the stage-1 1J starts from the
 observed bands (D64); `--skip` reports entries without running them; `--tag` writes a
 second pass (other structures) next to the first. Structures from SMILES get neighbour-based 1J starts (D61
