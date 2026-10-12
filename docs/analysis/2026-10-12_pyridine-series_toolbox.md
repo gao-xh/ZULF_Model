@@ -18,3 +18,10 @@ Pyridine overlay now coloured by 13C site (C2 / C3 / C4), with a tick at each li
 (scripts/overlay_panels.py SITE_STYLES).
 
 Commit: (this commit)
+
+## Stopped (16:40)
+
+50 mol % stage 2 0.045 (v1 0.016), 66 mol % 0.027 (v1 0.016) when stopped: the toolbox makes the pyridine fits
+worse (v1 had no slow exchange, field or merged-line problem to fix; background off and free amplitudes cost
+here). The rest of v28 was stopped; the overlay keeps v1 for every pyridine. Only pyridinium (N-H+, slow exchange
+physically motivated) is run alone with the v28 entry.
