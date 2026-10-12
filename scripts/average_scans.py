@@ -36,10 +36,12 @@ def robust_z(v):
 
 
 def parse_scan_list(text: str) -> set:
-    """Scan numbers from a JSON file holding a list, or from ranges like '0-5989,6005'."""
+    """Scan numbers from a JSON file holding a list (or a dict with a "keep" list, e.g. from clipped_scans.py), or
+    from ranges like '0-5989,6005'."""
     path = Path(text)
     if path.exists():
-        return {int(v) for v in json.loads(path.read_text())}
+        data = json.loads(path.read_text())
+        return {int(v) for v in (data["keep"] if isinstance(data, dict) else data)}
     out = set()
     for part in text.split(","):
         part = part.strip()

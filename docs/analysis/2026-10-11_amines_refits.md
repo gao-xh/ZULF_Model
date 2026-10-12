@@ -93,3 +93,20 @@ the non-sudden-switching test above stays valid as a test but answered a questio
 Conditional numerical results of the given structures.
 
 Commit: (this commit)
+
+## Why diethylamine is poor (owner's question)
+
+- The data: SNR of the z5 average 17 (8001 scans), against 37-220 for the other amines with 2800-6700 scans.
+  The raw measurement had 10000 scans; the collaborator's old tool kept 8001 (selection_info.txt: median
+  residual 2.9e12, against 0.8-3.6e10 for the other measurements).
+- The magnetometer output sits at a large, drifting offset (-17000 to -28000 counts) and reaches the ADC rail
+  (-28590): 4543 of 8001 scans have a flat (clipped) segment, 3977 of them within 0.1-4.1 s (scan 0 from
+  0.05 s, scan 1 from 8 s). New `scripts/clipped_scans.py` writes the keep list; `average_scans.py --keep`
+  accepts its JSON.
+- Averaging only the 4024 scans free of clipping in 0.1-4.1 s (~/research/zulf/data/processed/
+  2025-10-10-diethylamine/unclipped-4s/) is worse: SNR 11.9 (window 0.3 1/s) and 6.6 (1.5 1/s), against 17.1 and
+  13.9. Clipped segments are constant (no noise after the drift filter), and the clipped scans still carry the
+  early signal. The noise of the unclipped scans (late noise 77) equals that of the other amines (76-78), so the
+  signal per scan is about four times weaker.
+- Likely cause: the sensor worked far from its zero (offset near the rail), with reduced, nonlinear
+  sensitivity. A measurement problem; to be raised with the collaborator (re-measure with the sensor zeroed).
