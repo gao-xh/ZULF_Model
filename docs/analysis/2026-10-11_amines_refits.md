@@ -79,6 +79,17 @@ sec-butylamine alike, whose 2J band fits with the sudden drop: rejected, no chan
 Remaining candidate: a second species (triethylamine's 2J lines at 251 / 255 Hz coincide with diethylamine's,
 a common impurity of triethylamine); test with a mixture model.
 
+## Correction: the weak 2J band was a display artefact (later the same day)
+
+Asked by the owner, a stage 2 with rates <= 3 1/s (runs/processed/batch_<id>_v16_rate3_s2, stopped) was worse
+(isopropylamine 0.0375, triethylamine 0.0389). Its zoom on 225-265 Hz showed that the v16 fit already matched
+the 2J band. Raw heights at 248-252 Hz (no AsLS): triethylamine data 0.0319, model 0.0334; isopropylamine data
+0.0087, model 0.0084. In the full-range overlay the simulation's automatic AsLS (smoothness 0.25 Hz) took two
+thirds of the model band (0.0116), because the choice only checked the five highest peaks (all in the J
+band). scripts/overlay_panels.py auto_baseline now scores the height loss of every line cluster; with it both
+2J bands agree in the overlay. The open point "2J band too weak" and the impurity hypothesis are withdrawn;
+the non-sudden-switching test above stays valid as a test but answered a question that did not exist.
+
 Conditional numerical results of the given structures.
 
 Commit: (this commit)

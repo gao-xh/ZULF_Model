@@ -38,6 +38,10 @@ Worked example: isopropylamine, docs/analysis/2026-10-03_isopropylamine_complex-
   close lines (about 1 Hz) the crop wings between them cannot be removed by a smooth baseline without cutting the
   lines; say what is left (acetonitrile 2 mL: smoothness 0.25 Hz, p 0.05; 250 uL: pre-smooth 0.15 Hz, 0.3 Hz,
   p 0.05; a coarse smoothness makes broad humps beside the lines).
+- An automatic AsLS choice must check every line cluster, not only the highest peaks: a flexible baseline
+  (0.25 Hz) took two thirds of the height of the weaker, broader 2J band of triethylamine / isopropylamine in
+  the simulation, which looked like a misfit for a day (2026-10-11; raw model and data agreed within 5 %).
+  When a band looks misfitted in a baseline-corrected overlay, compare raw heights before changing the fit.
 - A display baseline ("model", D62) built from a wrong fit draws structure into the data trace (LF_1 wings); look at
   the plain real part too before reading features off a corrected figure.
 

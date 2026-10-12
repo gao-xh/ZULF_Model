@@ -87,7 +87,10 @@ def entry_spec(eid, tag):
 
 def auto_baseline(f, y, lines_hz):
     """AsLS baseline chosen for this spectrum: grid of (pre-smoothing, smoothness, p); score = negative area within
-    6 Hz of the model lines (relative to the absolute area there) + loss of the five highest peaks. Returns
+    6 Hz of the model lines (relative to the absolute area there) + the mean height loss over the line clusters
+    (lines closer than 6 Hz form one cluster). Every cluster counts, not only the highest peaks: a weak, broad band
+    (a 2J band next to a strong J band) must not be taken into the baseline (2026-10-11: the simulation's 2J band
+    of triethylamine lost two thirds of its height when only the five highest peaks were checked). Returns
     (baseline, settings)."""
     from scipy.ndimage import gaussian_filter1d
     from zulf_processing import asls_baseline
@@ -97,7 +100,16 @@ def auto_baseline(f, y, lines_hz):
         near |= np.abs(f - v) < 6.0
     if not near.any():
         near[:] = True
-    raw_top = np.sort(y[near])[-5:].mean()
+    clusters = []
+    for v in sorted(lines_hz):
+        if clusters and v - clusters[-1][1] < 6.0:
+            clusters[-1][1] = v
+        else:
+            clusters.append([v, v])
+    regions = [(f > lo - 1.5) & (f < hi + 1.5) for lo, hi in clusters] or [near]
+    regions = [r for r in regions if r.any()]
+    level = float(np.median(y))
+    raw_height = [float(y[r].max() - level) for r in regions]
     best = None
     for pre in (0.0, 0.15):
         ys = gaussian_filter1d(y, pre / step) if pre else y
@@ -108,7 +120,8 @@ def auto_baseline(f, y, lines_hz):
                 b = b + np.median((y - b)[q])
                 dc = y - b
                 neg = float(-dc[near][dc[near] < 0].sum() / (np.abs(dc[near]).sum() or 1.0))
-                loss = max(0.0, 1.0 - np.sort(dc[near])[-5:].mean() / (raw_top - np.median(y) or 1.0))
+                loss = float(np.mean([max(0.0, 1.0 - dc[r].max() / (h or 1.0)) for r, h in zip(regions, raw_height)
+                                      if h > 0] or [0.0]))
                 score = neg + loss
                 if best is None or score < best[0]:
                     best = (score, b, dict(pre=pre, smooth=smooth, p=p))
