@@ -36,7 +36,8 @@ EXCLUDED = {"diethylamine": "experimental spectrum too poor: magnetometer offset
                             "pinned, weak signal (owner, 2026-10-12; docs/analysis/2026-10-11_amines_refits.md)"}
 # display baselines chosen by hand for a spectrum (owner's request), used for experiment and simulation alike:
 # eid -> (mask half-width Hz, smoothness Hz) of the line-masked smoother
-BASELINE_OVERRIDES = {"lactic-acid": (0.6, 0.7)}   # 2026-10-12: humps at 135-145 and 150-155 Hz removed
+BASELINE_OVERRIDES = {"lactic-acid": (0.6, 0.7),   # 2026-10-12: humps at 135-145 and 150-155 Hz removed
+                      "glycerol": (0.6, 0.7)}      # 2026-10-12: crop-wing humps at 135, 150, 220-224 Hz removed
 # groups whose 13C sites share one topology are coloured by site instead (owner, 2026-10-12: pyridine is all
 # 13C-H, so the topology legend says nothing); site label -> (legend text, colour), one band row per site
 SITE_STYLES = {"pyridines": {"A2": ("13C at C2 (ortho, next to N): its lines", "#2f8f5b"),
