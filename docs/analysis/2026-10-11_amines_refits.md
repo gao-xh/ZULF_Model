@@ -141,3 +141,9 @@ Line height over noise (window 1.5 1/s, record 4 s) at 124.9 / 251.1 / 255.6 Hz:
 New `scripts/select_scans.py` (pinned scans out, band 110-270 Hz robust z <= 5): 6011 scans, the best of these.
 A clip-aware weighted mean was tried and dropped (lower line heights). Fit on it: configs v18 (running).
 Open: why partly pinned scans carry a larger amplitude; whether select_scans also helps the other runs.
+- Owner's check: band outliers out only, pinned scans kept (`select_scans.py --keep-pinned`, 9404 scans; 596
+  band outliers, 106 of them pinned scans with very large band power): 3.5 / 2.9 / 1.2, far worse. Pinned scans
+  are not harmless: many leave and return to the rail (pinned 90-100 %), and each step adds broadband power while
+  they carry no signal. The pinned-scan cut stays.
+- v17 (old 8001-scan plain mean, settings of v14): objective 0.692, 1J(C2,H) 146.9 Hz (far from about 133):
+  not used.

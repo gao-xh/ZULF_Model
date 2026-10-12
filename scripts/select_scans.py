@@ -37,7 +37,10 @@ def main():
     ap.add_argument("--window", default="0.1,4.1", help="time window lo,hi (s) of the band rms")
     ap.add_argument("--z", type=float, default=5.0, help="robust z above which a scan is an outlier")
     ap.add_argument("--rail", type=float, default=28500.0)
-    ap.add_argument("--pinned", type=float, default=0.9, help="pinned fraction above which a scan is left out")
+    ap.add_argument("--pinned", type=float, default=0.9, help="pinned fraction above which a scan is pinned")
+    ap.add_argument("--keep-pinned", action="store_true",
+                    help="keep the pinned scans (only the band outliers are left out; the robust z still comes from "
+                         "the scans that are not pinned)")
     args = ap.parse_args()
     run = Path(args.run)
     files = sorted((int(p.stem), p) for p in run.glob("*.dat") if p.stem.isdecimal())
@@ -58,7 +61,7 @@ def main():
     keep = []
     for s in scans:
         s["band_z"] = (s["band_rms"] - med) / mad
-        s["kept"] = s["pinned_fraction"] <= args.pinned and s["band_z"] <= args.z
+        s["kept"] = (args.keep_pinned or s["pinned_fraction"] <= args.pinned) and s["band_z"] <= args.z
         if s["kept"]:
             keep.append(s["scan"])
     out = {"run": str(run), "settings": vars(args), "scans_found": len(scans), "scans_kept": len(keep),
@@ -66,8 +69,9 @@ def main():
            "band_rms_median": med, "band_rms_mad": mad, "keep": keep, "scans": scans}
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(out, open(args.out, "w"), indent=1)
-    print(f"{len(keep)} of {len(scans)} scans kept ({out['scans_pinned']} pinned, "
-          f"{len(scans) - len(keep) - out['scans_pinned']} band outliers) -> {args.out}")
+    outliers = sum(s["band_z"] > args.z for s in scans if args.keep_pinned or s["pinned_fraction"] <= args.pinned)
+    print(f"{len(keep)} of {len(scans)} scans kept ({out['scans_pinned']} pinned"
+          f"{', kept' if args.keep_pinned else ''}; {outliers} band outliers) -> {args.out}")
 
 
 if __name__ == "__main__":
