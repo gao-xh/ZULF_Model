@@ -9,7 +9,8 @@ Per entry (resumable: a step whose output exists is skipped):
      when one measurement holds several runs, e.g. a dilution series);
   (an entry may set "exchange": "slow" for N-H / O-H protons that couple, default fast, decoupled; and
   "variant": "free" for free isotopologue amplitudes, default "ratios" = natural-abundance ratios; and
-  "background_order" for the per-band background of the fit, default 1, -1 off; "nh_exchange": start value
+  "background_order" for the per-band background of the fit, default 1, -1 off; "average": "all-scans" to fit
+  the average of every scan instead of z5; "nh_exchange": start value
   (1/s) of a fitted N-H / O-H exchange rate, with "exchange": "slow")
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
      `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/; entries may
@@ -97,7 +98,8 @@ def process(entry, args):
     series = ROOT / "runs/series" / f"batch_{eid}{entry.get('series', '')}"
     if not (series / "series.json").exists():
         note(eid, status="spectrum")
-        cmd = [PY, "scripts/make_series_entry.py", "--fid", str(proc / "z5/average_fid.npy"), "--id", eid,
+        cmd = [PY, "scripts/make_series_entry.py", "--fid", str(proc / entry.get("average", "z5") / "average_fid.npy"),
+               "--id", eid,
                "--out", str(series.relative_to(ROOT)), "--exclude", "81.5,86"]
         if entry.get("grid"):
             cmd += ["--grid", entry["grid"]]
