@@ -1355,12 +1355,14 @@ def build_problem(args):
             edges += list(pe)
             notes.append(f"{len(pe)} between {len(peaks)} data peaks")
         if "lines" in parts:
-            le, groups = line_family_edges(p.joint, p.z0, max_span_hz=getattr(args, "line_group_span", 0.0))
+            le, groups = line_family_edges(p.joint, p.z0, min_relative=getattr(args, "line_min_relative", 0.05),
+                                           min_distance_hz=getattr(args, "line_min_distance", 0.25),
+                                           max_span_hz=getattr(args, "line_group_span", 0.0))
             edges += list(le)
             notes.append(f"{len(le)} between {len(groups)} model lines (or unresolved groups)")
         merged = []
         for e in sorted(edges):
-            if not merged or e - merged[-1] > 0.3:
+            if not merged or e - merged[-1] > getattr(args, "edge_merge", 0.3):
                 merged.append(e)
         args.family_edges = ",".join(f"{e:.3f}" for e in merged)
         print(f"--family-edges {mode}: {len(merged)} edges ({'; '.join(notes)}): {args.family_edges}", flush=True)
@@ -1790,6 +1792,13 @@ def make_parser():
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--line-min-distance", type=float, default=0.25,
+                    help="--family-edges lines: lines closer than this (Hz) share a rate family")
+    ap.add_argument("--line-min-relative", type=float, default=0.05,
+                    help="--family-edges lines: lines weaker than this share of their component's strongest line get "
+                         "no family edge of their own")
+    ap.add_argument("--edge-merge", type=float, default=0.3,
+                    help="family edges closer than this (Hz) are merged into one")
     ap.add_argument("--line-group-span", type=float, default=0.0,
                     help="--family-edges lines: largest span (Hz) of one group of unresolved lines (0: no limit, "
                          "groups chain through dense multiplets)")

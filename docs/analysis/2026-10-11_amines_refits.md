@@ -200,3 +200,10 @@ dipropylamine and diethylamine (v22 settings).
   run_batch key `line_group_span`) caps a group's span; test tests/test_joint_series.py
   test_line_groups_stop_chaining_at_the_span_limit. Stage-2 refits from v13 stage 1 with span 0.4 Hz:
   runs/processed/batch_{n-n-dimethylethylenediamine,sec-butylamine}_v13span_s2.
+- Pitfall: a fit's recorded command (monitor/status.json argv) holds `--family-edges` as the numbers actually
+  used, not the keyword `lines`. The v13span stage-2 refits copied that command, so `--line-group-span` had no
+  effect (same families as v13): that comparison is void. Copy a command with `--family-edges lines` restored.
+- New options `--line-min-distance` (0.25), `--line-min-relative` (0.05), `--edge-merge` (0.3) (defaults unchanged).
+- Owner: one rate per line, couplings fixed. v13fixJ: stage 2 from the v13 result, all couplings held at v13
+  (`--free-couplings '^NONE$'`), `--family-edges lines --line-min-distance 0.02 --edge-merge 0.02
+  --line-min-relative 0.02`: 475 (DMEDA) / 504 (sec-butylamine) families.

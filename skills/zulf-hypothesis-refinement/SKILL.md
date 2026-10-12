@@ -102,6 +102,9 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 - Default: complex data, `gain_model="shared_phase"`, delay fitted,
   background_order 1, 3 starts, analytic (Kaufman) Jacobian.
+- To rerun a stage from a fit's recorded command (monitor/status.json argv), restore `--family-edges lines`:
+  the record holds the edges actually used as numbers, so line-family options (`--line-group-span`,
+  `--line-min-distance`, ...) would silently do nothing (2026-10-12).
 - Check the model away from the lines. The per-band background is smooth in
   the record's frame, so in the spectrum it is a ripple of period
   1/(crop + delay) (10 Hz with crop 0.1 s) that breaks at the band gaps; with
