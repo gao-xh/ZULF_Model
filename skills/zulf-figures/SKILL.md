@@ -42,6 +42,11 @@ Worked example: isopropylamine, docs/analysis/2026-10-03_isopropylamine_complex-
   (0.25 Hz) took two thirds of the height of the weaker, broader 2J band of triethylamine / isopropylamine in
   the simulation, which looked like a misfit for a day (2026-10-11; raw model and data agreed within 5 %).
   When a band looks misfitted in a baseline-corrected overlay, compare raw heights before changing the fit.
+- Humps beside the lines (crop wings, broad structure; in data and model alike) stay with a plain AsLS. The
+  overlay also tries a masked Whittaker smoother (line cores +-0.8 / 1.2 Hz weight 0, smoothness 1-3 Hz) and
+  scores the residual structure beside the lines; the kind (AsLS or masked) is chosen for experiment and
+  simulation together (different kinds made the heights disagree), the parameters separately (2026-10-12).
+  With dense multiplets little is left between the lines and AsLS stays.
 - A display baseline ("model", D62) built from a wrong fit draws structure into the data trace (LF_1 wings); look at
   the plain real part too before reading features off a corrected figure.
 

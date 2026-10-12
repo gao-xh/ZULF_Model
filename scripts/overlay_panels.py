@@ -120,7 +120,7 @@ def entry_spec(eid, tag):
     raise KeyError(eid)
 
 
-def auto_baseline(f, y, lines_hz):
+def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
     """AsLS baseline chosen for this spectrum: grid of (pre-smoothing, smoothness, p); score = negative area within
     6 Hz of the model lines (relative to the absolute area there) + the mean height loss over the line clusters
     (lines closer than 6 Hz form one cluster). Every cluster counts, not only the highest peaks: a weak, broad band
@@ -145,22 +145,61 @@ def auto_baseline(f, y, lines_hz):
     regions = [r for r in regions if r.any()]
     level = float(np.median(y))
     raw_height = [float(y[r].max() - level) for r in regions]
-    best = None
-    for pre in (0.0, 0.15):
+    mean_height = float(np.mean([h for h in raw_height if h > 0] or [1.0]))
+    # line cores; humps beside them (crop wings, broad residual structure) are what the third term measures
+    cores = {w: np.zeros(len(f), bool) for w in (0.8, 1.2)}
+    for v in lines_hz:
+        for w in cores:
+            cores[w] |= np.abs(f - v) < w
+    beside = near & ~cores[0.8]
+
+    def score_of(b):
+        dc = y - b
+        neg = float(-dc[near][dc[near] < 0].sum() / (np.abs(dc[near]).sum() or 1.0))
+        loss = float(np.mean([max(0.0, 1.0 - dc[r].max() / (h or 1.0)) for r, h in zip(regions, raw_height)
+                              if h > 0] or [0.0]))
+        hump = float(np.mean(np.abs(dc[beside])) / mean_height) if beside.any() else 0.0
+        return neg + loss + hump
+
+    best = (np.inf, None, None)
+    for pre in ((0.0, 0.15) if "asls" in methods else ()):
         ys = gaussian_filter1d(y, pre / step) if pre else y
         for smooth in (0.25, 0.35, 0.5, 0.7):
             for p in (0.05, 0.15):
                 b = asls_baseline(ys, f, smooth_hz=smooth, p=p)
                 q = (f > f.max() - 30)
                 b = b + np.median((y - b)[q])
-                dc = y - b
-                neg = float(-dc[near][dc[near] < 0].sum() / (np.abs(dc[near]).sum() or 1.0))
-                loss = float(np.mean([max(0.0, 1.0 - dc[r].max() / (h or 1.0)) for r, h in zip(regions, raw_height)
-                                      if h > 0] or [0.0]))
-                score = neg + loss
-                if best is None or score < best[0]:
+                score = score_of(b)
+                if score < best[0]:
                     best = (score, b, dict(pre=pre, smooth=smooth, p=p))
-    return best[1], best[2]
+    # masked smoother (owner, 2026-10-12: remove the humps beside the lines): the line cores get weight 0, the
+    # baseline is a Whittaker smoother through the rest, so it follows the humps but not the lines
+    for w, core in (cores.items() if "masked" in methods else ()):
+        if core.mean() > 0.8:                          # dense multiplets: nothing left to fit between the lines
+            continue
+        for smooth in (1.0, 2.0, 3.0):
+            b = masked_smoother(f, y, ~core, smooth)
+            q = (f > f.max() - 30)
+            b = b + np.median((y - b)[q])
+            score = score_of(b)
+            if score < best[0]:
+                best = (score, b, dict(pre=0.0, smooth=smooth, p=None, mask=w))
+    if best[1] is None:                                # no candidate of the requested kind: plain AsLS
+        return auto_baseline(f, y, lines_hz, ("asls",), with_score)
+    return (best[1], best[2], best[0]) if with_score else (best[1], best[2])
+
+
+def masked_smoother(f, y, weight, smooth_hz):
+    """Whittaker smoother (second differences, lambda = (smooth / step)^4) with 0 / 1 weights: fits only where
+    weight is True and interpolates smoothly across the rest."""
+    from scipy import sparse
+    from scipy.sparse.linalg import spsolve
+    n = len(y)
+    step = float(np.median(np.diff(f)))
+    lam = (smooth_hz / step) ** 4
+    d = sparse.diags([1.0, -2.0, 1.0], [0, 1, 2], shape=(n - 2, n))
+    w = sparse.diags(np.asarray(weight, float))
+    return spsolve(sparse.csc_matrix(w + lam * (d.T @ d)), np.asarray(weight, float) * y)
 
 
 def draw_molecule(spec, highlight=None, color=None, size=(260, 200)):
@@ -222,8 +261,15 @@ def panel(ax, eid, view, site_styles=None):
     m = np.nan_to_num(np.asarray(sim.get("fit_re", np.zeros_like(y))))
     lines = [r for r in s.lines(0.05) if view[0] <= r["frequency_hz"] <= view[1]]
     # experiment and simulation each get their own AsLS baseline, chosen separately (owner, 2026-10-10)
-    b, settings = auto_baseline(f, y, [r["frequency_hz"] for r in lines])
-    bm, settings_m = auto_baseline(f, m, [r["frequency_hz"] for r in lines])
+    # the kind of baseline (AsLS or lines masked) is chosen for experiment and simulation together, so both are
+    # processed alike; the parameters of that kind are chosen for each separately (owner, 2026-10-10 / 10-12)
+    hz = [r["frequency_hz"] for r in lines]
+    options = []
+    for kind in (("asls",), ("masked",)):
+        b, settings, s_exp = auto_baseline(f, y, hz, kind, with_score=True)
+        bm, settings_m, s_sim = auto_baseline(f, m, hz, kind, with_score=True)
+        options.append((s_exp + s_sim, b, settings, bm, settings_m))
+    _, b, settings, bm, settings_m = min(options, key=lambda o: o[0])
     dc, mc = y - b, m - bm
     sc = float(np.max(dc)) or 1.0
     ax.plot(f, dc / sc, color="#1d1d1f", lw=0.7, zorder=2)
@@ -294,6 +340,8 @@ def panel(ax, eid, view, site_styles=None):
         ax.text(0.07, 0.405, "\n".join(features), transform=ax.transAxes, fontsize=6.8, color="#1f4e8c",
                 ha="center", va="top", fontweight="bold", linespacing=1.15, zorder=5)
     def describe(st):
+        if st.get("mask"):
+            return f"lines masked +-{st['mask']} Hz, {st['smooth']} Hz"
         pre = f"pre {st['pre']} Hz, " if st["pre"] else ""
         return f"{pre}{st['smooth']} Hz, p {st['p']}"
     ax.text(0.995, 0.03, f"fit {tag}, score {fit['scores'][0]:.3f}; AsLS experiment {describe(settings)}; "
