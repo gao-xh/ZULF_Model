@@ -110,3 +110,34 @@ Commit: (this commit)
   signal per scan is about four times weaker.
 - Likely cause: the sensor worked far from its zero (offset near the rail), with reduced, nonlinear
   sensitivity. A measurement problem; to be raised with the collaborator (re-measure with the sensor zeroed).
+
+## Scan selection from the original 10000 diethylamine scans (2026-10-12)
+
+The original run (Google Drive "Raw Data"/diethylamine_9999.zip, 10000 scans, 2025-10-10) is now stored at
+`original/2025-10-10-diethylamine/diethylamine/` (20001 files, checked). Per-scan statistics
+(~/research/zulf/data/processed/2025-10-10-diethylamine/original-10000/scan_stats.json): pinned fraction in
+0.1-1.1 s, template amplitude in 110-270 Hz, band rms, robust z.
+
+| scans | kept by the old tool | dropped by the old tool |
+|---|---|---|
+| pinned at the rail (> 90 %) | 3101, amplitude 0.0 +- 0.2 | 398 (a few with very large band power) |
+| partly pinned | 869, amplitude 22.8 +- 6.8 | 167 |
+| never pinned | 4031, amplitude 5.4 +- 0.5 | 1434, amplitude 6.6 +- 1.2 |
+
+The old broadband residual metric is dominated by the magnetometer offset: it kept the pinned (signal-free)
+scans and dropped good ones; it did remove a few scans with huge band power, which spoil a plain mean.
+
+Line height over noise (window 1.5 1/s, record 4 s) at 124.9 / 251.1 / 255.6 Hz:
+
+| average | scans | heights |
+|---|---|---|
+| all 10000 | 10000 | 3.2 / 1.8 / 0.9 |
+| old selection (raw/, plain mean) | 8001 | 14.1 / 6.7 / 4.0 |
+| old selection, z5 | 7532 | 7.7 / 4.0 / 2.2 |
+| never pinned | 5465 | 3.3 / 2.6 / 1.2 |
+| not pinned (> 90 %) | 6501 | 10.8 / 4.1 / 2.1 |
+| not pinned, band z <= 3 / 5 / 8 / 15 | 5693 / 6011 / 6199 / 6313 | 10.0 / 7.1 / 2.8; **15.8 / 9.6 / 3.7**; 15.2 / 7.8 / 3.4; 4.5 / 1.3 / 0.9 |
+
+New `scripts/select_scans.py` (pinned scans out, band 110-270 Hz robust z <= 5): 6011 scans, the best of these.
+A clip-aware weighted mean was tried and dropped (lower line heights). Fit on it: configs v18 (running).
+Open: why partly pinned scans carry a larger amplitude; whether select_scans also helps the other runs.

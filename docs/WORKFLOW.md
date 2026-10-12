@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans 2026-10-11).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans, select_scans 2026-10-12).
 
 ## Map
 
@@ -56,6 +56,7 @@ fit_joint_series.py and reads its fit.json back); Studio adds manual tuning, liv
 | Workflow | Input | Output | Main command | Details |
 |---|---|---|---|---|
 | W1 scans to FID | instrument run folder | average FID, half averages, scan metrics | `scripts/average_scans.py` | below; skills/zulf-fid-processing |
+| W1 (option) signal-band selection | instrument run folder | keep list: scans pinned at the rail out, band rms robust z <= 5 (JSON for `average_scans.py --keep`) | `scripts/select_scans.py` | diethylamine 2026-10-12: better than the broadband selection; check line heights per run |
 | W1 (check) clipped scans | instrument run folder | keep list of scans inside the ADC range (JSON for `average_scans.py --keep`) | `scripts/clipped_scans.py` | diethylamine 2026-10-11: removing clipped scans lowered the SNR; check before using |
 | W2 FID to spectrum | average FID | processed, phased complex spectrum, series.json, fit ranges | `scripts/make_series_entry.py` | sections 1-2, 4, 10; skills/zulf-fid-processing, zulf-phasing |
 | W3 known-structure fit | spectrum + structure | couplings with uncertainties, fit.json | `scripts/fit_joint_series.py` | sections 3-10 |
