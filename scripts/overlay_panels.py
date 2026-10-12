@@ -159,7 +159,8 @@ def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
         loss = float(np.mean([max(0.0, 1.0 - dc[r].max() / (h or 1.0)) for r, h in zip(regions, raw_height)
                               if h > 0] or [0.0]))
         hump = float(np.mean(np.abs(dc[beside])) / mean_height) if beside.any() else 0.0
-        return neg + loss + hump
+        # the hump term only breaks near-ties: weighted fully it let a flexible AsLS cut the DMEDA main line
+        return neg + loss + 0.3 * hump
 
     best = (np.inf, None, None)
     for pre in ((0.0, 0.15) if "asls" in methods else ()):
