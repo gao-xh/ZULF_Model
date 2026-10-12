@@ -1655,6 +1655,8 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
     if getattr(args, "background_order", None) is not None:
         base = dataclasses.replace(base, background_order=args.background_order)
+    if getattr(args, "band_weighting", None):
+        base = dataclasses.replace(base, band_weighting=args.band_weighting)
     base = _rate_policy(base, args)
     settings = _settings_for(model, args.variant, base)
     exchange = None
@@ -1785,6 +1787,10 @@ def make_parser():
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--band-weighting", default=None, choices=["signal", "equal", "none"],
+                    help="residual weighting (default signal: noise-scaled, weight 1 at the data and model cores and "
+                         "0.2 far from them; equal: one weight per band). With low SNR, signal weighting lets model "
+                         "lines sit where the data have none at little cost (diethylamine, 2026-10-12)")
     ap.add_argument("--background-order", type=int, default=None,
                     help="per-band complex polynomial background (default 1, linear; -1 off). It is smooth in the "
                          "record's frame, so with crop + delay c it shows as a ripple of period 1/c in the spectrum "
