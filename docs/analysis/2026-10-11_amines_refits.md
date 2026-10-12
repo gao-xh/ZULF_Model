@@ -161,3 +161,7 @@ noise level, model lines in regions without data lines cost little while the fit
 objective is not a reliable yardstick here; v14 stays in the overlay. A carbon weakened by 14N is not
 supported (free amplitudes made the XA2 band stronger). Next: fit the new average with equal weighting or a
 penalty for model lines absent from the data.
+- v22 (new selection, `band_weighting: equal`, new option `--band-weighting`): objective 0.832 (not comparable with
+  signal weighting), 1J 124.48 / 129.88 Hz; no spurious model lines (the XA2 region is quiet as in the data), J
+  band and the 251 Hz line placed; 251 Hz at about 60 % of the data height, 256 Hz weak
+  (runs/figures/batch/diethylamine_v22_compare.png). Next: v23 = v22 with a fitted residual field.
