@@ -9,7 +9,8 @@ Per entry (resumable: a step whose output exists is skipped):
      when one measurement holds several runs, e.g. a dilution series);
   (an entry may set "exchange": "slow" for N-H / O-H protons that couple, default fast, decoupled; and
   "variant": "free" for free isotopologue amplitudes, default "ratios" = natural-abundance ratios; and
-  "field_axes": "z" with "field_start": "0,0.045" fits a z field only (fast); "background_order" for the
+  "field_axes": "z" with "field_start": "0,0.045" fits a z field only; "fixed_field": "0,0.046" holds a known
+  field (transverse,z in uT; no field parameter, much faster); "background_order" for the
   per-band background of the fit, default 1, -1 off; "average": "all-scans" to fit
   the average of every scan instead of z5; "band_weighting": signal (default) | equal | none; "nh_exchange": start value
   (1/s) of a fitted N-H / O-H exchange rate, with "exchange": "slow")
@@ -127,6 +128,8 @@ def process(entry, args):
         common += ["--nh-exchange", str(entry["nh_exchange"])]
     if entry.get("background_order") is not None:
         common += ["--background-order", str(entry["background_order"])]
+    if entry.get("fixed_field"):
+        common += ["--field", entry["fixed_field"]]          # known field transverse,z (uT), not fitted
     if entry.get("field"):
         common += ["--fit-field", "--field-start", entry.get("field_start", "0.037,0.045")]
         if entry.get("field_axes"):

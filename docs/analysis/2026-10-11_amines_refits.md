@@ -175,3 +175,10 @@ v21 stage 1 0.108 after 5.4 h, DMEDA v20 stage 1 0.141 after 2.5 h (v13 stage 1 
 stage 1 0.949 after 3.3 h (v22 0.967). The fitted fields were mostly along z, so v24 fits a z field only
 (`field_axes: z`, `field_start: 0,0.045`; new run_batch key) for DMEDA, sec-butylamine, ethylenediamine,
 dipropylamine and diethylamine (v22 settings).
+- v24 (z field only) was still about 20 times slower than zero field (ethylenediamine stage 1 78 min against 4)
+  and did not help: ethylenediamine stage 2 0.071 at 33 min (v14 0.033; field 15 nT), sec-butylamine stage 1
+  0.106 after 83 min (v13 0.097), DMEDA still in the component search after 2.4 h. Stopped by PID at 09:10.
+  The 45-50 nT field appears only in the runs of early October (isopropylamine 09-30, tert-butylamine 10-03,
+  triethylamine); ethylenediamine (09-27) gave 15 nT, sec-butylamine is from 2026-04.
+- v25: diethylamine (10-10) with the v22 settings in a fixed z field of 46 nT (new run_batch key
+  `fixed_field`; no field parameter).
