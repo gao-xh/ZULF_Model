@@ -165,3 +165,13 @@ penalty for model lines absent from the data.
   signal weighting), 1J 124.48 / 129.88 Hz; no spurious model lines (the XA2 region is quiet as in the data), J
   band and the 251 Hz line placed; 251 Hz at about 60 % of the data height, 256 Hz weak
   (runs/figures/batch/diethylamine_v22_compare.png). Next: v23 = v22 with a fitted residual field.
+
+## Residual field along z only (v24, 2026-10-12)
+
+Fits with a transverse-and-z field (v20 DMEDA / sec-butylamine, v21 sec-butylamine slow exchange, v23
+diethylamine) took 2-5 h per stage: a transverse field breaks the total-M blocks of the eigen-decomposition.
+Stopped by PID at 06:45 with: sec-butylamine v20 stage 2 0.092 after 3.7 h (v13 0.079, worse; field 1 / 45 nT),
+v21 stage 1 0.108 after 5.4 h, DMEDA v20 stage 1 0.141 after 2.5 h (v13 stage 1 0.187), diethylamine v23
+stage 1 0.949 after 3.3 h (v22 0.967). The fitted fields were mostly along z, so v24 fits a z field only
+(`field_axes: z`, `field_start: 0,0.045`; new run_batch key) for DMEDA, sec-butylamine, ethylenediamine,
+dipropylamine and diethylamine (v22 settings).

@@ -9,7 +9,8 @@ Per entry (resumable: a step whose output exists is skipped):
      when one measurement holds several runs, e.g. a dilution series);
   (an entry may set "exchange": "slow" for N-H / O-H protons that couple, default fast, decoupled; and
   "variant": "free" for free isotopologue amplitudes, default "ratios" = natural-abundance ratios; and
-  "background_order" for the per-band background of the fit, default 1, -1 off; "average": "all-scans" to fit
+  "field_axes": "z" with "field_start": "0,0.045" fits a z field only (fast); "background_order" for the
+  per-band background of the fit, default 1, -1 off; "average": "all-scans" to fit
   the average of every scan instead of z5; "band_weighting": signal (default) | equal | none; "nh_exchange": start value
   (1/s) of a fitted N-H / O-H exchange rate, with "exchange": "slow")
   2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
@@ -128,6 +129,9 @@ def process(entry, args):
         common += ["--background-order", str(entry["background_order"])]
     if entry.get("field"):
         common += ["--fit-field", "--field-start", entry.get("field_start", "0.037,0.045")]
+        if entry.get("field_axes"):
+            # "z": the transverse component stays at its start (0 keeps the total-M blocks: much faster)
+            common += ["--field-axes", entry["field_axes"]]
     s1 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s1"
     if not (s1 / "fit.json").exists():
         note(eid, status="stage 1 fit")
