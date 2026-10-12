@@ -34,6 +34,11 @@ GROUPS = {
 # left out of the overlays, with the reason (owner's decision)
 EXCLUDED = {"diethylamine": "experimental spectrum too poor: magnetometer offset at the ADC rail, half of the scans "
                             "pinned, weak signal (owner, 2026-10-12; docs/analysis/2026-10-11_amines_refits.md)"}
+# groups whose 13C sites share one topology are coloured by site instead (owner, 2026-10-12: pyridine is all
+# 13C-H, so the topology legend says nothing); site label -> (legend text, colour), one band row per site
+SITE_STYLES = {"pyridines": {"A2": ("13C at C2 (ortho, next to N): its lines", "#2f8f5b"),
+                             "A3": ("13C at C3 (meta): its lines", "#3b6ea8"),
+                             "A4": ("13C at C4 (para): its lines", "#b4469b")}}
 TOPOLOGY = {1: ("XA", "#2f8f5b", "J"), 2: ("XA2", "#3b6ea8", "3/2 J"), 3: ("XA3", "#b4469b", "J & 2J")}
 # drawings for specifications without a recorded molecule (motifs, hand-written chains of the protonated
 # carbons only): full SMILES and the site -> atom index map, for the figure only
@@ -197,7 +202,7 @@ def proton_counts(spec):
     return n
 
 
-def panel(ax, eid, view):
+def panel(ax, eid, view, site_styles=None):
     import matplotlib.pyplot as plt  # noqa: F401
     from matplotlib.offsetbox import AnnotationBbox, OffsetImage
     from zulf_studio.session import StudioSession
@@ -236,14 +241,36 @@ def panel(ax, eid, view):
             continue
         site = mm.group(1)
         nh = counts.get(site, 0)
-        if nh not in TOPOLOGY:
+        if site_styles and site in site_styles:
+            color = site_styles[site][1]
+            row = list(site_styles).index(site)
+            y_band, h_band = 1.47 - 0.07 * row, 0.055
+        elif nh in TOPOLOGY:
+            name, color, _ = TOPOLOGY[nh]
+            y_band, h_band = 1.42, 0.09
+        else:
             continue
-        name, color, _ = TOPOLOGY[nh]
         fr = np.sort([r["frequency_hz"] for r in lines if r["component"] == comp])
         clusters = np.split(fr, np.flatnonzero(np.diff(fr) > 12.0) + 1)
+        if site_styles and site in site_styles:
+            # one row per site: a tick at each of its lines (relative >= 0.15), shade by strength
+            own = [r for r in lines if r["component"] == comp and r["relative"] >= 0.15]
+            for r in own:
+                ax.plot([r["frequency_hz"]] * 2, [y_band, y_band + h_band], color=color, lw=1.6,
+                        alpha=0.35 + 0.65 * min(1.0, r["relative"]), zorder=1, solid_capstyle="butt")
+            x0 = max(own, key=lambda r: r["relative"])["frequency_hz"] if own else float(np.mean(fr))
+            width = view[1] - view[0]
+            while any(abs(x0 - q) < 0.09 * width for q in placed):        # every site gets its drawing
+                x0 += 0.09 * width
+            if x0 > view[1] - 0.05 * width:
+                x0 = view[0] + 0.2 * width
+            img = draw_molecule(spec, site, color, size=(200, 150))
+            ax.add_artist(AnnotationBbox(OffsetImage(img, zoom=0.32), (x0, 1.1), frameon=False, zorder=4))
+            placed.append(x0)
+            continue
         for cl in clusters:
             lo, hi = cl.min() - 1.0, cl.max() + 1.0
-            ax.add_patch(plt.Rectangle((lo, 1.42), hi - lo, 0.09, color=color, alpha=0.35, lw=0, zorder=1))
+            ax.add_patch(plt.Rectangle((lo, y_band), hi - lo, h_band, color=color, alpha=0.45, lw=0, zorder=1))
         main = clusters[-1]                    # CH3: its 2J band; CH2 / CH: their only band
         x0 = float(np.mean(main))
         if all(abs(x0 - p) > 0.09 * (view[1] - view[0]) for p in placed):
@@ -274,14 +301,16 @@ def panel(ax, eid, view):
             va="bottom")
 
 
-def legend(ax):
+def legend(ax, site_styles=None):
     import matplotlib.pyplot as plt
     ax.axis("off")
     x = 0.02
-    for nh, (name, color, center) in TOPOLOGY.items():
+    entries = ([(text, color) for text, color in site_styles.values()] if site_styles else
+               [(f"{name} (13C-H{'' if nh == 1 else nh}): multiplet centre {center}", color)
+                for nh, (name, color, center) in TOPOLOGY.items()])
+    for text, color in entries:
         ax.add_patch(plt.Rectangle((x, 0.35), 0.03, 0.3, color=color, alpha=0.45, transform=ax.transAxes))
-        ax.text(x + 0.04, 0.5, f"{name} (13C-H{'' if nh == 1 else nh}): multiplet centre {center}",
-                transform=ax.transAxes, va="center", fontsize=9)
+        ax.text(x + 0.04, 0.5, text, transform=ax.transAxes, va="center", fontsize=9)
         x += 0.27
     ax.plot([0.83, 0.86], [0.62, 0.62], color="#1d1d1f", lw=1, transform=ax.transAxes)
     ax.text(0.865, 0.62, "experiment", transform=ax.transAxes, va="center", fontsize=8)
@@ -300,9 +329,10 @@ def main():
     ids, view = GROUPS[args.group]
     fig, axs = plt.subplots(len(ids) + 1, 1, figsize=(12, 1.9 * len(ids) + 0.6),
                             gridspec_kw={"height_ratios": [0.3] + [1] * len(ids)}, sharex=False)
-    legend(axs[0])
+    styles = SITE_STYLES.get(args.group)
+    legend(axs[0], styles)
     for ax, eid in zip(axs[1:], ids):
-        panel(ax, eid, view)
+        panel(ax, eid, view, styles)
         ax.tick_params(labelsize=7)
         if ax is not axs[-1]:
             ax.set_xticklabels([])
