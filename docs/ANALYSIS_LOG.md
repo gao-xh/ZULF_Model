@@ -1395,3 +1395,4 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-11 correction: the weak 2J bands of isopropylamine / triethylamine were a display artefact of the simulation's automatic AsLS (only the five highest peaks were checked); fixed in scripts/overlay_panels.py, see docs/analysis/2026-10-11_amines_refits.md
 - 2026-10-11 diethylamine: weak signal; magnetometer offset near the ADC rail, half the scans clipped; removing them does not help (docs/analysis/2026-10-11_amines_refits.md); scripts/clipped_scans.py
 - 2026-10-12 diethylamine original 10000 scans stored; old selection kept pinned scans and dropped good ones; scripts/select_scans.py (band z5) gives higher line heights (docs/analysis/2026-10-11_amines_refits.md)
+- 2026-10-12 diethylamine left out of the overlays (experimental spectrum too poor); overlay panels list fit features (docs/analysis/2026-10-11_amines_refits.md)

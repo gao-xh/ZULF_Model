@@ -182,3 +182,14 @@ dipropylamine and diethylamine (v22 settings).
   triethylamine); ethylenediamine (09-27) gave 15 nT, sec-butylamine is from 2026-04.
 - v25: diethylamine (10-10) with the v22 settings in a fixed z field of 46 nT (new run_batch key
   `fixed_field`; no field parameter).
+
+## Diethylamine left out; feature labels (owner, 2026-10-12)
+
+- Diethylamine is marked "experimental spectrum too poor" (magnetometer offset at the ADC rail, half of the scans
+  pinned, weak signal) and left out of the amines overlay (scripts/overlay_panels.py EXCLUDED); data and fits are
+  kept. v25 (fixed 46 nT field, equal weighting) was stopped at stage 2 (0.894 after 11 min).
+- Every overlay panel now lists the non-default choices of its fit, read from the fit's command, result and
+  series (`fit_features`): slow N-H exchange, residual field (fitted or fixed, transverse / z), free isotopologue
+  amplitudes, background off, equal weighting, window.
+- sec-butylamine 115-140 Hz (C2 XA band and the methyl J bands) poorly fitted: v26 slow N-H exchange at zero field
+  (window 1.5 1/s), v27 the same with the default window 0.3 1/s (narrow lines below 1 Hz spacing).

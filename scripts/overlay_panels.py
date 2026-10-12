@@ -25,12 +25,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 GROUPS = {
-    "amines": (["tert-butylamine", "isopropylamine", "triethylamine", "ethylenediamine", "diethylamine",
+    "amines": (["tert-butylamine", "isopropylamine", "triethylamine", "ethylenediamine",
                 "n-n-dimethylethylenediamine", "sec-butylamine", "dipropylamine"], (95.0, 285.0)),
     "metabolites": (["lactic-acid", "alanine", "glycerol", "serine", "methyl-2-bromopropionate"], (95.0, 310.0)),
     "pyridines": (["pyridine-02-mol", "pyridine-10-mol", "pyridine-33-mol", "pyridine-50-mol", "pyridine-66-mol",
                    "pyridine-75-mol", "pyridine-100-mol", "pyridinium-6m-acidic"], (145.0, 195.0)),
 }
+# left out of the overlays, with the reason (owner's decision)
+EXCLUDED = {"diethylamine": "experimental spectrum too poor: magnetometer offset at the ADC rail, half of the scans "
+                            "pinned, weak signal (owner, 2026-10-12; docs/analysis/2026-10-11_amines_refits.md)"}
 TOPOLOGY = {1: ("XA", "#2f8f5b", "J"), 2: ("XA2", "#3b6ea8", "3/2 J"), 3: ("XA3", "#b4469b", "J & 2J")}
 # drawings for specifications without a recorded molecule (motifs, hand-written chains of the protonated
 # carbons only): full SMILES and the site -> atom index map, for the figure only
@@ -71,6 +74,33 @@ def fit_series(run):
     """The series file a fit was made on (its command line), so a pass with another window is drawn on its own data."""
     argv = json.loads((Path(run) / "monitor" / "status.json").read_text())["argv"]
     return argv[argv.index("--series") + 1]
+
+
+def fit_features(run):
+    """Short labels of the non-default model and processing choices of a fit, read from its recorded command, its
+    result and its series (owner, 2026-10-12: mark features such as slow N-H exchange on the overlay)."""
+    run = Path(run)
+    argv = json.loads((run / "monitor" / "status.json").read_text())["argv"]
+    def opt(name, default=None):
+        return argv[argv.index(name) + 1] if name in argv else default
+    out = []
+    if opt("--exchange") == "slow":
+        out.append("slow N-H exchange" + (" (k fitted)" if opt("--nh-exchange") else ""))
+    sp = next(iter(json.loads((run / "fit.json").read_text()).get("spectrum_parameters", {}).values()), {})
+    if "--fit-field" in argv or opt("--field"):
+        bt, bz = 1e3 * sp.get("field_transverse_ut", 0.0), 1e3 * sp.get("field_z_ut", 0.0)
+        out.append(f"residual field {bt:.0f} / {bz:.0f} nT ({'fitted' if '--fit-field' in argv else 'fixed'})")
+    if opt("--variant") == "free":
+        out.append("free isotopologue amplitudes")
+    if opt("--background-order") == "-1":
+        out.append("background off")
+    if opt("--band-weighting") == "equal":
+        out.append("equal weighting")
+    record = json.loads((ROOT / opt("--series")).read_text())[0].get("record", {})
+    apod = record.get("apodization_rate_per_s")
+    if apod is not None and abs(apod - 0.3) > 1e-9:
+        out.append(f"window {apod:g} 1/s")
+    return out
 
 
 def entry_spec(eid, tag):
@@ -231,6 +261,11 @@ def panel(ax, eid, view):
     ax.text(0.07, 0.13, f"version: {run.name.removeprefix(f'batch_{eid}').strip('_') or 'v1'}", transform=ax.transAxes, fontsize=7.5,
             fontweight="bold", color="#8a3b12", ha="center", va="top",
             bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d4682e", lw=0.6))
+    features = fit_features(run)
+    if features:
+        # one feature per line between the molecule box and the name (95-118 Hz: no lines in these spectra)
+        ax.text(0.07, 0.405, "\n".join(features), transform=ax.transAxes, fontsize=6.8, color="#1f4e8c",
+                ha="center", va="top", fontweight="bold", linespacing=1.15, zorder=5)
     def describe(st):
         pre = f"pre {st['pre']} Hz, " if st["pre"] else ""
         return f"{pre}{st['smooth']} Hz, p {st['p']}"
