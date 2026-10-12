@@ -54,6 +54,31 @@ component search) and was stopped.
 Figure runs/figures/batch/amines_v14_compare.png; the overlay draws v14 for these three.
 Isopropylamine and triethylamine keep a too-weak 2J band: not explained by N-H coupling.
 
+## Residual field (v16) and non-sudden switching (owner's questions)
+
+Stage 2 already has one decay rate per model line (`--family-edges lines`); no rate of the 2J-band lines of
+isopropylamine or triethylamine is at a bound, so the weak 2J band is an area, not a width problem. A 13C
+preparation weight does not change the 2J / J band area ratio (1.25 for every weight).
+
+Residual field: `configs/batch_2026-10-10_v16.json` (`field: true`, start from the chosen pass).
+
+| entry | previous | v16 objective | field transverse / z (nT) | verdict |
+|---|---|---|---|---|
+| isopropylamine | v2 s2 0.063 | **0.034** | 9.0 / 49.9 | **v16**: J band much better; 2J band still too weak |
+| triethylamine | v1 s2 0.090 | **0.033** | 6.4 / 45.6 | **v16**: J band better; 2J band still too weak |
+| tert-butylamine | v14 s2 0.110 | 0.109 | 26.8 / 40.7 | same, keep v14 |
+
+The three samples give a consistent residual field of about 45-50 nT (mostly along z): this set was measured
+in a residual field; the other amines should be refitted with `field: true` too.
+
+Non-sudden switch (feasibility, not in the code): rho0 = sum gamma I_z evolved under H_J + Zeeman(B(t) z),
+B(t) = 100 uT exp(-t / tau), then the zero-field amplitudes. 2J / J band ratio: tau 0 1.25, 0.1 ms 1.23,
+0.3 ms 1.13, 1 ms 0.67 (signal 40 %), 3 ms 2.8-3.8 (signal 3 %), nearly identical for isopropylamine,
+triethylamine and sec-butylamine. It lowers the ratio where the data need it higher, and it would act on
+sec-butylamine alike, whose 2J band fits with the sudden drop: rejected, no change of the protocol.
+Remaining candidate: a second species (triethylamine's 2J lines at 251 / 255 Hz coincide with diethylamine's,
+a common impurity of triethylamine); test with a mixture model.
+
 Conditional numerical results of the given structures.
 
 Commit: (this commit)

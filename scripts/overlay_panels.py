@@ -50,6 +50,7 @@ CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json
 RUNS = {"methyl-2-bromopropionate": ("batch_methyl-2-bromopropionate_v7_longrange", "v6")}
 CHOSEN = {"methyl-2-bromopropionate": "_v6", "serine": "_v11", "n-n-dimethylethylenediamine": "_v13",
           "diethylamine": "_v14", "sec-butylamine": "_v13", "tert-butylamine": "_v14", "ethylenediamine": "_v14",
+          "isopropylamine": "_v16", "triethylamine": "_v16",
           "lactic-acid": "_v9", "alanine": "_v9", "glycerol": "_v12"}   # v9: window 1.5 1/s; v11, v12: background off (2026-10-11)
 
 
