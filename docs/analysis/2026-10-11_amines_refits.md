@@ -147,3 +147,17 @@ Open: why partly pinned scans carry a larger amplitude; whether select_scans als
   they carry no signal. The pinned-scan cut stays.
 - v17 (old 8001-scan plain mean, settings of v14): objective 0.692, 1J(C2,H) 146.9 Hz (far from about 133):
   not used.
+
+## Fits on the new selection (v18, v19)
+
+| version | data | objective | 1J C1 / C2 (Hz) | figure (runs/figures/batch/diethylamine_v18_compare.png) |
+|---|---|---|---|---|
+| v14 | z5 of the old selection (7532) | 0.535 | 124.81 / 132.29 | 125, 251, 255 Hz fitted; quiet near 200 Hz |
+| v18 | select_scans band z5 (6011 of 10000) | 0.273 | 125.56 / 135.04 | strong model lines at 200-225 Hz (XA2 band) not in the data |
+| v19 | as v18, free isotopologue amplitudes | 0.230 | 124.13 / 128.39 | worse: model lines at 190-205 Hz several times the data |
+
+Lower objectives with worse pictures: with signal weighting (weight 0.2 away from the data cores) and this
+noise level, model lines in regions without data lines cost little while the fit follows noise elsewhere. The
+objective is not a reliable yardstick here; v14 stays in the overlay. A carbon weakened by 14N is not
+supported (free amplitudes made the XA2 band stronger). Next: fit the new average with equal weighting or a
+penalty for model lines absent from the data.

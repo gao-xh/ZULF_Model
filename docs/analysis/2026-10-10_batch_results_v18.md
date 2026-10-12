@@ -5,4 +5,4 @@ stage 1: one rate per isotopologue; stage 2: one rate per model line. J in Hz (J
 
 | id | status | stage 1 score | stage 2 score / residual | field (nT, transverse / z) | couplings (stage 2) |
 |---|---|---|---|---|---|
-| diethylamine | queued | - | - | zero field |  |
+| diethylamine | done | 0.9696 | 0.2732 / 0.477 | zero field | J(C1,HC1) 125.56, J(C1,HC2) -2.57, J(C1,HN1) 5.14, J(HC1,HC2) 8.48, J(HC2,HN1) 4.29, J(C2,HC1) -12.04, J(C2,HC2) 135.04, J(C2,HN1) -1.36, J(C2,HC3) 2.88, J(N1,HC1) -0.09, J(N1,HC2) 2.88, J(N1,HN1) -74.06 |
