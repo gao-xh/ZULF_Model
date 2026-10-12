@@ -213,3 +213,17 @@ dipropylamine and diethylamine (v22 settings).
   gets a peak at 124.6 Hz but also structure absent from the data (125.3, 127.6 Hz); DMEDA has no line at the
   130.9 Hz data peak at all. The merged peaks are a line-position (small-coupling) problem, not a width problem.
   Stopped (with v27, window 0.3 1/s, stage 2 0.129, worse). Next: local scan of the small couplings at 115-140 Hz.
+
+## Small-coupling scan (2026-10-12)
+
+New `scripts/coupling_scan.py`: 1D scans (J0 +- 8 Hz, step 0.25) of every coupling below 20 Hz, then 2D grids
+(step 0.5) of the three that lower the window residual most; rates, phase and field held at the fit, gains solved
+again at every point. Results runs/processed/coupling_scans/{dmeda,secbutyl}_v13.json.
+
+- DMEDA v13, window 122-142 Hz (residual 0.00141, objective 0.0738): best single change J(C3,HN2) 1.87 -> -2.63 Hz,
+  window -1.4 %, objective 0.200; best pair -1.4 %. Every other coupling: < 0.5 %.
+- sec-butylamine v13, window 114-140 Hz (0.00177, 0.0781): best single J(C2,HC4) 6.11 -> 3.11 Hz, window -3.7 %,
+  objective 0.135; best pair -4.9 % with objective 1.77.
+- No small coupling, alone or in pairs, separates the merged doublets without spoiling the rest: the v13
+  couplings are the best of their neighbourhood. The misfit points to a missing ingredient (slow N-H exchange for
+  sec-butylamine, v26 running; or a component the model lacks), not to wrong small couplings.
