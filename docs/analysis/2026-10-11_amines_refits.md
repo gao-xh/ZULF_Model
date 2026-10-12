@@ -207,3 +207,9 @@ dipropylamine and diethylamine (v22 settings).
 - Owner: one rate per line, couplings fixed. v13fixJ: stage 2 from the v13 result, all couplings held at v13
   (`--free-couplings '^NONE$'`), `--family-edges lines --line-min-distance 0.02 --edge-merge 0.02
   --line-min-relative 0.02`: 475 (DMEDA) / 504 (sec-butylamine) families.
+- v13fixJ (couplings fixed, one rate per line; 1901 / 2521 parameters, 5-30 min per step): after 2 steps
+  objective 0.0659 / 0.0767 (v13 0.074 / 0.079), the merged doublets unchanged (runs/figures/batch/fixJ_compare.png).
+  Check: the same couplings with every rate at 1.5 1/s (runs/figures/batch/narrow_rate_check.png). sec-butylamine
+  gets a peak at 124.6 Hz but also structure absent from the data (125.3, 127.6 Hz); DMEDA has no line at the
+  130.9 Hz data peak at all. The merged peaks are a line-position (small-coupling) problem, not a width problem.
+  Stopped (with v27, window 0.3 1/s, stage 2 0.129, worse). Next: local scan of the small couplings at 115-140 Hz.
