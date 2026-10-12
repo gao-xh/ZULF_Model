@@ -34,6 +34,9 @@ GROUPS = {
 # left out of the overlays, with the reason (owner's decision)
 EXCLUDED = {"diethylamine": "experimental spectrum too poor: magnetometer offset at the ADC rail, half of the scans "
                             "pinned, weak signal (owner, 2026-10-12; docs/analysis/2026-10-11_amines_refits.md)"}
+# display baselines chosen by hand for a spectrum (owner's request), used for experiment and simulation alike:
+# eid -> (mask half-width Hz, smoothness Hz) of the line-masked smoother
+BASELINE_OVERRIDES = {"lactic-acid": (0.6, 0.7)}   # 2026-10-12: humps at 135-145 and 150-155 Hz removed
 # groups whose 13C sites share one topology are coloured by site instead (owner, 2026-10-12: pyridine is all
 # 13C-H, so the topology legend says nothing); site label -> (legend text, colour), one band row per site
 SITE_STYLES = {"pyridines": {"A2": ("13C at C2 (ortho, next to N): its lines", "#2f8f5b"),
@@ -147,7 +150,7 @@ def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
     raw_height = [float(y[r].max() - level) for r in regions]
     mean_height = float(np.mean([h for h in raw_height if h > 0] or [1.0]))
     # line cores; humps beside them (crop wings, broad residual structure) are what the third term measures
-    cores = {w: np.zeros(len(f), bool) for w in (0.8, 1.2)}
+    cores = {w: np.zeros(len(f), bool) for w in (0.6, 0.8, 1.2)}
     for v in lines_hz:
         for w in cores:
             cores[w] |= np.abs(f - v) < w
@@ -178,7 +181,7 @@ def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
     for w, core in (cores.items() if "masked" in methods else ()):
         if core.mean() > 0.8:                          # dense multiplets: nothing left to fit between the lines
             continue
-        for smooth in (1.0, 2.0, 3.0):
+        for smooth in (0.7, 1.0, 2.0, 3.0):
             b = masked_smoother(f, y, ~core, smooth)
             q = (f > f.max() - 30)
             b = b + np.median((y - b)[q])
@@ -265,12 +268,24 @@ def panel(ax, eid, view, site_styles=None):
     # the kind of baseline (AsLS or lines masked) is chosen for experiment and simulation together, so both are
     # processed alike; the parameters of that kind are chosen for each separately (owner, 2026-10-10 / 10-12)
     hz = [r["frequency_hz"] for r in lines]
+    if eid in BASELINE_OVERRIDES:
+        w, sm = BASELINE_OVERRIDES[eid]
+        core = np.zeros(len(f), bool)
+        for v in hz:
+            core |= np.abs(f - v) < w
+        tail = f > f.max() - 30
+        b = masked_smoother(f, y, ~core, sm)
+        b = b + np.median((y - b)[tail])
+        bm = masked_smoother(f, m, ~core, sm)
+        bm = bm + np.median((m - bm)[tail])
+        settings = settings_m = dict(pre=0.0, smooth=sm, p=None, mask=w)
     options = []
-    for kind in (("asls",), ("masked",)):
+    for kind in ((("asls",), ("masked",)) if eid not in BASELINE_OVERRIDES else ()):
         b, settings, s_exp = auto_baseline(f, y, hz, kind, with_score=True)
         bm, settings_m, s_sim = auto_baseline(f, m, hz, kind, with_score=True)
         options.append((s_exp + s_sim, b, settings, bm, settings_m))
-    _, b, settings, bm, settings_m = min(options, key=lambda o: o[0])
+    if options:
+        _, b, settings, bm, settings_m = min(options, key=lambda o: o[0])
     dc, mc = y - b, m - bm
     sc = float(np.max(dc)) or 1.0
     ax.plot(f, dc / sc, color="#1d1d1f", lw=0.7, zorder=2)
