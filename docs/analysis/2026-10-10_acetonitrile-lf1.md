@@ -191,7 +191,8 @@ triplet (0.4 / 0.4-0.5 s); the J sidebands decay faster in LF_1 (0.3-0.5 s vs 0.
 
 Commits: d3cf6a5 (first section); this commit (crop 0.3 s).
 
-T2* figure for slides (2026-10-12, owner): runs/figures/acn_T2star_vs_dnu_dB.png (runs/figures/acn_t2star_figure.py,
+T2* figure for slides (2026-10-12, owner; redrawn 2026-10-13 from the conclusion fits acn_lf1_c03_fit / acn250_combined_c03_fit,
+window 0.3 1/s: dB = 10.9 nT, rms 0.37 1/s; the window-1.0 version is acn_T2star_vs_dnu_dB_w1.png): runs/figures/acn_T2star_vs_dnu_dB.png (runs/figures/acn_t2star_figure.py,
 from runs/figures/acn_rate_vs_field_sensitivity_w1both.json). Left: T2* of every line in both samples vs |dnu/dB|.
 A single R0 + pi |dnu/dB| dB per sample does not describe the lines (the 1J central line, slope 0, has T2* 2.6 /
 3.4 s, the 2J lines about 0.4-0.6 s: different intrinsic relaxation). Right: the rate difference 2 mL - 250 uL,
