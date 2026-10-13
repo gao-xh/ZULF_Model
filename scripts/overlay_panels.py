@@ -291,6 +291,18 @@ def panel(ax, eid, view, site_styles=None):
         options.append((s_exp + s_sim, b, settings, bm, settings_m))
     if options:
         _, b, settings, bm, settings_m = min(options, key=lambda o: o[0])
+    # two routes for the simulation (owner, 2026-10-13: "take both, keep the better"): the experiment's own baseline
+    # subtracted from both (common: the drawn difference equals the true residual) or the simulation's own baseline
+    # (separate). Keep the one whose drawn experiment - simulation is smaller near the lines.
+    near = np.zeros(len(f), bool)
+    for v in hz:
+        near |= np.abs(f - v) < 6.0
+    near = near if near.any() else np.ones(len(f), bool)
+    rms_common = float(np.sqrt(np.mean((y - m)[near] ** 2)))
+    rms_separate = float(np.sqrt(np.mean(((y - b) - (m - bm))[near] ** 2)))
+    route = "common" if rms_common <= rms_separate else "separate"
+    if route == "common":
+        bm, settings_m = b, dict(settings, common=True)
     dc, mc = y - b, m - bm
     sc = float(np.max(dc)) or 1.0
     ax.plot(f, dc / sc, color="#1d1d1f", lw=0.7, zorder=2)
@@ -361,6 +373,8 @@ def panel(ax, eid, view, site_styles=None):
         ax.text(0.07, 0.405, "\n".join(features), transform=ax.transAxes, fontsize=6.8 * k ** 0.5, color="#1f4e8c",
                 ha="center", va="top", fontweight="bold", linespacing=1.15, zorder=5)
     def describe(st):
+        if st.get("common"):
+            return "same baseline as the experiment"
         if st.get("mask"):
             return f"lines masked +-{st['mask']} Hz, {st['smooth']} Hz"
         pre = f"pre {st['pre']} Hz, " if st["pre"] else ""

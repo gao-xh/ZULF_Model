@@ -47,6 +47,11 @@ Worked example: isopropylamine, docs/analysis/2026-10-03_isopropylamine_complex-
   scores the residual structure beside the lines; the kind (AsLS or masked) is chosen for experiment and
   simulation together (different kinds made the heights disagree), the parameters separately (2026-10-12).
   With dense multiplets little is left between the lines and AsLS stays.
+- Experiment vs simulation: take both routes and keep the better (owner, 2026-10-13). Common = the experiment's
+  baseline subtracted from both (the drawn difference equals the true residual; the simulation can pick up the
+  data's baseline wiggles); separate = each curve its own baseline (clean simulation, but different baselines can
+  create a false difference: serine v11 triplet 25 % low, rms 0.055 -> 0.084). overlay_panels keeps the route with
+  the smaller drawn difference within 6 Hz of the lines and prints it in the footer.
 - A display baseline ("model", D62) built from a wrong fit draws structure into the data trace (LF_1 wings); look at
   the plain real part too before reading features off a corrected figure.
 
