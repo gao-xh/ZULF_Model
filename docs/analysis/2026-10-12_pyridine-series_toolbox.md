@@ -25,3 +25,16 @@ Commit: (this commit)
 worse (v1 had no slow exchange, field or merged-line problem to fix; background off and free amplitudes cost
 here). The rest of v28 was stopped; the overlay keeps v1 for every pyridine. Only pyridinium (N-H+, slow exchange
 physically motivated) is run alone with the v28 entry.
+
+## Coupling trend over the dilution series (v1 stage-2 fits)
+
+`python scripts/coupling_trend.py runs/figures/pyridine_J_trend.png --x 2,10,33,50,66,75,100 --runs
+runs/processed/batch_pyridine-{02,10,33,50,66,75,100}-mol_s2 --xlabel "pyridine (mol %)" --csv
+runs/figures/pyridine_J_trend.csv` (new script).
+
+- 1J(C2,H2) falls almost monotonically from 180.1 (2 mol %) to 176.9 Hz (100 mol %), 66 mol % below the line
+  (177.5); 1J(C4,H4) falls from 164.3 to 162.3 Hz, monotonic; 1J(C3,H3) scatters between 161.5 and 163.5 Hz.
+- Long-range J(C,H) and J(H,H) jump by several hertz between neighbouring concentrations (e.g. 3J(H2,H3) 4.6 at
+  50 mol %, 9.9 at 66 mol %, 5.5 at 75 mol %) with no trend: not determined by these fits. The linearised error
+  bars are far smaller than this scatter (known 10-30x underestimate). A joint fit of the series with smooth
+  (monotone) couplings would tie them down.
