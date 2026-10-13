@@ -29,7 +29,7 @@ GROUPS = {
                 "n-n-dimethylethylenediamine", "sec-butylamine", "dipropylamine"], (95.0, 285.0)),
     "metabolites": (["lactic-acid", "alanine", "glycerol", "serine", "methyl-2-bromopropionate"], (95.0, 310.0)),
     "pyridines": (["pyridine-02-mol", "pyridine-10-mol", "pyridine-33-mol", "pyridine-50-mol", "pyridine-66-mol",
-                   "pyridine-75-mol", "pyridine-100-mol", "pyridinium-6m-acidic"], (145.0, 195.0)),
+                   "pyridine-75-mol", "pyridine-100-mol"], (145.0, 195.0)),     # pyridinium left out (owner, 2026-10-12)
 }
 # left out of the overlays, with the reason (owner's decision)
 EXCLUDED = {"diethylamine": "experimental spectrum too poor: magnetometer offset at the ADC rail, half of the scans "
