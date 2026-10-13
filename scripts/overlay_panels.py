@@ -34,6 +34,8 @@ GROUPS = {
 # left out of the overlays, with the reason (owner's decision)
 EXCLUDED = {"diethylamine": "experimental spectrum too poor: magnetometer offset at the ADC rail, half of the scans "
                             "pinned, weak signal (owner, 2026-10-12; docs/analysis/2026-10-11_amines_refits.md)"}
+# figure width (inches) per group; default 12 (owner, 2026-10-12: amines narrower)
+FIG_WIDTH = {"amines": 8.2}   # panel width : height about 4.5 : 1 (owner)
 # display baselines chosen by hand for a spectrum (owner's request), used for experiment and simulation alike:
 # eid -> (mask half-width Hz, smoothness Hz) of the line-masked smoother
 BASELINE_OVERRIDES = {"lactic-acid": (0.6, 0.7),   # 2026-10-12: humps at 135-145 and 150-155 Hz removed
@@ -52,6 +54,7 @@ DRAWINGS = {
     "triethylamine": ("CCN(CC)CC", {"C2": 0, "C1": 1}),
     "ethylenediamine": ("NCCN", {"C1": 1}),
     "pyridine": ("c1ccncc1", {"A4": 0, "A3": 1, "A2": 2}),
+    "pyridinium": ("c1cc[nH+]cc1", {"A4": 0, "A3": 1, "A2": 2}),
 }
 CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json", "configs/batch_2026-10-10.json"]
 
@@ -247,6 +250,7 @@ def proton_counts(spec):
 
 
 def panel(ax, eid, view, site_styles=None):
+    k = min(1.0, ax.figure.get_figwidth() / 12)        # narrow figures: smaller drawings and labels
     import matplotlib.pyplot as plt  # noqa: F401
     from matplotlib.offsetbox import AnnotationBbox, OffsetImage
     from zulf_studio.session import StudioSession
@@ -328,7 +332,7 @@ def panel(ax, eid, view, site_styles=None):
             if x0 > view[1] - 0.05 * width:
                 x0 = view[0] + 0.2 * width
             img = draw_molecule(spec, site, color, size=(200, 150))
-            ax.add_artist(AnnotationBbox(OffsetImage(img, zoom=0.32), (x0, 1.1), frameon=False, zorder=4))
+            ax.add_artist(AnnotationBbox(OffsetImage(img, zoom=0.32 * k), (x0, 1.1), frameon=False, zorder=4))
             placed.append(x0)
             continue
         for cl in clusters:
@@ -338,23 +342,23 @@ def panel(ax, eid, view, site_styles=None):
         x0 = float(np.mean(main))
         if all(abs(x0 - p) > 0.09 * (view[1] - view[0]) for p in placed):
             img = draw_molecule(spec, site, color, size=(200, 150))
-            ab = AnnotationBbox(OffsetImage(img, zoom=0.32), (x0, 1.12), frameon=False, zorder=4)
+            ab = AnnotationBbox(OffsetImage(img, zoom=0.32 * k), (x0, 1.12), frameon=False, zorder=4)
             ax.add_artist(ab)
             placed.append(x0)
     img = draw_molecule(spec, size=(220, 160))
-    ax.add_artist(AnnotationBbox(OffsetImage(img, zoom=0.36), (0.07, 0.66), xycoords="axes fraction",
+    ax.add_artist(AnnotationBbox(OffsetImage(img, zoom=0.36 * k), (0.07, 0.66), xycoords="axes fraction",
                                  frameon=True, bboxprops=dict(edgecolor="0.6", lw=0.6), zorder=4))
     fit = json.load(open(run / "fit.json"))
-    ax.text(0.07, 0.22, f"{eid.replace('-', ' ')}", transform=ax.transAxes, fontsize=8, fontweight="bold",
+    ax.text(0.07, 0.22, f"{eid.replace('-', ' ')}", transform=ax.transAxes, fontsize=8 * k ** 0.5, fontweight="bold",
             ha="center", va="top")
     # which pass is drawn, in plain sight (owner, 2026-10-11): the fit folder names the version and stage
-    ax.text(0.07, 0.13, f"version: {run.name.removeprefix(f'batch_{eid}').strip('_') or 'v1'}", transform=ax.transAxes, fontsize=7.5,
+    ax.text(0.07, 0.13, f"version: {run.name.removeprefix(f'batch_{eid}').strip('_') or 'v1'}", transform=ax.transAxes, fontsize=7.5 * k ** 0.5,
             fontweight="bold", color="#8a3b12", ha="center", va="top",
             bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d4682e", lw=0.6))
     features = fit_features(run)
     if features:
         # one feature per line between the molecule box and the name (95-118 Hz: no lines in these spectra)
-        ax.text(0.07, 0.405, "\n".join(features), transform=ax.transAxes, fontsize=6.8, color="#1f4e8c",
+        ax.text(0.07, 0.405, "\n".join(features), transform=ax.transAxes, fontsize=6.8 * k ** 0.5, color="#1f4e8c",
                 ha="center", va="top", fontweight="bold", linespacing=1.15, zorder=5)
     def describe(st):
         if st.get("mask"):
@@ -362,20 +366,21 @@ def panel(ax, eid, view, site_styles=None):
         pre = f"pre {st['pre']} Hz, " if st["pre"] else ""
         return f"{pre}{st['smooth']} Hz, p {st['p']}"
     ax.text(0.995, 0.03, f"fit {tag}, score {fit['scores'][0]:.3f}; AsLS experiment {describe(settings)}; "
-            f"simulation {describe(settings_m)}", transform=ax.transAxes, fontsize=6.5, color="0.4", ha="right",
+            f"simulation {describe(settings_m)}", transform=ax.transAxes, fontsize=6.5 * k, color="0.4", ha="right",
             va="bottom")
 
 
 def legend(ax, site_styles=None):
     import matplotlib.pyplot as plt
     ax.axis("off")
+    fontsize = 9 * min(1.0, ax.figure.get_figwidth() / 12) ** 1.5      # narrow figures: smaller legend text
     x = 0.02
     entries = ([(text, color) for text, color in site_styles.values()] if site_styles else
                [(f"{name} (13C-H{'' if nh == 1 else nh}): multiplet centre {center}", color)
                 for nh, (name, color, center) in TOPOLOGY.items()])
     for text, color in entries:
         ax.add_patch(plt.Rectangle((x, 0.35), 0.03, 0.3, color=color, alpha=0.45, transform=ax.transAxes))
-        ax.text(x + 0.04, 0.5, text, transform=ax.transAxes, va="center", fontsize=9)
+        ax.text(x + 0.04, 0.5, text, transform=ax.transAxes, va="center", fontsize=fontsize)
         x += 0.27
     ax.plot([0.83, 0.86], [0.62, 0.62], color="#1d1d1f", lw=1, transform=ax.transAxes)
     ax.text(0.865, 0.62, "experiment", transform=ax.transAxes, va="center", fontsize=8)
@@ -392,7 +397,8 @@ def main():
     ap.add_argument("--out", default="")
     args = ap.parse_args()
     ids, view = GROUPS[args.group]
-    fig, axs = plt.subplots(len(ids) + 1, 1, figsize=(12, 1.9 * len(ids) + 0.6),
+    width = FIG_WIDTH.get(args.group, 12)
+    fig, axs = plt.subplots(len(ids) + 1, 1, figsize=(width, 1.9 * len(ids) + 0.6),
                             gridspec_kw={"height_ratios": [0.3] + [1] * len(ids)}, sharex=False)
     styles = SITE_STYLES.get(args.group)
     legend(axs[0], styles)
