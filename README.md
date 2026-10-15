@@ -31,9 +31,12 @@ labelled experimental database; experiments remain the final check.
 | `configs/` | Problem, generator, couplings, processing, perturbation, protocol, model and run configurations |
 | `skills/zulf-model` | Agent skill guide (Claude skill format and OpenAI agent card) |
 | `skills/zulf-blind-analysis` and category skills | Experimental workflow skills: FID processing, spectrum interpretation, phasing, hypothesis refinement; case notes and derivation paths |
+| `zulf_studio/` | ZULF Studio: real-time simulator (structure, couplings, static field, line width), fitting with a progress slider, log, terminal, Python console (PySide6) and a JSON API for AI agents |
 | `docs/` | Architecture, conventions, decisions, plan ledger, references |
 
 ## Install
+
+On the owner's machine: the conda environment `zulf` (docs/ENVIRONMENT.md). Elsewhere:
 
 ```bash
 python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
@@ -55,6 +58,7 @@ python scripts/make_series_entry.py --fid FID.npy --id NAME --out runs/series/NA
 python scripts/fit_joint_series.py --series runs/series/NAME/series.json ...        # complex known-structure fit (docs/WORKFLOW.md)
 python scripts/band_diagnosis.py <fit options> --fit runs/processed/NAME/fit.json    # which band is bad, which parameters act on it
 python scripts/smoke_pipeline.py                  # generate -> train -> propose -> refine
+python scripts/run_studio.py --series runs/series/NAME/series.json --fit runs/processed/NAME   # ZULF Studio (docs/STUDIO.md): sliders, fit, figures, AI assistant; JSON API on :8766
 zulf-model tools list                             # agent tools
 zulf-model diagnose AVERAGE.npy 0.ini             # per-dataset processing diagnostics
 zulf-model train configs/run_cnn_set_v1.json      # training run (live rendering)
@@ -67,8 +71,26 @@ python -m zulf_model.agent.mcp_server             # MCP server for Claude Code /
 Outputs go to `$ZULF_MODEL_WORKSPACE` (default `runs/`, ignored by git).
 Experimental inputs are read-only and never committed.
 
+## Data
+
+Experimental data is not in git. On the local machine of the owner it is stored under
+`~/research/zulf/data/` (layout, rules and inventory with sha256 in its `README.md`). Every file sits in a
+measurement folder (`<YYYY-MM-DD>-<compound>`, or `<compound>-<sample id>` when the date is unknown), created
+first under each area:
+
+| Folder | Contents |
+| --- | --- |
+| `original/<measurement>/` | Instrument output of one run, every scan (NMRduino `<n>.dat`, `<n>.ini`), as given, read-only |
+| `raw/<measurement>/` | Other received data, original names: averaged FID `<id>-<name>.npy`, `selected-scans/` (legacy ScanSelector), `spectra/` (other groups or software) |
+| `processed/<measurement>/` | Data products of our code (scan-selection records and their averages) |
+
+`ZULF_DATA_DIR` points at `raw/` and is passed per command, e.g.
+`ZULF_DATA_DIR=~/research/zulf/data/raw python scripts/regression_confirmed.py ...`; the scripts find each
+FID by file name in any subfolder (`zulf_core.io.find_data_file`, exactly one match required). Cloud sessions
+have no copy of the data (docs/HANDOFF.md, "Data").
+
 ## Status
 
 Start with `docs/HANDOFF.md` (state as of 2026-10-05: data, current results, how to fit a known structure, open
-work), then `docs/PLAN.md` and `docs/WORKFLOW.md`. Results from the solver are conditional numerical
+work), then `docs/WORKFLOW.md` (map of every workflow) and `docs/PLAN.md`. Results from the solver are conditional numerical
 candidates, reported with their flags, residuals and held-out scores.

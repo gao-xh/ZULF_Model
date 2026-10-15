@@ -1,0 +1,768 @@
+{
+ "note": "Second pass of the SMILES entries of batch_2026-10-10.json with the neighbour-based 1J starts (D61 amendment, 2026-10-10)",
+ "entries": [
+  {
+   "id": "isopropylamine",
+   "scans": "raw/2025-09-30-isopropylamine/isopropylamine/data",
+   "structure": {
+    "compound": "isopropylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "N1"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 133.0,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "N1": 3
+     }
+    }
+   },
+   "field": false
+  },
+  {
+   "id": "diethylamine",
+   "scans": "raw/2025-10-10-diethylamine/diethylamine/data",
+   "structure": {
+    "compound": "diethylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C4",
+       "C2": "C3",
+       "C3": "C2",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC2": "HC3",
+       "HC3": "HC2",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 133.0,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCNCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "N1": 2,
+      "C3": 3,
+      "C4": 4
+     }
+    }
+   },
+   "field": false
+  },
+  {
+   "id": "n-n-dimethylethylenediamine",
+   "scans": "original/2025-11-04-n-n-dimethylethylenediamine/N,N_dimethylethylenediamine",
+   "structure": {
+    "compound": "N,N-dimethylethylenediamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       0
+      ],
+      [
+       "C2",
+       "C",
+       3
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       2
+      ],
+      [
+       "N2",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "N1"
+      ],
+      [
+       "N1",
+       "C2"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C4",
+       "N2"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C2",
+       "C2": "C1",
+       "HC1": "HC2",
+       "HC2": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 133.0,
+     "C3": 133.0,
+     "C4": 133.0,
+     "N2": 75.0
+    },
+    "molecule": {
+     "smiles": "CN(C)CCN",
+     "sites": {
+      "C1": 0,
+      "N1": 1,
+      "C2": 2,
+      "C3": 3,
+      "C4": 4,
+      "N2": 5
+     }
+    }
+   },
+   "field": false
+  },
+  {
+   "id": "sec-butylamine",
+   "scans": "original/2026-04-06-sec-butylamine/sec_butylamine",
+   "structure": {
+    "compound": "sec-butylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "C3",
+       "C",
+       1
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C3",
+       "N1"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 125.0,
+     "C3": 133.0,
+     "C4": 125.0,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "C4": 3,
+      "N1": 4
+     }
+    }
+   },
+   "field": false
+  },
+  {
+   "id": "dipropylamine",
+   "scans": "raw/2025-11-07-dipropylamine/dipropylamine/data",
+   "structure": {
+    "compound": "dipropylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C4",
+       "C",
+       2
+      ],
+      [
+       "C5",
+       "C",
+       2
+      ],
+      [
+       "C6",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "N1"
+      ],
+      [
+       "N1",
+       "C4"
+      ],
+      [
+       "C4",
+       "C5"
+      ],
+      [
+       "C5",
+       "C6"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C6",
+       "C2": "C5",
+       "C3": "C4",
+       "C4": "C3",
+       "C5": "C2",
+       "C6": "C1",
+       "HC1": "HC6",
+       "HC2": "HC5",
+       "HC3": "HC4",
+       "HC4": "HC3",
+       "HC5": "HC2",
+       "HC6": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 125.0,
+     "C3": 133.0,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCCNCCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "N1": 3,
+      "C4": 4,
+      "C5": 5,
+      "C6": 6
+     }
+    }
+   },
+   "field": false
+  },
+  {
+   "id": "methyl-2-bromopropionate",
+   "scans": "original/2026-04-12-methyl-2-bromopropionate/Methyl 2-bromopropionate",
+   "structure": {
+    "compound": "methyl 2-bromopropionate",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "Br1",
+       "Br",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       0
+      ],
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "Br1"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O1"
+      ],
+      [
+       "C3",
+       "O2"
+      ],
+      [
+       "O2",
+       "C4"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 156.0,
+     "C4": 141.0
+    },
+    "molecule": {
+     "smiles": "CC(Br)C(=O)OC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "Br1": 2,
+      "C3": 3,
+      "O1": 4,
+      "O2": 5,
+      "C4": 6
+     }
+    },
+    "notes": [
+     "unsaturated or aromatic bonds: the chain uses saturated (sp3) 2J/3J defaults; a registered motif (e.g. 'benzene ring') models aromatic couplings"
+    ]
+   },
+   "field": false
+  },
+  {
+   "id": "glycerol",
+   "scans": "original/2026-03-20-glycerol-40wt-h2o/glycerol_40weight_H2O",
+   "structure": {
+    "compound": "glycerol",
+    "chain": {
+     "groups": [
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "C1",
+       "C",
+       2
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "O3",
+       "O",
+       0
+      ]
+     ],
+     "bonds": [
+      [
+       "O1",
+       "C1"
+      ],
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "O2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O3"
+      ]
+     ],
+     "sym": [
+      {
+       "O1": "O3",
+       "C1": "C3",
+       "C3": "C1",
+       "O3": "O1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 141.0,
+     "C2": 141.0
+    },
+    "molecule": {
+     "smiles": "OCC(O)CO",
+     "sites": {
+      "O1": 0,
+      "C1": 1,
+      "C2": 2,
+      "O2": 3,
+      "C3": 4,
+      "O3": 5
+     }
+    }
+   },
+   "field": false
+  },
+  {
+   "id": "serine",
+   "scans": "original/2026-04-01-serine/serine",
+   "structure": {
+    "compound": "serine",
+    "chain": {
+     "groups": [
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "C1",
+       "C",
+       2
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "N1",
+       "N",
+       3
+      ],
+      [
+       "C3",
+       "C",
+       0
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "O3",
+       "O",
+       0
+      ]
+     ],
+     "bonds": [
+      [
+       "O1",
+       "C1"
+      ],
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O2"
+      ],
+      [
+       "C3",
+       "O3"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 141.0,
+     "C2": 137.0,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "OCC([NH3+])C(=O)[O-]",
+     "sites": {
+      "O1": 0,
+      "C1": 1,
+      "C2": 2,
+      "N1": 3,
+      "C3": 4,
+      "O2": 5,
+      "O3": 6
+     }
+    },
+    "notes": [
+     "unsaturated or aromatic bonds: the chain uses saturated (sp3) 2J/3J defaults; a registered motif (e.g. 'benzene ring') models aromatic couplings"
+    ]
+   },
+   "field": false
+  },
+  {
+   "id": "isopropanol",
+   "scans": "original/2026-09-17-isopropanol-70pct-rubbing-alcohol-ulf/70per_isopropyl_alcohol_rubbing_alcohol_ULF",
+   "structure": {
+    "compound": "isopropanol",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "O1",
+       "O",
+       0
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "O1"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 125.0,
+     "C2": 141.0
+    },
+    "molecule": {
+     "smiles": "CC(C)O",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "O1": 3
+     }
+    }
+   },
+   "field": true
+  }
+ ]
+}

@@ -1,0 +1,192 @@
+{
+ "note": "Residual field fitted (owner asked why the high-frequency 2J bands stay weak although every line has its own rate): the 2J-band lines of 13CH3 are about twice as field-sensitive as the J band, so a residual field of tens of nT splits and broadens them (2026-10-11).",
+ "entries": [
+  {
+   "id": "isopropylamine",
+   "scans": "raw/2025-09-30-isopropylamine/isopropylamine/data",
+   "structure": {
+    "compound": "isopropylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "N1"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.37,
+     "C2": 133.47,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "N1": 3
+     }
+    }
+   },
+   "field": true
+  },
+  {
+   "id": "triethylamine",
+   "scans": "original/2025-09-25-triethylamine/triethylamine",
+   "structure": {
+    "compound": "triethylamine",
+    "motif": "N-ethyl (Et3N)",
+    "one_bond": {
+     "C1": 132.39,
+     "C2": 125.03
+    }
+   },
+   "field": true
+  },
+  {
+   "id": "tert-butylamine",
+   "scans": "raw/2025-10-03-tert-butylamine/tertbutylamine/data",
+   "structure": {
+    "compound": "tert-butylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       3
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C2",
+       "C4"
+      ],
+      [
+       "C2",
+       "N1"
+      ]
+     ],
+     "sym": [
+      {
+       "C3": "C4",
+       "C4": "C3",
+       "HC3": "HC4",
+       "HC4": "HC3"
+      },
+      {
+       "C1": "C3",
+       "C3": "C1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      },
+      {
+       "C1": "C3",
+       "C3": "C4",
+       "C4": "C1",
+       "HC1": "HC3",
+       "HC3": "HC4",
+       "HC4": "HC1"
+      },
+      {
+       "C1": "C4",
+       "C3": "C1",
+       "C4": "C3",
+       "HC1": "HC4",
+       "HC3": "HC1",
+       "HC4": "HC3"
+      },
+      {
+       "C1": "C4",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.47,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CC(C)(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "C4": 3,
+      "N1": 4
+     }
+    }
+   },
+   "field": true,
+   "exchange": "slow"
+  }
+ ]
+}

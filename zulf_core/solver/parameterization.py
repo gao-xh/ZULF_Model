@@ -26,7 +26,7 @@ class Parameter:
     lower: float
     upper: float
     free: bool = True
-    kind: str = "coupling"          # coupling | log_rate | sigma | phase_delay | log_exchange
+    kind: str = "coupling"          # coupling | log_rate | sigma | phase_delay | log_exchange | field | nuisance
     component: int = -1
     detail: tuple = ()               # (group_a, group_b) for couplings, (family,) for rates, (group,) for exchange
 
@@ -46,10 +46,32 @@ class ParameterPolicy:
     fit_sigma: bool = False
     sigma_bounds_hz: Tuple[float, float] = (1e-3, 5.0)
     initial_sigma_hz: float = 0.05
+    # Field-distribution line shapes (D63): with per-component, per-family field sensitivities |dnu/dB| (Hz/nT) the
+    # Gaussian width of family f of component c is field_sigma_slopes[c][f] * field_sigma_nt, one fitted field
+    # spread sigma_B (nT, standard deviation) for the whole sample instead of one width per component: lines that do
+    # not move with the field stay Lorentzian, the most field-sensitive ones get the widest Gaussian.
+    field_sigma_slopes: Tuple[Tuple[float, ...], ...] = ()
+    field_sigma_bounds_nt: Tuple[float, float] = (0.0, 200.0)
+    initial_field_sigma_nt: float = 5.0
     # First-order phase as a time delay. Fitted by default: every acquisition has one (dead time,
     # switching), and a shared zero-order phase alone forces the couplings to absorb it (D24).
     fit_phase_delay: bool = True
     phase_delay_bounds_s: Tuple[float, float] = (-0.01, 0.01)
+    # Static field during evolution (Protocol.field_ut, D19), fitted only when asked; the default is zero field.
+    # With preparation and detection along z the signal depends on the field only through its transverse size
+    # B_transverse (placed in Bx) and |Bz|, so two parameters >= 0 cover every field ("field_transverse_ut", "field_z_ut").
+    # The signal is stationary at zero field (zero gradient), so the starts must be nonzero.
+    fit_field: bool = False
+    field_axes: Tuple[str, ...] = ("transverse", "z")
+    field_bounds_ut: Tuple[float, float] = (0.0, 1.0)
+    initial_field_ut: Tuple[float, float] = (0.02, 0.02)     # (transverse, z) starts
+    field_fixed: bool = False                                  # hold the field at initial_field_ut (a known field)
+    # Fitted gyromagnetic ratios (D53): gamma / (2 pi) in Hz/uT of the named nuclei as free parameters, used by the
+    # field term and the gamma weights. Only meaningful with a known (fixed) field: the splittings scale with
+    # gamma B, so gamma and a free field trade against each other.
+    fit_gamma: Tuple[str, ...] = ()
+    gamma_bounds_hz_per_ut: Tuple[float, float] = (-50.0, 50.0)
+    initial_gamma: Tuple[Tuple[str, float], ...] = ()          # starts (default: the registry value)
     # Nuisance terms rendered through the same operator; linear amplitudes are real and unconstrained.
     # {"kind": "exponential", "rate_bounds_per_s": [lo, hi], "initial_rate_per_s": r}
     # {"kind": "damped_sinusoid", "frequency_bounds_hz": [lo, hi], "initial_frequency_hz": f,
@@ -109,14 +131,36 @@ class Parameterization:
                 guess = float(np.clip(guess, lo, hi))
                 params.append(Parameter(f"c{c_index}.log_rate{f}", math.log(guess), math.log(lo), math.log(hi), True,
                                         "log_rate", c_index, (f,)))
-            if policy.fit_sigma:
+            if policy.fit_sigma and not policy.field_sigma_slopes:
                 lo, hi = policy.sigma_bounds_hz
                 params.append(Parameter(f"c{c_index}.sigma", float(np.clip(policy.initial_sigma_hz, lo, hi)), lo, hi,
                                         True, "sigma", c_index))
+        if policy.field_sigma_slopes:
+            if len(policy.field_sigma_slopes) != len(layouts) or any(
+                    len(row) != len(policy.family_edges_hz) + 1 for row in policy.field_sigma_slopes):
+                raise ValueError("field_sigma_slopes needs one row per component and one value per rate family")
+            lo, hi = policy.field_sigma_bounds_nt
+            params.append(Parameter("field_sigma_nt", float(np.clip(policy.initial_field_sigma_nt, lo, hi)), lo, hi,
+                                    True, "sigma", -1))
         if policy.fit_phase_delay:
             lo, hi = policy.phase_delay_bounds_s
             start = 0.0 if lo <= 0.0 <= hi else 0.5 * (lo + hi)     # an instrument prior may exclude zero
             params.append(Parameter("phase_delay", start, lo, hi, True, "phase_delay"))
+        if policy.fit_field:
+            lo, hi = policy.field_bounds_ut
+            for axis in policy.field_axes:
+                if axis not in ("transverse", "z"):
+                    raise ValueError(f"Unknown field axis '{axis}' (use 'transverse' and/or 'z').")
+                start = float(np.clip(policy.initial_field_ut[0 if axis == "transverse" else 1], lo, hi))
+                params.append(Parameter(f"field_{axis}_ut", start, lo, hi, not policy.field_fixed, "field", -1,
+                                        (axis,)))
+        if policy.fit_gamma:
+            from ..nuclei import get_registry
+            lo, hi = policy.gamma_bounds_hz_per_ut
+            starts = dict(policy.initial_gamma)
+            for symbol in policy.fit_gamma:
+                start = float(np.clip(starts.get(symbol, get_registry().gamma(symbol)), lo, hi))
+                params.append(Parameter(f"gamma_{symbol}", start, lo, hi, True, "gamma", -1, (symbol,)))
         for i, term in enumerate(policy.nuisance):
             kind = term.get("kind")
             if kind in ("exponential", "damped_sinusoid"):
@@ -232,11 +276,34 @@ class Parameterization:
         families = len(self.policy.family_edges_hz) + 1
         return np.array([math.exp(values[f"c{component}.log_rate{f}"]) for f in range(families)])
 
-    def sigma(self, values: Dict[str, float], component: int) -> float:
+    def sigma(self, values: Dict[str, float], component: int):
+        """Gaussian width (Hz) of a component: a scalar, or one value per rate family with field_sigma_slopes."""
+        slopes = self.policy.field_sigma_slopes
+        if slopes:
+            return np.asarray(slopes[component], float) * float(values.get("field_sigma_nt", 0.0))
         return values.get(f"c{component}.sigma", 0.0)
 
     def phase_delay(self, values: Dict[str, float]) -> float:
         return values.get("phase_delay", 0.0)
+
+    def gamma_overrides(self, values: Dict[str, float]) -> Dict[str, float]:
+        """{symbol: gamma / (2 pi) in Hz/uT} of the fitted gyromagnetic ratios (empty without them); a value at
+        zero is kept 1e-6 away from it (zero gamma has no field term and no signal)."""
+        out = {}
+        for n, p in self.parameters.items():
+            if p.kind == "gamma":
+                g = float(values.get(n, p.value))
+                out[p.detail[0]] = g if abs(g) >= 1e-6 else (1e-6 if g >= 0 else -1e-6)
+        return out
+
+    def has_field(self) -> bool:
+        return any(p.kind == "field" for p in self.parameters.values())
+
+    def field_ut(self, values: Dict[str, float]) -> Optional[Tuple[float, float, float]]:
+        """(Bx, By, Bz) in microtesla from the field parameters (B_transverse along x), or None without them."""
+        if not self.has_field():
+            return None
+        return (float(values.get("field_transverse_ut", 0.0)), 0.0, float(values.get("field_z_ut", 0.0)))
 
     def interpretation(self, values: Dict[str, float], contributions: Sequence[float]) -> Interpretation:
         comps = [Component(system, float(max(c, 0.0)), layout.label, {"refined": True})

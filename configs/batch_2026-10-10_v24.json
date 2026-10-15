@@ -1,0 +1,399 @@
+{
+ "note": "Residual field along z only (transverse held at 0 keeps the total-M blocks; the transverse-and-z fits v20, v21, v23 took hours per stage and were stopped). Start 45 nT (isopropylamine, triethylamine, sec-butylamine fits: 45-50 nT, transverse small). Each entry starts from its chosen pass; diethylamine with the v22 settings (new selection, equal weighting).",
+ "entries": [
+  {
+   "id": "n-n-dimethylethylenediamine",
+   "scans": "original/2025-11-04-n-n-dimethylethylenediamine/N,N_dimethylethylenediamine",
+   "structure": {
+    "compound": "N,N-dimethylethylenediamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       0
+      ],
+      [
+       "C2",
+       "C",
+       3
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       2
+      ],
+      [
+       "N2",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "N1"
+      ],
+      [
+       "N1",
+       "C2"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C4",
+       "N2"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C2",
+       "C2": "C1",
+       "HC1": "HC2",
+       "HC2": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 133.44,
+     "C3": 133.75,
+     "C4": 129.14,
+     "N2": 75.0
+    },
+    "molecule": {
+     "smiles": "CN(C)CCN",
+     "sites": {
+      "C1": 0,
+      "N1": 1,
+      "C2": 2,
+      "C3": 3,
+      "C4": 4,
+      "N2": 5
+     }
+    }
+   },
+   "field": true,
+   "exchange": "slow",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0,
+   "field_axes": "z",
+   "field_start": "0,0.045"
+  },
+  {
+   "id": "sec-butylamine",
+   "scans": "original/2026-04-06-sec-butylamine/sec_butylamine",
+   "structure": {
+    "compound": "sec-butylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "C3",
+       "C",
+       1
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C3",
+       "N1"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 125.2,
+     "C2": 126.0,
+     "C3": 127.46,
+     "C4": 124.8,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "C4": 3,
+      "N1": 4
+     }
+    }
+   },
+   "field": true,
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0,
+   "field_axes": "z",
+   "field_start": "0,0.045"
+  },
+  {
+   "id": "ethylenediamine",
+   "scans": "raw/2025-09-27-ethylenediamine/ethylenediamine/data",
+   "structure": {
+    "compound": "ethylenediamine",
+    "motif": "H2N-CH2-CH2-NH2",
+    "one_bond": {
+     "C1": 131.2,
+     "N1": 68.0
+    }
+   },
+   "field": true,
+   "exchange": "slow",
+   "field_axes": "z",
+   "field_start": "0,0.045"
+  },
+  {
+   "id": "dipropylamine",
+   "scans": "raw/2025-11-07-dipropylamine/dipropylamine/data",
+   "structure": {
+    "compound": "dipropylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C4",
+       "C",
+       2
+      ],
+      [
+       "C5",
+       "C",
+       2
+      ],
+      [
+       "C6",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "N1"
+      ],
+      [
+       "N1",
+       "C4"
+      ],
+      [
+       "C4",
+       "C5"
+      ],
+      [
+       "C5",
+       "C6"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C6",
+       "C2": "C5",
+       "C3": "C4",
+       "C4": "C3",
+       "C5": "C2",
+       "C6": "C1",
+       "HC1": "HC6",
+       "HC2": "HC5",
+       "HC3": "HC4",
+       "HC4": "HC3",
+       "HC5": "HC2",
+       "HC6": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 124.81,
+     "C2": 125.27,
+     "C3": 135.08,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCCNCCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "N1": 3,
+      "C4": 4,
+      "C5": 5,
+      "C6": 6
+     }
+    }
+   },
+   "field": true,
+   "field_axes": "z",
+   "field_start": "0,0.045"
+  },
+  {
+   "id": "diethylamine",
+   "scans": "raw/2025-10-10-diethylamine/diethylamine/data",
+   "structure": {
+    "compound": "diethylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "N1",
+       "N",
+       1
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "N1",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ]
+     ],
+     "sym": [
+      {
+       "C1": "C4",
+       "C2": "C3",
+       "C3": "C2",
+       "C4": "C1",
+       "HC1": "HC4",
+       "HC2": "HC3",
+       "HC3": "HC2",
+       "HC4": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 125.52,
+     "C2": 133.94,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCNCC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "N1": 2,
+      "C3": 3,
+      "C4": 4
+     }
+    }
+   },
+   "field": true,
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "series": "_orig_bandz5_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0,
+   "exchange": "slow",
+   "average": "band-z5",
+   "band_weighting": "equal",
+   "field_axes": "z",
+   "field_start": "0,0.045"
+  }
+ ]
+}

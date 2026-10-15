@@ -236,18 +236,25 @@ class MixtureForward:
         return int(new.sum())
 
     # -- columns ----------------------------------------------------------------------
+    def protocol_for(self, values: Dict[str, float]) -> Protocol:
+        """The protocol of this evaluation: the fixed one, with the fitted field when the parameterization has one."""
+        field_ut = self.p.field_ut(values) if hasattr(self.p, "field_ut") else None
+        protocol = self.protocol if field_ut is None else self.protocol.with_field(field_ut)
+        gammas = self.p.gamma_overrides(values) if hasattr(self.p, "gamma_overrides") else {}
+        return protocol.with_gamma(gammas) if gammas else protocol
+
     def transitions(self, values: Dict[str, float], c: int, system) -> "TransitionList":
         """Transition list of component c: static, or with chemical exchange of its exchanging groups
         (physics.exchange; the lines then carry their own decay rates)."""
         ex = self.p.exchange_rates(values, c) if hasattr(self.p, "exchange_rates") else {}
         if not ex:
-            tl = self.cache.get(system, self.protocol)
+            tl = self.cache.get(system, self.protocol_for(values))
             return tl.within(*self.line_band_hz) if self.line_band_hz is not None else tl
         if self.exchange_cache is None:
             from ..physics.exchange import ExchangeCache
             self.exchange_cache = ExchangeCache(64)
         spins = {spin: k for g, k in ex.items() for spin in system.groups[g]}
-        return self.exchange_cache.get(system, spins, self.protocol)
+        return self.exchange_cache.get(system, spins, self.protocol_for(values))
 
     def component_columns(self, values: Dict[str, float]) -> List[np.ndarray]:
         cols = []
@@ -271,7 +278,8 @@ class MixtureForward:
             return np.zeros(len(self.f), bool)
         return self.model_envelope(values, gains) > threshold * self.noise_sigma
 
-    def model_envelope(self, values: Dict[str, float], gains: np.ndarray, half_width_hz: float = 20.0) -> np.ndarray:
+    def model_envelope(self, values: Dict[str, float], gains: np.ndarray, half_width_hz: float = 20.0,
+                       frequencies: Optional[np.ndarray] = None, taper: bool = False) -> np.ndarray:
         """Incoherent line envelope of the model on the fitted grid, read from the transition lists (no peak picking).
 
             E(f) = sum_k abs(g_c a_k) P_R(f - f_k)
@@ -281,12 +289,19 @@ class MixtureForward:
         cut at `half_width_hz`. Line phases are ignored, so E marks every place
         the model puts signal: isolated lines of either sign, many broad
         overlapping lines, and holes where lines cancel in the coherent sum. At
-        an isolated line E equals the rendered peak magnitude.
+        an isolated line E equals the rendered peak magnitude. `frequencies` (sorted)
+        evaluates E there instead of on the fitted grid, e.g. on a guard region
+        outside the fit ranges (fit_joint_series --guard-penalty). `taper` brings
+        each profile smoothly to zero over the outer 30 % of +-half_width_hz, so E
+        is continuous in the line positions (the hard cut jumps by the profile's
+        value at the cut when a grid point crosses it; an optimiser needs E smooth)
+        and renders every profile at one reference frequency (the grid median).
         """
         from ..render.renderer import _per_transition
         from ..physics.transitions import TransitionList
-        envelope = np.zeros(len(self.f))
-        if not len(self.f):
+        grid = self.f if frequencies is None else np.asarray(frequencies, float)
+        envelope = np.zeros(len(grid))
+        if not len(grid):
             return envelope
         spacing = float(np.median(np.diff(self.f))) if len(self.f) > 1 else 1.0
         step = spacing / 4
@@ -300,21 +315,26 @@ class MixtureForward:
             if not len(tl) or c >= len(gains):
                 continue
             rates = _per_transition(self.p.rates(values, c), tl, "decay rate") + tl.rates_of_lines()
-            sigma = self.p.sigma(values, c)
+            sigmas = _per_transition(self.p.sigma(values, c), tl, "Gaussian sigma")
             weight = np.abs(gains[c] * tl.amplitudes)
-            for r in np.unique(rates):
-                members = np.flatnonzero((rates == r) & (weight > 0))
+            for r, sigma in np.unique(np.stack([rates, sigmas], axis=1), axis=0):
+                members = np.flatnonzero((rates == r) & (sigmas == sigma) & (weight > 0))
                 if not len(members):
                     continue
-                f0 = float(np.median(tl.frequencies_hz[members]))
+                # smooth mode: one reference frequency for every profile (the median line of a rate group jumps
+                # when two families reach the same rate, e.g. both at a bound, and the groups merge)
+                f0 = float(np.median(grid)) if taper else float(np.median(tl.frequencies_hz[members]))
                 pair = self.renderer.render_pair(TransitionList(np.array([f0]), np.array([1.0 + 0j])), float(r),
-                                                 f0 + offsets, delay, sigma)
+                                                 f0 + offsets, delay, float(sigma))
                 profile = np.abs(pair[:, 0])
-                lo = np.searchsorted(self.f, tl.frequencies_hz[members] - half_width_hz)
-                hi = np.searchsorted(self.f, tl.frequencies_hz[members] + half_width_hz, side="right")
+                if taper:
+                    u = np.clip((np.abs(offsets) - 0.7 * half_width_hz) / (0.3 * half_width_hz), 0.0, 1.0)
+                    profile = profile * np.cos(0.5 * np.pi * u) ** 2
+                lo = np.searchsorted(grid, tl.frequencies_hz[members] - half_width_hz)
+                hi = np.searchsorted(grid, tl.frequencies_hz[members] + half_width_hz, side="right")
                 for k, i0, i1 in zip(members, lo, hi):
                     if i1 > i0:
-                        envelope[i0:i1] += weight[k] * np.interp(self.f[i0:i1] - tl.frequencies_hz[k], offsets,
+                        envelope[i0:i1] += weight[k] * np.interp(grid[i0:i1] - tl.frequencies_hz[k], offsets,
                                                                  profile, left=0.0, right=0.0)
         return envelope
 
@@ -605,7 +625,7 @@ class MixtureForward:
         if ex:
             return self._exchange_component_derivatives(values, c, names, system, coupling_names, pairs, ex)
         with self.timer.section("solver.transition_derivatives"):
-            d = transition_derivatives(system, pairs, self.protocol)
+            d = transition_derivatives(system, pairs, self.protocol_for(values))
         if self.line_band_hz is not None:
             from ..physics.derivatives import TransitionDerivatives
             keep = (d.frequencies_hz >= self.line_band_hz[0]) & (d.frequencies_hz <= self.line_band_hz[1])
@@ -615,7 +635,7 @@ class MixtureForward:
         families = np.searchsorted(np.asarray(edges, float), d.frequencies_hz, side="right") if edges else \
             np.zeros(len(d), int)
         rates = self.p.rates(values, c)[families]
-        sigma = np.full(len(d), float(self.p.sigma(values, c)))
+        sigma = self._sigma_per_line(values, c, families)
         delay = self.p.phase_delay(values)
         a = d.amplitudes
         rows_b, rows_c, keys = [], [], []
@@ -651,14 +671,14 @@ class MixtureForward:
         spin_pairs = [[(p, q) for p in system.groups[a] for q in system.groups[b]] for a, b in pairs]
         ex_spins = [list(system.groups[self.p.parameters[n].detail[0]]) for n in ex_names]
         with self.timer.section("solver.exchange_derivatives"):
-            d = exchange_transition_derivatives(system, spins, spin_pairs, ex_spins, self.protocol)
+            d = exchange_transition_derivatives(system, spins, spin_pairs, ex_spins, self.protocol_for(values))
         tl = d.transitions
         edges = self.p.policy.family_edges_hz
         families = np.searchsorted(np.asarray(edges, float), tl.frequencies_hz, side="right") if edges else \
             np.zeros(len(tl), int)
         comp_rates = self.p.rates(values, c)[families]
         rates = comp_rates + tl.rates_of_lines()
-        sigma = np.full(len(tl), float(self.p.sigma(values, c)))
+        sigma = self._sigma_per_line(values, c, families)
         delay = self.p.phase_delay(values)
         a = tl.amplitudes
         rows_b, rows_c, keys = [], [], []
@@ -686,6 +706,13 @@ class MixtureForward:
             cols = cols * self.correction[:, None, None]
         return {k: cols[:, :, i] for i, k in enumerate(keys)}
 
+    def _sigma_per_line(self, values: Dict[str, float], c: int, families: np.ndarray) -> np.ndarray:
+        """Gaussian width of every line of component c from its rate family (scalar or per-family table)."""
+        s = self.p.sigma(values, c)
+        if np.ndim(s) == 0:
+            return np.full(len(families), float(s))
+        return np.asarray(s, float)[families]
+
     def _numeric_column_derivatives(self, values: Dict[str, float], names: Sequence[str]):
         """Central differences of the component pair columns and nuisance columns (no closed form)."""
         h = 1e-6 * max(1.0, abs(values[names[0]]))
@@ -707,8 +734,8 @@ class MixtureForward:
 
         The derivative of the model at fixed linear coefficients is analytic for
         couplings (eigen-derivatives, physics.derivatives), decay rates and the
-        phase delay; Gaussian widths and nuisance parameters use central
-        differences of their columns only. With A the directions the linear
+        phase delay; Gaussian widths, field components, gyromagnetic ratios and
+        nuisance parameters use central differences of their columns only. With A the directions the linear
         solve absorbs (component amplitudes, the shared phase, background and
         nuisance amplitudes) and r the residual,
 

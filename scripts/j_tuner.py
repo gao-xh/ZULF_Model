@@ -9,6 +9,9 @@ families, bounds) is built by fit_joint_series.build_problem from the same comma
 shown are the fitter's own objective. --fit loads the couplings and spectrum parameters of a fit (keys missing from it
 keep their structure values).
 
+Spectrum parameters have their own live sliders: a fitted static field (B transverse and B z in nT, D47), the
+decay rate of every rate family (1/s, log scale) and the delay (ms).
+
 Shown on every change: the objective (with the missing-peak rows, as ranked by the fitter), the plain weighted
 residual, the relative residual on the data cores, the cost inside the current view, their change against the
 baseline (the loaded fit or the last accepted state), data / model / residual in the view, the model lines (the
@@ -57,8 +60,12 @@ def load_fit(prob, fit):
             continue
         table[:, k] = [c["J_at_x"][r] for r in rows]
     xs = [x.copy() for x in prob.xs0]
+    from fit_joint_series import remap_family_rates
+    edges_now = joint.params[0].policy.family_edges_hz
     for e, x in zip(prob.series, xs):
-        for n, v in fit.get("spectrum_parameters", {}).get(e["id"], {}).items():
+        spectrum = remap_family_rates(fit.get("spectrum_parameters", {}).get(e["id"], {}), fit.get("family_edges_hz"),
+                                      edges_now)
+        for n, v in spectrum.items():
             if n in joint.col:
                 x[joint.col[n]] = v
     prob.z0 = np.clip(joint.pack(table, xs), prob.lower + 1e-9, prob.upper - 1e-9)
@@ -108,6 +115,57 @@ class TuningSession:
             i = self._index(k)
             target = float(v) - self.coupling_value(z, k) + z[i]
             z[i] = float(np.clip(target, self.prob.lower[i] + 1e-9, self.prob.upper[i] - 1e-9))
+        return z
+
+    # ---- spectrum parameters (field, decay rates, delay, ...) ----
+    def _spectrum_index(self, name):
+        j = self.joint
+        if name in j.shared:
+            return j.ntheta + j.shared.index(name)
+        return j.nt + self.s * j.nl + j.local.index(name)
+
+    def _spectrum_meta(self, name):
+        """(label, group, unit, to_display, from_display, log_slider) of one spectrum parameter. Internal units are
+        the parameterization's (field uT, log rate, delay s); the page shows nT, 1/s and ms."""
+        P = self.joint.params[self.s]
+        prm = P.parameters.get(name)
+        kind = prm.kind if prm is not None else ""
+        if kind == "field":
+            axis = prm.detail[0] if prm.detail else name
+            label = "B transverse" if axis == "transverse" else "B z"
+            return label, "field", "nT", (lambda v: 1e3 * v), (lambda v: 1e-3 * v), False
+        if kind == "log_rate":
+            c, f = prm.component, prm.detail[0]
+            edges = list(P.policy.family_edges_hz)
+            lo = f"{edges[f - 1]:g}" if f > 0 else ""
+            hi = f"{edges[f]:g}" if f < len(edges) else ""
+            band = "all lines" if not edges else (f"< {hi} Hz" if not lo else (f"> {lo} Hz" if not hi else f"{lo}-{hi} Hz"))
+            label = f"{self.joint.model.component_labels[c]}: {band}"
+            return label, "rates", "1/s", np.exp, np.log, True
+        if kind == "phase_delay":
+            return "delay", "phase", "ms", (lambda v: 1e3 * v), (lambda v: 1e-3 * v), False
+        return name, "other", "", (lambda v: v), (lambda v: v), False
+
+    def spectrum_parameters(self):
+        out = []
+        for name in self.joint.shared + self.joint.local:
+            i = self._spectrum_index(name)
+            label, group, unit, to_d, _, log_slider = self._spectrum_meta(name)
+            out.append({"name": name, "label": label, "group": group, "unit": unit, "log": log_slider,
+                        "shared": name in self.joint.shared,
+                        "value": float(to_d(self.z[i])), "baseline": float(to_d(self.baseline[i])),
+                        "initial": float(to_d(self.initial[i])),
+                        "lower": float(to_d(self.prob.lower[i])), "upper": float(to_d(self.prob.upper[i]))})
+        order = {"field": 0, "rates": 1, "phase": 2, "other": 3}
+        return sorted(out, key=lambda p: order.get(p["group"], 4))
+
+    def set_spectrum(self, values, z=None):
+        """values {name: value in display units (nT, 1/s, ms)}; clipped to the bounds."""
+        z = self.z if z is None else z
+        for name, v in values.items():
+            i = self._spectrum_index(name)
+            z[i] = float(np.clip(self._spectrum_meta(name)[4](float(v)), self.prob.lower[i] + 1e-12,
+                                 self.prob.upper[i] - 1e-12))
         return z
 
     def push_undo(self):
@@ -181,7 +239,7 @@ class TuningSession:
                 self._bw = (key, self._window_cost(f.predict(self.joint.spectrum_vector(self.baseline, self.s)).residual,
                                                    view))
             out = {"scores": numbers, "baseline": base, "baseline_window": self._bw[1],
-                   "couplings": self.couplings(),
+                   "couplings": self.couplings(), "spectrum_parameters": self.spectrum_parameters(),
                    "spectrum": {"f": f.f[sel].tolist(), "data_re": y.real.tolist(), "data_im": y.imag.tolist(),
                                 "model_re": model.real.tolist(), "model_im": model.imag.tolist(),
                                 "weight": (f.weight[sel] / max(float(f.weight.max()), 1e-30)).tolist()},
@@ -293,7 +351,8 @@ class TuningSession:
                 try:
                     p0 = np.clip(z_start[idx], lo + 1e-9, hi - 1e-9)
                     least_squares(res, p0, jac=jac, bounds=(lo, hi), x_scale="jac", max_nfev=max_nfev,
-                                  ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                                  ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                                  callback=j.stop_at_precision(lambda p: j.all_couplings(full(p))))
                     job["message"] = "converged or reached max_nfev"
                 except StopRefine:
                     job["message"] = "stopped"
@@ -353,8 +412,8 @@ class TuningSession:
         return {"spectrum": e["id"], "spectra": [x["id"] for x in self.prob.series], "ranges": ranges,
                 "extent": [float(f.f.min()), float(f.f.max())], "complex": not f.real_only,
                 "couplings": self.couplings(), "components": list(self.joint.model.component_labels),
-                "spectrum_parameters": {n: float(self.z[self.joint.nt + self.s * self.joint.nl + i])
-                                        for i, n in enumerate(self.joint.local)}}
+                "spectrum_parameters": self.spectrum_parameters(),
+                "family_edges_hz": list(self.joint.params[self.s].policy.family_edges_hz)}
 
 
 def make_handler(session, out_dir):
@@ -392,9 +451,10 @@ def make_handler(session, out_dir):
                         return self._send(409, {"error": "refinement running"})
                     if req.get("commit"):
                         session.push_undo()
-                    if req.get("values"):
+                    if req.get("values") or req.get("spectrum_values"):
                         with session.lock:
-                            session.set_couplings(req["values"])
+                            session.set_couplings(req.get("values") or {})
+                            session.set_spectrum(req.get("spectrum_values") or {})
                     return self._send(200, session.evaluate(view, analysis=req.get("analysis", True)))
                 if self.path == "/api/sources":
                     return self._send(200, session.sources(float(req["frequency_hz"]), req.get("assign_hz", 0.6)))

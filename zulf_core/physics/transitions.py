@@ -161,12 +161,13 @@ def _full_dimension(system: SpinSystem) -> int:
     return dim
 
 
-def zeeman(site_ops, symbols: Sequence[str], field_ut) -> np.ndarray:
-    """Zeeman Hamiltonian in Hz, -sum_n gamma_n B . I_n, for sites of the given nuclei."""
-    registry = get_registry()
+def zeeman(site_ops, symbols: Sequence[str], field_ut, gamma=None) -> np.ndarray:
+    """Zeeman Hamiltonian in Hz, -sum_n gamma_n B . I_n, for sites of the given nuclei. gamma: symbol -> gamma /
+    (2 pi) in Hz/uT (a protocol's `gamma`, D53); default the registry."""
+    gamma = gamma or get_registry().gamma
     h = 0
     for sym, ops in zip(symbols, site_ops):
-        g = registry.gamma(sym)
+        g = gamma(sym)
         for b, op in zip(field_ut, ops):
             if b != 0.0:
                 h = h - g * b * op
@@ -229,7 +230,7 @@ def compute_transitions(system: SpinSystem, protocol: Protocol = SUDDEN_DROP, me
         for i, j in pair_index:
             h += gj[i, j] * pairs[(i, j)]
         if protocol.has_field:
-            h = h + zeeman(site_ops, [sym for sym, _, _ in nodes], protocol.field_ut)
+            h = h + zeeman(site_ops, [sym for sym, _, _ in nodes], protocol.field_ut, protocol.gamma)
         rho = sum(p * ops[2] for p, ops in zip(prep, site_ops))
         det = sum(d * ops[2] for d, ops in zip(detw, site_ops))
         real = protocol.is_real
@@ -281,7 +282,7 @@ def reference_signal(system: SpinSystem, times_s: np.ndarray, protocol: Protocol
     for (i, k), op in pairs.items():
         h += j[i, k] * op
     if protocol.has_field:
-        h = h + zeeman(site_ops, list(system.isotopes), protocol.field_ut)
+        h = h + zeeman(site_ops, list(system.isotopes), protocol.field_ut, protocol.gamma)
     rho = sum(protocol.preparation_weight(s) * ops[2] for s, ops in zip(system.isotopes, site_ops))
     det = sum(protocol.detection_weight(s) * ops[2] for s, ops in zip(system.isotopes, site_ops))
     for pulse in protocol.pulses:

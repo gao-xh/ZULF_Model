@@ -1,0 +1,234 @@
+# Overnight plan: four new data sets onto the drive, then known-structure fits (2026-10-10)
+
+Owner's request (2026-10-10, night): sort the raw data of four downloaded zips (14N_amines, Urine_Metabolites,
+real_world_samples, ACN_fringe_field_ms1_LF_250uL) and the note "Important Data Notes.docx" onto the external
+drive, not the Mac; delete the zips; fit the data one by one; accepted the next morning.
+
+Decisions (owner, answered before the run):
+
+- Raw data lives only on the drive `/Volumes/Extreme/research/zulf/data/` (same layout as the Mac:
+  `original/<measurement>/`, `raw/<measurement>/`), one tar archive per measurement (exFAT allocates 1 MiB per
+  file; about 30 000 scan files per measurement), with a file list and the sha256 of the archive.
+- The existing Mac originals (acetonitrile, ethanol, isopropanol) move to the drive the same way and are deleted
+  from the Mac after a checked copy (sha256 of the archive and a file-by-file comparison of its listing).
+  Processed averages and spectra (small, regenerable) stay on the Mac in `~/research/zulf/data/processed/`.
+- The source still has the data, so the zips are deleted after their content is checked against the archives.
+- Fits: the known structure of each compound, a quick first pass per compound so every one has a result by
+  morning. The compound is named in the file / folder name (owner). Samples in `real_world_samples` and
+  measurements whose name says "field" are fitted with a static field; all others at zero field (default).
+- Drive copies: `~/code/extreme-drive/scripts/archive_measurement.py` (one uncompressed tar per measurement,
+  listing with every file's sha256, the archive read back from the drive and compared file by file).
+
+Notes from "Important Data Notes.docx" (owner's collaborator):
+
+- `14N_amines` also holds the brominated compound methyl 2-bromopropionate.
+- `real_world_samples`: the rubbing alcohols in brown polypropylene, unknown field, probably the acetonitrile
+  field (about 59 nT); fit the field of both alcohols and compare.
+- `real_world_samples/methyl_dimethylphosphonate`: taken in double acquisition mode: divide the frequency axis
+  by 2 (process with half the recorded sampling rate); a strong 31P band at about 0-70 Hz, 13C lines weaker.
+
+## Steps
+
+1. Wait for the downloads; list every zip (measurements, scan counts, sampling rates, sequences).
+2. Per measurement: name `<YYYY-MM-DD>-<compound>[-details]` (date of the first scan); tar the folder as given
+   to `original/<measurement>/<folder>.tar` on the drive, file list `<folder>.files.txt`, sha256 into the drive
+   README inventory and a "on the drive" line in `~/research/zulf/data/README.md`; read-only.
+3. Duplicates of data already sorted (acetonitrile; ethanol and isopropanol) are compared by file list and sha256
+   and kept once.
+4. Per measurement, in a temporary folder on the Mac (deleted afterwards): `scripts/average_scans.py` (all scans
+   and the z5 selection, halves) into `~/research/zulf/data/processed/<measurement>/`, then
+   `scripts/make_series_entry.py` (whole grid) into `runs/series/<measurement>/`.
+5. Known structure per compound (motif or chain specification, or a molecule from SMILES), quick fit:
+   `fit_joint_series.py` whole grid, `--family-edges lines`, rate bounds 0.1-40 1/s, a few starts; field only
+   where the rule says so. One analysis log per data set group in `docs/analysis/`, results table here.
+6. Move the old Mac originals to the drive (step 2 checks), delete the Mac copies, delete the zips.
+7. Commit and push the logs; the morning summary lists what is done, what failed and what to check.
+
+## Changes during the night (owner)
+
+- The drive was reformatted with 4 KiB clusters (owner, `newfs_exfat -R -b 4096`), so raw data is stored as plain
+  folders (`~/code/extreme-drive/scripts/store_measurement.py`: the folder as received + `<folder>.files.txt` with
+  every file's sha256, read back from the drive and checked), no tar. `~/AGENTS.md`, the drive README and the
+  extreme-drive README say so. Speed of a 2 GiB file unchanged (write 892 / read 885 MB/s; 1 MiB clusters 918 / 888).
+- Processed data must be on the drive too (owner): `~/code/extreme-drive/scripts/sync-to-drive.sh` copies
+  `~/research` (with `processed/`) at the end.
+- Acetonitrile 250 uL first (owner): docs/analysis/2026-10-10_acetonitrile-250ul_runs.md.
+
+## What the downloads held
+
+Safari unpacked the zips itself (no .zip left). 18 new measurements, about 33 GB:
+
+| measurement (drive) | area | scans | rate |
+|---|---|---|---|
+| 2026-04-12-methyl-2-bromopropionate | original | 8296 | 4000 Hz |
+| 2025-11-04-n-n-dimethylethylenediamine | original | 6385 | 4000 Hz |
+| 2025-10-10-diethylamine | raw (selected scans) | 8001 | 4000 Hz |
+| 2025-11-07-dipropylamine | raw (selected scans) | 5707 | 4000 Hz |
+| 2025-09-27-ethylenediamine | raw (selected scans) | 5991 | 4000 Hz |
+| 2025-09-30-isopropylamine | raw (selected scans) | 5677 | 4000 Hz |
+| 2026-04-06-sec-butylamine | original | 6681 | 4000 Hz |
+| 2025-10-03-tert-butylamine | raw (selected scans) | 6713 | 4000 Hz |
+| 2026-04-09-tetramethylpiperidine | original | 5741 | 4000 Hz |
+| 2025-09-25-triethylamine | original | 2817 | 4000 Hz |
+| 2025-12-09-pyridine-dilutions-and-pyridinium | original (02, 10, 33, 66, 100 mol %, pyridinium 6 M) + raw (50, 75 mol %) | 89575 | 4000 Hz |
+| 2026-03-16-l-lactic-acid | raw (selected scans) | 7688 | 4000 Hz |
+| 2026-03-10-l-alanine | raw (selected scans) | 12124 | 4000 Hz |
+| 2026-03-20-glycerol-40wt-h2o | original | 7747 | 4000 Hz |
+| 2026-04-01-serine | original | 7711 | 4000 Hz |
+| 2026-07-30-methyl-dimethylphosphonate-double-acq | original | 15962 | 8333 Hz (recorded; 4167 Hz real) |
+| ethanol, isopropanol (real_world_samples) | duplicates of the drive copies, checked file by file | | |
+| acetonitrile 250 uL (received again) | original/2026-09-28-.../received-2026-10-10/: scans 0-8384 a new run (2026-10-03 to 10-09), 8385-13923 the old run renumbered | 13924 | 2000 Hz |
+
+"raw (selected scans)": folders with `data/` (the kept scans, renumbered) and `selection_info.txt` of the old
+ScanSelector (e.g. diethylamine 8001 of 10000 kept). The extra files in tetramethylpiperidine are named
+`5_4_26_sec_butylamine_*` (probably misnamed spectra of another tool; kept as received).
+
+## Fits
+
+Batch: `scripts/run_batch.py configs/batch_2026-10-10.json --parallel 3 --workers 3` (results table:
+docs/analysis/2026-10-10_batch_results.md). Structures: the confirmed specifications of configs/confirmed_samples.json
+(triethylamine, ethylenediamine, lactic acid, alanine, pyridine and pyridinium), the others from SMILES
+(zulf_hypothesis.molecule; generic 2J/3J, 1J guesses), methyl dimethylphosphonate as a spin system (31P with the
+P-CH3 and two O-CH3 protons, 13C at either carbon; literature-range starts). Not fitted: tetramethylpiperidine
+(18-19 protons per isotopologue; the simulation stops, needs a reduced model).
+
+## Progress
+
+- 2026-10-10 ~01:00: all measurements except the pyridine series on the drive and checked; Mac originals and
+  Downloads folders removed after the check.
+- Acetonitrile 250 uL (two acquisitions) fitted first (owner): docs/analysis/2026-10-10_acetonitrile-250ul_runs.md.
+- Acetonitrile LF_1 (downloaded during the night) fitted and compared with 250 uL:
+  docs/analysis/2026-10-10_acetonitrile-lf1.md. Finding: with crop 0.1 s an early transient after the field
+  switch (not removed by the drift filter) biases the fit; with the high SNR of LF_1 the fit imitated it with a
+  117 nT field. With crop 0.3 s both fit to the noise (1J 136.28 Hz, |B| 64 / 61 nT; decay times per line in the
+  log). The batch keeps crop 0.1 s (the plan); a crop-0.3 check of the high-SNR entries is an open point.
+- ~02:00 session restart: the batch, the intake and the LF_1 fit had stopped. Batch restarted (resumable); the
+  intake had stopped inside 02_mol_pyridine: the partial drive copy was removed and the intake restarted at 02:46.
+- ~03:30: the isopropylamine stage 2 fit failed (broad model, the sharp 133-135 Hz lines missed;
+  runs/figures/batch/isopropylamine.png). Cause: the SMILES structures started every sp3 1J at 125 Hz, but CH
+  next to N is 133.5 Hz (2026-10-03 analysis); diethylamine's 2J -10 Hz likely the same. New 1J starts from the
+  neighbours (D61 amendment, 8e713a7). The batch was stopped (running then: diethylamine s2, sec-butylamine s2,
+  dipropylamine s1, all redone) and restarted with `--parallel 2 --workers 2 --skip <the SMILES entries>`; the
+  SMILES entries with changed starts run as a second pass: `scripts/run_batch.py configs/batch_2026-10-10_v2.json
+  --parallel 2 --workers 2 --tag _v2 --table docs/analysis/2026-10-10_batch_results_v2.md` (fits
+  runs/processed/batch_<id>_v2_s1|s2; the first-pass fits stay for comparison). At most 8 fit processes.
+- Diagnostic figures of finished entries (experiment, the stage-2 fit's own model, residual):
+  runs/figures/batch/<id><tag>.png (scripts/batch_figures.py). The first version silently drew the Studio quick
+  look instead of the fit's model when the exact curve had not been computed; that made good fits (alanine) look
+  broad. Fixed (it computes fit_model_curve first and skips an entry without it); all figures redrawn.
+- ~04:40 assessment from the corrected figures: tert-butylamine, triethylamine, ethylenediamine good; alanine and
+  lactic acid follow their lines (scores high from the noise of the data); isopropylamine first pass misses the
+  134.8 Hz line (1J start), the second pass fits (stage 2 0.0626; couplings within 0.1-0.2 Hz of the 2026-10-03
+  analysis: 1J 133.47 / 124.37, 2J -4.12 / -1.47, 3J 5.23 / 6.00 Hz); diethylamine (second pass 0.559) misses the
+  125 Hz line, low SNR with strong drift below 100 Hz.
+- Load: at most about 9.5 of 10 cores (batch 3 x 3 workers + one 3-worker fit), no thermal or performance warning
+  (pmset); no extra parallel jobs added.
+
+## Morning summary (state 07:30; updated as the batch finishes)
+
+Data: all 28 measurement folders on the drive, checked file by file, registered as drive-only in the drive README
+and in ~/research/zulf/data/README.md; Downloads data folders removed; the collaborator's note in
+~/research/zulf/notes/2026-10-10-collaborator-important-data-notes.docx. Machine log:
+~/agent-logs/2026-10-10-drive-data-intake.md.
+
+Fits (conditional numerical results of the given structures; figures runs/figures/batch/<id>[_v2].png):
+
+| data set | stage 2 score | assessment |
+|---|---|---|
+| acetonitrile 250 uL (2 acquisitions) | 0.11 (crop 0.3) | good; 1J 136.28 Hz, \|B\| 61 nT |
+| acetonitrile LF_1 | 0.004 (crop 0.3) | good after crop 0.3 s (early transient); \|B\| 64 nT |
+| tert-butylamine | 0.121 | good |
+| triethylamine | 0.090 | good |
+| ethylenediamine | 0.062 | good on the main band; sharp peaks at 190.7 / 192.2 / 200.3 Hz not in the model |
+| isopropylamine | 0.063 (second pass) | good; couplings agree with the 2026-10-03 analysis within 0.1-0.2 Hz |
+| N,N-dimethylethylenediamine | 0.141 (second pass) | partial: sharp triplet near 131 Hz drawn as one broad line |
+| diethylamine | 0.559 (second pass) | poor: 125 Hz line missed; low SNR, strong drift below 100 Hz |
+| lactic acid | 0.223 | lines followed; score from the noise |
+| alanine | 0.383 | lines followed; score from the noise |
+| pyridine 2 mol % | 0.438 | band fitted to the noise; score from drift below 50 Hz |
+| pyridine 10 / 33 mol % | 0.064 / 0.099 | good |
+
+Still running at 07:30: pyridine 50 / 66 / 75 / 100 mol %, pyridinium, methyl dimethylphosphonate (main);
+sec-butylamine, dipropylamine, methyl 2-bromopropionate, glycerol, serine, isopropanol (second pass).
+Not fitted: tetramethylpiperidine (too many spins for the simulation; needs a reduced model).
+
+For the owner to decide or check:
+
+- Crop 0.1 s vs 0.3 s for the high-SNR data sets (the early transient found on LF_1).
+- The scores of low-SNR data sets (alanine, lactic acid, pyridine 2 %) are dominated by noise and drift; compare
+  fits by figure and residual structure, not by score alone.
+- Diethylamine and the N,N-dimethylethylenediamine triplet need a closer look (structure, exchange, field).
+- Tetramethylpiperidine folder holds extra files named 5_4_26_sec_butylamine_* (kept as received).
+- Methyl dimethylphosphonate: hand-written spin system (31P + 9 H, 13C at either carbon), double-acquisition data
+  processed at half the recorded rate.
+- Branch xuehan/second-field (second field region, tested, not merged) can be deleted if not wanted.
+- Before unplugging: run sync-to-drive.sh (processed data to the drive), then eject.
+
+## Batch state (2026-10-10, 17:50)
+
+All entries finished except dipropylamine (second pass, stage 2 running; stage 1 0.132). Figures:
+runs/figures/batch/<id>[_v2].png (the fits' own models). Additional results since 07:30:
+
+| data set | stage 2 score | assessment |
+|---|---|---|
+| pyridine 50 / 66 / 75 / 100 mol % | 0.016 / 0.016 / 0.022 / 0.039 | good |
+| pyridinium 6 M acidic | 0.125 | good |
+| isopropanol (field, second pass) | 0.160 | good; B 15.7 / 65.6 nT (\|B\| about 67 nT, the order of the acetonitrile field) |
+| sec-butylamine (second pass) | 0.070 | good |
+| methyl 2-bromopropionate (second pass) | 0.194 | partial: 147.5 Hz line fitted, 155-158 Hz lines incomplete |
+| methyl dimethylphosphonate (field) | 0.194 | partial: 31P band roughly; the 148 Hz 13C line too weak in the model; B 8.5 / 10.5 nT |
+| glycerol (second pass) | 0.759 | main band (210-220 Hz) followed; score from drift below 60 Hz and the mains line |
+| serine (second pass) | 0.711 | poor: the sharp 144-146 Hz lines fitted as one broad hump |
+
+To check: serine, diethylamine, the 13C line of methyl dimethylphosphonate, the narrow triplet near 131 Hz of
+N,N-dimethylethylenediamine; tetramethylpiperidine not fitted (too many spins).
+
+Serine third pass (configs/batch_2026-10-10_v3.json, `--tag _v3`, table docs/analysis/2026-10-10_batch_results_v3.md):
+the second pass started 1J at 141 / 137 Hz (neighbour rule) and stayed in a wrong minimum (3J(H,H) 15 Hz, rates at
+the 40 1/s bound, the sharp lines drawn as broad humps). Started from the observed bands (CH2 band near
+219 Hz = 1.5 x 1J(C1), CH lines 143-146 Hz): 1J(C1,H) 146.42, 1J(C2,H) 144.95, 2J -3.67 / -3.46, 3J(H,H) 5.37 Hz,
+rates 0.4-6.6 1/s, the sharp CH lines and the 219 / 223 Hz CH2 lines fitted
+(runs/figures/batch/serine_v2_v3.png); stage 2 score 0.663 (dominated by the drift below 60 Hz and the mains line).
+Lesson: the neighbour rule underestimates 1J of carbons with several heteroatom neighbours by 5-8 Hz; read the
+1J starts from the observed band positions when they are clear.
+
+Methyl 2-bromopropionate, fourth and fifth passes: from the band scan (C1 130.9, C2 147.0, C4 147.65 Hz) the fourth
+pass fits the CH3 J and 2J bands and the OCH3 2J band (stage 1 0.334; 1J 130.54 / 147.07 / 147.60 Hz) that the second
+pass missed, but not the 155-158 Hz lines. A fifth pass from C2 153.5 Hz (to cover them) ends at C2 155.39 Hz with
+stage 1 0.411 (worse); the multi-start probe also prefers C2 near 147 Hz. The 155-158 Hz lines are not C2 in this
+model; their origin is open (impurity, 13C at the carbonyl, bromine isotopes). The fifth pass was stopped after
+stage 1. Best: fourth pass.
+
+Fourth pass and the last stage-2 runs (2026-10-10, 22:00): N,N-dimethylethylenediamine with slow N-H exchange:
+stage 1 0.198 (fast 0.303), stage 2 0.124 (fast 0.141), chosen; diethylamine with slow exchange: stage 2 0.573
+(fast 0.559), fast kept. The slow-exchange stage-2 runs and dipropylamine (second pass) were far too slow for
+max_nfev 300 (hundreds of parameters; dipropylamine about 40 evaluations in 9 h) and were stopped by hand; their
+fit.json is the best point of the monitor record (fit_monitor.point_result, marked "stopped_early"): dipropylamine
+0.066 (stage 1 0.132), N,N-dimethylethylenediamine 0.124, diethylamine 0.573. Overlay figures with the chosen pass
+per data set: runs/figures/overlay_{amines,metabolites,pyridines}.png (scripts/overlay_panels.py; methyl
+2-bromopropionate fourth pass, serine third, N,N-dimethylethylenediamine fourth).
+
+Methyl 2-bromopropionate, sixth pass (configs/batch_2026-10-10_v6.json): the clear triplet at 155-158 Hz was not
+fitted with natural-abundance amplitude ratios. With free isotopologue amplitudes (--variant free) and C2 started at
+155.4 Hz: stage 2 0.0387 (fourth pass 0.209), 1J 130.67 / 155.78 / 147.66 Hz, the triplet and every other band fitted
+(runs/figures/batch/methyl-2-bromopropionate_v4_v6.png). Amplitude of 13C@C2 0.025 vs 0.036 / 0.034 for C1 / C4
+(about 72 %): the carbon bound to bromine loses signal, as expected from scalar relaxation by the fast-relaxing
+quadrupolar 79Br / 81Br (decoupled; no Br splittings). Bromine is therefore not added as a coherent spin; its effect
+is the free amplitude (and decay) of the bound carbon's isotopologue. Chosen: sixth pass.
+
+Methyl 2-bromopropionate refinements: stage 3 from the sixth pass (rates <= 10 1/s, 8 starts, component search at
+start and end; runs/processed/batch_methyl-2-bromopropionate_v6_s3) did not help (0.0384). The chain rule gives
+couplings up to three bonds only, so the OCH3 group is isolated. Long-range couplings across the ester added as free
+parameters (--couplings, start 0.5 Hz, no prior; runs/processed/batch_methyl-2-bromopropionate_v7_longrange,
+runs/processed/mbp_v7_longrange.sh): objective 0.0282 (-27 %), 4J(C4,H2) -0.25, 4J(C2,H4) +0.45, 5J(C1,H4) -0.27,
+5J(H2,H4) +0.26 Hz; the third line of the C2 triplet (158.2 Hz) is now fitted. Still missed: the 128.0 / 129.0 Hz pair
+and the 260-264 Hz fine structure of the C1 methyl, a shoulder at 294.5 Hz (residual 4-6 noise levels). Figure:
+runs/figures/batch/methyl-2-bromopropionate_longrange.png. Chosen for the overlay.
+
+Methyl 2-bromopropionate, model lines and C1 coupling scan: with the model lines drawn under the spectrum
+(runs/figures/batch/methyl-2-bromopropionate_lines.png), the experimental peaks at 128.0 and 263.0 Hz have no model line
+(nearest 128.5 and 263.5 Hz); every other peak has one. A grid scan of 2J(C1,H2) (-8..8 Hz) x 3J(H1,H2) (-2..12 Hz),
+step 0.25 Hz, all else held (runs/figures/batch/mbp_c1_scan.png, script runs/figures/batch/mbp_c1_scan.py, 7 min):
+the current values (-2.56 / 6.48 Hz) are the only deep minimum (objective 0.029; the next local minima 0.110), also
+for the residual in the C1 bands alone. So the two unexplained peaks are not a wrong C1 coupling combination; a
+second species with a CH3-CH fragment (e.g. the hydrolysis product 2-bromopropionic acid) is the next hypothesis.

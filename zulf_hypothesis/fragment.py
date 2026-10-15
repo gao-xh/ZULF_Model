@@ -34,11 +34,13 @@ class Site:
 
 @dataclass(frozen=True)
 class ProtonGroup:
-    """Magnetically equivalent protons on one site (a methyl is one group of 3)."""
+    """Magnetically equivalent protons on one site (a methyl is one group of 3). isotope: "1H" (default) or "2H"
+    (deuterated, e.g. exchangeable protons in D2O; labeling.deuterate_exchangeable)."""
     label: str
     size: int
     site: str
     exchangeable: bool = False
+    isotope: str = "1H"
 
 
 Pair = FrozenSet[str]
@@ -183,8 +185,8 @@ class Fragment:
     def to_dict(self) -> dict:
         return {"name": self.name,
                 "sites": [{"label": s.label, "element": s.element, "isotopes": s.isotopes} for s in self.sites],
-                "protons": [{"label": p.label, "size": p.size, "site": p.site, "exchangeable": p.exchangeable}
-                            for p in self.protons],
+                "protons": [{"label": p.label, "size": p.size, "site": p.site, "exchangeable": p.exchangeable,
+                             **({"isotope": p.isotope} if p.isotope != "1H" else {})} for p in self.protons],
                 "couplings": {self.key_name(k): v for k, v in self.couplings.items()},
                 "symmetry": [dict(g) for g in self.symmetry], "bonds": [list(b) for b in self.bonds],
                 "notes": self.notes}
@@ -193,8 +195,8 @@ class Fragment:
     def from_dict(cls, data: dict) -> "Fragment":
         sites = tuple(Site(s["label"], s["element"], tuple(s["isotopes"]) if s.get("isotopes") is not None else None)
                       for s in data["sites"])
-        protons = tuple(ProtonGroup(p["label"], int(p["size"]), p["site"], bool(p.get("exchangeable", False)))
-                        for p in data["protons"])
+        protons = tuple(ProtonGroup(p["label"], int(p["size"]), p["site"], bool(p.get("exchangeable", False)),
+                                    p.get("isotope", "1H")) for p in data["protons"])
         couplings = {}
         for k, v in data.get("couplings", {}).items():
             a, b = k[2:-1].split(",")

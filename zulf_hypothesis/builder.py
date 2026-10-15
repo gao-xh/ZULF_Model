@@ -139,7 +139,8 @@ class HypothesisModel:
         return {"name": self.name, "components": self.component_labels, "ratios": list(self.ratios),
                 "ratio_blocks": self.blocks(), "parents": list(self.parents),
                 "couplings": {k: v for k, v in self.coupling_names.items()}, "unspecified": list(self.unspecified),
-                "omitted": [list(o) for o in self.omitted], "fragment": self.fragment.to_dict()}
+                "omitted": [list(o) for o in self.omitted],
+                "fragment": self.fragment.to_dict() if self.fragment is not None else None}
 
 
 def build_model(fragment: Fragment, include_exchangeable: bool = True, ranges: Optional[Sequence[Tuple[float, float]]] = None,
@@ -217,7 +218,7 @@ def build_model(fragment: Fragment, include_exchangeable: bool = True, ranges: O
             label_parts = [(iso, (x,)) for iso, grp in groups for x in grp] if split else list(groups)
             proton_parts = [(x,) for g in merged for x in g] if split else [tuple(g) for g in merged]
             spins_ = [grp for _, grp in label_parts] + proton_parts
-            isos_ = [iso for iso, _ in label_parts] + ["1H"] * len(proton_parts)
+            isos_ = [iso for iso, _ in label_parts] + [fragment.proton(g[0]).isotope for g in proton_parts]
             sizes_ = [len(grp) for _, grp in label_parts] + [sum(fragment.proton(x).size for x in g)
                                                              for g in proton_parts]
             n_ = len(spins_)

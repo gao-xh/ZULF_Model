@@ -1,9 +1,11 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 
 from zulf_core.diagnostics import diagnose_fid, fit_exponentials, plateau_end
-from zulf_core.io import decode_dat
+from zulf_core.io import decode_dat, find_data_file
 
 
 def synthetic_fid(fs=4000.0, points=40000, seed=0):
@@ -53,3 +55,63 @@ class DiagnosticsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FindDataFileTests(unittest.TestCase):
+    def test_direct_nested_missing_and_ambiguous(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "top.npy").write_bytes(b"x")
+            (root / "2026-10-01-pyridine").mkdir()
+            (root / "2026-10-01-pyridine" / "abc-average_fid.npy").write_bytes(b"x")
+            for run in ("a", "b"):
+                (root / run).mkdir()
+                (root / run / "twice.npy").write_bytes(b"x")
+            self.assertEqual(find_data_file(root, "top.npy"), root / "top.npy")
+            self.assertEqual(find_data_file(root, "abc-average_fid.npy"),
+                             root / "2026-10-01-pyridine" / "abc-average_fid.npy")
+            with self.assertRaises(FileNotFoundError):
+                find_data_file(root, "missing.npy")
+            with self.assertRaises(FileNotFoundError):
+                find_data_file(root, "twice.npy")
+
+
+def _encode_dat(samples):
+    """Inverse of the legacy NMRduino convention (decode_dat): reverse samples, pad 20 + 2 words, little-endian
+    int16, reverse bytes. Written independently of decode_dat for the averaging test."""
+    words = np.concatenate([np.zeros(20, "<i2"), np.asarray(samples, "<i2")[::-1], np.zeros(2, "<i2")])
+    return words.tobytes()[::-1]
+
+
+class AverageScansTests(unittest.TestCase):
+    def test_average_halves_and_outlier_exclusion(self):
+        import json
+        import subprocess
+        import sys
+        rng = np.random.default_rng(3)
+        n, scans = 200, 40
+        t = np.arange(n) / 100.0
+        clean = (300 * np.exp(-t) * np.cos(2 * np.pi * 12 * t)).astype(int)
+        data = np.array([clean + rng.integers(-20, 21, n) for _ in range(scans)])
+        data[7] += (2000 * np.sin(2 * np.pi * 3 * t)).astype(np.int64)        # one disturbed scan
+        ini = "[NMRduino]\nSampleRate=100\nNumberOfSamples=%d\n" % n
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run, out = Path(tmp) / "run", Path(tmp) / "out"
+            run.mkdir()
+            for i, row in enumerate(data):
+                (run / f"{i}.dat").write_bytes(_encode_dat(row))
+                (run / f"{i}.ini").write_text(ini)
+            np.testing.assert_array_equal(decode_dat((run / "3.dat").read_bytes()), data[3])
+            cmd = [sys.executable, str(root / "scripts" / "average_scans.py"), str(run), str(out),
+                   "--window", "0.1,1.9"]
+            subprocess.run(cmd, check=True, capture_output=True)
+            np.testing.assert_allclose(np.load(out / "average_fid.npy"), data.mean(axis=0))
+            np.testing.assert_allclose(np.load(out / "average_even.npy"), data[0::2].mean(axis=0))
+            np.testing.assert_allclose(np.load(out / "average_odd.npy"), data[1::2].mean(axis=0))
+            subprocess.run(cmd + ["--exclude-z", "5"], check=True, capture_output=True)
+            record = json.load(open(out / "scans.json"))
+            self.assertEqual(record["excluded_scans"], [7])
+            kept = np.delete(np.arange(scans), 7)
+            np.testing.assert_allclose(np.load(out / "average_fid.npy"), data[kept].mean(axis=0))
+            np.testing.assert_allclose(np.load(out / "average_even.npy"), data[kept[0::2]].mean(axis=0))

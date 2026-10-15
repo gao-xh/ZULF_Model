@@ -2,8 +2,9 @@
 the fit runs, without changing the fit.
 
 Writer side (used by fit_joint_series, on by default, `--monitor off` to disable): every residual evaluation of a
-start appends its objective to RUN/monitor/start_NNN.jsonl (buffered, flushed at most every 0.5 s); the couplings of
-the best point so far are added when it improves (at most once a second, and at the end). RUN/monitor/status.json
+start appends its objective and its parameter vector ("x") to RUN/monitor/start_NNN.jsonl (buffered, flushed at most
+every 0.5 s), so the spectrum at any evaluation can be drawn afterwards; the couplings and vector of the best point
+so far are added when it improves (at most once a second, and at the end). RUN/monitor/status.json
 holds the command, the phase, the number of starts and the scores of the finished starts; RUN/monitor/console.log
 copies the console output. The writer only reads the objective value the fit has already computed; the optimizer,
 its steps and its results are unchanged.
@@ -64,7 +65,8 @@ class MonitorWriter:
         if improved:
             self.best, self.best_z = cost, np.array(z, float)
             self.snapshot_pending = True
-        rec = {"n": self.n, "t": round(now - self.t0, 3), "cost": cost, "best": self.best, "label": label}
+        rec = {"n": self.n, "t": round(now - self.t0, 3), "cost": cost, "best": self.best, "label": label,
+               "x": [float(v) for v in z]}            # this evaluation's vector (Studio: spectrum at any point)
         if self.n == 1:
             rec["J0"] = self._couplings(z)                   # this start's own starting couplings
         if self.snapshot_pending and now - self.last_snapshot >= self.snapshot_s:
@@ -144,15 +146,17 @@ class Tee:
 def read_run(run, max_points=400):
     """Status and per-start histories (decimated to max_points, best so far) of one run directory."""
     mon = Path(run) / "monitor"
-    status = json.load(open(mon / "status.json"))
+    with open(mon / "status.json") as fh:
+        status = json.load(fh)
     starts = {}
     for p in sorted(mon.glob("*.jsonl")):
         recs = []
-        for line in open(p):
-            try:
-                recs.append(json.loads(line))
-            except json.JSONDecodeError:            # a line being written
-                pass
+        with open(p) as fh:
+            for line in fh:
+                try:
+                    recs.append(json.loads(line))
+                except json.JSONDecodeError:        # a line being written
+                    pass
         evals = [r for r in recs if "cost" in r]
         snaps = [r for r in recs if "J" in r]
         first = next((r for r in recs if "J0" in r), None)
@@ -217,12 +221,68 @@ def text_view(run, interval=2.0):
         pass
 
 
+def point_result(prob, z, args=None) -> dict:
+    """A fit.json-like result at the parameter vector z of a run's problem: couplings (J_at_x, by the fit's keys),
+    spectrum_parameters (field, decay-rate families, phase delay, ...), family_edges_hz, z_final, the objective
+    as the fit ranks it (hard missing-peak rows) and, with the command's args, structure and exchange. Built the
+    way fit_joint_series writes fit.json, so Studio can apply any point of a run (running or finished)."""
+    joint = prob.joint
+    z = np.asarray(z, float)
+    out = {"couplings": {prob.key_of.get(n, n): {"J_at_x": joint.coupling_values(z, k).tolist()}
+                         for k, n in enumerate(joint.coupling)}}
+    shared = {n: float(z[joint.ntheta + i]) for i, n in enumerate(joint.shared)}
+    out["spectrum_parameters"] = {prob.series[si]["id"]: {**shared, **{n: float(z[joint.nt + si * joint.nl + i])
+                                                                        for i, n in enumerate(joint.local)}}
+                                  for si in range(joint.ns)}
+    out["family_edges_hz"] = [float(v) for v in joint.params[0].policy.family_edges_hz]
+    out["x"] = [float(v) for v in joint.nodes]          # as fit.json: the concentration nodes of J_at_x
+    out["z_final"] = [float(v) for v in z]
+    smooth = getattr(joint, "peak_smooth", 0.0)
+    try:
+        if getattr(joint, "peaks", None) is not None:
+            joint.peak_smooth = 0.0
+        out["scores"] = [float(np.sum(joint.residual(z) ** 2))]
+    finally:
+        joint.peak_smooth = smooth
+    if args is not None:
+        out["structure"] = json.loads(args.structure)
+        out["exchange"] = args.exchange
+    return out
+
+
+def read_point(run, start, n):
+    """Parameter vector at evaluation n of one start: that evaluation's own vector ("x", recorded since
+    2026-10-08) or, for older records, the best point recorded up to n. Returns {n, cost, best, z, kind}."""
+    path = Path(run) / "monitor" / f"{start}.jsonl"
+    own, best = None, None
+    with open(path) as fh:
+        for line in fh:
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if "n" not in r:
+                continue
+            if r["n"] > n:
+                break
+            if "z" in r:
+                best = r
+            if r["n"] == n and "cost" in r:
+                own = r
+    if own is not None and "x" in own:
+        return {"n": n, "cost": own["cost"], "best": own["best"], "z": own["x"], "kind": "evaluation"}
+    if best is not None:
+        return {"n": best["n"], "cost": best.get("cost", best["best"]), "best": best["best"], "z": best["z"], "kind": "best up to"}
+    raise ValueError(f"no parameter vector recorded up to evaluation {n} of {start}")
+
+
 class SpectrumCache:
     """build_problem from a run's recorded command, once per run, for the on-demand spectrum view."""
 
     def __init__(self):
         self.lock = threading.Lock()
         self.problems = {}
+        self.args = {}
 
     def get(self, run):
         run = str(run)
@@ -236,15 +296,18 @@ class SpectrumCache:
                 try:
                     os.chdir(st.get("cwd", cwd))
                     self.problems[run] = fj.build_problem(args)
+                    self.args[run] = args
                 finally:
                     os.chdir(cwd)
             return self.problems[run]
 
-    def spectrum(self, run, start, s=0, view=None, max_points=4000):
-        """Data and model of spectrum s at the best point so far of one start (its full parameter vector)."""
+    def spectrum(self, run, start, s=0, view=None, max_points=4000, z=None):
+        """Data and model of spectrum s at the best point so far of one start (its full parameter vector), or at
+        the vector z."""
         prob = self.get(run)
         joint = prob.joint
-        z = read_run(run)["starts"][start]["z"]
+        if z is None:
+            z = read_run(run)["starts"][start]["z"]
         if z is None:
             raise ValueError("no best point recorded yet")
         with self.lock:

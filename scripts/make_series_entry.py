@@ -1,14 +1,19 @@
 """Average FID -> processed complex spectrum + one-entry series file for fit_joint_series / j_tuner.
 
     python scripts/make_series_entry.py --fid DATA/average_fid.npy --id ethylenediamine --out runs/series/eda
-        [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--ranges 85,119.6;120.4,179.6]
+        [--crop 0.1] [--record 8] [--apodization 0.3] [--zero-fill 3] [--ranges 85,119.6;120.4,179.6 | bands]
+        [--exclude 81.5,86] [--sampling-rate HZ] [--grid 20,380]
 
 Recipe of the isopropylamine / amine analyses (docs/analysis/2026-10-03_isopropylamine_complex-fit.md): crop from
 `--crop` s for `--record` s, exponential window, zero fill, phase from the instrument calibration of
-configs/confirmed_samples.json (phase0 at the switching edge + delay offset). Without --ranges the fit ranges are the
-bands where the smoothed |spectrum| exceeds 5 noise levels (noise from 330-380 Hz), widened by 3 Hz, with the mains
-harmonics (n x 60.06 Hz) and the instrument lines of the config +-0.4 Hz left out; check them on OUT/phased.png.
-Writes OUT/frequency.npy, OUT/amplitude.npy (complex), OUT/series.json and OUT/phased.png.
+configs/confirmed_samples.json (phase0 at the switching edge + delay offset). Without --ranges the fit range is the
+whole grid with the mains harmonics (n x 60.06 Hz) and the instrument lines of the config +-0.4 Hz and the --exclude
+intervals left out, so model lines where the data are empty are rejected by the fit (ranges taken from the data
+alone let an ethanol fit put strong lines in an unfitted gap, 2026-10-08). `--ranges bands` keeps only the bands
+where the smoothed |spectrum| exceeds 5 noise levels (noise from 330-380 Hz), widened by 3 Hz; check the ranges on
+OUT/phased.png.
+Writes OUT/frequency.npy, OUT/amplitude.npy (complex), OUT/series.json (with "source_fid", the FID it came from, for
+figures) and OUT/phased.png.
 """
 import argparse
 import json
@@ -19,9 +24,22 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from zulf_core.render.phasing import correction_phasor, reference_delay_s  # noqa: E402
-from zulf_processing import plan_for_dataset, process_dataset              # noqa: E402
-from zulf_processing.diagnostics import switching_edge                     # noqa: E402
+from zulf_processing import find_sampling_rate  # noqa: E402
+from zulf_processing.series_spectrum import series_spectrum  # noqa: E402
+
+
+def whole_ranges(lo, hi, lines, exclude=()):
+    """The whole grid lo-hi as fit ranges, minus +-0.4 Hz around the power-line harmonics and instrument lines and
+    minus the `exclude` intervals: a model line where the data are empty is then seen and rejected by the fit."""
+    cuts = sorted([(v - 0.4, v + 0.4) for v in lines if lo < v < hi] + [tuple(e) for e in exclude])
+    out, a = [], lo
+    for c0, c1 in cuts:
+        if c0 > a:
+            out.append([round(float(a), 2), round(float(c0), 2)])
+        a = max(a, c1)
+    if a < hi:
+        out.append([round(float(a), 2), round(float(hi), 2)])
+    return out
 
 
 def auto_ranges(f, r, lines, threshold=5.0, noise_band=(330.0, 380.0), lo=20.0, hi=380.0):
@@ -57,44 +75,56 @@ def main():
     ap.add_argument("--fid", required=True)
     ap.add_argument("--id", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--sampling-rate", type=float, default=4000.0)
+    ap.add_argument("--sampling-rate", type=float, default=None,
+                    help="Hz; default: scans.json or .ini next to the FID, else 4000")
+    ap.add_argument("--grid", default="20,380", help="lo,hi of the processed frequency grid (Hz)")
     ap.add_argument("--crop", type=float, default=0.1, help="record start (s)")
     ap.add_argument("--record", type=float, default=8.0, help="record length (s)")
+    ap.add_argument("--crop-points", type=int, default=None, help="record start in samples (instead of --crop)")
+    ap.add_argument("--record-points", type=int, default=None, help="record length in samples (instead of --record)")
     ap.add_argument("--apodization", type=float, default=0.3, help="exponential window (1/s)")
     ap.add_argument("--zero-fill", type=int, default=3)
-    ap.add_argument("--ranges", default="", help="lo,hi;lo,hi;... fit ranges (Hz); default: automatic")
+    ap.add_argument("--ranges", default="", help="lo,hi;lo,hi;... fit ranges (Hz); default: the whole grid minus "
+                    "the power-line and instrument lines; 'bands': only the bands above 5 noise levels")
+    ap.add_argument("--exclude", default="", help="lo,hi;... left out of the default ranges (e.g. 81.5,86)")
+    ap.add_argument("--sg-window", type=float, default=0.0, help="drift filter length (s); default the plan's")
+    ap.add_argument("--phase0-deg", type=float, default=None, help="zero-order phase; default the calibration")
+    ap.add_argument("--delay-ms", type=float, default=None, help="first-order delay; default minus the edge")
     args = ap.parse_args()
     cfg = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
-    cal = cfg["phase_calibration"]
-    fs = args.sampling_rate
+    fs = args.sampling_rate or find_sampling_rate(args.fid, 4000.0)[0]
+    grid = [float(v) for v in args.grid.split(",")]
     y = np.load(args.fid).astype(float)
-    edge = switching_edge(y, fs)["edge_time_s"] + cal["delay_offset_s"]
-    start = int(round(args.crop * fs))
-    plan = plan_for_dataset(len(y), fs, None, {"start_sample": start, "stop_sample": start + int(round(args.record * fs)),
-                                               "zero_fill": args.zero_fill,
-                                               "apodization_rate_per_s": args.apodization, "ranges": [[20.0, 380.0]]})
-    ds = process_dataset(y, fs, plan=plan, phase_criterion=None)
-    acq = plan.acquisition()
-    f = ds.frequencies_hz
-    phi0 = np.radians(cal["phase0_deg"])
-    r = ds.spectrum * correction_phasor(f, phi0, -(edge + acq.time_origin_s) + reference_delay_s(acq))
+    if args.crop_points is not None:                 # samples given: seconds that round back to exactly them
+        args.crop = args.crop_points / fs
+    if args.record_points is not None:
+        args.record = args.record_points / fs
+    sp = series_spectrum(y, fs, args.crop, args.record, args.apodization, args.zero_fill, grid,
+                         sg_window_s=args.sg_window or None, phase0_deg=args.phase0_deg, delay_ms=args.delay_ms)
+    f, r, edge = sp["f"], sp["spectrum"], sp["edge_s"]
     lines = [60.06 * k for k in range(1, 7)] + [float(v) for v in cfg.get("instrument_lines_hz", []) if v % 60]
-    ranges = ([[float(v) for v in q.split(",")] for q in args.ranges.split(";")] if args.ranges
-              else auto_ranges(f, r, lines))
+    if args.ranges == "bands":
+        ranges = auto_ranges(f, r, lines, lo=grid[0], hi=grid[1])
+    elif args.ranges:
+        ranges = [[float(v) for v in q.split(",")] for q in args.ranges.split(";")]
+    else:
+        exclude = [[float(v) for v in q.split(",")] for q in args.exclude.split(";")] if args.exclude else []
+        ranges = whole_ranges(grid[0], grid[1], lines, exclude)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     np.save(out / "frequency.npy", f)
     np.save(out / "amplitude.npy", r)
     entry = {"id": args.id, "x": 1.0, "freq": str(out / "frequency.npy"), "values": str(out / "amplitude.npy"),
-             "record": acq.to_dict(), "phasing": {"phase0_rad": float(phi0), "delay_s": float(-(edge + acq.time_origin_s))},
-             "ranges": ranges}
+             "record": sp["acquisition"], "phasing": sp["phasing"],
+             "ranges": ranges, "source_fid": str(Path(args.fid).expanduser().resolve())}
     json.dump([entry], open(out / "series.json", "w"), indent=1)
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(2, 1, figsize=(16, 8))
-        for a, (lo, hi) in zip(ax, ((20, 200), (200, 380))):
+        mid = 0.5 * (grid[0] + grid[1])
+        for a, (lo, hi) in zip(ax, ((grid[0], mid), (mid, grid[1]))):
             s = (f > lo) & (f < hi)
             a.plot(f[s], r.real[s], "k", lw=0.6, label="real")
             a.plot(f[s], r.imag[s], c="0.7", lw=0.5, label="imag")

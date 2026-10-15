@@ -1363,3 +1363,37 @@ skills under `skills/`; this file keeps the history.
 - 2026-10-05: ethylenediamine with the N-H protons kept (static, 9 spins): one species 0.049, two species 0.0090,
   against 0.0051 with N-H decoupled; the N-H couplings fit to within 1.3 Hz of zero. Fast exchange favoured; exact
   intermediate exchange too large (35 GiB). docs/analysis/2026-10-05_amines_overnight.md
+- 2026-10-06: acetonitrile fringe-field run (2 kHz, 5539 scans; 11 % disturbed scans make no difference). The
+  zero-field 13CH3 model fails (objective 0.58, residual 0.73: split J and 2J bands). With a fitted static field
+  (D47, new `--fit-field`) and rate families: 0.044, residual 0.21; |B| about 0.06 uT (B_transverse 0.037, Bz 0.045),
+  1J 136.28 Hz; even / odd halves agree within 0.007 Hz and 3 nT. Field-sensitive lines decay faster (field
+  inhomogeneity). docs/analysis/2026-10-06_acetonitrile_field-fit.md
+- 2026-10-07: route B on J vs on K (3 seeds): equal on 13C / 1H data (bond-count accuracy 0.844 vs 0.843,
+  synthetic top-1 0.91 both, real networks all rank 1); on deuterated couplings, untrained, K keeps 0.843 while J
+  falls to 0.298 (below the 0.322 majority baseline). docs/analysis/2026-10-07_j-to-structure_j-vs-k.md
+- 2026-10-08: ethanol 70 % rubbing alcohol, ULF run (8333 Hz, 8869 scans; step in scan quality at scan 6000).
+  analyze_sample.py had assumed 4000 Hz (frequencies x0.48): sampling rate now read from scans.json / .ini.
+  Field fit (about 0.035 uT, same in both halves): 1J 125.6 / 140.8 Hz, 2J(C,H) about -5.5 Hz, 3J(H,H) 9.4 Hz
+  (above the usual 7 Hz, not trusted yet); residual 0.42; fitted delay 1.6 ms from the edge (8 kHz sequence
+  uncalibrated). docs/analysis/2026-10-08_ethanol_field-fit.md
+- 2026-10-08: isopropanol 70 % rubbing alcohol (8333 Hz, 9301 scans) and rate families for all three samples:
+  fields 41-51 nT (ethanol, depends on the delay), 54 nT (isopropanol), 59 nT (acetonitrile, reproduced).
+  Isopropanol 1J 142.0 / 126.5 Hz, residual 0.47. docs/analysis/2026-10-08_ethanol_field-fit.md
+- 2026-10-09: ethanol visually best fit in Studio (wider rate bounds, free isotopologue amplitudes, one decay
+  rate per model line, `--family-edges lines`): score 0.1210 -> 0.1117, couplings stable to 0.1 Hz; the
+  118-125 Hz "misfit" was the display baseline (D62: one baseline, estimated on the model, for both curves).
+  docs/analysis/2026-10-09_ethanol_visual-fit.md
+
+- 2026-10-10: acetonitrile 250 uL, second acquisition (2026-10-03 to 10-09, received with the old run renumbered):
+  1J(C,H) 136.289 Hz and |B| 60.1 nT, run 1 136.282 Hz / 57.7 nT, both 136.286 Hz / 59.0 nT (transverse 39, z 44).
+  docs/analysis/2026-10-10_acetonitrile-250ul_runs.md
+- 2026-10-10 acetonitrile LF_1 vs 250 uL decay times: docs/analysis/2026-10-10_acetonitrile-lf1.md (early transient after the switch biased the crop-0.1 fits; with crop 0.3 s: 1J 136.28 Hz, |B| 64 / 61 nT, J line T 2.6 / 2.9 s, 2J triplet 0.4 / 0.4-0.5 s)
+- 2026-10-11 methyl 2-bromopropionate, passes 1-7, coupling scan, mixture test: docs/analysis/2026-10-11_methyl-2-bromopropionate_fits.md (best: long-range couplings + free amplitudes, objective 0.028; 128.0 / 263.0 Hz unexplained)
+- 2026-10-11 lactic acid slow O-H exchange test: docs/analysis/2026-10-11_lactic-acid_slow-exchange.md (slow 0.263 vs fast 0.223; rejected, 127.33 / 149.58 Hz unexplained)
+- 2026-10-11 noise-filtered refits (window 1.5 1/s) of lactic acid, alanine, glycerol, serine: docs/analysis/2026-10-11_metabolites_noise-filtered.md (1J stable; glycerol / serine small couplings undetermined; crop 0.3 s rejected; glycerol ripple = per-band background; fixed with background off, glycerol_v12)
+- 2026-10-11 amines refits (background off, 1J from bands, noise filter): docs/analysis/2026-10-11_amines_refits.md (diethylamine, DMEDA, sec-butylamine improved; 2J band of isopropylamine / triethylamine too weak in every pass; slow N-H exchange v14 improves tert-butylamine, ethylenediamine, diethylamine; residual field 45-50 nT (v16) improves the J bands of isopropylamine and triethylamine; non-sudden switching rejected)
+- 2026-10-11 correction: the weak 2J bands of isopropylamine / triethylamine were a display artefact of the simulation's automatic AsLS (only the five highest peaks were checked); fixed in scripts/overlay_panels.py, see docs/analysis/2026-10-11_amines_refits.md
+- 2026-10-11 diethylamine: weak signal; magnetometer offset near the ADC rail, half the scans clipped; removing them does not help (docs/analysis/2026-10-11_amines_refits.md); scripts/clipped_scans.py
+- 2026-10-12 diethylamine original 10000 scans stored; old selection kept pinned scans and dropped good ones; scripts/select_scans.py (band z5) gives higher line heights (docs/analysis/2026-10-11_amines_refits.md)
+- 2026-10-12 diethylamine left out of the overlays (experimental spectrum too poor); overlay panels list fit features (docs/analysis/2026-10-11_amines_refits.md)
+- 2026-10-12 pyridine series with the toolbox (v28) and site-coloured overlay: docs/analysis/2026-10-12_pyridine-series_toolbox.md (running)

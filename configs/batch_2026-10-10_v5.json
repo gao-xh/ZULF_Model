@@ -1,0 +1,99 @@
+{
+ "note": "Fifth pass 2026-10-10: methyl 2-bromopropionate with C1 / C4 from the fourth pass (130.6 / 147.8 Hz) and C2 153.5 Hz from the second pass (the band scan put C2 on the strong OCH3 J line at 147.6 Hz)",
+ "entries": [
+  {
+   "id": "methyl-2-bromopropionate",
+   "scans": "original/2026-04-12-methyl-2-bromopropionate/Methyl 2-bromopropionate",
+   "structure": {
+    "compound": "methyl 2-bromopropionate",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "Br1",
+       "Br",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       0
+      ],
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "Br1"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O1"
+      ],
+      [
+       "C3",
+       "O2"
+      ],
+      [
+       "O2",
+       "C4"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 130.6,
+     "C2": 153.5,
+     "C4": 147.8
+    },
+    "molecule": {
+     "smiles": "CC(Br)C(=O)OC",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "Br1": 2,
+      "C3": 3,
+      "O1": 4,
+      "O2": 5,
+      "C4": 6
+     }
+    },
+    "notes": [
+     "unsaturated or aromatic bonds: the chain uses saturated (sp3) 2J/3J defaults; a registered motif (e.g. 'benzene ring') models aromatic couplings"
+    ]
+   },
+   "field": false
+  }
+ ]
+}

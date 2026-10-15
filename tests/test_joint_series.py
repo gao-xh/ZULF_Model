@@ -250,6 +250,84 @@ class JointSeriesTests(unittest.TestCase):
                                        for e in np.eye(len(zz))])
             self.assertLess(np.abs(jac - numeric).max(), 1e-5 * max(np.abs(numeric).max(), 1.0), msg=str(smooth))
 
+    def test_guard_rows_penalise_model_peaks_where_the_data_are_empty(self):
+        # D57: fit range 100-200 Hz; the model also has lines at 249-264 Hz. With those lines in the data the guard
+        # is quiet there (data line regions are protected); with empty data there the guard rows are active at
+        # those bins only, continuous, and their Jacobian (gains solved again) matches central differences.
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.05)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 300.0)], record=acq)
+        p = settings.parameterize(model.interpretation)
+        sig = np.asarray(MixtureForward(p, clean, gain_model=settings.gain_model, background=-1,
+                                        band_weighting="none", **_signal_kwargs(settings)).predict(
+            p.vector(), fixed_gains=np.ones(len(model.component_labels), complex)).model)
+        rng = np.random.default_rng(5)
+        noise = 2e-3 * np.abs(sig).max() * (rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)))
+        empty = np.where(f > 200.0, 0.0, sig) + noise
+        for data, active in ((sig + noise, False), (empty, True)):
+            obs = ObservedSpectrum.from_spectrum(f, data, [(100.0, 200.0)], record=acq)
+            joint = JointSeries(model, settings, [obs], [1.0], shape="free")
+            joint.set_guard_penalty(5.0, grids=[(f, data)])
+            table, xs = self._table(joint)
+            z = joint.pack(table, xs)
+            x = joint.spectrum_vector(z, 0)
+            g = joint.guard[0]
+            self.assertGreater(len(g["groups"]), 50)
+            for line in (129.1, 130.8, 146.8):                    # data lines inside the fit range are protected
+                self.assertGreater(np.abs(g["f"] - line).min(), 2.0)
+            rows = joint._guard_rows(0, x, joint.forwards[0].predict(x).gains)
+            centres = np.array([g["f"][idx].mean() for idx in g["groups"]])
+            hot = centres[rows > 0.05 * 5.0 / joint.forwards[0].norm]
+            if not active:
+                self.assertEqual(len(hot), 0, msg=str(hot))
+                continue
+            self.assertTrue(len(hot) > 0 and np.all((hot > 245.0) & (hot < 268.0)), msg=str(hot))
+            jac = joint.jacobian(z)[-len(rows):]
+            h = 1e-6
+            numeric = np.column_stack([(joint.residual(z + h * e) - joint.residual(z - h * e))[-len(rows):] / (2 * h)
+                                       for e in np.eye(len(z))])
+            self.assertLess(np.abs(jac - numeric).max(), 1e-3 * np.abs(numeric).max())
+            small = joint.residual(z + 1e-9)[-len(rows):] - joint.residual(z)[-len(rows):]
+            self.assertLess(np.abs(small).max(), 1e-5 * np.abs(rows).max())               # continuous
+
+    def test_peak_family_edges_give_every_data_peak_its_own_family(self):
+        # three lines, the third on the tail of the second (small prominence, tall above the noise): one edge
+        # between every pair, none in the noise
+        from fit_joint_series import peak_family_edges
+        f = np.arange(100.0, 200.0, 0.05)
+        y = sum(a / (1 + 1j * (f - c) / w) for a, c, w in ((1.0, 120.0, 0.2), (1.0, 150.0, 0.8), (0.6, 152.5, 0.3)))
+        y = y + 0.003 * (np.random.default_rng(1).normal(size=len(f)) + 1j * np.random.default_rng(2).normal(size=len(f)))
+
+        class Fw:
+            pass
+        fw = Fw()
+        fw.f, fw.y, fw.data_signal_mask = f, y, np.abs(y) > 0.05
+
+        class J:
+            forwards = [fw]
+        edges, peaks = peak_family_edges(J())
+        np.testing.assert_allclose(peaks, [120.0, 150.0, 152.5], atol=0.1)
+        np.testing.assert_allclose(edges, [135.0, 151.25], atol=0.1)
+
+    def test_line_family_edges_separate_every_resolved_model_line(self):
+        from fit_joint_series import edges_between_lines
+        edges, groups = edges_between_lines([110.0, 100.1, 100.0, 105.0], min_distance_hz=0.25)
+        self.assertEqual(groups, [[100.0, 100.1], [105.0], [110.0]])   # 0.1 Hz apart: one family
+        np.testing.assert_allclose(edges, [102.55, 107.5])
+
+    def test_line_groups_stop_chaining_at_the_span_limit(self):
+        # a dense run of lines 0.2 Hz apart chains into one group; with a 0.4 Hz span limit it splits every
+        # 0.4 Hz (hand-counted reference)
+        from fit_joint_series import edges_between_lines
+        lines = [100.0, 100.2, 100.4, 100.6, 100.8, 101.0]
+        _, chained = edges_between_lines(lines, min_distance_hz=0.25)
+        self.assertEqual(len(chained), 1)
+        edges, groups = edges_between_lines(lines, min_distance_hz=0.25, max_span_hz=0.4)
+        self.assertEqual(groups, [[100.0, 100.2, 100.4], [100.6, 100.8, 101.0]])
+        np.testing.assert_allclose(edges, [100.5])
+
     def test_line_band_and_local_fit(self):
         # a line band that holds every line changes nothing; a narrow one keeps the Jacobian exact (finite
         # differences); the local fit recovers a coupling shift from one window
@@ -405,3 +483,43 @@ class JointSeriesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpinSystemFitTests(unittest.TestCase):
+    def test_fit_of_a_typed_in_spin_system_recovers_its_variables(self):
+        # PLAN 8d: a methyl (13C, 3 x 1H; variable 'a' ties the three 1J) and a 13C-1H pair with a numeric 1J, at
+        # weights 1 and 0.5; the fit starts 0.4 Hz off and recovers both couplings and the amplitude ratio
+        from scipy.optimize import least_squares
+        from zulf_hypothesis.spin_system import spin_system_model
+        truth = {"compound": "t", "spin_system": {"components": [
+            {"name": "M", "isotopes": ["13C", "1H", "1H", "1H"],
+             "J": [[0, "a", "a", "a"], ["a", 0, 0, 0], ["a", 0, 0, 0], ["a", 0, 0, 0]], "weight": 1.0},
+            {"name": "X", "isotopes": ["13C", "1H"], "J": [[0, 141.0], [141.0, 0]], "weight": 0.5}],
+            "variables": {"a": 126.0}}}
+        model = spin_system_model(truth)
+        self.assertEqual(sorted(model.coupling_names), ["X:J(1,2)", "a"])
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 300.0, 0.05)
+        clean = ObservedSpectrum.from_spectrum(f, np.zeros(len(f), complex), [(100.0, 300.0)], record=acq)
+        p = settings.parameterize(model.interpretation)
+        sig = np.asarray(MixtureForward(p, clean, gain_model=settings.gain_model, background=-1,
+                                        band_weighting="none", **_signal_kwargs(settings)).predict(
+            p.vector(), fixed_gains=np.array([1.0, 0.5], complex)).model)
+        y = sig + 1e-4 * np.abs(sig).max() * np.random.default_rng(3).normal(size=len(f))
+        start = spin_system_model(truth, {"a": 126.4, "X:J(1,2)": 140.6})
+        joint = JointSeries(start, _settings_for(start, "ratios", RefineSettings(band_weighting="none",
+                                                                                background_order=-1)),
+                            [ObservedSpectrum.from_spectrum(f, y, [(100.0, 300.0)], record=acq)], [1.0], shape="free")
+        table = np.array([[q.vector()[joint.col[n]] for n in joint.coupling] for q in joint.params])
+        z = joint.pack(table, [q.vector().copy() for q in joint.params])
+        lo, hi = joint.bounds(5.0)
+        sol = least_squares(joint.residual, np.clip(z, lo + 1e-9, hi - 1e-9), jac=joint.jacobian, bounds=(lo, hi),
+                            x_scale="jac")
+        got = {n: joint.coupling_values(sol.x, k)[0] for k, n in enumerate(joint.coupling)}
+        key = {names[0]: k for k, names in start.coupling_names.items()}
+        found = {key[n]: v for n, v in got.items()}
+        self.assertAlmostEqual(found["a"], 126.0, places=2)
+        self.assertAlmostEqual(found["X:J(1,2)"], 141.0, places=2)
+        gains = joint.forwards[0].predict(joint.spectrum_vector(sol.x, 0)).gains
+        self.assertAlmostEqual(abs(gains[1]) / abs(gains[0]), 0.5, places=2)

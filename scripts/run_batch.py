@@ -1,0 +1,226 @@
+"""Unattended batch of known-structure fits: scans on the drive -> averages -> whole-grid spectrum -> two fits.
+
+    python scripts/run_batch.py configs/batch_2026-10-10.json [--parallel 3] [--workers 3] [--only ID,...]
+        [--tag _v2 --table docs/analysis/OTHER.md]
+
+Per entry (resumable: a step whose output exists is skipped):
+  1. averages of the scans (scripts/average_scans.py, read from the drive): `all-scans/` and `z5/`
+     (--exclude-z 5) in ~/research/zulf/data/processed/<measurement>/[<scans folder>/] (the folder name is added
+     when one measurement holds several runs, e.g. a dilution series);
+  (an entry may set "exchange": "slow" for N-H / O-H protons that couple, default fast, decoupled; and
+  "variant": "free" for free isotopologue amplitudes, default "ratios" = natural-abundance ratios; and
+  "field_axes": "z" with "field_start": "0,0.045" fits a z field only; "fixed_field": "0,0.046" holds a known
+  field (transverse,z in uT; no field parameter, much faster); "background_order" for the
+  per-band background of the fit, default 1, -1 off; "average": "all-scans" to fit
+  the average of every scan instead of z5; "band_weighting": signal (default) | equal | none; "line_group_span": largest span (Hz) of one stage-2 line group; "nh_exchange": start value
+  (1/s) of a fitted N-H / O-H exchange rate, with "exchange": "slow")
+  2. the whole-grid spectrum of the z5 average (scripts/make_series_entry.py, `--exclude 81.5,86`; entries may set
+     `grid` and `sampling_rate_factor`, e.g. 0.5 for double-acquisition data): runs/series/batch_<id>/; entries may
+     set `apodization` (1/s), `record` (s) and `crop` (s) for a stronger noise filter, written to runs/series/batch_<id><series>/
+     with the entry's `series` suffix (the model goes through the same window, so the fitted rates do not change);
+  3. stage 1 fit (fit_joint_series.py): one decay rate per isotopologue, component search at the start, 6 starts
+     (with --one-bond-from-data the 1J starts are first read from the observed bands, D64),
+     field fitted only when the entry says `field` (else zero field): runs/processed/batch_<id><tag>_s1/;
+  4. stage 2 fit from stage 1 (--from-joint): one decay rate per model line (--family-edges lines), rate bounds
+     0.1-40 1/s, 2 starts: runs/processed/batch_<id><tag>_s2/.
+Waits (up to --wait hours) for an entry's scans folder to appear on the drive. Writes a results table
+(docs/analysis/2026-10-10_batch_results.md by default) after every finished entry; a failed step is recorded and
+the entry skipped. Fit results are conditional numerical results of the given structure, not assignments.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import subprocess
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+PY = sys.executable
+DRIVE = Path("/Volumes/Extreme/research/zulf/data")
+PROCESSED = Path.home() / "research/zulf/data/processed"
+LOCK = threading.Lock()
+STATE: dict = {}
+
+
+def measurement_of(scans: str):
+    parts = Path(scans).parts                      # original|raw / <measurement> / <folder> [/ data]
+    return parts[1], parts[2]                      # (measurement, folder as received)
+
+
+def run(cmd, log: Path) -> int:
+    with open(log, "a") as fh:
+        fh.write("$ " + " ".join(cmd) + "\n")
+        fh.flush()
+        return subprocess.run(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT).returncode
+
+
+def note(eid, **kw):
+    with LOCK:
+        STATE.setdefault(eid, {}).update(kw)
+
+
+def summary(fit_json: Path) -> dict:
+    d = json.loads(fit_json.read_text())
+    sp = next(iter(d.get("spectrum_parameters", {}).values()), {})
+    out = {"score": d["scores"][0], "residual": next(iter(d.get("data_region_residuals", {}).values()), None),
+           "J": {k: (v["J_at_x"][0], v.get("J_std_at_x", [float("nan")])[0]) for k, v in d["couplings"].items()}}
+    if "field_z_ut" in sp or "field_transverse_ut" in sp:
+        out["field_nt"] = (1e3 * sp.get("field_transverse_ut", 0.0), 1e3 * sp.get("field_z_ut", 0.0))
+    rates = [math.exp(v) for k, v in sp.items() if ".log_rate" in k]
+    out["rates_at_bound"] = sum(1 for r in rates if r > 39.5 or r < 0.105)
+    return out
+
+
+def process(entry, args):
+    eid = entry["id"]
+    scans = DRIVE / entry["scans"]
+    meas, given = measurement_of(entry["scans"])
+    log = ROOT / "runs/processed" / f"batch_{eid}{args.tag}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+    while not scans.is_dir():
+        if time.time() - t0 > args.wait * 3600:
+            note(eid, status="no data on the drive")
+            return
+        note(eid, status="waiting for data")
+        time.sleep(60)
+    folder = given if "series" in meas or "dilution" in meas else ""   # one measurement, several runs
+    proc = PROCESSED / meas / folder
+    note(eid, status="averaging", measurement=meas)
+    for name, extra in (("z5", ["--exclude-z", "5"]), ("all-scans", [])):
+        if not (proc / name / "average_fid.npy").exists():
+            if run([PY, "scripts/average_scans.py", str(scans), str(proc / name), *extra], log):
+                note(eid, status=f"failed: average {name}")
+                return
+    series = ROOT / "runs/series" / f"batch_{eid}{entry.get('series', '')}"
+    if not (series / "series.json").exists():
+        note(eid, status="spectrum")
+        cmd = [PY, "scripts/make_series_entry.py", "--fid", str(proc / entry.get("average", "z5") / "average_fid.npy"),
+               "--id", eid,
+               "--out", str(series.relative_to(ROOT)), "--exclude", "81.5,86"]
+        if entry.get("grid"):
+            cmd += ["--grid", entry["grid"]]
+        for key in ("apodization", "record", "crop"):
+            if entry.get(key) is not None:
+                cmd += [f"--{key}", str(entry[key])]
+        if entry.get("sampling_rate_factor"):
+            scans_json = json.loads((proc / "z5/scans.json").read_text())
+            fs = float(scans_json.get("sampling_rate_hz") or scans_json.get("settings", {}).get("sampling_rate_hz"))
+            cmd += ["--sampling-rate", f"{fs * entry['sampling_rate_factor']:.6f}"]
+        if run(cmd, log):
+            note(eid, status="failed: spectrum")
+            return
+    lo, hi = (entry.get("grid") or "20,380").split(",")
+    common = [PY, "scripts/fit_joint_series.py", "--series", str((series / "series.json").relative_to(ROOT)),
+              "--real-only", "false", "--shape", "free", "--exchange", entry.get("exchange", "fast"),
+              "--range", f"{lo},{hi}", "--variant", entry.get("variant", "ratios"),
+              "--structure", json.dumps(entry["structure"]), "--signal-threshold", "2.5", "--signal-taper", "4.0",
+              "--peak-penalty", "5", "--peak-smooth", "0.03", "--peak-min-sigma", "3",
+              "--workers", str(args.workers), "--max-nfev", "300"]
+    if entry.get("line_group_span"):
+        common += ["--line-group-span", str(entry["line_group_span"])]
+    if entry.get("band_weighting"):
+        common += ["--band-weighting", entry["band_weighting"]]
+    if entry.get("nh_exchange"):
+        common += ["--nh-exchange", str(entry["nh_exchange"])]
+    if entry.get("background_order") is not None:
+        common += ["--background-order", str(entry["background_order"])]
+    if entry.get("fixed_field"):
+        common += ["--field", entry["fixed_field"]]          # known field transverse,z (uT), not fitted
+    if entry.get("field"):
+        common += ["--fit-field", "--field-start", entry.get("field_start", "0.037,0.045")]
+        if entry.get("field_axes"):
+            # "z": the transverse component stays at its start (0 keeps the total-M blocks: much faster)
+            common += ["--field-axes", entry["field_axes"]]
+    s1 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s1"
+    if not (s1 / "fit.json").exists():
+        note(eid, status="stage 1 fit")
+        extra = ["--one-bond-from-data"] if (args.one_bond_from_data or entry.get("one_bond_from_data")) else []
+        if run(common + ["--starts", "6", "--rate-bounds", "0.2,15", "--component-search", "start", *extra,
+                         "--out", str(s1.relative_to(ROOT))], log):
+            note(eid, status="failed: stage 1")
+            return
+    note(eid, s1=summary(s1 / "fit.json"))
+    s2 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s2"
+    if not (s2 / "fit.json").exists():
+        note(eid, status="stage 2 fit")
+        if run(common + ["--starts", "2", "--rate-bounds", "0.1,40", "--component-search", "off",
+                         "--family-edges", "lines", "--from-joint", str((s1 / "fit.json").relative_to(ROOT)),
+                         "--out", str(s2.relative_to(ROOT))], log):
+            note(eid, status="failed: stage 2")
+            return
+    note(eid, s2=summary(s2 / "fit.json"), status="done", minutes=round((time.time() - t0) / 60))
+
+
+def write_table(path: Path, entries):
+    rows = ["# Overnight batch 2026-10-10: results", "",
+            "Conditional numerical results of the given structures (scripts/run_batch.py, configs/batch_2026-10-10.json);",
+            "stage 1: one rate per isotopologue; stage 2: one rate per model line. J in Hz (J_std: linearised).", "",
+            "| id | status | stage 1 score | stage 2 score / residual | field (nT, transverse / z) | couplings (stage 2) |",
+            "|---|---|---|---|---|---|"]
+    with LOCK:
+        for e in entries:
+            st = STATE.get(e["id"], {})
+            s1, s2 = st.get("s1"), st.get("s2")
+            f = (s2 or s1 or {}).get("field_nt")
+            jtxt = ", ".join(f"{k} {v[0]:.2f}" for k, v in (s2 or s1 or {}).get("J", {}).items())
+            rows.append(f"| {e['id']} | {st.get('status', 'queued')} | {s1['score']:.4f} |" if s1 else
+                        f"| {e['id']} | {st.get('status', 'queued')} | - |")
+            res = "-" if not s2 or s2.get("residual") is None else f"{s2['residual']:.3f}"
+            rows[-1] += (f" {s2['score']:.4f} / {res} |" if s2 else " - |")
+            rows[-1] += (f" {f[0]:.1f} / {f[1]:.1f} |" if f else " zero field |" if not e.get("field") else " - |")
+            rows[-1] += f" {jtxt} |"
+    path.write_text("\n".join(rows) + "\n")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("plan")
+    ap.add_argument("--parallel", type=int, default=3)
+    ap.add_argument("--workers", type=int, default=3)
+    ap.add_argument("--wait", type=float, default=6.0, help="hours to wait for an entry's data on the drive")
+    ap.add_argument("--only", default="")
+    ap.add_argument("--table", default="docs/analysis/2026-10-10_batch_results.md")
+    ap.add_argument("--one-bond-from-data", action="store_true",
+                    help="stage 1 reads the 1J starts from the observed bands (fit_joint_series, D64); an entry can "
+                         "also set \"one_bond_from_data\": true")
+    ap.add_argument("--skip", default="", help="entry ids reported from their existing results but not run")
+    ap.add_argument("--tag", default="", help="suffix of the fit folders and logs (a second pass with other "
+                                             "structures reuses the averages and spectra), e.g. _v2")
+    args = ap.parse_args()
+    entries = json.loads(Path(args.plan).read_text())["entries"]
+    if args.only:
+        keep = set(args.only.split(","))
+        entries = [e for e in entries if e["id"] in keep]
+    table = ROOT / args.table
+
+    skip = set(filter(None, args.skip.split(",")))
+
+    def job(e):
+        if e["id"] in skip:                            # reported from what exists, not run
+            for stage in ("s1", "s2"):
+                fj = ROOT / "runs/processed" / f"batch_{e['id']}{args.tag}_{stage}" / "fit.json"
+                if fj.exists():
+                    note(e["id"], **{stage: summary(fj)})
+            note(e["id"], status="done" if "s2" in STATE.get(e["id"], {}) else "skipped (see the second pass)")
+            write_table(table, entries)
+            return
+        try:
+            process(e, args)
+        except Exception as exc:                       # one entry failing never stops the batch
+            note(e["id"], status=f"failed: {type(exc).__name__}: {exc}"[:200])
+        write_table(table, entries)
+        print(f"{e['id']}: {STATE.get(e['id'], {}).get('status')}", flush=True)
+    write_table(table, entries)
+    with ThreadPoolExecutor(args.parallel) as pool:
+        list(pool.map(job, entries))
+    write_table(table, entries)
+
+
+if __name__ == "__main__":
+    main()

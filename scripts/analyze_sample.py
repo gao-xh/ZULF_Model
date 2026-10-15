@@ -6,7 +6,7 @@
 Without --structure: blind search (propose_hypotheses + search_hypotheses) with the settings used for the
 confirmed samples; with --structure: fit_structure (every exchange regime and variant, fit-phased route too).
 Processing: zulf_processing.process_dataset per dataset (defaults from configs/confirmed_samples.json
-"processing"; crop after this dataset's ringing; phase per dataset). Writes OUT/processing.{png,json}, OUT/overview.png,
+"processing", sample counts rescaled to the sampling rate of scans.json / .ini next to the FID or --sampling-rate; crop after this dataset's ringing; phase per dataset). Writes OUT/processing.{png,json}, OUT/overview.png,
 OUT/blind.{json,md,png} or OUT/structure.{json,md,png} (+ _phased), and prints the ranked table.
 """
 import argparse
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from zulf_core.render.acquisition import Acquisition, evaluate_spectrum, process_record   # noqa: E402
-from zulf_processing import load_fid, process_dataset                                      # noqa: E402
+from zulf_processing import find_sampling_rate, load_fid, process_dataset, scale_sample_settings  # noqa: E402
 from zulf_hypothesis import (blind_settings, fit_settings, fit_structure, propose_hypotheses,  # noqa: E402
                              search_hypotheses, write_report)
 
@@ -62,11 +62,20 @@ def main():
     ap.add_argument("--out", default="")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--structure", default="")
+    ap.add_argument("--labeling", default="natural", choices=["natural", "15N", "2H-exchange", "unknown"],
+                    help="isotope labelling of the sample for --structure (D54); unknown: fit every applicable "
+                         "labelling and rank them on one scale")
     ap.add_argument("--phase", default="", help="phase criterion for the processed spectrum: calibration (default "
                     "when the config has phase_calibration), entropy or lines")
     ap.add_argument("--delay-bounds", default="", help="instrument prior for the fitted delay in s, 'lo,hi'")
+    ap.add_argument("--sampling-rate", type=float, default=None, help="Hz; default: scans.json or .ini next to the "
+                    "FID, else the config (4 kHz sequence)")
     args = ap.parse_args()
     proc = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
+    fs, fs_source = ((args.sampling_rate, "--sampling-rate") if args.sampling_rate
+                     else find_sampling_rate(args.fid, proc["sampling_rate_hz"]))
+    print(f"{args.id}: sampling rate {fs:.6g} Hz ({fs_source})")
+    proc = scale_sample_settings(proc, fs)
     global DELAY
     bounds = args.delay_bounds or proc.get("phase_delay_bounds_s")
     DELAY = tuple(float(x) for x in (bounds.split(",") if isinstance(bounds, str) else bounds)) if bounds else None
@@ -75,7 +84,7 @@ def main():
     x = load_fid(args.fid)
     # per-dataset processing (zulf_processing, D44): plan with reasons, switching edge, per-dataset phase
     criterion = args.phase or ("calibration" if proc.get("phase_calibration") else "entropy")
-    data = process_dataset(x, proc["sampling_rate_hz"], args.id, defaults=proc, phase_criterion=criterion)
+    data = process_dataset(x, fs, args.id, defaults=proc, phase_criterion=criterion)
     data.figure(str(out / "processing.png"))
     data.save_record(str(out / "processing.json"))
     obs, acq = data.observed, data.plan.acquisition()
@@ -88,8 +97,19 @@ def main():
         import regression_confirmed as reg
         spec = json.loads(args.structure)
         spec.setdefault("compound", args.id)
-        fit = fit_structure(reg.structure_for(spec), obs, fit_settings(workers=args.workers, phase_delay_bounds_s=DELAY),
-                            report=str(out / "structure"), route="both")
+        settings = fit_settings(workers=args.workers, phase_delay_bounds_s=DELAY)
+        if args.labeling == "natural":
+            fit = fit_structure(reg.structure_for(spec), obs, settings, report=str(out / "structure"), route="both")
+        else:
+            from zulf_hypothesis.fit import fit_structure_labelings
+            cmp = fit_structure_labelings(reg.structure_for(spec), obs, args.labeling, settings=settings,
+                                          report=str(out / "structure"), route="both")
+            print(f"{args.id}: labelling hypotheses (common scale, conditional on this structure):")
+            for row in cmp.rows:
+                print(f"  {row['labeling']:12s} {row['model'][:50]:50s} {row['variant']:6s} d={row['delta']:10.1f} "
+                      f"k={row['k']}")
+            json.dump(cmp.rows, open(out / "labelings.json", "w"), indent=1)
+            fit = cmp.fits[cmp.best]
         table, best = fit.table(), fit.best
     else:
         ps = propose_hypotheses(obs, tuple(proc["instrument_lines_hz"]))

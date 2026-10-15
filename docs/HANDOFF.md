@@ -4,7 +4,7 @@ State of the project, the work in flight and how to continue. Read in this order
 1. `AGENTS.md` (rules);
 2. `docs/ARCHITECTURE.md` (interfaces);
 3. `docs/PLAN.md` (ledger);
-4. `docs/WORKFLOW.md` (how a known-structure fit is done, step by step).
+4. `docs/WORKFLOW.md` (map of every workflow W1-W7, then how a known-structure fit is done, step by step).
 
 `docs/ANALYSIS_LOG.md` is the running lab notebook, with one log per analysis in `docs/analysis/` (index:
 `docs/analysis/README.md`). `docs/DECISIONS.md` (D1-D46) gives the reasons. The previous handoff (2026-09-28)
@@ -214,7 +214,7 @@ Compare runs with model-line passes by `fit.json["model_line_passes"]["objective
 - **Cloud container.**
   - The container is reclaimed when the session is idle, and background jobs die with it.
   - For long fits: keep the session active (poll in under-10-minute waits) and snapshot the best monitor vector
-    (`OUT/monitor/start_*.jsonl`) into a `--from-joint` file before it is lost.
+    with `python scripts/snapshot_fit.py OUT snap.json` (a `--from-joint` file) before it is lost.
   - Use at most 4 top-level fits with 2 workers each on 4 cores.
 - **Starts and windows.**
   - A second species that starts as a copy of the first has zero gain and no gradient: seed it away from species 1,

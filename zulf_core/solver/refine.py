@@ -16,6 +16,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from ..physics.protocol import SUDDEN_DROP, Protocol
+from .convergence import CouplingPrecision, index_couplings
 from ..spinsystem import Interpretation
 from ..timing import Timer
 from .forward import MixtureForward, Prediction
@@ -47,6 +48,8 @@ class RefineSettings:
     signal_model_passes: int = 3      # signal weighting: refits with the model's own lines added to the cores
     signal_model_threshold: float = 2.0   # signal weighting: model-line peak height (noise sigma) that joins the cores
     diff_step: float = 1e-6
+    # Couplings precision (Hz) at which a least-squares run stops (D55; 0: run to the tolerances / max_nfev).
+    precision_hz: float = 0.01
     jacobian: str = "kaufman"      # kaufman | analytic (exact variable projection) | finite_difference (D31)
     continuation_rates_per_s: tuple = (10.0, 3.0, 1.0, 0.0)
     guard_continuation: bool = True   # also fit directly at full resolution from each start (D28)
@@ -291,6 +294,7 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
         if settings.guard_continuation and len(schedule) > 1:
             paths = [(0.0,), schedule]
         x_start = x.copy()
+        coupling_index = [i for i, n in enumerate(param.free_names) if param.parameters[n].kind == "coupling"]
         for path_index, path in enumerate(paths):
             x = x_start.copy()
             for level, extra in enumerate(path):
@@ -300,7 +304,9 @@ def refine(candidate: Interpretation, observed: ObservedSpectrum, settings: Refi
                 try:
                     sol = least_squares(evaluate, x, jac=jac_option, bounds=(lower, upper), x_scale="jac",
                                         max_nfev=settings.max_nfev, diff_step=settings.diff_step, ftol=1e-10,
-                                        xtol=1e-10, gtol=1e-10)
+                                        xtol=1e-10, gtol=1e-10,
+                                        callback=CouplingPrecision(index_couplings(coupling_index),
+                                                                   settings.precision_hz))
                 except _BudgetReached as exc:
                     attempts.append({"start": start, "path": path_index, "extra_rate_per_s": extra,
                                      "status": "budget_exhausted", "reason": str(exc),

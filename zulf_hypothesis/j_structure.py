@@ -87,11 +87,20 @@ def couplings_likelihood(j: float, kind: str, bonds: int, sigma: float = 0.1, h=
 @dataclass
 class JObservation:
     """units {label: (protons, copies)}; protons {group: (unit label, copy)}; couplings {(a, b): J} with a, b unit
-    labels (copy 0) or proton groups; sigma {(a, b): Hz} optional."""
+    labels (copy 0) or proton groups; sigma {(a, b): Hz} optional; isotopes {unit or group: isotope} optional
+    (units default to 13C, proton groups to 1H; e.g. {"HN": "2H"} for an exchanged group)."""
     units: Dict[str, Tuple[int, int]]
     protons: Dict[str, Tuple[str, int]]
     couplings: Dict[Tuple[str, str], float]
     sigma: Dict[Tuple[str, str], float] = field(default_factory=dict)
+    isotopes: Dict[str, str] = field(default_factory=dict)
+
+    def isotope(self, label: str) -> str:
+        return self.isotopes.get(label, "1H" if label in self.protons else "13C")
+
+    def labelled(self) -> bool:
+        """True when some unit or group is not the default 13C / 1H (route A's ranges assume the defaults)."""
+        return any(self.isotope(k) != ("1H" if k in self.protons else "13C") for k in self.isotopes)
 
     @classmethod
     def from_dict(cls, data: dict) -> "JObservation":
@@ -101,7 +110,7 @@ class JObservation:
         units = {u: (int(v["h"]), int(v.get("copies", 1))) for u, v in data["units"].items()}
         protons = {g: (v[0], int(v[1])) for g, v in data["protons"].items()}
         return cls(units, protons, {key(k): float(v) for k, v in data["couplings"].items()},
-                   {key(k): float(v) for k, v in data.get("sigma", {}).items()})
+                   {key(k): float(v) for k, v in data.get("sigma", {}).items()}, dict(data.get("isotopes", {})))
 
     def atoms(self) -> List[Tuple[str, int]]:
         return [(u, c) for u, (_, copies) in self.units.items() for c in range(copies)]
@@ -176,9 +185,12 @@ def rank_structures(obs: JObservation, max_unseen: int = 2, unseen_valence: int 
     likelihood(j, kind, bonds, sigma, h) -> p(J | bonds) up to a factor that does not depend on bonds; default
     `couplings_likelihood` (route A); route B passes zulf_model.structure.edge_model.LearnedLikelihood. h is
     (protons on the carbon, protons on the proton's carbon) for CH and the sorted pair for HH. The 1J terms use
-    likelihood.hybrid(j, hyb, sigma, h) when the likelihood has it, else `one_bond_likelihood`."""
+    likelihood.hybrid(j, hyb, sigma, h) when the likelihood has it, else `one_bond_likelihood`. A likelihood with
+    `accepts_nuclei` also gets nuclei= (the isotopes of the pair, in the order of h; route B in mode K uses them)."""
     likelihood = likelihood or couplings_likelihood
     hybrid = getattr(likelihood, "hybrid", one_bond_likelihood)
+    with_nuclei = getattr(likelihood, "accepts_nuclei", False)
+    hybrid_nuclei = with_nuclei and hasattr(likelihood, "hybrid")
     atoms = obs.atoms()
     nc = len(atoms)
     cap_c = [4 - obs.units[u][0] for u, _ in atoms]
@@ -202,9 +214,14 @@ def rank_structures(obs: JObservation, max_unseen: int = 2, unseen_valence: int 
         hs = [obs.units[g][0] if g not in obs.protons else obs.units[obs.protons[g][0]][0] for g in (a, b)]
         h = tuple(hs) if ends[0][0] == "C" else (tuple(hs[::-1]) if kinds == "CH" else tuple(sorted(hs)))
         sig = obs.sigma.get((a, b), 0.1)
-        table = [0.0] + [math.log(likelihood(j, kinds, b_, sig, h)) for b_ in range(1, MAX_BONDS + 1)]
+        extra = {}
+        if with_nuclei:
+            pair = (a, b) if ends[0][0] == "C" or kinds == "HH" else (b, a)
+            extra["nuclei"] = (obs.isotope(pair[0]), obs.isotope(pair[1]))
+        table = [0.0] + [math.log(likelihood(j, kinds, b_, sig, h, **extra)) for b_ in range(1, MAX_BONDS + 1)]
         if kinds == "CH" and ends[0][1] == ends[1][1]:
-            hyb_table = {hy: math.log(hybrid(j, hy, sig, h)) for hy in ONE_BOND}
+            hyb_extra = extra if hybrid_nuclei else {}
+            hyb_table = {hy: math.log(hybrid(j, hy, sig, h, **hyb_extra)) for hy in ONE_BOND}
             one_bond.append((a, b, ends[0][1], j, table[1], hyb_table))
             continue
         terms.append((a, b, ends[0][1], ends[1][1], kinds, offset, j, table))

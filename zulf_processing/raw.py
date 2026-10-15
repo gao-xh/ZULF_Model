@@ -34,3 +34,39 @@ def read_settings(path) -> dict:
             out["scans"] = cp.getint(section, "NumberOfScans", fallback=None)
             out["data_directory"] = cp.get(section, "DataDirectory", fallback=None)
     return {k: v for k, v in out.items() if v is not None}
+
+
+def find_sampling_rate(fid_path, default_hz: Optional[float] = None) -> tuple:
+    """(sampling rate in Hz, source) of an averaged FID: scans.json of scripts/average_scans.py next to it, else the
+    first .ini next to it, else `default_hz` (source "default"). Raises when nothing is found and there is no
+    default. The NMRduino sequences differ (2000, 4000, 8333 Hz); a wrong rate scales every frequency."""
+    folder = Path(fid_path).expanduser().resolve().parent
+    record = folder / "scans.json"
+    if record.exists():
+        import json
+        rate = json.loads(record.read_text()).get("sampling_rate_hz")
+        if rate:
+            return float(rate), str(record)
+    for ini in sorted(folder.glob("*.ini")):
+        rate = read_settings(ini).get("sampling_rate_hz")
+        if rate:
+            return float(rate), str(ini)
+    if default_hz is None:
+        raise ValueError(f"No sampling rate found next to {fid_path}; pass it explicitly.")
+    return float(default_hz), "default"
+
+
+def scale_sample_settings(settings: dict, sampling_rate_hz: float) -> dict:
+    """Copy of processing defaults given in samples at settings["sampling_rate_hz"], rescaled to another rate so the
+    same times result: start_sample, stop_sample, and sg_window (kept odd, so the drift filter keeps its cutoff in Hz)."""
+    out = dict(settings)
+    ratio = float(sampling_rate_hz) / float(settings["sampling_rate_hz"])
+    out["sampling_rate_hz"] = float(sampling_rate_hz)
+    if abs(ratio - 1.0) < 1e-9:
+        return out
+    for key in ("start_sample", "stop_sample"):
+        if key in out:
+            out[key] = int(round(out[key] * ratio))
+    if "sg_window" in out:
+        out["sg_window"] = int(round(out["sg_window"] * ratio)) // 2 * 2 + 1
+    return out

@@ -1,0 +1,81 @@
+{
+ "note": "As v26 with the default window 0.3 1/s and record 8 s (series runs/series/batch_sec-butylamine): the narrow lines below 1 Hz spacing at 115-140 Hz are smeared by the 1.5 1/s window.",
+ "entries": [
+  {
+   "id": "sec-butylamine",
+   "scans": "original/2026-04-06-sec-butylamine/sec_butylamine",
+   "structure": {
+    "compound": "sec-butylamine",
+    "chain": {
+     "groups": [
+      [
+       "C1",
+       "C",
+       3
+      ],
+      [
+       "C2",
+       "C",
+       2
+      ],
+      [
+       "C3",
+       "C",
+       1
+      ],
+      [
+       "C4",
+       "C",
+       3
+      ],
+      [
+       "N1",
+       "N",
+       2
+      ]
+     ],
+     "bonds": [
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "C4"
+      ],
+      [
+       "C3",
+       "N1"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 124.97,
+     "C2": 124.45,
+     "C3": 132.89,
+     "C4": 125.09,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "CCC(C)N",
+     "sites": {
+      "C1": 0,
+      "C2": 1,
+      "C3": 2,
+      "C4": 3,
+      "N1": 4
+     }
+    }
+   },
+   "field": false,
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "exchange": "slow"
+  }
+ ]
+}

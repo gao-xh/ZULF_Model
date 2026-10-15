@@ -592,3 +592,57 @@ class ABCDMotifTest(unittest.TestCase):
         ref = aabb.interpretation.components[0].system
         for comp in abcd.interpretation.components:
             self.assertTrue(same_lines(comp.system, ref, tol=1e-6))
+
+
+class LabelingHypothesisTests(unittest.TestCase):
+    """Labelling hypotheses for samples of unknown labelling (D54)."""
+
+    @staticmethod
+    def methylamine():
+        from zulf_hypothesis.motifs import MOTIFS
+        return MOTIFS["CH3-NH2"].fragment({"C1": 133.0, "N1": -65.0})
+
+    def test_proton_isotope_and_deuteration(self):
+        from zulf_core.nuclei import get_registry
+        from zulf_hypothesis.builder import build_model
+        from zulf_hypothesis.fit import exchange_variants
+        from zulf_hypothesis.labeling import deuterate_exchangeable, labeling_variants
+        fr = self.methylamine()
+        self.assertTrue(all(p.isotope == "1H" for p in fr.protons))
+        self.assertEqual(Fragment.from_dict(fr.to_dict()), fr)               # default isotope: JSON unchanged
+        d = deuterate_exchangeable(fr)
+        self.assertEqual({p.label: p.isotope for p in d.protons}, {"HC1": "1H", "HN1": "2H"})
+        self.assertEqual(Fragment.from_dict(d.to_dict()).protons, d.protons)
+        r = get_registry().gamma("2H") / get_registry().gamma("1H")
+        self.assertAlmostEqual(d.coupling("N1", "HN1"), -65.0 * r, places=9)  # equal K (D51)
+        self.assertEqual(d.coupling("C1", "HC1"), 133.0)
+        isos = build_model(exchange_variants(d, "slow")[0]).interpretation.components[0].system.isotopes
+        self.assertEqual(sorted(isos), sorted(("13C", "1H", "1H", "1H", "2H", "2H")))
+        self.assertEqual([n for n, _, _ in labeling_variants(fr, "unknown")], ["natural", "15N", "2H-exchange"])
+        methyl = Fragment.from_dict({**fr.to_dict(), "protons": [fr.to_dict()["protons"][0]],
+                                     "sites": [fr.to_dict()["sites"][0]], "couplings": {"J(C1,HC1)": 133.0},
+                                     "symmetry": [], "bonds": []})
+        self.assertEqual([n for n, _, _ in labeling_variants(methyl, "unknown")], ["natural"])
+        with self.assertRaises(ValueError):
+            labeling_variants(methyl, "15N")
+
+    def test_unknown_labelling_is_decided_by_the_data(self):
+        # Truth: 15N-enriched methylamine, slow N-H exchange; the comparison must rank 15N first.
+        from zulf_core.solver import ObservedSpectrum
+        from zulf_hypothesis import fit_settings
+        from zulf_hypothesis.builder import build_model
+        from zulf_hypothesis.fit import exchange_variants, fit_structure_labelings
+        from zulf_hypothesis.labeling import labeling_variants
+        from zulf_model.render import Acquisition, Renderer
+        fr = self.methylamine()
+        _, f, lab = next(v for v in labeling_variants(fr, "unknown") if v[0] == "15N")
+        m = build_model(exchange_variants(f, "slow")[0], labeling=lab)
+        acq = Acquisition(1000.0, 6000, start_sample=40, sg_window=101, sg_order=2)
+        r = Renderer(acq)
+        fid = sum(r.synthesize(compute_transitions(c.system), 1.0, gain=10.0 * w)
+                  for c, w in zip(m.interpretation.components, m.ratios))
+        fid = fid + np.random.default_rng(0).normal(0, 0.02 * np.abs(fid).max() / 30, acq.points)
+        obs = ObservedSpectrum.from_fid(fid, acq, [(5.0, 330.0)])
+        cmp = fit_structure_labelings(fr, obs, "unknown", settings=fit_settings(workers=1), exchange="slow")
+        self.assertEqual(cmp.best, "15N")
+        self.assertGreater(cmp.rows[1]["delta"], 100.0)

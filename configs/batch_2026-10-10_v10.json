@@ -1,0 +1,196 @@
+{
+ "note": "As v9 (window 1.5 1/s, record 4 s) with crop 0.3 s (was 0.1 s): in v9 the glycerol model drew 10 Hz ripples (crop wings of the 0-14 Hz lines outside the grid) that the data do not show; crop 0.3 s also removes the early switching transient (acetonitrile, 2026-10-10).",
+ "entries": [
+  {
+   "id": "glycerol",
+   "scans": "original/2026-03-20-glycerol-40wt-h2o/glycerol_40weight_H2O",
+   "structure": {
+    "compound": "glycerol",
+    "chain": {
+     "groups": [
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "C1",
+       "C",
+       2
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "C3",
+       "C",
+       2
+      ],
+      [
+       "O3",
+       "O",
+       0
+      ]
+     ],
+     "bonds": [
+      [
+       "O1",
+       "C1"
+      ],
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "O2"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O3"
+      ]
+     ],
+     "sym": [
+      {
+       "O1": "O3",
+       "C1": "C3",
+       "C3": "C1",
+       "O3": "O1",
+       "HC1": "HC3",
+       "HC3": "HC1"
+      }
+     ]
+    },
+    "one_bond": {
+     "C1": 145.41,
+     "C2": 142.68
+    },
+    "molecule": {
+     "smiles": "OCC(O)CO",
+     "sites": {
+      "O1": 0,
+      "C1": 1,
+      "C2": 2,
+      "O2": 3,
+      "C3": 4,
+      "O3": 5
+     }
+    }
+   },
+   "field": false,
+   "series": "_apod1p5_crop0p3",
+   "apodization": 1.5,
+   "record": 4.0,
+   "crop": 0.3
+  },
+  {
+   "id": "serine",
+   "scans": "original/2026-04-01-serine/serine",
+   "structure": {
+    "compound": "serine",
+    "chain": {
+     "groups": [
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "C1",
+       "C",
+       2
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "N1",
+       "N",
+       3
+      ],
+      [
+       "C3",
+       "C",
+       0
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "O3",
+       "O",
+       0
+      ]
+     ],
+     "bonds": [
+      [
+       "O1",
+       "C1"
+      ],
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O2"
+      ],
+      [
+       "C3",
+       "O3"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 146.42,
+     "C2": 144.95,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "OCC([NH3+])C(=O)[O-]",
+     "sites": {
+      "O1": 0,
+      "C1": 1,
+      "C2": 2,
+      "N1": 3,
+      "C3": 4,
+      "O2": 5,
+      "O3": 6
+     }
+    },
+    "notes": [
+     "unsaturated or aromatic bonds: the chain uses saturated (sp3) 2J/3J defaults; a registered motif (e.g. 'benzene ring') models aromatic couplings"
+    ]
+   },
+   "field": false,
+   "series": "_apod1p5_crop0p3",
+   "apodization": 1.5,
+   "record": 4.0,
+   "crop": 0.3
+  }
+ ]
+}

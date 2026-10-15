@@ -744,6 +744,326 @@ choices in `scripts/fit_joint_series.py`.
   The exact exchange model (D45) does not scale to ethylenediamine with N-H kept (9 spins, no reducible group,
   35 GiB), so intermediate exchange there needs an approximation.
 
+## D47. Fitted static field, default zero field (2026-10-06)
+
+Some measurements are made in a known nonzero field (the acetonitrile run of 2026-09-28 is a fringe-field
+measurement: its 2J band is split into 271.3 / 273.8 Hz, which a longitudinal field of about 0.08 uT reproduces,
+while the zero-field 13CH3 model leaves a relative residual of 0.73). The field is therefore an optional fitted
+parameter (`ParameterPolicy.fit_field`, default False: zero field, unchanged results).
+
+- With preparation and detection along z the signal depends only on the transverse size B_transverse and on |Bz|
+  (rotation about z, and a pi rotation about x, leave it unchanged). Two parameters `field_transverse_ut` (placed in
+  Bx, By = 0, so the real eigensolver stays in use) and `field_z_ut`, both >= 0 (`field_bounds_ut`).
+- The signal is stationary at zero field (zero gradient), so starts are nonzero (`initial_field_ut`, default
+  0.02 uT each); a fit that should be able to reach zero field still can (lower bound 0).
+- `MixtureForward.protocol_for(values)` puts the field into the protocol of every evaluation (transitions,
+  coupling derivatives, exchange); the field columns of the Jacobian are central differences (the analytic
+  derivative needs the Zeeman directions in physics.derivatives; possible later).
+- The global pattern search (solver.search) still uses the fixed protocol: with a fitted field, rely on the
+  multistart from the field starts.
+- Test: tests/test_solver.py FieldFitTests (data from brute-force propagation in a field; recovery of
+  B_transverse and Bz from a nonzero start; the zero-field model is at least 10x worse on such data).
+- D19 still holds for reporting: a fitted field is reported with every result that uses it.
+- Names: the transverse component was first called `field_perp_ut` (axis `perp`); renamed the same day to
+  `field_transverse_ut` (axis `transverse`) on Xuehan's request. Figures write it as B with a perpendicular sign.
+
+## D48. ZULF Studio: one session for the window, the fitter and AI agents (2026-10-06)
+
+Xuehan asked for a standalone real-time simulator with a Python desktop UI (PySide), fitting with the
+fit-progress slider, log and terminal inside, and an API for AI. Design:
+
+- `zulf_studio.session.StudioSession` holds the whole state and every operation, without a GUI. The model is
+  rebuilt from the structure specification on every change (zulf_hypothesis.structure_spec; build_model takes
+  well under 1 ms) and the transitions are exact in the session's static field (D47). Triethylamine updates in
+  about 50 ms, so sliders are live.
+- The displayed simulation is a sum of complex Lorentzians with one decay rate: a quick look. The fit is
+  `scripts/fit_joint_series.py` run as a subprocess from the current couplings and field, so the fitter, its
+  processing operator and its objective are the same code as in the analyses (no second implementation); its
+  trace frames (`--trace`) feed the progress slider and are drawn as computed.
+- `zulf_studio.api` exposes the same operations as JSON tools over local HTTP (127.0.0.1, /api/tools with
+  schemas, Anthropic and OpenAI formats). The window listens to the session, so a person and an agent work on
+  one state and the window follows the agent.
+- Log (session, api, fit, terminal sources; also runs/studio/studio.log), a shell terminal (repository
+  directory, the studio's Python first on PATH) and a Python console with the session are tabs of the window.
+- `structure_for` / `override_couplings` moved from scripts into `zulf_hypothesis.structure_spec` (the scripts
+  re-export them), so a package does not import scripts.
+- Tests: tests/test_studio.py (closed forms: XA3 lines at J and 2J, a 13C-1H line split by (gH + gC) B / 2 in a
+  transverse field, Lorentzian FWHM = rate / pi; fit command, fit application and trace frames; HTTP API;
+  offscreen window and session following each other across threads).
+
+## D49. Studio display scale and figures (2026-10-06)
+
+Two requests of Xuehan (handed over from a read-only session):
+
+- The simulated curve jumped while 1J was dragged (acetonitrile, 136.8-136.9 Hz): the display scale was a
+  least-squares fit on the shown real part, which faded to 3e-6 as the line moved through a dispersive data
+  feature and then fell back to max|data| / max|sim| (a 300x jump). The scale is now the least-squares fit on the
+  magnitudes (positive, continuous in the parameters, the same for every shown part); `lock_scale` freezes it.
+  The status bar shows it. Test: DisplayScaleTests (dispersive synthetic data, scan of J).
+- Figures: Studio runs scripts/paper_figure.py as a subprocess (PNG at 300 dpi, PDF, SVG, caption.txt; preview
+  in the window; export to a chosen directory; API tools figure_command, make_figure, figure_status,
+  export_figure). If the parameters are exactly an applied fit, its run is drawn (its options and fit.json);
+  after the sliders moved, a fit.json-compatible parameter file of the current state is written and the figure
+  and caption say "manual parameters (not a fit)".
+- paper_figure.py no longer assumes 4 kHz: the sampling rate comes from the series entry's record (or
+  --sampling-rate), the display zero-order phase from the series entry's phasing (or --phase0-deg; the 4 kHz
+  calibration only as the fallback); the caption names the fitted field and the sampling rate; --formats, --dpi,
+  --manual. scripts/regression_confirmed.py is unchanged.
+- make_series_entry.py records the FID as "source_fid" (not "fid": fit_joint_series reads an entry with "fid"
+  as a raw FID to process with the 4 kHz recipe). Studio asks for the FID when a series has none.
+- Tests: FigureTests (a 136 Hz line of a 2 kHz FID appears at 136 Hz in the display spectrum; a full Studio
+  figure of a synthetic 2 kHz series, files and caption).
+- Auto phase of the shown data (`auto_phase`, button in the data panel): "model" finds the phase0 and delay
+  that best match the current simulation (delay grid +-3 ms, phase0 in closed form); "data" is model-free
+  (zulf_core.render.phasing.estimate_phase), delay within +-0.5 ms by default because for lines at J and 2J
+  delays about 1 / (2 J) apart are equivalent for it (a +-3 ms search landed 3.5 ms off on synthetic data).
+  Acetonitrile: model -17.7 deg, 0.365 ms on top of the series phasing (the 4 kHz calibration). Test:
+  AutoPhaseTests (known phase and delay).
+- Fixed on the way: the quick-look Lorentzian had the conjugate sign of the processed spectra (numpy FFT
+  convention: a gamma / (gamma + i (f - f_k))); the real part was unaffected, the imaginary part and any complex
+  match were wrong.
+
+## D50. AI assistant in ZULF Studio: Anthropic and OpenAI models drive the session (2026-10-06)
+
+Xuehan asked for Anthropic and Codex (OpenAI) API access in Studio. `zulf_studio.assistant.StudioAssistant` runs
+a tool loop: the model gets the Studio tools (the same definitions as /api/tools, executed in-process on the
+session the window shows), every call and result goes to the transcript and the log (source "ai"), arrays of
+`simulate` are summarised before they reach the model, and a system prompt says that fitted values are
+conditional numerical results.
+
+- Anthropic: Messages API through the `anthropic` SDK, manual loop with client tools, default model
+  claude-opus-5-5, server-side refusal fallback on (`fallbacks="default"`); thinking blocks are passed back
+  unchanged (append-only history).
+- OpenAI: Responses API through the `openai` SDK with function calling; no default model (names of Codex models
+  change): the model field or OPENAI_MODEL.
+- Credentials from the environment (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / `ant auth login`,
+  OPENAI_API_KEY), or entered in the AI tab: kept in memory, or with "Remember" stored encrypted in the macOS
+  Keychain (service zulf-studio, zulf_studio/credentials.py; Xuehan: enter once) and loaded at start, an
+  environment value winning. Never in a file, config, the repository or the log. The terminal and the Python console are not tools of the model.
+- Environment: anthropic 1.11 and openai 3.24 added to the `zulf` env (15 packages, all new; no version
+  changes); pyproject extra "ai". User guide docs/STUDIO.md, environment docs/ENVIRONMENT.md.
+- Tests: AssistantTests (fake provider clients, no network: tool calls reach the session, unknown tools come
+  back as errors, simulate results are summarised).
+
+## D51. Reduced coupling constants K next to J (2026-10-07)
+
+Xuehan asked for the coupling with the gyromagnetic ratios removed. K = 4 pi^2 J / (h gamma_A gamma_B)
+(docs/CONVENTIONS.md) is now:
+- written by fit_joint_series for every coupling: fit.json couplings gain "nuclei" and "K_at_x" (unit in
+  "reduced_coupling_unit": 1e19 N A^-2 m^-3); J_table.csv gains the columns "nuclei" and "K at x" at the end
+  (earlier columns unchanged);
+- available as `zulf_core.nuclei.reduced_coupling`, `coupling_from_reduced`, `convert_coupling` for starts and
+  priors of other isotopes: 15N literature couplings -> 14N (the 14N model, PLAN Phase 3e), 1H -> 2H (labelled
+  samples). The primary isotope effect on K (about 1 %) is neglected; converted values are not results.
+- Using K in the J-to-structure likelihood (Phase 7) is open for discussion (D56: run next to J).
+Tests: tests/test_spinsystem.py ReducedCouplingTests (CODATA gammas, independent formula); tests/test_j_tuner.py
+RunToolsTests (K and nuclei in fit.json for C-H and H-H couplings).
+
+## D52. Route B input mode: J (default) or K (2026-10-07)
+
+`zulf_model.structure.edge_model` gains an input mode (`EdgeModel.mode`, saved with the model; files without it
+load as "J"). Mode "K" feeds the equivalent 13C-1H coupling at equal K (13C-1H rows unchanged, other pairs
+rescaled by their gyromagnetic ratios); per-row isotopes can be given (`features(..., nuclei=...)`,
+`accuracy(..., nuclei=...)`). Measured (docs/analysis/2026-10-07_j-to-structure_j-vs-k.md): equal performance on
+13C / 1H data, and K alone transfers to deuterated couplings (0.843 against 0.298 for J). J stays the default;
+K is to be used once labelled-isotope or N-coupling observations enter (decision with Xuehan). Test:
+tests/test_j_structure.py ReducedCouplingModeTests.
+
+## D53. Fitted gyromagnetic ratio in a known field: naming the heteronucleus from the data (2026-10-07)
+
+In a blind test the isotopes may be unknown. Zero-field line positions depend on J only, so a 13C line and a
+15N line with another J can sit at the same place; a field splits lines by amounts proportional to the
+gyromagnetic ratios of the coupled nuclei (a 13C-1H line by (g_H + g_C) B / 2 in a transverse field), so in a
+known field the data fix gamma.
+- `Protocol.gamma_overrides` (default empty): gamma per nucleus for the field term and the gamma weights;
+  `zeeman()` takes the protocol's gamma; transitions, derivatives and the brute-force reference use it.
+- `ParameterPolicy.fit_gamma` / `initial_gamma` / `gamma_bounds_hz_per_ut` (parameters `gamma_<symbol>`, central-
+  difference Jacobian) and `field_fixed` (hold the field at `initial_field_ut`: the known field). gamma and a free
+  field trade against each other, so fit gamma only with a known field (from a reference sample, or from lines of
+  known nuclei).
+- fit_joint_series `--field transverse,z` (known, fixed) and `--fit-gamma 13C [--gamma-start ...]`; fit.json
+  `gamma_identification` lists the nearest registered nuclei of the same spin.
+- Spin-1/2 heteronuclei (13C, 15N, 19F, 31P) are told apart this way; a change of spin (1H vs 2H, 15N vs 14N) is a
+  different spin system and is decided by comparing hypotheses (labelling option of the search).
+- Measured: synthetic 13C-1H and 15N-1H pairs in 0.1 uT (brute-force data), a 13C-labelled model with gamma free
+  ends at the true gamma (13C from a start of 8.0; 15N, -4.316, from -3.0). Acetonitrile with the field held at
+  its fitted value: gamma 11.04 from a start of 8.0, nearest 13C (3 %; 31P 56 %, 15N 139 %).
+Tests: tests/test_solver.py GammaFitTests, tests/test_j_tuner.py GammaOptionTests; physics, search, derivative,
+exchange and solver suites unchanged (70 tests).
+
+## D54. Labelling hypotheses for samples of unknown labelling (2026-10-07)
+
+Blind samples may be enriched (15N) or in D2O (exchangeable protons as 2H). Labelling is part of the hypothesis
+and the data rank it:
+- `ProtonGroup.isotope` ("1H" default, "2H"); the builder builds proton groups with their isotope. Fragments
+  without it serialise as before.
+- `labeling.deuterate_exchangeable(fragment)`: exchangeable groups (flagged, or on N / O / S, the exchange
+  variants' rule) become 2H, their couplings converted at equal K (D51).
+- `labeling.labeling_variants(fragment, mode)`, modes natural, 15N (N sites at 0.98, up to two labels),
+  2H-exchange, unknown (every one that applies). `fit.fit_structure_labelings` fits each with fit_structure and
+  ranks the best fits on one scale (chi2 over the common overdispersion, plus the criterion penalty);
+  analyze_sample.py `--labeling`, labelings.json, one report per labelling.
+- Limit: in fast exchange the exchangeable protons are decoupled whether 1H or 2H, so those two hypotheses tie.
+- Measured on synthetic methylamine (slow exchange, three truths): natural, 15N and 2H-exchange each recovered,
+  the runner-up worse by at least 8.5e4 in BIC. Test: tests/test_hypothesis.py LabelingHypothesisTests (15N truth,
+  about 3.5 min).
+
+## D55. Coupling precision option: fits stop when the couplings are settled (2026-10-07)
+
+Every least-squares call used ftol = xtol = gtol = 1e-10 and usually ran to max_nfev. Xuehan asked for a precision
+option, 0.01 Hz by default, finer (e.g. 0.001 Hz) on request.
+- `zulf_core.solver.convergence.CouplingPrecision`, a least_squares callback: stop when for 2 consecutive accepted
+  steps every coupling moved by less than the precision and the cost fell by less than 1e-6 of itself (so rates,
+  field and phase that still improve the fit keep it going). precision 0 = the old behaviour.
+- fit_joint_series `--precision` (default 0.01; all full and local least-squares runs; fit.json "precision_hz";
+  J_table decimals = digits of the precision + 1), `RefineSettings.precision_hz` (default 0.01; refine and every
+  search built on it), the J tuner refinement, Studio (Fit tab "coupling precision", API option `precision`).
+- Measured, acetonitrile field model from the default start: 30 evaluations to the tolerances, 17 at 0.01 Hz and
+  at 0.001 Hz, same objective (0.047761) and J (136.28237 Hz) to the digits shown. Near an optimum the couplings
+  converge fast, so 0.01 and 0.001 often stop together; the option bounds the work on slow, flat problems.
+- Changes the default of existing runs: fits now stop at 0.01 Hz instead of running to max_nfev. Reproduce older
+  runs with `--precision 0`.
+- Fixed on the way: scripts/zulf_studio.py shadowed the package zulf_studio whenever scripts/ came first on the
+  import path (test modules, scripts); renamed to scripts/run_studio.py.
+Tests: tests/test_solver.py PrecisionTests (stop rule; couplings within the precision), tests/test_j_tuner.py
+PrecisionOptionTests (the stop fires on a joint fit, couplings within 0.01 Hz of the run to the tolerances).
+
+## D56. Route B runs in both input modes, J and K, every time (2026-10-08)
+
+Xuehan asked for K to be added to the J -> structure readout without replacing J, both run every time.
+- Route B has one model per input mode (`edge_model.ROUTE_B_MODES` = J, K): `<model dir>/j_edges_J.json` and
+  `j_edges_K.json` (`model_path`, `load_route_b`), trained on the same generator rows by
+  scripts/j_structure_benchmark.py (`--modes J,K`, `--model-dir`, default `runs/models`; existing files are
+  loaded unless `--retrain`; `--model FILE` still loads one file for the mode it holds).
+- scripts/j_structure.py ranks every observation with route A, B-J and B-K (`--routes A,J,K`), prints the three
+  rankings and whether they agree on the best structure, `--out` writes them as JSON. A missing model is reported.
+- J observations take optional `isotopes` ({unit or group: isotope}, default 13C / 1H). rank_structures passes the
+  isotopes of each coupling (`nuclei=`, carbon first for C-H) to a likelihood that declares `accepts_nuclei`
+  (LearnedLikelihood); route A ignores them and assumes 13C / 1H.
+- Measured: benchmark on 100 synthetic observations and the four amine networks, A / B-J / B-K identical (top-1
+  0.91, top-3 1.00; every amine rank 1; held-out bond-count accuracy J 0.852, K 0.849). N-ethylmethylamine with
+  HC3 as 2H (its couplings scaled by g_2H / g_1H): all three rank the truth first; log L of the truth A -43.4,
+  B-J 2.9, B-K 6.1 (only K reads the 2H couplings on the trained scale).
+- No 15N kinds yet (N is an unseen atom X in the candidates); K for N couplings needs N units first.
+Tests: tests/test_j_structure.py BothModesTests (isotopes reach the likelihood, carbon first; K invariant under
+1H -> 2H and J not; the CLI writes routes A, B-J, B-K and reports missing models).
+
+## D57. Guard rows: no model peak where the data have no line (2026-10-08)
+
+- Problem: fit ranges taken from the data alone leave gaps where a model line costs nothing. Ethanol 2026-09-13
+  (ranges 198-221 and 244-260 Hz, field and automatic rate families): the model put tall sharp lines at
+  232-236 Hz, where the data are empty; the rate family of those lines ran to its lower bound.
+- Owner's decisions: keep both modes, fitting the whole grid (make_series_entry default since a14d15b) and fitting
+  a few bands; in both the loss carries a penalty against model peaks where the data have none.
+- fit_joint_series: one guard row per bin (`--guard-bin`, 1 Hz) over the processed grid minus `--guard-margin`
+  (2 Hz) around the data line regions and the fully weighted fitted points: strength t softplus((max over the bin
+  of 0.8 E - D - k sigma) / t) / (sigma norm), t = 0.5 sigma. E: model line envelope with the solved gains
+  (MixtureForward.model_envelope, smooth profiles: tapered at +-5 Hz and rendered at one reference frequency;
+  the hard cut and the median-frequency profile jumped when a line crossed the cut or two rate families met at a
+  bound); D: largest data magnitude within +-0.5 Hz; 0.2 of E not counted (E ignores phases and exceeds the
+  coherent model between partly cancelling lines); k: `--guard-sigma` (3); strength `--guard-penalty`
+  (default 5, 0 = off). The full grid comes from the series entry (the observations hold only the fit ranges).
+- Jacobian: forward differences of the guard rows over every free parameter, gains solved again at each step
+  (they come from the fit ranges and move with every parameter and the delay; with fixed gains the derivatives
+  had the wrong sign for field and delay), step 1e-8 + 1e-7 abs(x) (line tops are sharp). Only while a row is
+  active; otherwise rows and derivatives are zero.
+- Not in reliability_series.py, j_tuner.py and the studio yet (they build JointSeries without guard rows).
+- Known, older: a coupling that moves a line across an automatic rate-family edge changes its rate in a step
+  (the objective jumps); seen in the ethanol checks, not changed here.
+Tests: tests/test_joint_series.py test_guard_rows_penalise_model_peaks_where_the_data_are_empty (quiet where the
+data have the lines, active only at the empty bins, Jacobian against central differences, continuity).
+
+## D58. ZULF Studio in four modes: Simulate, Process, Fit, Blind analysis (2026-10-08)
+
+- Owner's decision: the interface switches by task instead of showing everything at once. Data processing (scans
+  to spectrum, no model) is a mode of its own before fitting: a fit needs a well processed spectrum and cannot
+  repair a bad crop, window or phase, though it refines the residual phase and delay.
+- One model state for all modes (structure or custom spin system, couplings, field, line width): parameters
+  tuned in Simulate are the start of a fit; a fit result can go back to Simulate. A blind-analysis candidate opens
+  in Fit. The session file records the mode; Studio opens in Fit when data are given, else in Simulate.
+- Simulation without data needs no MATLAB: zulf_core.SpinSystem takes isotopes and an n x n J matrix and
+  diagonalises exactly (the ZULF_NMR_Suite simulator used Spinach through MATLAB).
+- Plan and steps: PLAN Phase 8.
+
+## D59. One decay-rate family per data peak (2026-10-08)
+
+- Owner: "every peak its own decay rate", as an option of the fit. `--family-edges peaks` puts a family edge
+  midway between neighbouring data peaks (peak_family_edges: peaks of the magnitude smoothed by 0.15 Hz, higher
+  than the noise floor plus `--peak-family-sigma` (default 4) noise levels and with a prominence of 2, at least
+  0.5 Hz apart; robust noise on the points without data lines). A line on the tail of a neighbour counts by its
+  height, not its prominence (the 255.7 Hz ethanol line: 3.2 sigma prominence, 17 sigma above the floor).
+  `peaks+auto` merges these edges with the automatic ones (D46 rule); edges closer than 0.3 Hz merge.
+- Found while trying it on ethanol: narrowing the 256 Hz family shows the model line at 256.6 Hz against the data
+  at 255.8 Hz; the fit had broadened that family to its bound because the position is wrong. A rate cannot move
+  a line; per-peak families give the couplings and field the chance to.
+- Studio: the rate-family box offers peaks, auto, peaks+auto.
+Tests: tests/test_joint_series.py test_peak_family_edges_give_every_data_peak_its_own_family.
+
+Amendment (2026-10-09, owner: "every line its own decay rate, from the simulation"): `--family-edges lines`
+puts the edges midway between neighbouring model lines of the start vector (|gain a| >= 5 % of the component's
+strongest line; lines closer than 0.25 Hz, which the data cannot resolve, share one family). 'peaks' finds
+families in the data and misses model lines whose data peak is weak: ethanol 120.87 Hz (13C@C1, relative 0.33)
+had no family of its own with 'peaks' (its data peak is about 6 sigma in magnitude) and one with 'lines'
+(38 families either way). Keywords combine with '+' (e.g. peaks+lines). Test: edges_between_lines.
+
+## D60. Fits of a typed-in spin system (2026-10-08, PLAN 8c-8d)
+
+- Owner: besides structures, models given as isotopes and a J matrix (as in ZULF_NMR_Suite), simulated and
+  fitted in ZULF Studio and by fit_joint_series (`--structure '{"spin_system": ...}'`).
+- zulf_hypothesis.spin_system builds a HypothesisModel from the specification, so the fit, guard rows, rate
+  families, field and Studio work unchanged: a J entry is Hz or a variable name; spins of one isotope with equal
+  entry rows (by name or number) form an equivalence group; a group pair is one solver parameter c<k>.J<a>-<b>
+  under the key of its entry (the variable, shared wherever it appears, or 'component:J(i,j)' of the groups'
+  first spins); entries 0 are no coupling and stay 0. Studio's sliders use the same grouping and keys, so fit
+  results apply back.
+- Weights: typed-in systems fit one amplitude per component by default ("fit weights"); a structure converted to
+  a spin system holds its abundance ratios ("fixed_weights": true). With free amplitudes, ethanol from a start
+  0.3 Hz off reached objective 0.78 (13C@C1 amplitude near 0) against 0.12 with fixed ratios.
+- Converting a structure ties couplings by the structure's keys (J(C1,HC1) -> variable J_C1_HC1), not by equal
+  values (the two 2J(C,H) of ethanol are both -4.5 Hz at the start).
+Tests: tests/test_joint_series.py SpinSystemFitTests (two components, a variable and a numeric coupling recovered
+from a 0.4 Hz offset, amplitude ratio 0.5); tests/test_studio.py SpinSystemTests.
+
+## D61. Molecules as a source of structure specifications (2026-10-09)
+
+- Owner: draw the model as a molecule in Studio, and keep an interface so that a drawn molecule can build the
+  simulated system later.
+- zulf_hypothesis.molecule is that interface. structure_from_molecule(molecule) takes an RDKit molecule, SMILES or
+  mol-file text (later: a sketcher's output) and returns a chain specification: every heavy atom a site
+  (element + running number in atom order), its non-exchangeable protons (O-H and S-H left out unless
+  keep_exchangeable), the bonds, the symmetry as all graph automorphisms (with the proton groups mapped along),
+  and 1J starting guesses by element and hybridisation on one site of each symmetry orbit. The optional
+  "molecule" key ({"smiles", "sites"}) keeps the SMILES and the site-to-atom map for drawing; fragment_from_spec
+  and the fits ignore it, so existing specifications are unchanged. molecule_from_structure(spec) draws any
+  specification (recorded SMILES, else the fragment's skeleton with single bonds).
+- Limits: chain couplings are the saturated (sp3) defaults, so unsaturated or aromatic molecules convert with a
+  note pointing to the registered motifs.
+Tests: tests/test_molecule.py (ethanol from CCO against the hand-written ethanol chain, propane from CCC against
+the CH2(CH3)2 motif, compared by line frequencies and relative intensities; mol-file input; drawing);
+tests/test_studio.py (model from a molecule, the Molecule card, no #RRGGBBAA colours in the SVG).
+
+Amendment (2026-10-10): the 1J start of an sp3 carbon adds the usual increments of its heavy neighbours to 125 Hz
+(N +8, O +16, Br +27, unsaturated C +4, ...; ONE_BOND_SP3_INCREMENT). With 125 Hz for every sp3 carbon the
+overnight batch fit of isopropylamine stayed in a wrong minimum (CH next to N, true 133.5 Hz) and diethylamine gave
+a 2J of -10 Hz. Test: tests/test_molecule.py (methylamine 133, methanol 141, bromomethane 152, isopropylamine).
+
+## D62. One display baseline for data and model (2026-10-09)
+
+- Owner: the ethanol overlays looked worse after the baseline correction than before; fix it, or give both
+  spectra the same baseline effect.
+- Cause: zulf_processing.display_baseline estimated a baseline on the data (spline with outlier rejection, then
+  AsLS) and another on the model (spline without rejection, then AsLS), and subtracted each from its own curve.
+  Near strong lines the two differ: at ethanol 118-125 Hz the crop's rolling baseline stayed in the data and
+  left the model, which looked like a missing line at 120.7 Hz, although data and model agree there without any
+  baseline (runs/figures comparison in docs/analysis/2026-10-09_ethanol_visual-fit.md).
+- Decision: method "model" (default): one baseline estimated on the noise-free model (which carries the same
+  rolling baseline, rendered through the same processing) and subtracted from data and model alike, so the
+  residual is exactly that of the fit and the display adds no misfit. "shared" estimates that one baseline on the
+  data instead; its spline follows some noise, which then shows as ripples on the model. "separate" (the old way),
+  "residual" (from data - model, on the data only) and "none" stay available (`--baseline` in paper_figure.py
+  and overlay_figure.py). Display only, as before: fits never subtract a baseline (W2).
+Tests: tests/test_processing.py DisplayBaselineTests (shared keeps the residual; separate does not).
+
 ## Open questions
 
 - Q1. Exact laboratory preparation, pulse and detection sequence.
@@ -758,3 +1078,44 @@ choices in `scripts/fit_joint_series.py`.
 - Q7. GPU model and memory for training.
 - Q8. Whether solver tools are exposed through an MCP server.
 - Q9. Blind-test molecule list.
+
+## D63. Field-distribution line shapes (2026-10-10)
+
+A sample in an inhomogeneous static field broadens each line by its own field sensitivity |dnu/dB|; lines that do
+not move with the field (dnu/dB = 0, e.g. the acetonitrile J line and 2J centre line) stay narrow. One Gaussian
+width per isotopologue (fit_sigma) cannot describe that. ParameterPolicy.field_sigma_slopes gives each rate family of
+each component its |dnu/dB| (Hz/nT); the Gaussian width of the family is then |dnu/dB| x field_sigma_nt, one fitted
+field spread sigma_B (nT, standard deviation) for the sample, on top of the Lorentzian rate of every family.
+fit_joint_series --field-sigma computes the slopes at the start field (the transitions at the field and at its
+magnitude x 1.001, direction fixed; amplitude-weighted mean per family) and rebuilds the problem with them;
+--fit-sigma exposes the per-component width. The derivative of the new parameter is a central difference of the
+columns (as for the other Gaussian widths and the field). Test: tests/test_solver.py
+test_field_distribution_widths (data propagated by brute force and averaged over a Gaussian distribution of |B|,
+sigma_B 8 nT recovered within 10 %). First use (acetonitrile 2 mL / 250 uL): sigma_B 6.5 / 6.0 nT, objective
+-0.3 % / -1.5 %: the data hardly prefer a Gaussian field distribution
+(docs/analysis/2026-10-10_acetonitrile-lf1.md).
+
+## D64. 1J starts read from the observed bands (2026-10-10)
+
+The neighbour rule of D61 (sp3 carbon 125 Hz plus heteroatom increments) misses carbons with several polar
+neighbours by 5-8 Hz (serine C-alpha 137 -> 145, C-beta 141 -> 146 Hz); a fit started there stays in a wrong
+minimum (serine second pass: 3J(H,H) 15 Hz, rates at the 40 1/s bound, sharp lines drawn as broad humps).
+fit_joint_series --one-bond-from-data (and run_batch --one-bond-from-data or an entry's "one_bond_from_data") first
+builds the problem at the given starts, then for every component labelled 13C@<site> whose J(<site>,H<site>) is a
+model coupling takes the lines inside the fit band with their df/d1J (physics.lines.line_table, Hellmann-Feynman),
+moves them as f + df/d1J dJ over +-12 Hz (--one-bond-scan), correlates their Lorentzian magnitude profile with the
+smoothed observed magnitude and puts the best 1J into the structure's one_bond before the real build. It prints the
+margin of the best match over the best alternative more than 1.5 Hz away; below 0.1 the start is flagged ambiguous
+(another position matches about as well) and should be checked by eye. It changes starting values only; the fit
+still refines every coupling. Test: tests/test_j_tuner.py OneBondFromBandsTests (13C-H2 propagated by brute force with
+1J 146 Hz, found from a 138 Hz start within 0.15 Hz). Real data from the batch starts: isopropylamine 124.20 /
+133.20 Hz (fitted 124.37 / 133.47), serine 146.20 / 144.65 Hz (fitted 146.42 / 144.95); glycerol and diethylamine
+flagged ambiguous. Limit: bands of different sites can overlap; the scan of one site then locks onto a
+strong line of another (methyl 2-bromopropionate: C2 put on the OCH3 J line at 147.6 Hz, true about 153.5 Hz). Multi-start probe (added the same day): each site keeps up to four candidates (local maxima of its scan at least
+1.5 Hz apart, above 0.25 x the best); every combination is scored by the fit's objective at the start, and the four
+best plus the best combination containing each candidate get a short least-squares run (15 evaluations, every
+parameter free); the best refined combination becomes the start. Serine and isopropylamine: the same starts as
+the single scan. Methyl 2-bromopropionate: C2 147.0 (refined objective 0.354) still beats 155.85 Hz (0.396), so
+in this model the data prefer C2 near 147 Hz and the 155-158 Hz lines may not belong to C2 (a full fit from 153.5 Hz
+is the check).
+

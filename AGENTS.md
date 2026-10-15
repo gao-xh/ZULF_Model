@@ -40,6 +40,10 @@ interface and `docs/PLAN.md` before starting new work.
   Failures on a frozen test set are not fed back into training.
 - Keep `docs/PLAN.md` current: mark what is done, what was measured, and what
   remains, with the commit that produced each result.
+- Keep `docs/WORKFLOW.md` current (owner, 2026-10-08): a change that adds,
+  removes or reorders a step a person or agent runs (a script, a route, an
+  option default, an output file) updates the matching Mermaid diagram, table
+  row and command there in the same commit, and its "Last reviewed" line.
 - Every analysis of a spectrum (or of one dataset or series) gets its own
   log file `docs/analysis/YYYY-MM-DD_<sample>_<topic>.md` (template:
   `docs/analysis/TEMPLATE.md`): data, question, exact commands and settings,

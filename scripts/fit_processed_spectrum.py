@@ -30,29 +30,12 @@ from zulf_core.render.acquisition import Acquisition            # noqa: E402
 from zulf_core.solver import ObservedSpectrum                     # noqa: E402
 from zulf_hypothesis import fit_settings, fit_structure            # noqa: E402
 from zulf_hypothesis.fit import protonated                        # noqa: E402
-from zulf_hypothesis.fragment import pair                          # noqa: E402
+from zulf_hypothesis.fragment import pair                          # noqa: E402,F401
+from zulf_hypothesis.structure_spec import override_couplings as _override_couplings  # noqa: E402
 from zulf_hypothesis.uncertainty import coupling_uncertainties, start_agreement, uncertainty_markdown  # noqa: E402
 
 
-def override_couplings(fragment, couplings):
-    """Set couplings by key 'J(a,b)'; every symmetry image of the pair gets the same value."""
-    for key, value in couplings.items():
-        a, b = key[2:-1].split(",")
-        orbit = {pair(a, b)}
-        grown = True
-        while grown:
-            grown = False
-            for g in fragment.symmetry:
-                for p in list(orbit):
-                    x, y = tuple(p)
-                    q = pair(g.get(x, x), g.get(y, y))
-                    if q not in orbit:
-                        orbit.add(q)
-                        grown = True
-        for p in orbit:
-            fragment.couplings[p] = float(value)
-    fragment.validate()
-    return fragment
+override_couplings = _override_couplings      # moved to zulf_hypothesis.structure_spec; kept for the scripts
 
 
 def main():

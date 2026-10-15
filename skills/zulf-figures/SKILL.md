@@ -29,6 +29,32 @@ Worked example: isopropylamine, docs/analysis/2026-10-03_isopropylamine_complex-
 
 ## Display processing (not the fit's)
 
+- A figure of a fit draws the fit's own model: in StudioSession call `fit_model_curve()` before `simulate()`, and
+  check that the result has "fit_re"; without it `simulate()` returns only the quick-look simulation (other
+  rates and gains), which made good fits look broad (2026-10-10, scripts/batch_figures.py).
+- Display baseline per experiment (owner, 2026-10-10): tune the AsLS (or spline) baseline separately for each
+  spectrum (SNR, line widths and spacings differ) and write its parameters on the figure; never reuse one set of
+  parameters for different experiments. Subtract the same data baseline from the simulation drawn over it. With
+  close lines (about 1 Hz) the crop wings between them cannot be removed by a smooth baseline without cutting the
+  lines; say what is left (acetonitrile 2 mL: smoothness 0.25 Hz, p 0.05; 250 uL: pre-smooth 0.15 Hz, 0.3 Hz,
+  p 0.05; a coarse smoothness makes broad humps beside the lines).
+- An automatic AsLS choice must check every line cluster, not only the highest peaks: a flexible baseline
+  (0.25 Hz) took two thirds of the height of the weaker, broader 2J band of triethylamine / isopropylamine in
+  the simulation, which looked like a misfit for a day (2026-10-11; raw model and data agreed within 5 %).
+  When a band looks misfitted in a baseline-corrected overlay, compare raw heights before changing the fit.
+- Humps beside the lines (crop wings, broad structure; in data and model alike) stay with a plain AsLS. The
+  overlay also tries a masked Whittaker smoother (line cores +-0.8 / 1.2 Hz weight 0, smoothness 1-3 Hz) and
+  scores the residual structure beside the lines; the kind (AsLS or masked) is chosen for experiment and
+  simulation together (different kinds made the heights disagree), the parameters separately (2026-10-12).
+  With dense multiplets little is left between the lines and AsLS stays.
+- Experiment vs simulation: take both routes and keep the better (owner, 2026-10-13). Common = the experiment's
+  baseline subtracted from both (the drawn difference equals the true residual; the simulation can pick up the
+  data's baseline wiggles); separate = each curve its own baseline (clean simulation, but different baselines can
+  create a false difference: serine v11 triplet 25 % low, rms 0.055 -> 0.084). overlay_panels keeps the route with
+  the smaller drawn difference within 6 Hz of the lines and prints it in the footer.
+- A display baseline ("model", D62) built from a wrong fit draws structure into the data trace (LF_1 wings); look at
+  the plain real part too before reading features off a corrected figure.
+
 - Thinner lines: the whole record (crop 0.1 s to the end, 16.2 s), window 0.1 1/s (0 is sharper but noisy in weak
   bands), zero fill 4; phase from the instrument calibration.
 - The model is rendered through the same processing with the fitted couplings, rates and delay; gains solved on

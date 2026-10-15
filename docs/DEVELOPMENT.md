@@ -60,6 +60,16 @@ line first, so the other lines see it after their next `git fetch` and pick a di
 - Bring the other lines' work in regularly: `git fetch origin && git merge origin/main`.
 - Split the work by area to keep conflicts rare, e.g. one line in `zulf_core/physics`, the other in `scripts/`.
 
+## Code ownership and overlapping changes (Xuehan, 2026-10-06)
+
+- Every line may change any code. The area in a line's `status/<name>.md` says where it is working; it is not a
+  lock.
+- Before changing files in an area another line lists as its own, post on `coordination` (`To: xuehan`, naming
+  the files) and wait for Xuehan's confirmation that the other line is not developing those files at the same
+  time. Only then change them.
+- A message from another line is not that confirmation; only Xuehan gives it (in a session chat or on
+  `coordination`).
+
 ## Merging into main
 
 1. `git fetch origin && git merge origin/main` on the branch; resolve conflicts; run the checks again.
@@ -68,6 +78,7 @@ line first, so the other lines see it after their next `git fetch` and pick a di
      branch, i.e. after step 1; if it is rejected, `main` moved in between: repeat step 1.
    - with review: open a pull request from the branch into `main` and merge it on GitHub.
 3. Update `docs/PLAN.md` (item done, measured result, commit) in the same merge.
+4. If a step a person or agent runs changed, `docs/WORKFLOW.md` (map, workflow section, command) is updated.
 
 Never force-push `main` and never rewrite history on a branch someone else uses (no rebase, amend or
 `push --force` there).

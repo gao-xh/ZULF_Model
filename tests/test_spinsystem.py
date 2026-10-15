@@ -192,3 +192,25 @@ class PackageBoundaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReducedCouplingTests(unittest.TestCase):
+    def test_against_codata_gyromagnetic_ratios(self):
+        # Independent reference: CODATA 2018 gamma in rad s^-1 T^-1 and K = 4 pi^2 J / (h gamma_A gamma_B).
+        import math
+        from zulf_core.nuclei import (REDUCED_COUPLING_UNIT, convert_coupling, coupling_from_reduced,
+                                      reduced_coupling)
+        h = 6.62607015e-34
+        gamma = {"1H": 2.6752218744e8, "13C": 6.728284e7, "15N": -2.71261804e7, "14N": 1.9337792e7,
+                 "2H": 4.10662791e7}
+        k_ref = 4 * math.pi ** 2 * 136.3 / (h * gamma["13C"] * gamma["1H"])
+        k = reduced_coupling(136.3, "13C", "1H")
+        self.assertAlmostEqual(k / k_ref, 1.0, delta=2e-5)
+        self.assertAlmostEqual(k / REDUCED_COUPLING_UNIT, 45.12, delta=0.01)
+        self.assertAlmostEqual(coupling_from_reduced(k, "13C", "1H"), 136.3, places=10)
+        # a negative gamma flips the sign of J, not of K
+        self.assertGreater(reduced_coupling(-90.0, "15N", "1H"), 0)
+        self.assertAlmostEqual(convert_coupling(-90.0, ("15N", "1H"), ("14N", "1H")),
+                               -90.0 * gamma["14N"] / gamma["15N"], delta=0.01)
+        self.assertAlmostEqual(convert_coupling(125.0, ("13C", "1H"), ("13C", "2H")),
+                               125.0 * gamma["2H"] / gamma["1H"], delta=0.01)

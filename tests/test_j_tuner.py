@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 import tempfile
@@ -20,10 +21,13 @@ STRUCTURE = {"compound": "ethyl test", "chain": {"groups": [["C1", "C", 2], ["C2
 TRUTH = {"J(C1,HC2)": -4.2, "J(HC1,HC2)": 7.1}
 
 
+def _argv(tmp, extra=()):
+    return ["--series", str(tmp / "series.json"), "--real-only", "false", "--shape", "free", "--exchange", "fast",
+            "--range", "110,260", "--structure", json.dumps(STRUCTURE), "--signal-threshold", "2.5", *extra]
+
+
 def _args(tmp, extra=()):
-    return fj.make_parser().parse_args(
-        ["--series", str(tmp / "series.json"), "--real-only", "false", "--shape", "free", "--exchange", "fast",
-         "--range", "110,260", "--structure", json.dumps(STRUCTURE), "--signal-threshold", "2.5", *extra])
+    return fj.make_parser().parse_args(_argv(tmp, extra))
 
 
 def _problem(tmp):
@@ -280,6 +284,18 @@ class ComponentSearchTests(unittest.TestCase):
         self.assertAlmostEqual(float(prob.joint.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.1)
         self.assertTrue(any(w["accepted"] for w in rec["windows"]))
 
+    def test_wrong_basin_is_found_with_held_gains(self):
+        prob = self.prob
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": 6.0})
+        args = _args(self.tmp, ["--component-search-starts", "12", "--seed", "3", "--component-search-hold-gains"])
+        args.workers = 1
+        z_new, rec = fj.component_search(prob.joint, prob, s.z.copy(), args, "start")
+        self.assertLess(rec["objective_after"], 0.5 * rec["objective_before"])
+        k = prob.joint.coupling.index(next(n for n in prob.joint.coupling if prob.key_of.get(n, n) == "J(C1,HC2)"))
+        self.assertAlmostEqual(float(prob.joint.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.15)
+
 
 class GroupIndexTests(unittest.TestCase):
     def test_exchanging_groups_found_in_a_symmetric_component(self):
@@ -300,3 +316,349 @@ class GroupIndexTests(unittest.TestCase):
             expected = int(np.flatnonzero(np.isclose(j[heavy], value))[0])
             self.assertEqual(group_index(model, "HN1", c), expected, label)
             self.assertNotEqual(group_index(model, "HN2", c), expected, label)
+
+
+class RateRemapTests(unittest.TestCase):
+    def test_new_families_take_the_rate_of_the_old_family_at_their_centre(self):
+        # old edges 180: families (-180) (180-); new edges 150, 180, 220: centres 149.5, 165, 200, 220.5
+        old = {"c0.log_rate0": 0.1, "c0.log_rate1": 0.2, "c1.log_rate0": 1.1, "c1.log_rate1": 1.2, "phase_delay": 3e-3}
+        new = fj.remap_family_rates(old, [180.0], [150.0, 180.0, 220.0])
+        self.assertEqual(new, {"c0.log_rate0": 0.1, "c0.log_rate1": 0.1, "c0.log_rate2": 0.2, "c0.log_rate3": 0.2,
+                               "c1.log_rate0": 1.1, "c1.log_rate1": 1.1, "c1.log_rate2": 1.2, "c1.log_rate3": 1.2,
+                               "phase_delay": 3e-3})
+        # fewer families: edges 150, 180, 220 -> 200 (centres 199.5, 200.5): old families 2 and 3
+        back = fj.remap_family_rates(new, [150.0, 180.0, 220.0], [200.0])
+        self.assertEqual({k: v for k, v in back.items() if k.startswith("c0")}, {"c0.log_rate0": 0.2, "c0.log_rate1": 0.2})
+        self.assertEqual(fj.remap_family_rates(old, None, [150.0]), old)        # edges not recorded: unchanged
+        self.assertEqual(fj.remap_family_rates(old, [180.0], [180.0]), old)     # same edges: unchanged
+
+    def test_from_joint_loads_rates_across_different_edges(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, _ = _problem(tmp)
+            labels = prob.model.component_labels
+            fit = {"x": [1.0], "couplings": {}, "family_edges_hz": [180.0],
+                   "spectrum_parameters": {"synthetic": {f"c{c}.log_rate{k}": 0.3 + c + 0.1 * k
+                                                         for c in range(len(labels)) for k in range(2)}}}
+            json.dump(fit, open(tmp / "old.json", "w"))
+            p = fj.build_problem(_args(tmp, ["--family-edges", "150,180,220", "--from-joint", str(tmp / "old.json")]))
+            j = p.joint
+            for c in range(len(labels)):
+                got = [float(p.z0[j.nt + j.local.index(f"c{c}.log_rate{k}")]) for k in range(4)]
+                np.testing.assert_allclose(got, [0.3 + c, 0.3 + c, 0.4 + c, 0.4 + c])
+            # and j_tuner.load_fit does the same
+            p2 = fj.build_problem(_args(tmp, ["--family-edges", "150,180,220"]))
+            jt.load_fit(p2, fit)
+            np.testing.assert_allclose(p2.z0[p2.joint.nt:], p.z0[j.nt:])
+
+
+class TiedRatesTests(unittest.TestCase):
+    def test_tied_families_equal_one_family(self):
+        # Reference: the same structure without family edges has exactly one rate per component. With edges and
+        # every component tied, the residual and the Jacobian (rate column = sum of the family columns) must match.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z_truth = _problem(tmp)
+            one = fj.build_problem(_args(tmp))
+            tied = fj.build_problem(_args(tmp, ["--family-edges", "150,200", "--tie-rates", "."]))
+            j1, j2 = one.joint, tied.joint
+            self.assertEqual(j1.local, j2.local)                  # followers are not free parameters
+            z = z_truth.copy()
+            for i, n in enumerate(j1.local):
+                if ".log_rate" in n:
+                    z[j1.nt + i] = 0.7 + 0.2 * i
+            np.testing.assert_allclose(j2.residual(z), j1.residual(z), rtol=1e-10, atol=1e-12)
+            np.testing.assert_allclose(j2.jacobian(z), j1.jacobian(z), rtol=1e-7, atol=1e-9)
+            partly = fj.build_problem(_args(tmp, ["--family-edges", "150,200", "--tie-rates", "C2"]))
+            free = [n for n in partly.joint.local if ".log_rate" in n]
+            labels = partly.model.component_labels
+            c2 = labels.index(next(l for l in labels if "C2" in l))
+            self.assertEqual([n for n in free if n.startswith(f"c{c2}.")], [f"c{c2}.log_rate0"])
+            self.assertEqual(len([n for n in free if not n.startswith(f"c{c2}.")]), 3)
+            with self.assertRaises(ValueError):
+                fj.build_problem(_args(tmp, ["--family-edges", "150", "--tie-rates", "no such component"]))
+
+
+class HeldGainLocalFitTests(unittest.TestCase):
+    def test_held_gain_cost_is_the_window_part_of_the_full_residual(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z_truth = _problem(tmp)
+            j = prob.joint
+            f = j.forwards[0]
+            s = jt.TuningSession(prob)
+            s.z = z_truth.copy()
+            s.set_couplings({"J(C1,HC2)": -3.6})                 # truth -4.2 Hz
+            z_bad = s.z.copy()
+            labels = prob.model.component_labels
+            c1 = labels.index("13C@C1")
+            window = next((lo, hi) for c, lo, hi in fj._component_windows(j, z_bad, 0) if c == c1)
+            name = next(n for n in j.coupling if prob.key_of.get(n, n) == "J(C1,HC2)")
+            out = j.local_fit(z_bad, 0, window, [name], lower=prob.lower, upper=prob.upper, max_nfev=60,
+                              hold_gains=True)
+            cost, z_new = out[0]
+            k = j.coupling.index(name)
+            # the gains stay at the start's global solution (fitted with the wrong coupling), which biases the window
+            # optimum slightly; the global refit that follows a local candidate removes it
+            self.assertAlmostEqual(float(j.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.1)
+            # reference: the full forward (every line rendered) with the gains of z_bad held, on the window rows
+            x_bad = j.spectrum_vector(z_bad, 0)
+            ref = f.predict(x_bad)
+            r = np.asarray(f.predict(j.spectrum_vector(z_new, 0), fixed_gains=ref.gains,
+                                     fixed_background=ref.background).residual)
+            idx = np.flatnonzero((f.f >= window[0]) & (f.f <= window[1]))
+            rows = np.concatenate([idx, idx + len(f.f)]) if len(r) == 2 * len(f.f) else idx
+            self.assertAlmostEqual(cost, float(r[rows] @ r[rows]), delta=1e-3 * max(cost, 1e-12) + 1e-12)
+            # at the start point the held-gain residual is the plain residual (the gains are the global solution)
+            np.testing.assert_allclose(np.asarray(f.predict(x_bad, fixed_gains=ref.gains,
+                                                            fixed_background=ref.background).residual),
+                                       np.asarray(ref.residual), rtol=1e-9, atol=1e-12)
+
+
+class SnapshotTests(unittest.TestCase):
+    def test_snapshot_picks_the_best_vector_by_the_plain_objective(self):
+        # Two record files: one claims a tiny cost for a worse vector (as a smoothing stage can), the other a
+        # large cost for the truth. The snapshot must rescore and keep the truth, and --from-joint must load it.
+        import snapshot_fit
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z_truth = _problem(tmp)
+            s = jt.TuningSession(prob)
+            s.z = z_truth.copy()
+            s.set_couplings({"J(C1,HC2)": -2.0})
+            z_bad = s.z.copy()
+            run = tmp / "run"
+            (run / "monitor").mkdir(parents=True)
+            extra = ["--family-edges", "150,200"]
+            p_edges = fj.build_problem(_args(tmp, extra))
+            zt, zb = p_edges.z0.copy(), p_edges.z0.copy()     # the couplings of the two vectors, default rates
+            zt[:p_edges.joint.nt] = z_truth[:prob.joint.nt]
+            zb[:p_edges.joint.nt] = z_bad[:prob.joint.nt]
+            json.dump({"argv": ["scripts/fit_joint_series.py"] + _argv(tmp, extra + ["--out", str(run)])},
+                      open(run / "monitor" / "status.json", "w"))
+            with open(run / "monitor" / "start_000.jsonl", "w") as fh:
+                fh.write(json.dumps({"event": "start"}) + "\n")
+                fh.write(json.dumps({"n": 5, "cost": 1e-6, "best": 1e-6, "label": "smoothing", "z": zb.tolist()}) + "\n")
+            with open(run / "monitor" / "start_001.jsonl", "w") as fh:
+                fh.write(json.dumps({"n": 9, "cost": 9.0, "best": 9.0, "label": "fit", "z": zt.tolist()}) + "\n")
+                fh.write('{"n": 10, "cost": ')                   # a partly written line of a killed run
+            fit = snapshot_fit.snapshot(run, tmp / "snap.json")
+            self.assertEqual(fit["snapshot"]["record"], "start_001")
+            self.assertEqual(fit["family_edges_hz"], [150.0, 200.0])
+            self.assertAlmostEqual(fit["couplings"]["J(C1,HC2)"]["J_at_x"][0], TRUTH["J(C1,HC2)"], places=9)
+            j = p_edges.joint
+            self.assertAlmostEqual(fit["scores"][0], float(np.sum(j.residual(zt) ** 2)), places=12)
+            back = fj.build_problem(_args(tmp, extra + ["--from-joint", str(tmp / "snap.json")]))
+            np.testing.assert_allclose(back.z0, np.clip(zt, back.lower + 1e-9, back.upper - 1e-9), atol=1e-12)
+
+
+class AutoFamilyEdgesTests(unittest.TestCase):
+    def test_rule_on_hand_computed_cases(self):
+        lines = [100.0, 100.4, 101.0, 110.0, 110.5, 130.0]
+        # gaps > 1.5 Hz: 101.0 | 110.0 -> 105.5, 110.5 | 130.0 -> 120.25; sharp 100.42 isolates 100.4: 100.2, 100.7
+        self.assertEqual(fj.edges_from_lines(lines, [100.42]), [100.2, 100.7, 105.5, 120.25])
+        self.assertEqual(fj.edges_from_lines(lines, [140.0]), [105.5, 120.25])       # no model line near the peak
+        # two neighbouring sharp lines share the edge between them (duplicates merged)
+        self.assertEqual(fj.edges_from_lines([100.0, 100.4, 100.8], [100.4, 100.8]), [100.2, 100.6])
+        # a neighbour closer than min_separation_hz is not split off
+        self.assertEqual(fj.edges_from_lines([100.0, 100.1, 103.0], [100.1]), [101.55])
+        # edges closer than min_spacing_hz merge into their mean
+        self.assertEqual(fj.edges_from_lines([100.0, 100.3, 100.7], [100.3, 100.0], min_spacing_hz=0.3), [100.15, 100.5])
+        self.assertEqual(fj.edges_from_lines([120.0]), [])
+
+    def test_auto_edges_isolate_sharp_lines(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            args = _args(tmp, ["--family-edges", "auto"])
+            prob = fj.build_problem(args)
+            edges = [float(v) for v in args.family_edges.split(",")]
+            self.assertEqual(list(prob.joint.params[0].policy.family_edges_hz), edges)
+            self.assertTrue(len(edges) >= 2 and edges == sorted(edges))
+            first = fj.build_problem(_args(tmp))                 # the one-family problem the edges come from
+            got, lines, sharp = fj.auto_family_edges(first.joint, first.z0)
+            np.testing.assert_allclose(got, edges, atol=1e-3)
+            fam = np.searchsorted(edges, lines, side="right")
+            lines = np.asarray(lines)
+            for p in sharp:
+                i = int(np.argmin(np.abs(lines - p)))
+                if abs(lines[i] - p) > 0.5:
+                    continue
+                same = lines[(fam == fam[i]) & (np.abs(lines - lines[i]) > 0.2)]
+                self.assertEqual(len(same), 0, f"line {lines[i]:.2f} under the sharp peak {p:.2f} shares its family")
+
+
+class RunToolsTests(unittest.TestCase):
+    def test_short_run_then_figures_and_snapshot(self):
+        # a real (short) fit_joint_series run on the synthetic spectrum; the tools rebuild it from its directory
+        import subprocess
+        import plot_components
+        import plot_runs
+        import run_problem
+        import snapshot_fit
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            out = tmp / "run"
+            cmd = [sys.executable, str(Path(fj.__file__)), *_argv(tmp, ["--family-edges", "150,200", "--starts", "1",
+                   "--max-nfev", "8", "--component-search", "off", "--out", str(out)])]
+            subprocess.run(cmd, check=True, capture_output=True, timeout=600,
+                           env={**__import__("os").environ, "OMP_NUM_THREADS": "1"})
+            fit = json.load(open(out / "fit.json"))
+            self.assertEqual(fit["family_edges_hz"], [150.0, 200.0])
+            from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling
+            pairs = {k: tuple(c["nuclei"]) for k, c in fit["couplings"].items()}
+            self.assertEqual(pairs["J(HC1,HC2)"], ("1H", "1H"))           # shared H-H coupling
+            self.assertIn("13C", pairs["J(C1,HC1)"])
+            for c in fit["couplings"].values():                            # K = J / (h g_A g_B), per node
+                self.assertAlmostEqual(c["K_at_x"][0] * REDUCED_COUPLING_UNIT,
+                                       reduced_coupling(c["J_at_x"][0], *c["nuclei"]), delta=1e-9 * 1e21)
+            run = run_problem.load_run(out)
+            j = run.prob.joint
+            for k, n in enumerate(j.coupling):
+                key = run.prob.key_of.get(n, n)
+                self.assertAlmostEqual(float(j.coupling_values(run.prob.z0, k)[0]), fit["couplings"][key]["J_at_x"][0],
+                                       places=6)
+            self.assertAlmostEqual(float(np.sum(j.residual(run.prob.z0) ** 2)), fit["scores"][0], delta=1e-6)
+            rows = plot_runs.plot(tmp / "runs.png", [out, out], zooms=[(180, 210)])
+            self.assertEqual(len(rows), 2)
+            comps = plot_components.plot(out, tmp / "components.png", band=(120, 260))
+            self.assertEqual([c[0] for c in comps], list(run.prob.model.component_labels))
+            self.assertTrue((tmp / "runs.png").stat().st_size > 10000 and (tmp / "components.png").stat().st_size > 10000)
+            snap = snapshot_fit.snapshot(out, tmp / "snap.json")
+            self.assertLessEqual(snap["scores"][0], fit["scores"][0] * (1 + 1e-6))
+
+
+class FieldOptionTests(unittest.TestCase):
+    def test_fitted_field_matches_a_fixed_field_protocol(self):
+        # Reference: the zero-field problem with the protocol fixed at the field (MixtureForward(protocol=...)).
+        from zulf_core.physics.protocol import Protocol
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, z = _problem(tmp)
+            plain = prob.joint
+            fitted = fj.build_problem(_args(tmp, ["--fit-field", "--field-start", "0.03,0.05"])).joint
+            self.assertEqual([n for n in fitted.local if n.startswith("field_")], ["field_transverse_ut", "field_z_ut"])
+            self.assertFalse(any(n.startswith("field_") for n in plain.local))
+            zf = np.concatenate([z[:plain.nt], [z[plain.nt + plain.local.index(n)] if n in plain.local else 0.0
+                                                for n in fitted.local]])
+            i_trans, i_z = (fitted.nt + fitted.local.index(n) for n in ("field_transverse_ut", "field_z_ut"))
+            zf[i_trans], zf[i_z] = 0.0, 0.0
+            np.testing.assert_allclose(fitted.residual(zf), plain.residual(z), rtol=1e-9, atol=1e-12)
+            zf[i_trans], zf[i_z] = 0.03, 0.05
+            x = plain.spectrum_vector(z, 0)
+            f0 = plain.forwards[0]
+            fixed = copy.copy(f0)                        # same data and weights, protocol fixed at the field
+            fixed.protocol, fixed._last = Protocol(field_ut=(0.03, 0.0, 0.05)), None
+            fixed.cache = type(f0.cache)(16)
+            moved = fitted.residual(zf)
+            self.assertGreater(np.linalg.norm(moved - plain.residual(z)), 1e-3 * np.linalg.norm(plain.residual(z)))
+            xf = fitted.spectrum_vector(zf, 0)
+            vf = fitted.params[0].values(xf)
+            self.assertEqual(fitted.forwards[0].protocol_for(vf).field_ut, (0.03, 0.0, 0.05))
+            np.testing.assert_allclose(fitted.forwards[0].predict(xf).model, fixed.predict(x).model,
+                                       rtol=1e-8, atol=1e-12)
+            fitted.peak_sources(zf, 0, 130.0)            # field-aware derivatives run
+
+
+class FieldRenameTests(unittest.TestCase):
+    def test_old_transverse_field_name_is_read(self):
+        old = {"phase_delay": -0.004, "field_perp_ut": 0.037, "field_z_ut": 0.045}
+        new = fj.remap_family_rates(old, None, [])
+        self.assertEqual(new, {"phase_delay": -0.004, "field_transverse_ut": 0.037, "field_z_ut": 0.045})
+        self.assertEqual(fj.remap_family_rates({"field_transverse_ut": 0.01}, [1.0], [2.0, 3.0]),
+                         {"field_transverse_ut": 0.01})
+
+
+class TunerSpectrumParameterTests(unittest.TestCase):
+    def test_spectrum_sliders_use_display_units_and_change_the_model(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            prob = fj.build_problem(_args(tmp, ["--fit-field", "--field-start", "0.03,0.05"]))
+            s = jt.TuningSession(prob)
+            params = {p["name"]: p for p in s.spectrum_parameters()}
+            self.assertEqual(params["field_transverse_ut"]["unit"], "nT")
+            self.assertAlmostEqual(params["field_transverse_ut"]["value"], 30.0, places=6)
+            rate = next(p for p in params.values() if p["group"] == "rates")
+            self.assertTrue(rate["log"])
+            before = s.evaluate([110.0, 260.0], analysis=False)["spectrum"]["model_re"]
+            s.set_spectrum({"field_z_ut": 80.0, rate["name"]: 2.5, "phase_delay": 1.0})
+            i = lambda n: s._spectrum_index(n)
+            self.assertAlmostEqual(s.z[i("field_z_ut")], 0.08)
+            self.assertAlmostEqual(np.exp(s.z[i(rate["name"])]), 2.5)
+            self.assertAlmostEqual(s.z[i("phase_delay")], 1e-3)
+            after = s.evaluate([110.0, 260.0], analysis=False)
+            self.assertGreater(np.max(np.abs(np.asarray(after["spectrum"]["model_re"]) - np.asarray(before))), 0)
+            shown = {p["name"]: p["value"] for p in after["spectrum_parameters"]}
+            self.assertAlmostEqual(shown["field_z_ut"], 80.0)
+            s.set_spectrum({"field_z_ut": 1e6})                      # clipped to the bound (1 uT)
+            self.assertLessEqual(s.z[i("field_z_ut")], 1.0)
+
+
+class GammaOptionTests(unittest.TestCase):
+    def test_known_field_and_fitted_gamma_options(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            j = fj.build_problem(_args(tmp, ["--field", "0.05,0.02", "--fit-gamma", "13C", "--gamma-start", "9.5"])).joint
+            p = j.params[0]
+            self.assertFalse(p.parameters["field_transverse_ut"].free)            # the known field is held
+            self.assertEqual(p.parameters["field_z_ut"].value, 0.02)
+            self.assertIn("gamma_13C", j.local)
+            self.assertEqual(p.parameters["gamma_13C"].value, 9.5)
+            with self.assertRaises(SystemExit):
+                fj.build_problem(_args(tmp, ["--field", "0.05,0.02", "--fit-field"]))
+
+
+class PrecisionOptionTests(unittest.TestCase):
+    def test_precision_stop_on_a_joint_fit(self):
+        # Reference: the same fit run to the tolerances (--precision 0); the precision stop must fire, use fewer
+        # evaluations and give the couplings within the requested precision of the reference.
+        from scipy.optimize import least_squares
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            out = {}
+            for p in ("0", "0.01"):
+                prob = fj.build_problem(_args(tmp, ["--precision", p]))
+                j = prob.joint
+                self.assertEqual(j.precision_hz, float(p))
+                stop = j.stop_at_precision()
+                z0 = np.clip(prob.z0 + 0.3 * (np.arange(len(prob.z0)) < j.nt), prob.lower + 1e-9, prob.upper - 1e-9)
+                sol = least_squares(j.residual, z0, jac=j.jacobian, bounds=(prob.lower, prob.upper), x_scale="jac",
+                                    max_nfev=300, ftol=1e-10, xtol=1e-10, gtol=1e-10, callback=stop)
+                out[p] = (sol.nfev, j.all_couplings(sol.x), stop.stopped)
+            self.assertFalse(out["0"][2])
+            self.assertTrue(out["0.01"][2])
+            self.assertLessEqual(out["0.01"][0], out["0"][0])       # savings measured on real data (D55)
+            np.testing.assert_allclose(out["0.01"][1], out["0"][1], atol=0.01)
+
+
+class OneBondFromBandsTests(unittest.TestCase):
+    """--one-bond-from-data (D64): the 1J start is read from the observed band. Reference: the spectrum of a
+    13C-H2 group propagated by brute force in the time domain with 1J = 146 Hz (zulf_core reference_signal), the
+    scan started from 138 Hz with the lines of the line table (df/d1J)."""
+
+    def test_scan_finds_the_one_bond_coupling(self):
+        from zulf_core.physics.lines import line_table
+        from zulf_core.physics.transitions import reference_signal
+        from zulf_core.spinsystem import SpinSystem
+
+        def ch2(j):
+            m = np.zeros((3, 3))
+            m[0, 1:] = m[1:, 0] = j
+            return SpinSystem(("13C", "1H", "1H"), m)
+
+        fs, n, rate = 1000.0, 8000, 1.5
+        t = np.arange(n) / fs
+        fid = reference_signal(ch2(146.0), t) * np.exp(-rate * t)
+        fid = fid + 0.02 * np.std(fid) * np.random.default_rng(3).standard_normal(n)
+        spec = np.fft.rfft(fid * np.exp(-0.3 * t), 4 * n)
+        f = np.fft.rfftfreq(4 * n, 1 / fs)
+        lines = [ln for ln in line_table(ch2(138.0), {(0, 1): "1J"}, min_relative_amplitude=0.05)
+                 if ln.df_dj["1J"] > 0.3]
+        dj, margin, _ = fj.scan_one_bond([ln.frequency_hz for ln in lines], [abs(ln.amplitude) for ln in lines],
+                                           [ln.df_dj["1J"] for ln in lines], f, np.abs(spec))
+        self.assertAlmostEqual(138.0 + dj, 146.0, delta=0.15)
+        self.assertGreater(margin, 0.1)

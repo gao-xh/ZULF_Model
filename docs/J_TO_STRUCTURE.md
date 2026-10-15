@@ -10,7 +10,7 @@ Three routes are kept side by side. None replaces another.
 |---|---|---|---|
 | Hypothesis pipeline (kept) | the spectrum | ranked fragments fitted to the data | `zulf_hypothesis.search`, `fit_structure` |
 | A: rule-based direct readout | a fitted J network | ranked heavy-atom graphs | `zulf_hypothesis.j_structure` |
-| B: learned likelihood | a fitted J network | ranked heavy-atom graphs | `zulf_model.structure.edge_model` |
+| B: learned likelihood, modes J and K | a fitted J network | ranked heavy-atom graphs | `zulf_model.structure.edge_model` |
 
 The hypothesis pipeline starts from the spectrum and fits structures. Routes A and B start from the couplings
 a fit (or a person) has already read off, and ask which bonding graph explains them.
@@ -24,6 +24,8 @@ a fit (or a person) has already read off, and ask which bonding graph explains t
 - `protons`: proton groups, each attached to one copy of a unit.
 - `couplings`: J(unit, group) from the 13C of copy 0 of the unit, and J(group, group).
 - `sigma`: optional per-coupling uncertainty; the default is 0.1 Hz.
+- `isotopes`: optional, {unit or group: isotope}, e.g. `{"HN": "2H"}`. Units default to 13C and proton
+  groups to 1H. Route A assumes the defaults; route B in mode K uses the isotopes.
 - `truth`: optional, a bond list for checking. Bonds are written `-`, `=` or `#`; unseen atoms are `X1`, `X2`.
 
 13C-13C couplings are not used, since they need doubly labelled molecules.
@@ -70,6 +72,25 @@ The two routes differ only in p(J | ...):
 
   Ranking uses p(class | J) / p(class), the ratio to the class frequency in training. By Bayes this is
   p(J | class) up to a factor that does not depend on the candidate.
+
+## J and K, side by side (D56, 2026-10-08)
+
+Route B runs twice on every observation: mode J (the coupling in Hz) and mode K (the reduced coupling, D51,
+written as the equivalent 13C-1H coupling). Neither replaces the other.
+
+    python scripts/j_structure_benchmark.py --samples 100            # trains runs/models/j_edges_J.json and _K.json
+    python scripts/j_structure.py configs/j_networks/*.json         # routes A, B-J, B-K for each network
+
+| Set | A | B-J | B-K |
+|---|---|---|---|
+| synthetic (100), top-1 / top-3 | 0.91 / 1.00 | 0.91 / 1.00 | 0.91 / 1.00 |
+| four amines | all rank 1 | all rank 1 | all rank 1 |
+| N-ethylmethylamine, HC3 as 2H: log L of the truth | -43.4 | 2.9 | 6.1 |
+
+On 13C / 1H data the two modes agree, since K is J times a constant there. They separate once an observation has
+other isotopes (2H exchange, 15N labels): only K keeps the trained scale (bond-count accuracy on deuterated rows
+0.843 for K against 0.298 for J, docs/analysis/2026-10-07_j-to-structure_j-vs-k.md). When the routes disagree on
+the best structure the script says so; with labelled isotopes, B-K is the one to trust.
 
 ## Results (2026-10-05)
 

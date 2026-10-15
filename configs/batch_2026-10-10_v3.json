@@ -1,0 +1,99 @@
+{
+ "note": "Third pass of serine: 1J starts read from the observed bands (CH2 band near 219 Hz = 1.5 x 1J(C1); CH lines 143-146 Hz), 2026-10-10",
+ "entries": [
+  {
+   "id": "serine",
+   "scans": "original/2026-04-01-serine/serine",
+   "structure": {
+    "compound": "serine",
+    "chain": {
+     "groups": [
+      [
+       "O1",
+       "O",
+       0
+      ],
+      [
+       "C1",
+       "C",
+       2
+      ],
+      [
+       "C2",
+       "C",
+       1
+      ],
+      [
+       "N1",
+       "N",
+       3
+      ],
+      [
+       "C3",
+       "C",
+       0
+      ],
+      [
+       "O2",
+       "O",
+       0
+      ],
+      [
+       "O3",
+       "O",
+       0
+      ]
+     ],
+     "bonds": [
+      [
+       "O1",
+       "C1"
+      ],
+      [
+       "C1",
+       "C2"
+      ],
+      [
+       "C2",
+       "N1"
+      ],
+      [
+       "C2",
+       "C3"
+      ],
+      [
+       "C3",
+       "O2"
+      ],
+      [
+       "C3",
+       "O3"
+      ]
+     ],
+     "sym": []
+    },
+    "one_bond": {
+     "C1": 146.0,
+     "C2": 145.0,
+     "N1": 75.0
+    },
+    "molecule": {
+     "smiles": "OCC([NH3+])C(=O)[O-]",
+     "sites": {
+      "O1": 0,
+      "C1": 1,
+      "C2": 2,
+      "N1": 3,
+      "C3": 4,
+      "O2": 5,
+      "O3": 6
+     }
+    },
+    "notes": [
+     "unsaturated or aromatic bonds: the chain uses saturated (sp3) 2J/3J defaults; a registered motif (e.g. 'benzene ring') models aromatic couplings"
+    ]
+   },
+   "field": false
+  }
+ ]
+}

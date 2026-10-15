@@ -1,0 +1,153 @@
+{
+ "note": "Pyridine series with the toolbox of 2026-10-11/12: free isotopologue amplitudes (the carbon bound to the quadrupolar 14N can be weaker), background off, 1J starts from the bands, stage-2 line groups capped at 0.4 Hz; window 1.5 1/s for the noisy 2 mol %; slow N-H exchange for pyridinium.",
+ "entries": [
+  {
+   "id": "pyridine-02-mol",
+   "scans": "original/2025-12-09-pyridine-dilutions-and-pyridinium/02_mol_pyridine",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4,
+   "series": "_apod1p5",
+   "apodization": 1.5,
+   "record": 4.0
+  },
+  {
+   "id": "pyridine-10-mol",
+   "scans": "original/2025-12-09-pyridine-dilutions-and-pyridinium/10_mol_pyridine",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4
+  },
+  {
+   "id": "pyridine-33-mol",
+   "scans": "original/2025-12-09-pyridine-dilutions-and-pyridinium/33_mol_pyridine",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4
+  },
+  {
+   "id": "pyridine-50-mol",
+   "scans": "raw/2025-12-09-pyridine-dilutions-and-pyridinium/50_mol_pyridine/data",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4
+  },
+  {
+   "id": "pyridine-66-mol",
+   "scans": "original/2025-12-09-pyridine-dilutions-and-pyridinium/66_mol_pyridine",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4
+  },
+  {
+   "id": "pyridine-75-mol",
+   "scans": "raw/2025-12-09-pyridine-dilutions-and-pyridinium/75_mol_pyridine/data",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4
+  },
+  {
+   "id": "pyridine-100-mol",
+   "scans": "original/2025-12-09-pyridine-dilutions-and-pyridinium/100_mol_pyridine",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4
+  },
+  {
+   "id": "pyridinium-6m-acidic",
+   "scans": "original/2025-12-09-pyridine-dilutions-and-pyridinium/pyridinium_6M_acidic",
+   "structure": {
+    "compound": "pyridine",
+    "motif": "pyridine ring",
+    "one_bond": {
+     "A2": 178.0,
+     "A3": 162.0,
+     "A4": 162.0
+    }
+   },
+   "field": false,
+   "variant": "free",
+   "background_order": -1,
+   "one_bond_from_data": true,
+   "line_group_span": 0.4,
+   "exchange": "slow"
+  }
+ ]
+}

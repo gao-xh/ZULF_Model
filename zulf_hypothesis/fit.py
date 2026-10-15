@@ -12,7 +12,7 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass, field, replace
 from types import SimpleNamespace
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from zulf_core.solver import ParameterPolicy, RefineSettings
 
@@ -292,3 +292,39 @@ def fit_structure(fragment: Fragment, observed, settings: Optional[SearchSetting
         if report:
             write_report(out.phased, phased, report + "_phased")
     return out
+
+
+@dataclass
+class LabelingComparison:
+    """fit_structure under several labelling hypotheses (D54), ranked on one scale: every best fit's chi2 divided by
+    the common overdispersion c_hat (smallest reduced chi2 over the hypotheses, >= 1), plus the criterion's
+    parameter penalty. A conditional comparison of the fitted models, not a determination of the sample."""
+    fits: Dict[str, "StructureFit"]
+    rows: List[dict]
+
+    @property
+    def best(self) -> Optional[str]:
+        return self.rows[0]["labeling"] if self.rows else None
+
+
+def fit_structure_labelings(fragment: Fragment, observed, mode: str = "unknown", settings=None, **kwargs):
+    """fit_structure for every labelling hypothesis of `mode` (labeling.labeling_variants) and their ranking."""
+    from .labeling import labeling_variants
+    from .scoring import criterion
+    settings = settings or SearchSettings()
+    fits = {}
+    for name, frag, lab in labeling_variants(fragment, mode):
+        kw = dict(kwargs)
+        if kw.get("report"):
+            kw["report"] = f"{kw['report']}_{name}"          # one report per labelling hypothesis
+        fits[name] = fit_structure(frag, observed, settings=settings, labeling=lab, **kw)
+    bests = {k: f.best for k, f in fits.items() if f.best is not None}
+    if not bests:
+        return LabelingComparison(fits, [])
+    c_hat = max(1.0, min(e.chi2 / max(e.n - e.k, 1) for e in bests.values()))
+    rows = [{"labeling": k, "model": e.name, "variant": e.variant, "chi2": e.chi2, "k": e.k, "n": e.n,
+             "score": criterion(e.chi2 / c_hat, e.k, e.n, settings.criterion)} for k, e in bests.items()]
+    rows.sort(key=lambda r: r["score"])
+    for r in rows:
+        r["delta"] = r["score"] - rows[0]["score"]
+    return LabelingComparison(fits, rows)

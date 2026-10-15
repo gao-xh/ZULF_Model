@@ -90,6 +90,11 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   cores). Free ratios remain a check, not the default.
 - Start from literature-like values, say where they come from, and give
   uncertain small couplings wide bounds (coupling_margin_hz 6-12).
+- A 1J start 5-8 Hz off traps the fit (serine 2026-10-10: rates at the 40 1/s
+  bound, a 15 Hz 3J(H,H), sharp lines drawn as broad humps). When the bands are
+  visible, read the 1J starts from them: `fit_joint_series --one-bond-from-data`
+  (D64; run_batch has the same flag). A margin below 0.1 means two positions
+  match about equally: check that site by eye before trusting the start.
 - Include every isotopologue that can put lines in the fitted range; state
   which ones are omitted because their lines fall outside it.
 
@@ -97,6 +102,16 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 - Default: complex data, `gain_model="shared_phase"`, delay fitted,
   background_order 1, 3 starts, analytic (Kaufman) Jacobian.
+- To rerun a stage from a fit's recorded command (monitor/status.json argv), restore `--family-edges lines`:
+  the record holds the edges actually used as numbers, so line-family options (`--line-group-span`,
+  `--line-min-distance`, ...) would silently do nothing (2026-10-12).
+- Check the model away from the lines. The per-band background is smooth in
+  the record's frame, so in the spectrum it is a ripple of period
+  1/(crop + delay) (10 Hz with crop 0.1 s) that breaks at the band gaps; with
+  signal weighting the empty regions cost little, so the fit can use it to
+  absorb broad structure near the lines. Glycerol (2026-10-11): ripples of a
+  third of the line height not in the data; `--background-order -1` removed
+  them, and with the 1J starts from the bands (v12) both bands fitted.
 - Prefer `band_weighting="signal"`: noise-scaled chi-square; the weight is 1
   at peak cores and falls off smoothly (Gaussian, `signal_taper_hz` 2 Hz) to
   `signal_outside_weight` (0.2) far from any core - no hard edges. Cores come
@@ -129,6 +144,17 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 - Blind global search from a model skeleton measures the pipeline; it found
   an envelope fit with unphysical couplings, not the structure.
 - Save full results (parameters, gains, prediction) for every fit.
+- Measurements in a field (fringe field, residual shield field; D47): a zero-field multiplet that is split
+  where the model has one line, with a sharp centre and broader side lines, points to a static field
+  (acetonitrile 2026-09-28: 13CH3 J band 134.65 / 136.30 / 137.9 Hz, 2J band 271.5 / 272.6 / 273.5 Hz).
+  Check first with sticks (`compute_transitions(system, Protocol(field_ut=...))`): a longitudinal field leaves
+  the J line of an XA3 group in place and splits its 2J line into three; a transverse field splits the J line
+  into an equal doublet. Then fit `--fit-field` from several nonzero `--field-start` values (the signal is
+  stationary at zero field, and the coupling multistart does not move spectrum parameters); acetonitrile:
+  four of six starts reached the best basin. Field-sensitive lines then decay faster than field-insensitive
+  ones (field inhomogeneity): rate families per line group (centre / side lines / 2J band) took the objective
+  from 0.20 to 0.044. Report the field with the result; B_transverse and Bz trade against each other, the magnitude
+  is better defined.
 
 ## Spectra processed elsewhere and concentration series (Blake pyridine, ANALYSIS_LOG)
 
@@ -177,8 +203,13 @@ is not evidence.
 
 ## Compute practice
 
-- Parallel fits: `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1`, at most one
-  process per core; order queues so hypotheses run before long model lists.
+- Parallel fits: `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1`, and on macOS
+  `VECLIB_MAXIMUM_THREADS=1` (numpy uses Accelerate, about 20 threads per
+  process by default); at most one process per core; order queues so
+  hypotheses run before long model lists. fit_joint_series.py sets all of
+  them to 1 unless the environment sets them (six fits with 3-4 workers each
+  reached load 95 on 10 cores, 2026-10-08). Count the workers of every running
+  fit before starting another.
 - Stop runs by PID (process and children), saved when the run starts. Never
   select processes by command-line text (`pkill -f`, `ps | grep | kill`): the
   calling shell's own command line contains the same text and gets killed.
@@ -265,14 +296,17 @@ Use occasionally or as the last step, not inside every fit.
      - A model line where the data show none, sharp because it shares a rate family with sharp lines, needs a
        family edge between them. Ethylenediamine: a false 177.5 Hz line sat in the family of the 190 / 192 Hz
        pair; an edge at 185 Hz removed it.
-  2. **Narrow rate families** around a sharp line that shares a family with broad ones. Remap the old rates
-     onto the new edges (each new family takes the rate of the old family containing it).
+  2. **Narrow rate families** around a sharp line that shares a family with broad ones. `--family-edges auto`
+     applies this rule; `--from-joint` remaps the old rates onto new edges (each new family takes the rate of the
+     old family containing it).
      - Triethylamine, edges 120.8 / 121.2 / 121.6 Hz: 0.049 -> 0.038.
      - Ethylenediamine, edge 198.3 Hz: 0.0066 -> 0.0051.
      - The couplings barely move. Report the edges; they are nuisance parameters.
   3. **Second species** with a free ratio: a `--structure` list of two copies of the motif.
      - Seed it away from species 1. A copy of species 1 has zero gain and no gradient (a saddle). When seeds stay
        at the old objective, grid the second species' couplings directly with the gains solved.
+     - Check it with `--tie-rates '^P2:'` (one rate for the species): rate families must not be what hides its
+       unobserved lines.
      - Ethylenediamine: 0.045 -> 0.0068 with ratio 0.26. Isopropylamine: no gain (-1.4 %).
   4. **Model-line passes** (`--model-line-passes 2`): model lines at full weight. Compare runs by
      fit.json["model_line_passes"]["objective_original_weights"]; the scores use the new weights.
@@ -306,9 +340,11 @@ Use occasionally or as the last step, not inside every fit.
 ## From a fitted J network to a structure (Phase 7, docs/J_TO_STRUCTURE.md)
 
 - Write the fitted couplings as an observation, following configs/j_networks/*.json. It needs units (13C sites
-  with proton count and copies), proton groups, and J(unit, group) / J(group, group).
-- Rank with route A: `python scripts/j_structure.py OBS.json --explain 1`. Add route B with
-  `--model runs/models/j_edges_v1.json`; train it first with `scripts/j_structure_benchmark.py --model ...`.
+  with proton count and copies), proton groups, and J(unit, group) / J(group, group). Mark non-default isotopes
+  with `isotopes` (e.g. `{"HN": "2H"}` for a group exchanged in D2O).
+- Rank: `python scripts/j_structure.py OBS.json --explain 1` runs route A and route B in both modes, J and K
+  (D56); train the two route B models once with `python scripts/j_structure_benchmark.py` (runs/models).
+  When the routes disagree on the best structure and the sample has 2H or 15N, trust B-K.
 - Read the margin.
   - A margin equal to a prior difference (1.0, 2.0) with equal log L means the J values cannot separate the two
     graphs. This typically happens when an unseen atom X is placed differently, or a ring passes through X

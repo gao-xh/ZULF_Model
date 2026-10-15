@@ -239,6 +239,12 @@ fixed, so later phases are experiments rather than restructuring.
 - [ ] Instrument-line detection per dataset instead of a fixed list.
 - [x] Wire `process_dataset` into the regression:
       `regression_confirmed.py --processing dataset [--window-mode ...]`.
+- [~] Scan averaging with per-scan screening (`scripts/average_scans.py`, tests/test_diagnostics.py
+      AverageScansTests; commit of the acetonitrile analysis): robust-z deviation metric, even / odd half
+      averages, a record (scans.json). Open: the full rewrite of the legacy ScanSelector (signal-band metric,
+      leave-one-out reference, held-out check of the selection).
+- [ ] Phase calibration of the 2 kHz sequence (standard_zf_2000Hz_no_dead.seq); the config holds only the
+      4 kHz one (acetonitrile 2026-09-28: calibrated spectrum far from absorptive).
 
 ## Phase 3d: processed spectra from other groups (Blake pyridine series)
 
@@ -294,9 +300,11 @@ tall lines and barely sees it.
 - [x] Local refinement (JointSeries.local_fit, window forward with line_band_hz and jacobian_only: 26 x faster Jacobian; commits 109cf89, 1e7894b): fit a narrow window (1-3 Hz around the feature) on the highest-resolution data (full
       record, no window, more zero fill), free only the sensitive couplings plus local widths / phase, everything
       else held; multi-start inside the local window (local minima are cheap to enumerate there).
-- [ ] Local fit with gains, phase and background held at the global values (or one free scale): the window
+- [x] Local fit with gains, phase and background held at the global values (or one free scale): the window
       forward re-solves them and overstates the local gain (isopropylamine NH2 test: 0.0198 local, 0.122 in
       the full-model window).
+      Done: `JointSeries.local_fit(hold_gains=True)`, `--component-search-hold-gains` (commit 04b9df6;
+      HeldGainLocalFitTests: the local cost equals the full forward's window residual).
 - [~] Propagate (residual-peak stage in fit_joint_series; to fix: sticky windows judged on the starting transitions, cap on the plain-objective loss; local-candidate -> global refit as an option): each local candidate becomes a global start; accept it only if the global objective (all
       bands) improves, else report the conflict (the feature wants J that the rest of the spectrum rejects:
       a model error such as a missing coupling or species).
@@ -330,7 +338,7 @@ tall lines and barely sees it.
       weight 0.2). Done: `--model-line-passes N`, MixtureForward.add_signal_cores (tested against a forward
       built with signal_extra_hz), commit 0ecce84. First use: ethylenediamine two-species (model-only
       177.5 Hz line), eda_2sp_mlp.
-- [ ] 14N (spin 1) in spin systems, with quadrupolar relaxation: the worst bands of the amines are the
+- [~] (in progress: claude/eager-franklin-tp94gf, after the fitter features) 14N (spin 1) in spin systems, with quadrupolar relaxation: the worst bands of the amines are the
       N-bonded carbons (N-ethylmethylamine CH2, ethylenediamine CH2); test partially resolved 1J(13C,14N) and
       2J(14N,H). Update 2026-10-05 overnight: after a second species (ethylenediamine) and narrow rate families
       (triethylamine, N-ethylmethylamine), the open misfits are methyl 13C lines near 121-122 Hz with no model
@@ -348,7 +356,16 @@ tall lines and barely sees it.
 - [ ] Intermediate N-H exchange for systems the exact model cannot hold (ethylenediamine with N-H: 9 spins, no
       reducible group, 35 GiB): an approximation such as averaging over the N-H spin states, tested against the
       exact model on a smaller system.
-- [ ] Automatic rate-family edges from the line clusters and sharp data lines (now chosen by hand, D46).
+- [x] Automatic rate-family edges from the line clusters and sharp data lines (now chosen by hand, D46).
+      Done: `--family-edges auto` (edges_from_lines, auto_family_edges; commit 8f5a09a). To check on real data
+      (local line): auto against the hand edges of tea_fam121, nema_fam121_final, eda_2sp_fam198.
+- [x] Fitter: one tied decay rate per chosen component (code for the ethylenediamine species-2 test;
+      the real-data refit is the local line's); rates remapped automatically when --from-joint comes from a fit with
+      other family edges (fit.json records its edges); scripts/snapshot_fit.py (best monitor vector -> --from-joint
+      file). Replaces the scratchpad helpers remap_families and snapshot_fit. Done: rate remap and recorded
+      edges (cbf7655), `--tie-rates REGEX` (8caf49b), scripts/snapshot_fit.py (64bcc2e); tests in
+      tests/test_j_tuner.py (RateRemapTests, TiedRatesTests, SnapshotTests).
+      Figure helpers ported: scripts/run_problem.py, plot_runs.py, plot_components.py (commit d6adbff, RunToolsTests).
 - [ ] 2J(C,H) sign: multi-start refit on the positive side with wider bounds (the flip test used one start and
       the +3.7 Hz template bound).
 - [ ] Objective terms for fine structure: missing-valley rows (the counterpart of the missing-peak rows) and/or
@@ -359,6 +376,39 @@ tall lines and barely sees it.
 - [x] Fixed-by-default couplings: list every coupling the template leaves unspecified (fixed at 0) with its
       |df/dJ| (line_table reports zero couplings); free those that move lines by more than a line width
       (isopropylamine methyl-methyl 4J(H,H) freed: +0.19 Hz, total -5 %).
+
+## Phase 3f: measurements in a field (user 2026-10-06)
+
+- [x] Fitted static field, default zero field (D47; `ParameterPolicy.fit_field`, `fit_joint_series --fit-field`;
+      tests/test_solver.py FieldFitTests, tests/test_j_tuner.py FieldOptionTests; commits 913bce5, 4fbac0a).
+- [x] Acetonitrile fringe-field run 2026-09-28 (docs/analysis/2026-10-06_acetonitrile_field-fit.md): 13CH3 with
+      a fitted field and rate families, objective 0.58 -> 0.044, |B| about 0.06 uT, 1J 136.28 Hz (halves agree
+      within 0.007 Hz and 3 nT).
+- [ ] Field distribution (gradient over the sample) instead of rate families for field-sensitive lines.
+- [ ] Analytic field derivatives (Zeeman directions in physics.derivatives) instead of central differences.
+- [ ] Field in the global pattern search (solver.search) and in scripts/line_table.py.
+- [ ] Acetonitrile open lines: 83-85, 154.1, about 627 Hz; nitrile 13C isotopologue below 22 Hz; 14N.
+- [x] Coupling precision option (D55): fits stop at --precision (default 0.01 Hz; 0.001 finer; 0 = old); refine,
+      fit_joint_series, J tuner, Studio. Acetonitrile: 17 instead of 30 evaluations, same result.
+- [x] Labelling hypotheses (D54): ProtonGroup.isotope, deuterate_exchangeable, labeling_variants,
+      fit_structure_labelings, analyze_sample.py --labeling; synthetic methylamine natural / 15N / 2H all recovered.
+- [x] Fitted gyromagnetic ratio in a known field (D53): Protocol.gamma_overrides, fit_gamma / field_fixed,
+      fit_joint_series --field / --fit-gamma, gamma_identification; tests GammaFitTests, GammaOptionTests.
+- [x] J tuner: live sliders for spectrum parameters (field in nT, decay rates on a log scale, delay in ms;
+      tests/test_j_tuner.py TunerSpectrumParameterTests; commit 0035e2b).
+- [x] ZULF Studio (D48, zulf_studio/, scripts/run_studio.py; tests/test_studio.py): real-time simulator with
+      field and line-width sliders, overlay of a processed spectrum, line table and export, fit_joint_series from
+      the sliders with a trace (progress) slider, log, terminal, Python console, JSON API for AI agents.
+      First use: a 4-start acetonitrile fit from a 20 / 60 nT field start ended in a worse basin (0.158 against
+      0.044): the field start matters (try several, as in the analysis).
+- [x] Studio display scale continuous (least squares on the magnitudes, lock option) and figures from Studio
+      (paper_figure.py: sampling rate and phase from the series entry, PNG/PDF/SVG/caption, manual-parameter
+      label; series entries record source_fid), auto phase of the shown data (model / data). D49;
+      tests/test_studio.py DisplayScaleTests, FigureTests, AutoPhaseTests.
+- [x] Studio AI assistant (D50): Anthropic (claude-opus-5-5) and OpenAI (Responses API) drive the session through
+      its tools; docs/STUDIO.md (user guide, API, credentials) and docs/ENVIRONMENT.md. tests/test_studio.py
+      AssistantTests. Not yet run against the live APIs (no keys on this machine).
+- [ ] Studio: field-start grid for fits; rate families in the quick-look simulation; MCP wrapper of the API.
 
 ## Phase 4: architecture comparison (plan weeks 6-9)
 
@@ -450,6 +500,41 @@ verification data before adoption.
 - [ ] Route B as a GNN over the whole network; compare with A.
 - [ ] Per-coupling sigma from the fit uncertainty; 15N and 13C-13C observations.
 - [ ] Readout on a structure-free J network from the hypothesis pipeline (closes spectrum -> J -> structure).
+- [x] Reduced coupling constants K (D51): K next to J in fit.json and J_table.csv; conversion functions for
+      15N -> 14N and 1H -> 2H starts (zulf_core.nuclei). Tests: ReducedCouplingTests, RunToolsTests.
+- [x] Route B on J vs K (D52; docs/analysis/2026-10-07_j-to-structure_j-vs-k.md): equal on 13C / 1H data; K alone
+      transfers to deuterated couplings (0.843 vs 0.298). scripts/j_k_learning_comparison.py.
+- [x] Route B in both modes every run, J and K side by side (D56): one model file per mode, `isotopes` in the
+      observation, scripts/j_structure.py prints A, B-J, B-K. Tests: BothModesTests.
+- [ ] 15N units and N couplings in the J observation (needed for K to matter on 15N-labelled samples).
+
+## Phase 8: ZULF Studio in four modes (owner 2026-10-08)
+
+Studio is organised by task; the model (structure or spin system, couplings, field, line width) is shared by every
+mode, each mode shows only what its task needs (D58).
+
+| Mode | Input | Left | Centre | Right | Output |
+|---|---|---|---|---|---|
+| Simulate | model only | model, couplings, field and line width | simulated spectrum (each component, weighted sum, overlays) | simulation settings (quick look / exact rendering through an acquisition, window, zero fill, Gaussian broadening), export | spectrum, line table, figure |
+| Process | scans or an FID, no model | processing recipe (crop, record, window, zero fill, phase, delay) | FID and spectrum, live with the recipe | scan selection (keep checkboxes, quality metric), save | averaged FID, processed spectrum (series.json), recipe |
+| Fit | spectrum and a known model | data, model, couplings, field | data, model, residual | fit, figure | couplings, field, figures |
+| Blind analysis | spectrum or FID, unknown model | data | spectrum, ranked candidates | analysis settings, report | candidates; one goes to Fit |
+
+Defaults chosen with the owner (2026-10-08, changeable): in a custom spin system the component weights are fitted
+amplitudes (can be fixed); several couplings may share one variable; acquisition settings and Gaussian broadening
+live in Simulate, not on the Fit screen; ZULF_NMR_Suite stays as it is, its molecule folders can be imported.
+
+Steps:
+- [x] 8a. Mode bar; Simulate, Fit, Blind analysis on the present widgets; the session records its mode (done, commit below; Process shows the import entry points until 8b).
+- [x] 8b. Process mode (done): scan table from average_scans metrics, recipe with live preview (debounced), averaging
+  of the kept scans as a job, save the spectrum and the recipe (never into the data folder).
+- [x] 8c. Custom spin system (done; Studio editor, API, tests): isotopes, J matrix (upper-triangle table or text) with variables, component list
+  with weights; sliders per variable; save / load models; import ZULF_NMR_Suite molecule folders.
+- [x] 8d. Fits of a custom spin system (done, D60) (fit_joint_series model input {"spin_system": ...}; variables as fit
+  parameters; weights as amplitudes).
+- [ ] 8e. Exact rendering in Simulate (the processed forward model of zulf_core.render with an acquisition);
+  overlays of several parameter sets. Part done: Fit mode draws an applied fit's own forward model at
+  fit.json `z_final` (objective equal to the fit's score, tested); Studio Monitor tab and large window.
 
 ## Experimental data inventory (user Google Drive, "Metabolites/Low Gamma")
 

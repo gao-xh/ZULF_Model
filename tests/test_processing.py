@@ -216,3 +216,77 @@ class AslsBaselineTests(unittest.TestCase):
         inner = (f > 140) & (f < 200)
         self.assertLess(np.sqrt(np.mean((z - base)[inner] ** 2)), 0.02)
         self.assertLess(w[np.argmin(np.abs(f - 172.0))], 0.01)        # a negative line is excluded
+
+
+class DisplayBaselineTests(unittest.TestCase):
+    """D62: the shared display baseline leaves the residual data - model exactly as the fit left it."""
+
+    def test_shared_keeps_the_residual_and_removes_a_common_roll(self):
+        from zulf_processing.display_baseline import display_baseline
+        f = np.arange(100.0, 160.0, 0.02)
+        lines = [("A", np.array([120.0, 140.0]), np.array([1.0, 0.6]))]
+        model = sum(a / (1 + ((f - c) / 0.3) ** 2) for c, a in ((120.0, 1.0), (140.0, 0.6)))
+        roll = 0.2 * np.sin(2 * np.pi * (f - 100.0) / 25.0)                  # slow baseline in both curves
+        noise = 0.01 * np.random.default_rng(3).normal(size=len(f))
+        y, m = model + roll + noise, model + roll
+        for method in ("model", "shared"):
+            yc, mc, _ = display_baseline(f, y, m, lines, method=method)
+            np.testing.assert_allclose(yc - mc, y - m, atol=1e-12)           # the residual is the fit's
+        other = model + roll + 0.01 * np.random.default_rng(4).normal(size=len(f))
+        _, mm1, _ = display_baseline(f, y, m, lines)                         # default "model": the shown model
+        _, mm2, _ = display_baseline(f, other, m, lines)                     # does not depend on the data noise
+        np.testing.assert_array_equal(mm1, mm2)
+        _, ms1, _ = display_baseline(f, y, m, lines, method="shared")       # "shared" prints the noise on it
+        _, ms2, _ = display_baseline(f, other, m, lines, method="shared")
+        self.assertGreater(np.abs(ms1 - ms2).max(), 1e-4)
+        yc, mc, _ = display_baseline(f, y, m, lines, method="shared")
+        far = (np.abs(f - 120.0) > 3) & (np.abs(f - 140.0) > 3) & (f > 105) & (f < 155)
+        self.assertLess(np.abs(mc[far]).max(), 0.05)                         # the roll is gone
+        yc_s, mc_s, _ = display_baseline(f, y, m, lines, method="separate")
+        self.assertGreater(np.abs((yc_s - mc_s) - (y - m)).max(), 1e-3)      # separate changes the residual
+        yn, mn, _ = display_baseline(f, y, m, lines, method="none")
+        np.testing.assert_array_equal(yn, y)
+        with self.assertRaises(ValueError):
+            display_baseline(f, y, m, lines, method="other")
+
+
+class SamplingRateTests(unittest.TestCase):
+    """The NMRduino sequences run at 2000, 4000 or 8333 Hz; a FID processed at the wrong rate has every frequency
+    scaled (an 8333 Hz ethanol run read as 4000 Hz put its 2J band at 120 Hz)."""
+
+    def test_rate_from_record_then_ini_then_default(self):
+        import json
+        import tempfile
+        from zulf_processing import find_sampling_rate
+        with tempfile.TemporaryDirectory() as tmp:
+            fid = Path(tmp) / "average_fid.npy"
+            with self.assertRaises(ValueError):
+                find_sampling_rate(fid)
+            self.assertEqual(find_sampling_rate(fid, 4000.0), (4000.0, "default"))
+            (Path(tmp) / "0.ini").write_text("[NMRduino]\nDeviceType=Teensy Pulse 4\nSampleRate=2000\n")
+            self.assertEqual(find_sampling_rate(fid, 4000.0)[0], 2000.0)
+            (Path(tmp) / "scans.json").write_text(json.dumps({"sampling_rate_hz": 8333.333333333334}))
+            self.assertAlmostEqual(find_sampling_rate(fid, 4000.0)[0], 8333.333333333334)
+
+    def test_sample_settings_keep_their_times(self):
+        from zulf_processing import scale_sample_settings
+        base = {"sampling_rate_hz": 4000.0, "start_sample": 200, "stop_sample": 4200, "sg_window": 201, "zero_fill": 4}
+        self.assertEqual(scale_sample_settings(base, 4000.0), base)
+        fast = scale_sample_settings(base, 8000.0)
+        self.assertEqual((fast["start_sample"], fast["stop_sample"], fast["sg_window"], fast["zero_fill"]),
+                         (400, 8400, 403, 4))
+        self.assertEqual(fast["sg_window"] % 2, 1)
+
+
+class SampleCountTests(unittest.TestCase):
+    def test_crop_and_record_given_in_samples_round_back_exactly(self):
+        # Studio's "points" unit and make_series_entry --crop-points store n / fs seconds; at 8333.33 Hz every n
+        # must come back as the same sample
+        from zulf_processing.series_spectrum import series_spectrum
+        fs = 8333.333333333334
+        t = np.arange(20000) / fs
+        fid = np.r_[np.full(30, 3000.0), np.cos(2 * np.pi * 136.0 * t[30:]) * np.exp(-t[30:])]
+        for start, keep in ((800, 15000), (833, 12345), (1, 19000)):
+            sp = series_spectrum(fid, fs, crop_s=start / fs, record_s=keep / fs)
+            self.assertEqual(sp["plan"].start_sample, start)
+            self.assertEqual(sp["plan"].stop_sample - sp["plan"].start_sample, keep)

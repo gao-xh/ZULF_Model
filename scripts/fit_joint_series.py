@@ -28,10 +28,17 @@ import argparse
 import csv
 import dataclasses
 import json
+import os
 import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+
+# One BLAS thread per process (before numpy loads): the fitter parallelises over starts with worker processes, and
+# several fits often run at once; Accelerate's default threads per process overloaded the machine (load 95 on 10
+# cores, 2026-10-08). An explicit setting in the environment wins.
+for _var in ("VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
 
 import numpy as np
 from scipy.special import expit
@@ -71,7 +78,9 @@ def _rate_policy(base, args):
     """Decay-rate families and bounds from the command line: --family-edges splits every isotopologue's
     transitions by frequency (one rate per family, D31 derivatives), --rate-bounds sets the rate range,
     --phase-delay-bounds the range of the fitted delay (ms; an instrument prior, e.g. -4.6,-2.6 for the NMRduino
-    setup: near 200 Hz a delay is ambiguous by about 1 / f within one band)."""
+    setup: near 200 Hz a delay is ambiguous by about 1 / f within one band). --fit-field adds a fitted static
+    field (D47: field_transverse_ut, field_z_ut >= 0; default zero field), with --field-axes, --field-bounds (uT) and
+    --field-start (transverse,z in uT; nonzero, because the signal is stationary at zero field)."""
     policy = base.policy
     edges = [float(v) for v in getattr(args, "family_edges", "").split(",") if v.strip()]
     if edges:
@@ -87,7 +96,171 @@ def _rate_policy(base, args):
         if not lo < hi:
             raise SystemExit("--phase-delay-bounds: lo < hi (ms)")
         policy = dataclasses.replace(policy, phase_delay_bounds_s=(lo, hi))
+    if getattr(args, "fit_sigma", False):
+        # Voigt lines: one Gaussian width sigma (Hz, standard deviation of a frequency distribution) per
+        # isotopologue on top of the Lorentzian rate of every family (ParameterPolicy.fit_sigma, renderer D6)
+        lo, hi = (float(v) for v in args.sigma_bounds.split(","))
+        if not 0.0 < lo < hi:
+            raise SystemExit("--sigma-bounds: 0 < lo < hi (Hz)")
+        policy = dataclasses.replace(policy, fit_sigma=True, sigma_bounds_hz=(lo, hi),
+                                     initial_sigma_hz=float(np.clip(args.sigma_start, lo, hi)))
+    if getattr(args, "field_sigma_slopes", ""):
+        # field-distribution line shapes (D63): Gaussian width of each family = |dnu/dB| x one fitted sigma_B (nT)
+        lo, hi = (float(v) for v in args.field_sigma_bounds.split(","))
+        policy = dataclasses.replace(policy, field_sigma_slopes=tuple(tuple(row) for row in json.loads(args.field_sigma_slopes)),
+                                     field_sigma_bounds_nt=(lo, hi),
+                                     initial_field_sigma_nt=float(np.clip(args.field_sigma_start, lo, hi)))
+    if getattr(args, "fit_field", False):
+        axes = tuple(a.strip() for a in args.field_axes.split(",") if a.strip())
+        lo, hi = (float(v) for v in args.field_bounds.split(","))
+        start = tuple(float(v) for v in args.field_start.split(","))
+        if not 0.0 <= lo < hi or len(start) != 2 or not set(axes) <= {"transverse", "z"} or not axes:
+            raise SystemExit("--fit-field: axes from {transverse,z}, bounds 0 <= lo < hi (uT), start transverse,z (uT)")
+        if any(v == 0.0 for v in start):
+            print("warning: a field start of exactly 0 has zero gradient and stays there (D47)")
+        policy = dataclasses.replace(policy, fit_field=True, field_axes=axes, field_bounds_ut=(lo, hi),
+                                     initial_field_ut=start)
+    if getattr(args, "field", ""):
+        if getattr(args, "fit_field", False):
+            raise SystemExit("--field (a known, fixed field) and --fit-field exclude each other")
+        bt, bz = (float(v) for v in args.field.split(","))
+        policy = dataclasses.replace(policy, fit_field=True, field_fixed=True, field_axes=("transverse", "z"),
+                                     field_bounds_ut=(0.0, max(1.0, 2 * bt, 2 * bz)), initial_field_ut=(bt, bz))
+    if getattr(args, "fit_gamma", ""):
+        symbols = tuple(v.strip() for v in args.fit_gamma.split(",") if v.strip())
+        starts = [float(v) for v in args.gamma_start.split(",")] if args.gamma_start else []
+        if starts and len(starts) != len(symbols):
+            raise SystemExit("--gamma-start needs one value per --fit-gamma nucleus")
+        if not getattr(args, "field", ""):
+            print("warning: --fit-gamma without a known --field: gamma and a fitted field trade against each other")
+        lo, hi = (float(v) for v in args.gamma_bounds.split(","))
+        policy = dataclasses.replace(policy, fit_gamma=symbols, gamma_bounds_hz_per_ut=(lo, hi),
+                                     initial_gamma=tuple(zip(symbols, starts)))
     return dataclasses.replace(base, policy=policy)
+
+
+def remap_family_rates(params, old_edges, new_edges):
+    """Spectrum parameters of a fit made with rate-family edges `old_edges`, for a model with `new_edges`: every
+    new family takes the decay rate of the old family that contains its centre (the outer families: a point
+    0.5 Hz beyond the outermost new edge; one new family: the middle of the old edges). Other parameters are
+    copied. `old_edges` None (a fit that did not record its edges) or equal edges: no change. The transverse field
+    of fits made before its rename (`field_perp_ut`, D47) is read as `field_transverse_ut`."""
+    out = dict(params)
+    if "field_perp_ut" in out and "field_transverse_ut" not in out:
+        out["field_transverse_ut"] = out.pop("field_perp_ut")
+    if old_edges is None:
+        return out
+    old = np.asarray(old_edges, float)
+    new = np.asarray(new_edges, float)
+    if len(old) == len(new) and np.allclose(old, new):
+        return out
+    if len(new):
+        bounds = np.concatenate([[new[0] - 1.0], new, [new[-1] + 1.0]])
+        centres = 0.5 * (bounds[:-1] + bounds[1:])
+    else:
+        centres = np.array([0.5 * (old[0] + old[-1]) if len(old) else 0.0])
+    source = np.searchsorted(old, centres, side="right")
+    import re
+    rate = re.compile(r"^(c\d+)\.log_rate(\d+)$")
+    components = sorted({m.group(1) for m in (rate.match(k) for k in params) if m})
+    for key in [k for k in out if rate.match(k)]:
+        del out[key]
+    for c in components:
+        for k, src in enumerate(source):
+            name = f"{c}.log_rate{int(src)}"
+            if name in params:
+                out[f"{c}.log_rate{k}"] = params[name]
+    return out
+
+
+def edges_from_lines(lines_hz, sharp_hz=(), gap_hz=1.5, min_separation_hz=0.2, match_hz=0.5, min_spacing_hz=0.25):
+    """Rate-family edges from model line positions (the rule behind the hand-chosen edges of the amine fits, D46):
+    1. an edge in the middle of every gap wider than gap_hz between neighbouring lines (one family per cluster);
+    2. for every sharp data peak with a model line within match_hz: edges halfway to that line's neighbours (if
+       they are more than min_separation_hz away), so the line gets a family of its own and its own decay rate;
+    3. edges closer than min_spacing_hz are merged (their mean). Returns sorted edges (Hz)."""
+    f = np.unique(np.asarray(lines_hz, float))
+    if len(f) < 2:
+        return []
+    edges = [0.5 * (a + b) for a, b in zip(f[:-1], f[1:]) if b - a > gap_hz]
+    for p in np.asarray(sharp_hz, float):
+        i = int(np.argmin(np.abs(f - p)))
+        if abs(f[i] - p) > match_hz:
+            continue
+        if i > 0 and f[i] - f[i - 1] > min_separation_hz:
+            edges.append(0.5 * (f[i - 1] + f[i]))
+        if i < len(f) - 1 and f[i + 1] - f[i] > min_separation_hz:
+            edges.append(0.5 * (f[i] + f[i + 1]))
+    edges = sorted(edges)
+    merged = []
+    for e in edges:
+        if merged and e - merged[-1][-1] < min_spacing_hz:
+            merged[-1].append(e)
+        else:
+            merged.append([e])
+    return [float(np.mean(g)) for g in merged]
+
+
+def model_lines(joint, z, s=0, min_relative=0.02):
+    """Frequencies of the model lines of spectrum s at z: every component's transitions with |gain a| at least
+    min_relative of that component's strongest line, inside the fit range."""
+    f = joint.forwards[s]
+    x = joint.spectrum_vector(z, s)
+    values = f.p.values(x)
+    gains = np.asarray(f.predict(x).gains)
+    lo, hi = float(f.f.min()), float(f.f.max())
+    lines = []
+    for c, system in enumerate(f.p.systems(values)):
+        tl = f.transitions(values, c, system)
+        if not len(tl) or c >= len(gains):
+            continue
+        w = np.abs(gains[c] * tl.amplitudes)
+        if not w.max() > 0:
+            continue
+        keep = (w >= min_relative * w.max()) & (tl.frequencies_hz >= lo) & (tl.frequencies_hz <= hi)
+        lines.extend(tl.frequencies_hz[keep].tolist())
+    return sorted(lines)
+
+
+def edges_between_lines(lines, min_distance_hz=0.25, max_span_hz=0.0):
+    """Edges midway between neighbouring lines; lines closer than min_distance_hz (not resolved) share one
+    family. Grouping chains (each line joins the group of its neighbour), so in a dense multiplet one family can
+    span hertz; max_span_hz > 0 starts a new group once a group would span more than that (2026-10-12: one rate
+    for 2 Hz of DMEDA / sec-butylamine lines merged resolved small peaks into their neighbours). Returns (edges,
+    groups of lines)."""
+    groups = []
+    for x in sorted(lines):
+        if groups and x - groups[-1][-1] < min_distance_hz and not (max_span_hz > 0 and x - groups[-1][0] > max_span_hz + 1e-9):
+            groups[-1].append(x)
+        else:
+            groups.append([x])
+    edges = [0.5 * (a[-1] + b[0]) for a, b in zip(groups, groups[1:])]
+    return edges, groups
+
+
+def line_family_edges(joint, z, s=0, min_relative=0.05, min_distance_hz=0.25, max_span_hz=0.0):
+    """Edges for --family-edges lines: one decay-rate family per model line (owner 2026-10-09), the lines of the
+    start vector with |gain a| >= min_relative of their component's strongest line; lines closer than
+    min_distance_hz share a family. Unlike 'peaks' (data peaks) it also separates model lines whose data peak is
+    weak. Returns (edges, groups of lines)."""
+    return edges_between_lines(model_lines(joint, z, s, min_relative), min_distance_hz, max_span_hz)
+
+
+def auto_family_edges(joint, z, s=0, min_relative=0.02, sharp_width_hz=0.8, prominence=0.05, **rule):
+    """Edges for --family-edges auto: the model lines of spectrum s at z (every component, relative amplitude
+    |gain a| >= min_relative of that component's strongest line, inside the fit range) and the sharp peaks of the
+    data (|y|, prominence >= prominence x max, width at half prominence < sharp_width_hz), through
+    edges_from_lines. Returns (edges, lines, sharp peaks)."""
+    from scipy.signal import find_peaks, peak_widths
+    f = joint.forwards[s]
+    lines = model_lines(joint, z, s, min_relative)
+    y = np.abs(np.asarray(f.y))
+    peaks, props = find_peaks(y, prominence=prominence * float(y.max()))
+    sharp = []
+    if len(peaks):
+        width = peak_widths(y, peaks, rel_height=0.5)[0] * float(np.median(np.diff(f.f)))
+        sharp = [float(f.f[k]) for k, w_hz in zip(peaks, width) if w_hz < sharp_width_hz]
+    return edges_from_lines(lines, sharp, **rule), sorted(lines), sharp
 
 
 def monotone_profile(w: np.ndarray):
@@ -139,7 +312,8 @@ def exchangeable_labels(fragment):
 class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
-    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=()):
+    def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=(),
+                 tie_rates=""):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
         for p in self.params:                      # couplings held at their structure values (--free-couplings)
@@ -147,6 +321,20 @@ class JointSeries:
                 for n in model.coupling_names.get(key, []):
                     if n in p.parameters:
                         p.parameters[n].free = False
+        self.tied_rate_components = []
+        if tie_rates:
+            # --tie-rates: every rate family of a matching component follows its family 0 (one decay rate for the
+            # whole component, e.g. a second species whose rate families must not hide lines)
+            import re
+            pattern = re.compile(tie_rates)
+            self.tied_rate_components = [c for c, label in enumerate(model.component_labels) if pattern.search(label)]
+            if not self.tied_rate_components:
+                raise ValueError(f"--tie-rates {tie_rates!r} matches no component of {model.component_labels}")
+            for p in self.params:
+                for c in self.tied_rate_components:
+                    names = [n for n in p.order if n.startswith(f"c{c}.log_rate")]
+                    if len(names) > 1:
+                        p.tie(names[0], *names[1:])
         if exchange:
             for p in self.params:
                 add_nh_exchange(p, model, exchange["labels"], exchange["start"], exchange["bounds"])
@@ -262,6 +450,91 @@ class JointSeries:
                 grads.append((np.array([w[j]]), np.array([sg * st])) if v < 0 else (np.zeros(0, int), np.zeros(0)))
         return np.array(rows), grads
 
+    def set_guard_penalty(self, strength, k_sigma=3.0, margin_hz=2.0, bin_hz=1.0, guard_range=None, smooth=0.5,
+                          half_width_hz=5.0, grids=None, tolerance=0.2):
+        """Guard rows (D57): the model may not put a peak where the data have no line. Guard points are the points
+        of the processed grid (inside `guard_range`, default the whole grid) farther than `margin_hz` from every data
+        line region (the signal cores of the whole grid, 4 noise sigma) and from every fully weighted fitted
+        point; with fit ranges of a few bands most of the guard lies outside the fit ranges, with the whole grid it
+        is the empty part of the spectrum. `grids`: per spectrum (frequencies, values) of the whole processed grid
+        (the observations hold only the fit ranges; default: the observations). Per bin of `bin_hz` one row
+
+            strength * t softplus((max_bin ((1 - tolerance) E - D) - k_sigma sigma) / t) / (sigma norm),
+            t = smooth * sigma,
+
+        E the model line envelope (MixtureForward.model_envelope with the solved gains, smooth profiles), D the
+        local data magnitude (max of abs(data) within +-0.5 Hz: line tails and noise are allowed under the model),
+        `tolerance` the share of E not counted (E adds lines without their phases and so exceeds the coherent model
+        where lines partly cancel, e.g. between dispersive tails),
+        sigma the noise of the whole grid, norm the spectrum's residual norm (residual units of a fully weighted
+        point). A bin without a model peak above k_sigma noise costs nothing; the data in the guard never enter.
+        strength 0 = off."""
+        from zulf_core.solver.forward import signal_regions
+        self.guard_strength = float(strength)
+        self.guard = None
+        if not strength:
+            return
+        self.guard_settings = dict(k_sigma=float(k_sigma), smooth=float(smooth), half_width_hz=float(half_width_hz),
+                                   tolerance=float(tolerance))
+        self.guard = []
+        for s, f in enumerate(self.forwards):
+            fg, yg = grids[s] if grids else (f.obs.frequencies_hz, f.obs.values)
+            fg, yg = np.asarray(fg, float), np.asarray(yg)
+            cores, sigma = signal_regions(fg, yg, np.zeros(len(fg), int), 4.0)
+            protected = fg[cores]
+            if f.data_signal_mask is not None:            # data cores of the fit (not the model-line pass)
+                protected = np.r_[protected, f.f[f.data_signal_mask]]
+            protected = np.sort(protected)
+            lo, hi = guard_range if guard_range else (fg.min(), fg.max())
+            keep = (fg >= lo) & (fg <= hi)
+            if len(protected):
+                i = np.clip(np.searchsorted(protected, fg), 1, len(protected))
+                near = np.minimum(np.abs(fg - protected[i - 1]), np.abs(fg - protected[np.minimum(i, len(protected) - 1)]))
+                keep &= near > margin_hz
+            # data magnitude allowed under the model: local max of abs(data) within +-0.5 Hz (line tails, noise)
+            from scipy.ndimage import maximum_filter1d
+            step = float(np.median(np.diff(fg)))
+            ceiling = maximum_filter1d(np.abs(yg), size=2 * int(round(0.5 / step)) + 1)[keep]
+            pts = fg[keep]
+            bins = np.floor((pts - lo) / bin_hz).astype(int)
+            _, first = np.unique(bins, return_index=True)
+            groups = np.split(np.arange(len(pts)), first[1:]) if len(pts) else []
+            self.guard.append({"f": pts, "groups": groups, "sigma": float(sigma), "norm": float(f.norm),
+                               "ceiling": ceiling})
+
+    def _guard_values(self, s, x, gains):
+        """Guard rows of spectrum s at spectrum vector x with fixed gains."""
+        g, st = self.guard[s], self.guard_settings
+        if not len(g["f"]):
+            return np.zeros(0)
+        f = self.forwards[s]
+        e = f.model_envelope(f.p.values(x), gains, st["half_width_hz"], frequencies=g["f"], taper=True)
+        excess = (1.0 - st["tolerance"]) * e - g["ceiling"]
+        emax = np.array([excess[idx].max() for idx in g["groups"]])
+        t = st["smooth"] * g["sigma"]
+        return self.guard_strength * t * np.logaddexp(0.0, (emax - st["k_sigma"] * g["sigma"]) / t) \
+            / (g["sigma"] * g["norm"])
+
+    def _guard_rows(self, s, x, gains, jacobian=False):
+        """Rows, and with `jacobian` d rows / d x by forward differences over every free parameter of the spectrum,
+        the gains solved again at every step (they come from the fit ranges and move with every parameter, the delay
+        too). Only while a row is active (a model peak above the threshold); otherwise the rows and their derivatives
+        are zero and cost nothing. The row count is fixed."""
+        rows = self._guard_values(s, x, gains)
+        if not jacobian:
+            return rows
+        jac = np.zeros((len(rows), len(x)))
+        floor = 1e-6 * self.guard_strength / max(self.guard[s]["norm"], 1e-30)
+        if not len(rows) or rows.max() <= floor:
+            return rows, jac
+        f = self.forwards[s]
+        for i in range(len(x)):
+            h = 1e-8 + 1e-7 * abs(x[i])           # small: line tops are sharp (curvature error of the step)
+            xp = x.copy()
+            xp[i] += h
+            jac[:, i] = (self._guard_values(s, xp, f.predict(xp).gains) - rows) / h
+        return rows, jac
+
     def set_smoothing(self, sigma_hz):
         """Coarse-to-fine continuation: compare Gaussian-smoothed spectra. The same kernel K (sigma_hz, over the
         points' frequencies, rows normalised) acts on data and model, so K (model - data) is compared; in residual
@@ -285,6 +558,17 @@ class JointSeries:
 
     def theta(self, z, k):
         return z[k * self.m:(k + 1) * self.m]
+
+    precision_hz = 0.01                  # coupling precision at which fits stop (D55; 0: run to the tolerances)
+
+    def all_couplings(self, z):
+        """Every coupling value of the vector (Hz), all nodes, in one array (for the precision stop)."""
+        return np.concatenate([self.coupling_values(z, k) for k in range(self.nc)]) if self.nc else np.zeros(0)
+
+    def stop_at_precision(self, couplings_of=None):
+        """least_squares callback that stops at self.precision_hz (zulf_core.solver.convergence)."""
+        from zulf_core.solver.convergence import CouplingPrecision
+        return CouplingPrecision(couplings_of or self.all_couplings, self.precision_hz)
 
     def coupling_values(self, z, k):
         th = self.theta(z, k)
@@ -369,10 +653,14 @@ class JointSeries:
         values = [self.coupling_values(z, k) for k in range(self.nc)]
         parts = []
         for s, f in enumerate(self.forwards):
-            r = f.predict(self.spectrum_vector(z, s, values)).residual
+            xs_ = self.spectrum_vector(z, s, values)
+            pred = f.predict(xs_)
+            r = pred.residual
             parts.append(self._smooth(s, r))
             if self.peaks is not None:
                 parts.append(self._peak_rows(s, r)[0])
+            if getattr(self, "guard", None) is not None:
+                parts.append(self._guard_rows(s, xs_, pred.gains))
             if self.res_windows is not None and len(self.res_windows[s]):
                 parts.append(self.res_strength * r[self.res_windows[s]])
         ks, mean, scale = self.priors
@@ -399,9 +687,23 @@ class JointSeries:
             for i, n in enumerate(self.local):
                 out[:, self.nt + s * self.nl + i] = js[:, self.col[n]]
             blocks.append(self._smooth(s, out))
+            pred = None
             if self.peaks is not None:
-                _, grads = self._peak_rows(s, f.predict(self.spectrum_vector(z, s, values)).residual)
+                pred = f.predict(self.spectrum_vector(z, s, values))
+                _, grads = self._peak_rows(s, pred.residual)
                 blocks.append(np.array([c @ out[idx] for idx, c in grads]).reshape(len(grads), len(z)))
+            if getattr(self, "guard", None) is not None:
+                xs_ = self.spectrum_vector(z, s, values)
+                pred = pred or f.predict(xs_)
+                _, gj = self._guard_rows(s, xs_, pred.gains, jacobian=True)
+                gout = np.zeros((gj.shape[0], len(z)))
+                for k, n in enumerate(self.coupling):
+                    gout[:, k * self.m:(k + 1) * self.m] = np.outer(gj[:, self.col[n]], dvals[k][self.node_of[s]])
+                for i, n in enumerate(self.shared):
+                    gout[:, self.ntheta + i] = gj[:, self.col[n]]
+                for i, n in enumerate(self.local):
+                    gout[:, self.nt + s * self.nl + i] = gj[:, self.col[n]]
+                blocks.append(gout)
             if self.res_windows is not None and len(self.res_windows[s]):
                 blocks.append(self.res_strength * out[self.res_windows[s]])
         ks, _, scale = self.priors
@@ -486,7 +788,7 @@ class JointSeries:
         for c, system in enumerate(P.systems(values)):
             names = P.coupling_names(c)
             pairs = [P.parameters[n].detail for n in names]
-            d = transition_derivatives(system, pairs, f.protocol)
+            d = transition_derivatives(system, pairs, f.protocol_for(values))
             if not len(d):
                 continue
             amp = np.abs(d.amplitudes)
@@ -525,15 +827,23 @@ class JointSeries:
         return {"frequency_hz": float(frequency_hz), "lines": lines, "couplings": effect}
 
     def local_fit(self, z, s, window_hz, couplings, locals_=(), lower=None, upper=None, starts=None, max_nfev=100,
-                  margin_hz=2.0):
+                  margin_hz=2.0, hold_gains=False):
         """Targeted local refinement: fit only spectrum s inside window_hz = (lo, hi), with only the named couplings
         (leaders, e.g. the split-type couplings of peak_sources) and spectrum parameters (e.g. the rate family holding
         those lines) free; everything else held at z. Fast: a forward model of the window points alone that renders
         and differentiates only the transitions within window +- margin_hz (farther lines add only their tails;
         gains, phase and background are solved again on the window). `starts`: list of dicts {name: start value}
-        (default: z itself). Returns [(local cost, z)] sorted, each z a full vector for a global refit."""
+        (default: z itself). Returns [(local cost, z)] sorted, each z a full vector for a global refit.
+
+        hold_gains: gains, phase and background stay at the global solution at z, and the cost is the full
+        objective's residual on the window points (its own weights and norm). The local cost is then the window
+        part of the whole objective, not a cost with re-solved amplitudes that overstates the gain. Lines outside
+        window +- margin_hz enter as their contribution at z (a constant offset); Jacobian by finite differences."""
         f = self.forwards[s]
         lo_w, hi_w = float(window_hz[0]), float(window_hz[1])
+        if hold_gains:
+            return self._local_fit_held(z, s, (lo_w, hi_w), couplings, locals_, lower, upper, starts, max_nfev,
+                                        margin_hz)
         obs_w = f.obs.restricted([(lo_w, hi_w)])
         fw = MixtureForward(self.params[s], obs_w, f.protocol, self.settings.gain_model,
                             self.settings.background_order, self.settings.band_weighting,
@@ -573,7 +883,58 @@ class JointSeries:
                 p0[names.index(n)] = v
             p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
             sol = least_squares(res, p0, jac=jac, bounds=(lo, hi), x_scale="jac", max_nfev=max_nfev,
-                                ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                                callback=self.stop_at_precision(lambda p: self.all_couplings(full(p))))
+            out.append((float(2 * sol.cost), full(sol.x)))
+        out.sort(key=lambda t: t[0])
+        return out
+
+    def _local_index(self, s, couplings, locals_):
+        zi = []
+        for n in couplings:
+            k = self.coupling.index(n)
+            zi.append(k * self.m + (self.node_of[s] if self.shape == "free" else 0))
+        for n in locals_:
+            zi.append(self.ntheta + self.shared.index(n) if n in self.shared else self.nt + s * self.nl + self.local.index(n))
+        return np.asarray(zi, int)
+
+    def _local_fit_held(self, z, s, window_hz, couplings, locals_, lower, upper, starts, max_nfev, margin_hz):
+        import copy
+        f = self.forwards[s]
+        x0 = self.spectrum_vector(z, s)
+        ref = f.predict(x0)
+        gains, background = np.asarray(ref.gains), np.asarray(ref.background)
+        r_full = np.asarray(f.predict(x0, fixed_gains=gains, fixed_background=background).residual)
+        idx = np.flatnonzero((f.f >= window_hz[0]) & (f.f <= window_hz[1]))
+        nf = len(f.f)
+        rows = np.concatenate([idx, idx + nf]) if len(r_full) == 2 * nf else idx
+        fw = copy.copy(f)                                   # same weights and norm; only nearby lines rendered
+        fw.line_band_hz = (window_hz[0] - margin_hz, window_hz[1] + margin_hz)
+        fw.jacobian_only = None
+        fw._last = None
+        offset = r_full[rows] - np.asarray(fw.predict(x0, fixed_gains=gains, fixed_background=background).residual)[rows]
+        zi = self._local_index(s, couplings, locals_)
+        lo = lower[zi] if lower is not None else np.full(len(zi), -np.inf)
+        hi = upper[zi] if upper is not None else np.full(len(zi), np.inf)
+
+        def full(p):
+            zz = z.copy()
+            zz[zi] = p
+            return zz
+
+        def res(p):
+            r = fw.predict(self.spectrum_vector(full(p), s), fixed_gains=gains, fixed_background=background).residual
+            return np.asarray(r)[rows] + offset
+        out = []
+        names = list(couplings) + list(locals_)
+        for st in (starts or [{}]):
+            p0 = z[zi].copy()
+            for n, v in st.items():
+                p0[names.index(n)] = v
+            p0 = np.clip(p0, lo + 1e-9, hi - 1e-9)
+            sol = least_squares(res, p0, bounds=(lo, hi), x_scale=1.0, diff_step=1e-6, max_nfev=max_nfev,
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                                callback=self.stop_at_precision(lambda p: self.all_couplings(full(p))))
             out.append((float(2 * sol.cost), full(sol.x)))
         out.sort(key=lambda t: t[0])
         return out
@@ -706,7 +1067,8 @@ def _residual_peak_stage(joint, solutions, lower, upper, args):
             joint.res_windows = windows
             joint.peak_smooth = args.peak_smooth if joint.peaks is not None else 0.0
             zz = least_squares(joint.residual, zz, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                               max_nfev=args.max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+                               max_nfev=args.max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                               callback=joint.stop_at_precision()).x
             print(f"residual peaks: candidate {ci} round {rnd}: {sum(p['assignable'] for p in report)} assignable "
                   f"of {len(report)}", flush=True)
         windows, report = joint.find_residual_peaks(zz, **opts)
@@ -759,7 +1121,7 @@ def _coordinate_scan(joint, z, lower, upper, max_nfev, cycles=2, half_width=4.0,
             z = z.copy()
             z[blk] += best_v - z[i]
         z = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                          max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+                          max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10, callback=joint.stop_at_precision()).x
     return z
 
 
@@ -821,9 +1183,9 @@ def _component_windows(joint, z, s, min_line=0.05, gap_hz=3.0, dominance=0.8):
 
 
 def _cs_local(start):
-    joint, s, window, names, rates, lower, upper, max_nfev, z = _CS_TASK
+    joint, s, window, names, rates, lower, upper, max_nfev, z, hold_gains = _CS_TASK
     return joint.local_fit(z, s, window, names, locals_=rates, lower=lower, upper=upper, starts=[start],
-                           max_nfev=max_nfev)[0]
+                           max_nfev=max_nfev, hold_gains=hold_gains)[0]
 
 
 def component_search(joint, prob, z, args, stage):
@@ -853,13 +1215,15 @@ def component_search(joint, prob, z, args, stage):
                 continue
             fams = set(np.searchsorted(edges, np.linspace(lo, hi, 200), side="right").tolist()) if len(edges) \
                 else {0}
-            rates = [n for n in joint.local if n.startswith(f"c{c}.log_rate") and int(n.split("log_rate")[1]) in fams]
+            rates = [n for n in joint.local if n.startswith(f"c{c}.log_rate") and
+                     (int(n.split("log_rate")[1]) in fams or c in joint.tied_rate_components)]
             current = {n: float(joint.coupling_values(z, joint.coupling.index(n))[joint.node_of[s]]) for n in names}
             starts = [{}]
             for _ in range(args.component_search_starts):
                 starts.append({n: float(rng.uniform(v - one_bond, v + one_bond) if abs(v) >= 50.0
                                         else rng.uniform(lo_box, hi_box)) for n, v in current.items()})
-            _CS_TASK = (joint, s, (lo, hi), names, rates, prob.lower, prob.upper, args.component_search_nfev, z)
+            _CS_TASK = (joint, s, (lo, hi), names, rates, prob.lower, prob.upper, args.component_search_nfev, z,
+                        bool(getattr(args, "component_search_hold_gains", False)))
             if args.workers > 1:
                 import multiprocessing
                 with multiprocessing.get_context("fork").Pool(args.workers) as pool:
@@ -932,7 +1296,8 @@ def _solve_start(z):
                 lo_h[blk] = z[blk] - 1e-9
                 hi_h[blk] = z[blk] + 1e-9
         z = least_squares(joint.residual, np.clip(z, lo_h, hi_h), jac=joint.jacobian, bounds=(lo_h, hi_h),
-                          x_scale="jac", max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10).x
+                          x_scale="jac", max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                          callback=joint.stop_at_precision()).x
         z = np.clip(z, lower + 1e-9, upper - 1e-9)
     if scan:
         joint.trace_label = "coordinate scan"
@@ -941,14 +1306,274 @@ def _solve_start(z):
         joint.set_smoothing(sigma)
         joint.trace_label = f"smoothing {sigma:g} Hz" if sigma else "fit"
         sol = least_squares(joint.residual, z, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
-                            max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+                            max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10, callback=joint.stop_at_precision())
         z = sol.x
     if tracing:
         return float(2 * sol.cost), sol.x, joint.trace
     return float(2 * sol.cost), sol.x
 
 
+FAMILY_MODES = {"auto", "peaks", "lines"}       # --family-edges keywords, combinable with '+'
+
+
 def build_problem(args):
+    """The fit problem of the command line. --family-edges auto: the problem is first built with one rate family,
+    the edges are read from its start vector (auto_family_edges: line clusters and sharp data lines), and the
+    problem is rebuilt with them (args.family_edges then holds the edges used)."""
+    if getattr(args, "one_bond_from_data", False) and not getattr(args, "_one_bond_done", False):
+        import copy
+        first = copy.copy(args)
+        first.one_bond_from_data, first.family_edges, first.field_sigma = False, "", False
+        p = _build_problem(first)
+        found = one_bond_from_bands(p.joint, p.z0, json.loads(args.structure), scan_hz=args.one_bond_scan)
+        spec = json.loads(args.structure)
+        if isinstance(spec, dict) and "spin_system" not in spec and found:
+            for site, (j0, j1, margin, cands, _) in found.items():
+                note = "" if margin >= 0.1 else "  (ambiguous: another 1J matches about as well)"
+                print(f"--one-bond-from-data: {site}: 1J start {j0:.2f} -> scan {j1:.2f} Hz, margin {margin:.2f}, "
+                      f"candidates {', '.join(f'{c:.2f}' for c in cands)}{note}", flush=True)
+            best = one_bond_probe(p.joint, p.z0, found, bounds=(p.lower, p.upper))
+            spec.setdefault("one_bond", {})
+            for site, j in best.items():
+                spec["one_bond"][site] = round(j, 2)
+            args.structure = json.dumps(spec)
+        args._one_bond_done = True
+    mode = str(getattr(args, "family_edges", "")).strip().lower()
+    parts = set(mode.split("+"))
+    if mode and parts <= FAMILY_MODES:
+        import copy
+        first = copy.copy(args)
+        first.family_edges = ""
+        p = _build_problem(first)
+        edges, notes = [], []
+        if "auto" in parts:
+            auto, lines, sharp = auto_family_edges(p.joint, p.z0)
+            edges += list(auto)
+            notes.append(f"{len(auto)} from {len(lines)} model lines and {len(sharp)} sharp data peaks")
+        if "peaks" in parts:
+            pe, peaks = peak_family_edges(p.joint, k_sigma=getattr(args, "peak_family_sigma", 4.0))
+            edges += list(pe)
+            notes.append(f"{len(pe)} between {len(peaks)} data peaks")
+        if "lines" in parts:
+            le, groups = line_family_edges(p.joint, p.z0, min_relative=getattr(args, "line_min_relative", 0.05),
+                                           min_distance_hz=getattr(args, "line_min_distance", 0.25),
+                                           max_span_hz=getattr(args, "line_group_span", 0.0))
+            edges += list(le)
+            notes.append(f"{len(le)} between {len(groups)} model lines (or unresolved groups)")
+        merged = []
+        for e in sorted(edges):
+            if not merged or e - merged[-1] > getattr(args, "edge_merge", 0.3):
+                merged.append(e)
+        args.family_edges = ",".join(f"{e:.3f}" for e in merged)
+        print(f"--family-edges {mode}: {len(merged)} edges ({'; '.join(notes)}): {args.family_edges}", flush=True)
+    if getattr(args, "field_sigma", False) and not getattr(args, "field_sigma_slopes", ""):
+        import copy
+        first = copy.copy(args)
+        first.field_sigma = False
+        p = _build_problem(first)
+        slopes = field_sigma_slopes(p.joint, p.z0)
+        args.field_sigma_slopes = json.dumps([[round(v, 6) for v in row] for row in slopes])
+        print(f"--field-sigma: |dnu/dB| per rate family (Hz/nT): {args.field_sigma_slopes}", flush=True)
+    return _build_problem(args)
+
+
+def scan_one_bond(freqs, amps, slopes, f, ymag, scan_hz=12.0, step_hz=0.05, width_hz=0.4):
+    """Best shift of a one-bond coupling from the observed band (--one-bond-from-data). The lines of one
+    isotopologue at the start 1J (frequencies, |amplitudes|, df/d1J) move as f_k + slope_k dJ; for every dJ in
+    [-scan_hz, scan_hz] their Lorentzian magnitude profile (half width width_hz) is correlated with the observed
+    magnitude ymag on the grid f (window around the band, median removed); returns (dJ, margin, scores) with
+    margin = (best - best alternative more than 1.5 Hz away) / best: near 0 when two positions match about equally."""
+    freqs, amps, slopes = (np.asarray(v, float) for v in (freqs, amps, slopes))
+    f, ymag = np.asarray(f, float), np.asarray(ymag, float)
+    reach = scan_hz * float(np.max(np.abs(slopes))) + 4 * width_hz + 2.0
+    win = (f >= freqs.min() - reach) & (f <= freqs.max() + reach)
+    fw, yw = f[win], ymag[win] - np.median(ymag[win])
+    shifts = np.arange(-scan_hz, scan_hz + step_hz / 2, step_hz)
+    scores = np.empty(len(shifts))
+    for i, dj in enumerate(shifts):
+        pos = freqs + slopes * dj
+        m = (amps[None, :] * width_hz / (width_hz ** 2 + (fw[:, None] - pos[None, :]) ** 2)).sum(axis=1)
+        scores[i] = float(yw @ m) / (float(np.linalg.norm(m)) or 1.0)
+    best = int(np.argmax(scores))
+    away = np.abs(shifts - shifts[best]) > 1.5
+    alt = float(scores[away].max()) if away.any() else 0.0
+    margin = (float(scores[best]) - alt) / abs(float(scores[best])) if scores[best] > 0 else 0.0
+    return float(shifts[best]), margin, scores
+
+
+def scan_candidates(scores, scan_hz=12.0, step_hz=0.05, k=4, separation_hz=1.5, floor=0.25):
+    """Shifts of the k best local maxima of a scan_one_bond score curve, at least separation_hz apart and above
+    floor x the best score (candidates for the joint probe of --one-bond-from-data)."""
+    scores = np.asarray(scores, float)
+    shifts = np.arange(-scan_hz, scan_hz + step_hz / 2, step_hz)[:len(scores)]
+    peaks = [i for i in range(len(scores)) if (i == 0 or scores[i] >= scores[i - 1]) and
+             (i == len(scores) - 1 or scores[i] >= scores[i + 1])]
+    peaks.sort(key=lambda i: -scores[i])
+    out = []
+    for i in peaks:
+        if scores[i] < floor * scores[peaks[0]]:
+            break
+        if all(abs(shifts[i] - v) >= separation_hz for v in out):
+            out.append(float(shifts[i]))
+        if len(out) == k:
+            break
+    return out
+
+
+def one_bond_from_bands(joint, z, spec, s=0, scan_hz=12.0, min_relative=0.05):
+    """1J starts of every protonated 13C site from the observed bands (D64): for each component labelled
+    13C@<site> the lines inside the fit band with their df/d1J (physics.lines.line_table, Hellmann-Feynman) at the
+    start structure, scanned against the smoothed observed magnitude (scan_one_bond). Returns
+    {site: (start 1J, new 1J, margin, candidate 1J values, solver parameter names of the site's 1J)}; sites whose
+    1J key is not a coupling of the model are skipped."""
+    import re
+    from scipy.ndimage import gaussian_filter1d
+    from zulf_core.physics.lines import line_table
+    f = joint.forwards[s]
+    P = joint.params[s]
+    values = P.values(joint.spectrum_vector(z, s))
+    fq = np.asarray(f.f, float)
+    step = float(np.median(np.diff(fq)))
+    ymag = gaussian_filter1d(np.abs(np.asarray(f.y)), 0.15 / step)
+    model = joint.model
+    out = {}
+    for c, (label, system) in enumerate(zip(model.component_labels, P.systems(values))):
+        m = re.match(r"13C@([A-Za-z]+\d*)", label)
+        if not m:
+            continue
+        site = m.group(1)
+        keys = [f"J({site},H{site})"]
+        frag = getattr(model, "fragment", None)
+        if frag is not None:                   # motifs name proton groups freely (H1, HX, ...): the groups on the site
+            keys += [f"J({site},{g.label})" for g in frag.protons if g.site == site]
+        names = [n for key in keys for n in model.coupling_names.get(key, []) if P.parameters[n].component == c]
+        if not names:
+            continue
+        pair = tuple(P.parameters[names[0]].detail)
+        j0 = float(values[names[0]])
+        lines = line_table(system, {pair: "1J"}, f.protocol_for(values), band_hz=(float(fq.min()), float(fq.max())),
+                           min_relative_amplitude=min_relative)
+        lines = [ln for ln in lines if ln.df_dj.get("1J", 0.0) > 0.3]      # the lines the one-bond coupling places
+        if not lines:
+            continue
+        dj, margin, scores = scan_one_bond([ln.frequency_hz for ln in lines], [abs(ln.amplitude) for ln in lines],
+                                           [ln.df_dj["1J"] for ln in lines], fq, ymag, scan_hz=scan_hz)
+        cands = [j0 + v for v in scan_candidates(scores, scan_hz=scan_hz)]
+        all_names = [n for key in keys for n in model.coupling_names.get(key, [])]
+        if site not in out:                    # symmetric sites (x2) share one start
+            out[site] = (j0, j0 + dj, margin, cands, all_names)
+    return out
+
+
+def one_bond_probe(joint, z, found, max_combinations=64, bounds=None, short_fits=8, short_nfev=15):
+    """Joint probe of the 1J candidates of all sites (D64): every combination of the sites' candidates is written
+    into the start vector and scored by the fit's objective there (linear gains solved). With bounds, the best
+    combinations (the four best and, for every candidate of every site, the best combination that contains it; at
+    most short_fits) are then refined by a short least-squares run (short_nfev evaluations, every parameter free)
+    and ranked by the refined objective, because at the start the other couplings and rates are not yet adapted.
+    Returns the sites' 1J of the best combination. Overlapping bands of different sites (one site's scan locked on
+    another site's strong line) are resolved here: one line cannot serve two sites in the full model."""
+    import itertools
+    sites = list(found)
+    cands = [found[site][3] or [found[site][1]] for site in sites]
+    while np.prod([len(c) for c in cands]) > max_combinations:
+        longest = int(np.argmax([len(c) for c in cands]))
+        cands[longest] = cands[longest][:-1]
+    blocks = {}
+    for site in sites:
+        idx = [joint.coupling.index(n) for n in found[site][4] if n in joint.coupling]
+        blocks[site] = idx
+    results = []
+    for combo in itertools.product(*cands):
+        zz = np.array(z, float).copy()
+        for site, j in zip(sites, combo):
+            for k in blocks[site]:
+                zz[k * joint.m:(k + 1) * joint.m] = j
+        r = joint.residual(zz)
+        results.append((float(r @ r), dict(zip(sites, combo))))
+    results.sort(key=lambda t: t[0])
+    if len(results) > 1:
+        top = "; ".join(f"{cost:.4g}: " + ", ".join(f"{k} {v:.2f}" for k, v in combo.items())
+                        for cost, combo in results[:3])
+        print(f"--one-bond-from-data: joint probe of {len(results)} combinations at the start, best: {top}",
+              flush=True)
+    if bounds is None or len(results) == 1:
+        return results[0][1]
+    chosen = results[:4]
+    for site, cl in zip(sites, cands):
+        for c in cl:
+            first = next(r for r in results if r[1][site] == c)
+            if first not in chosen:
+                chosen.append(first)
+    chosen = chosen[:max(short_fits, 4)]
+    lower, upper = bounds
+    refined = []
+    for cost0, combo in chosen:
+        zz = np.array(z, float).copy()
+        for site, j in combo.items():
+            for k in blocks[site]:
+                zz[k * joint.m:(k + 1) * joint.m] = j
+        zz = np.clip(zz, lower + 1e-9 * (upper - lower), upper - 1e-9 * (upper - lower))
+        sol = least_squares(joint.residual, zz, jac=joint.jacobian, bounds=(lower, upper), x_scale="jac",
+                            max_nfev=short_nfev)
+        refined.append((float(2 * sol.cost), cost0, combo))
+    refined.sort(key=lambda t: t[0])
+    for cost, cost0, combo in refined:
+        print(f"--one-bond-from-data: short fit from " + ", ".join(f"{k} {v:.2f}" for k, v in combo.items())
+              + f": objective {cost0:.4g} -> {cost:.4g}", flush=True)
+    return refined[0][2]
+
+
+def field_sigma_slopes(joint, z, s=0, eps=1e-3):
+    """|dnu/dB| (Hz/nT) of every rate family of every component at the start vector z (D63): the transitions of each
+    component at the fitted field and at its magnitude scaled by 1 + eps (direction fixed), matched by frequency;
+    per family the amplitude-weighted mean of |dnu/dB| over its lines (0 for families without lines)."""
+    f = joint.forwards[s]
+    P = joint.params[s]
+    values = P.values(joint.spectrum_vector(z, s))
+    field = np.asarray(P.field_ut(values) or (0.0, 0.0, 0.0), float)
+    bnt = 1e3 * float(np.linalg.norm(field))
+    if bnt <= 0:
+        raise SystemExit("--field-sigma needs a nonzero field (--fit-field or --field)")
+    edges = np.asarray(P.policy.family_edges_hz, float)
+    n_fam = len(edges) + 1
+    out = []
+    for c, system in enumerate(P.systems(values)):
+        tl0 = f.cache.get(system, f.protocol_for(values))
+        tl1 = f.cache.get(system, f.protocol_for(values).with_field(tuple(field * (1 + eps))))
+        f0, a0, f1 = np.asarray(tl0.frequencies_hz), np.abs(np.asarray(tl0.amplitudes)), np.asarray(tl1.frequencies_hz)
+        slope = np.array([abs(f1[np.argmin(np.abs(f1 - v))] - v) / (eps * bnt) for v in f0]) if len(f1) else np.zeros(0)
+        fam = np.searchsorted(edges, f0, side="right") if len(edges) else np.zeros(len(f0), int)
+        row = []
+        for k in range(n_fam):
+            m = fam == k
+            row.append(float(np.sum(a0[m] * slope[m]) / np.sum(a0[m])) if m.any() and np.sum(a0[m]) > 0 else 0.0)
+        out.append(row)
+    return out
+
+
+def peak_family_edges(joint, s=0, smooth_hz=0.15, k_sigma=4.0, min_distance_hz=0.5):
+    """Edges for --family-edges peaks: one decay-rate family per data peak (owner 2026-10-08). The peaks of the
+    smoothed magnitude of spectrum s (Gaussian smooth_hz) higher than the noise floor plus k_sigma noise levels,
+    with a prominence of at least 2 noise levels, at least min_distance_hz apart (noise: robust spread on the
+    points without data lines), edges at the midpoints between neighbouring peaks. Returns (edges, peaks)."""
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.signal import find_peaks
+    f = joint.forwards[s]
+    fq, y = np.asarray(f.f, float), np.asarray(f.y)
+    step = float(np.median(np.diff(fq)))
+    m = gaussian_filter1d(np.abs(y), smooth_hz / step)
+    quiet = ~f.data_signal_mask if f.data_signal_mask is not None else np.ones(len(fq), bool)
+    q = m[quiet] if quiet.sum() > 10 else m
+    sigma = 1.4826 * float(np.median(np.abs(q - np.median(q))))         # robust: broad humps do not count
+    # tall above the noise floor, and a peak of its own (a line on the tail of a neighbour has a small prominence)
+    idx, _ = find_peaks(m, height=float(np.median(q)) + k_sigma * sigma, prominence=2.0 * sigma,
+                        distance=max(int(min_distance_hz / step), 1))
+    peaks = fq[idx]
+    return [0.5 * (a + b) for a, b in zip(peaks[:-1], peaks[1:])], peaks
+
+
+def _build_problem(args):
     """The fitting problem of a command line: observations, model, JointSeries (weights, priors, missing-peak
     rows), the start vector z0 and the bounds. Shared by main and scripts/j_tuner.py."""
     import regression_confirmed as reg
@@ -978,6 +1603,13 @@ def build_problem(args):
         model = _combined_model(spec, args, lo, hi)
         fragment, fixed_keys = model.fragment, []
         return _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_keys)
+    if "spin_system" in spec:                       # isotopes and a J matrix typed in (PLAN 8d)
+        if getattr(args, "free_couplings", ""):
+            raise SystemExit("--free-couplings applies to structures; give fixed couplings of a spin system as "
+                             "numbers and free ones as variables")
+        from zulf_hypothesis.spin_system import spin_system_model
+        model = spin_system_model(spec, json.loads(args.couplings))
+        return _finish_problem(args, series, left_out, lo, hi, obs, model, None, [])
     spec.setdefault("compound", "series")
     overrides = json.loads(args.couplings)
     fixed_keys = []
@@ -1026,6 +1658,10 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         base = dataclasses.replace(base, signal_taper_hz=args.signal_taper)
     if getattr(args, "signal_height_power", 0.0):
         base = dataclasses.replace(base, signal_height_power=args.signal_height_power)
+    if getattr(args, "background_order", None) is not None:
+        base = dataclasses.replace(base, background_order=args.background_order)
+    if getattr(args, "band_weighting", None):
+        base = dataclasses.replace(base, band_weighting=args.band_weighting)
     base = _rate_policy(base, args)
     settings = _settings_for(model, args.variant, base)
     exchange = None
@@ -1038,7 +1674,8 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         exchange = {"labels": labels, "start": args.nh_exchange, "bounds": (lo_k, hi_k)}
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
                         shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape,
-                        exchange=exchange, fixed=fixed_keys)
+                        exchange=exchange, fixed=fixed_keys, tie_rates=getattr(args, "tie_rates", ""))
+    joint.precision_hz = float(getattr(args, "precision", 0.01))
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
         raise SystemExit(f"--shared: not a spectrum parameter of this model: {missing} (have {joint.local})")
@@ -1083,9 +1720,13 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         table = np.array([[previous["couplings"][key_of[n]]["J_at_x"][s] if key_of[n] in previous["couplings"]
                            else table[i, k] for k, n in enumerate(joint.coupling)] for i, s in enumerate(rows)])
     if args.from_joint:
-        # decay rates and delays of spectra already in the previous fit (same id)
+        # decay rates and delays of spectra already in the previous fit (same id); rates remapped when the
+        # previous fit used other family edges (recorded in fit.json since 2026-10-06)
+        edges_now = joint.params[0].policy.family_edges_hz
         for e, x in zip(series, xs0):
-            for n, v in previous.get("spectrum_parameters", {}).get(e["id"], {}).items():
+            spectrum = remap_family_rates(previous.get("spectrum_parameters", {}).get(e["id"], {}),
+                                          previous.get("family_edges_hz"), edges_now)
+            for n, v in spectrum.items():
                 if n in joint.col:
                     x[joint.col[n]] = v
     z0 = joint.pack(table, xs0)
@@ -1102,6 +1743,21 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
     joint.set_priors(ks, mean, sigma, args.prior_weight)
     joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance, min_sigma=args.peak_min_sigma,
                            smooth=args.peak_smooth, dips=args.dip_penalty, max_width_hz=args.peak_max_width or None)
+    grids = []
+    for e in series:
+        if "fid" in e:
+            import regression_confirmed as reg
+            config = json.load(open(ROOT / "configs" / "confirmed_samples.json"))["processing"]
+            o_full = reg.observed_for({"file": Path(e["fid"]).name}, config, str(Path(e["fid"]).parent))
+            grids.append((o_full.frequencies_hz, o_full.values))
+        else:
+            grids.append((np.load(e["freq"]).astype(float), _values(e, args.real_only)))
+    joint.set_guard_penalty(args.guard_penalty, args.guard_sigma, args.guard_margin, args.guard_bin,
+                            tuple(float(v) for v in args.guard_range.split(",")) if args.guard_range else None,
+                            grids=grids)
+    if joint.guard is not None:
+        print("guard rows: " + ", ".join(f"{len(g['groups'])} bins over {len(g['f'])} points" for g in joint.guard),
+              flush=True)
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     return SimpleNamespace(series=series, left_out=left_out, lo=lo, hi=hi, obs=obs, model=model,
@@ -1136,8 +1792,33 @@ def make_parser():
                     help="peak-core threshold of the signal weighting in noise sigma (default: fit base, 4)")
     ap.add_argument("--signal-taper", type=float, default=0.0,
                     help="Gaussian fall-off (Hz) of the weight around peak cores (default: fit base, 2 Hz)")
+    ap.add_argument("--line-min-distance", type=float, default=0.25,
+                    help="--family-edges lines: lines closer than this (Hz) share a rate family")
+    ap.add_argument("--line-min-relative", type=float, default=0.05,
+                    help="--family-edges lines: lines weaker than this share of their component's strongest line get "
+                         "no family edge of their own")
+    ap.add_argument("--edge-merge", type=float, default=0.3,
+                    help="family edges closer than this (Hz) are merged into one")
+    ap.add_argument("--line-group-span", type=float, default=0.0,
+                    help="--family-edges lines: largest span (Hz) of one group of unresolved lines (0: no limit, "
+                         "groups chain through dense multiplets)")
+    ap.add_argument("--band-weighting", default=None, choices=["signal", "equal", "none"],
+                    help="residual weighting (default signal: noise-scaled, weight 1 at the data and model cores and "
+                         "0.2 far from them; equal: one weight per band). With low SNR, signal weighting lets model "
+                         "lines sit where the data have none at little cost (diethylamine, 2026-10-12)")
+    ap.add_argument("--background-order", type=int, default=None,
+                    help="per-band complex polynomial background (default 1, linear; -1 off). It is smooth in the "
+                         "record's frame, so with crop + delay c it shows as a ripple of period 1/c in the spectrum "
+                         "(glycerol, 2026-10-11: 10 Hz ripples not in the data)")
     ap.add_argument("--signal-height-power", type=float, default=0.0,
                     help="extra weight (local peak height / max)^-power: small peaks count more (0 = off)")
+    ap.add_argument("--guard-penalty", type=float, default=5.0,
+                    help="guard rows (D57): strength against model peaks where the data have no line, outside the "
+                         "fit ranges and in the empty parts of the grid (0 = off)")
+    ap.add_argument("--guard-sigma", type=float, default=3.0, help="guard: model envelope allowed up to this many noise sigma")
+    ap.add_argument("--guard-margin", type=float, default=2.0, help="guard: Hz kept free around data lines and fitted lines")
+    ap.add_argument("--guard-bin", type=float, default=1.0, help="guard: one row per bin of this width (Hz)")
+    ap.add_argument("--guard-range", default="", help="guard: lo,hi (Hz); default the whole processed grid")
     ap.add_argument("--peak-penalty", type=float, default=0.0,
                     help="missing-peak rows: strength per data peak top whose model stays below the data (0 = off)")
     ap.add_argument("--peak-prominence", type=float, default=0.12,
@@ -1152,10 +1833,42 @@ def make_parser():
     ap.add_argument("--peak-smooth", type=float, default=0.0,
                     help="optimise with smooth missing-peak rows (width = this fraction of each peak's height); "
                          "solutions are then rescored and ranked with the hard rows")
+    ap.add_argument("--peak-family-sigma", type=float, default=4.0,
+                    help="--family-edges peaks: a data peak needs this many noise levels above the noise floor")
     ap.add_argument("--family-edges", default="", help="comma-separated transition frequencies (Hz) splitting "
-                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue)")
+                    "every isotopologue's lines into decay-rate families (default: one rate per isotopologue), "
+                    "'auto': edges from the start vector's line clusters and the sharp data lines (auto_family_edges), "
+                    "'peaks': one family per data peak (edges midway between neighbouring data peaks, "
+                    "peak_family_edges), 'lines': one family per model line of the start vector (line_family_edges), "
+                    "or a combination with '+', e.g. 'peaks+lines'")
     ap.add_argument("--phase-delay-bounds", default="", help="lo,hi of the fitted delay in ms (instrument prior)")
     ap.add_argument("--rate-bounds", default="", help="lo,hi decay-rate bounds in 1/s (default: the policy's)")
+    ap.add_argument("--fit-sigma", action="store_true",
+                    help="Voigt lines: fit one Gaussian width per isotopologue (Hz) on top of the Lorentzian rates")
+    ap.add_argument("--sigma-bounds", default="0.001,2", help="lo,hi of the Gaussian width (Hz, standard deviation)")
+    ap.add_argument("--sigma-start", type=float, default=0.1, help="start of the Gaussian width (Hz)")
+    ap.add_argument("--one-bond-from-data", action="store_true",
+                    help="read the 1J start of every protonated 13C site from the observed band (D64): its lines are "
+                         "moved with df/d1J over +-scan Hz and matched to the magnitude spectrum")
+    ap.add_argument("--one-bond-scan", type=float, default=12.0, help="half range of the 1J scan (Hz)")
+    ap.add_argument("--field-sigma", action="store_true",
+                    help="field-distribution line shapes (D63): Gaussian width of each rate family = its |dnu/dB| "
+                         "(computed at the start field) x one fitted field spread sigma_B (nT); needs a field")
+    ap.add_argument("--field-sigma-bounds", default="0,200", help="lo,hi of sigma_B (nT)")
+    ap.add_argument("--field-sigma-start", type=float, default=5.0, help="start of sigma_B (nT)")
+    ap.add_argument("--field-sigma-slopes", default="", help=argparse.SUPPRESS)
+    ap.add_argument("--fit-field", action="store_true",
+                    help="fit a static field during evolution (D47); default: zero field")
+    ap.add_argument("--field-axes", default="transverse,z", help="fitted field components: transverse and/or z")
+    ap.add_argument("--field-bounds", default="0,1", help="lo,hi of each fitted field component (uT)")
+    ap.add_argument("--field-start", default="0.02,0.02", help="start transverse,z (uT); not 0 (zero gradient there)")
+    ap.add_argument("--precision", type=float, default=0.01,
+                    help="coupling precision in Hz at which a fit stops (default 0.01; e.g. 0.001 for finer fits; "
+                         "0: run to the tolerances or --max-nfev as before D55). Also sets the reported decimals")
+    ap.add_argument("--field", default="", help="known static field transverse,z (uT), held fixed (D53)")
+    ap.add_argument("--fit-gamma", default="", help="nuclei whose gamma is fitted, e.g. 13C (needs --field; D53)")
+    ap.add_argument("--gamma-start", default="", help="start gamma / 2 pi per --fit-gamma nucleus (Hz/uT)")
+    ap.add_argument("--gamma-bounds", default="-50,50", help="lo,hi of fitted gamma / 2 pi (Hz/uT)")
     ap.add_argument("--exchange", default="slow", choices=["slow", "fast"],
                     help="N-H / O-H protons: slow (default, kept in the spin system) or fast (dropped: decoupled)")
     ap.add_argument("--nh-exchange", type=float, default=0.0,
@@ -1168,6 +1881,9 @@ def make_parser():
                          "the first centre), 'end' searches from the best solution and refits globally if it wins")
     ap.add_argument("--component-search-starts", type=int, default=30, help="random starts per window")
     ap.add_argument("--component-search-nfev", type=int, default=30, help="max_nfev of each window fit")
+    ap.add_argument("--component-search-hold-gains", action="store_true",
+                    help="window fits keep gains, phase and background at the global solution (cost = the window "
+                         "part of the whole objective) instead of solving them on the window")
     ap.add_argument("--component-search-keep", type=int, default=6, help="distinct window solutions scored")
     ap.add_argument("--component-search-box", default="-8,13,7",
                     help="small couplings uniform in lo,hi; one-bond couplings current +- the third value (Hz)")
@@ -1205,6 +1921,8 @@ def make_parser():
     ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
                     "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
     ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
+    ap.add_argument("--tie-rates", default="", help="regex on component labels (e.g. '^P2:'): every rate family of "
+                    "a matching component shares one decay rate (its family 0)")
     ap.add_argument("--model-line-passes", type=int, default=0,
                     help="after the fit: refits with the best model's own lines (envelope above "
                          "--model-line-threshold noise sigma) added to the signal-weighting cores, so model lines "
@@ -1267,6 +1985,11 @@ def main():
     from run_log import RunLog
     run_log = RunLog(Path(args.out), "fit_joint_series")
     prob = build_problem(args)
+    if "--family-edges" in sys.argv[:-1]:                 # record the edges actually used (auto -> numbers)
+        i = sys.argv.index("--family-edges")
+        if set(sys.argv[i + 1].strip().lower().split("+")) <= FAMILY_MODES:
+            sys.argv[i + 1] = args.family_edges
+            run_log.argv = list(sys.argv)
     series, left_out, lo, hi, obs, model = prob.series, prob.left_out, prob.lo, prob.hi, prob.obs, prob.model
     settings, joint, key_of, centre, xs0, z0 = (prob.settings, prob.joint, prob.key_of, prob.centre, prob.xs0,
                                                 prob.z0)
@@ -1423,8 +2146,14 @@ def main():
               "free (J at every concentration independent)", "x": joint.nodes.tolist(),
               "spectra": [{"id": e["id"], "x": e["x"]} for e in series],
               "start_solutions": start_tables,
+              "z_final": [float(v) for v in z],         # full parameter vector (Studio draws the exact model)
               "signal_threshold": settings.signal_threshold, "signal_taper_hz": settings.signal_taper_hz,
               "signal_height_power": settings.signal_height_power,
+              "structure": json.loads(args.structure), "exchange": args.exchange,
+              "guard_penalty": {"strength": args.guard_penalty, "k_sigma": args.guard_sigma,
+                                "margin_hz": args.guard_margin, "bin_hz": args.guard_bin,
+                                "range": args.guard_range or None,
+                                "bins": [len(g["groups"]) for g in joint.guard] if joint.guard else []},
               "peak_penalty": {"strength": args.peak_penalty, "prominence": args.peak_prominence,
                                "tolerance_hz": args.peak_tolerance, "min_sigma": args.peak_min_sigma,
                                "tops": [len(t) for t in joint.peaks] if joint.peaks else [],
@@ -1434,7 +2163,11 @@ def main():
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
-              "component_search": component_record, "model_line_passes": model_line_record}
+              "component_search": component_record, "model_line_passes": model_line_record,
+              "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz],
+              "reduced_coupling_unit": "1e19 N A^-2 m^-3", "precision_hz": joint.precision_hz}
+    from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling
+    p0 = joint.params[0]
     for k, n in enumerate(joint.coupling):
         block = slice(k * joint.m, (k + 1) * joint.m)
         values = joint.coupling_values(z, k)
@@ -1446,6 +2179,11 @@ def main():
                          ("increasing" if z[block][1] > 0 else "decreasing"),
             "change_hz": float(values[-1] - values[0]) if joint.shape == "free" else float(z[block][1]),
             "prior_centre": centre[n] if abs(centre[n]) < 50 else None}
+        prm = p0.parameters[n]                       # the coupling's two nuclei, for K = 4 pi^2 J / (h gamma gamma)
+        nuclei = [p0.layouts[prm.component].group_nuclei[g] for g in prm.detail]
+        result["couplings"][key_of.get(n, n)].update({
+            "nuclei": nuclei,
+            "K_at_x": [reduced_coupling(v, *nuclei) / REDUCED_COUPLING_UNIT for v in values]})
     if left_out is not None:
         result["left_out"] = {"id": left_out["id"], "x": left_out["x"],
                               **predict_left_out(joint, z, left_out, (lo, hi), key_of, settings, real_only=args.real_only)}
@@ -1455,14 +2193,30 @@ def main():
                                                        **{n: float(z[joint.nt + si * joint.nl + i])
                                                           for i, n in enumerate(joint.local)}}
                                      for si in range(joint.ns)}
+    from zulf_core.nuclei import get_registry, nearest_nuclei
+    gamma_fit = {}                                   # fitted gyromagnetic ratios and the nuclei they point to (D53)
+    for sid, sp in result["spectrum_parameters"].items():
+        for name, value in sp.items():
+            if name.startswith("gamma_"):
+                spin = get_registry().spin(name[len("gamma_"):])      # candidates of the model nucleus's spin
+                gamma_fit.setdefault(sid, {})[name[len("gamma_"):]] = {
+                    "fitted_hz_per_ut": value,
+                    "nearest": [{"nucleus": s, "gamma_hz_per_ut": g, "relative_difference": d}
+                                for s, g, d in nearest_nuclei(value, spin=spin)[:3]]}
+    if gamma_fit:
+        result["gamma_identification"] = gamma_fit
     json.dump(result, open(out / "fit.json", "w"), indent=1)
     with open(out / "J_table.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["coupling", "direction"] + [f"J at x={x:.3f} (Hz)" for x in joint.nodes] +
-                   [f"std at x={x:.3f} (Hz)" for x in joint.nodes] + ["prior centre (Hz)"])
+                   [f"std at x={x:.3f} (Hz)" for x in joint.nodes] + ["prior centre (Hz)", "nuclei"] +
+                   [f"K at x={x:.3f} (1e19 N A-2 m-3)" for x in joint.nodes])
+        from zulf_core.solver.convergence import decimals_for
+        nd = decimals_for(joint.precision_hz)
         for key, c in result["couplings"].items():
-            w.writerow([key, c["direction"]] + [round(v, 3) for v in c["J_at_x"]] +
-                       [round(v, 3) for v in c["J_std_at_x"]] + [c["prior_centre"]])
+            w.writerow([key, c["direction"]] + [round(v, nd) for v in c["J_at_x"]] +
+                       [round(v, nd) for v in c["J_std_at_x"]] + [c["prior_centre"], "-".join(c["nuclei"])] +
+                       [round(v, 4) for v in c["K_at_x"]])
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -1491,12 +2245,16 @@ def main():
             y = o.values
             if o.real_only:
                 pred, y = pred.real, y.real
-            else:                              # complex data (unphased): compare magnitudes in the figure
-                pred, y = np.abs(pred), np.abs(y)
-            m = np.abs(y).max()
-            ax.plot(o.frequencies_hz, y / m, color="#222222", lw=0.8, label="experiment")
-            ax.plot(o.frequencies_hz, pred / m, color="#d1495b", lw=0.9, label="simulation")
-            ax.plot(o.frequencies_hz, (y - pred) / m - 0.35, color="#999999", lw=0.6, label="residual")
+            else:                              # complex data: real part after the model's overall phase, so data
+                rot = np.exp(-1j * np.angle(np.sum(pred * np.abs(pred))))   # and model are shown absorptive
+                pred, y = (pred * rot).real, (y * rot).real
+            fq = np.asarray(o.frequencies_hz, float)
+            gap = np.r_[False, np.diff(fq) > 3 * np.median(np.diff(fq))]   # no lines across unfitted gaps
+            fq, y, pred = (np.insert(v.astype(float), np.flatnonzero(gap), np.nan) for v in (fq, y, pred))
+            m = np.nanmax(np.abs(y))
+            ax.plot(fq, y / m, color="#222222", lw=0.8, label="experiment")
+            ax.plot(fq, pred / m, color="#d1495b", lw=0.9, label="simulation")
+            ax.plot(fq, (y - pred) / m - 0.6, color="#999999", lw=0.6, label="residual")
             ax.set_title(f"{series[s]['id']} (x = {joint.xs[s]:.2f}): relative residual "
                          f"{result['data_region_residuals'][series[s]['id']]:.3f}", fontsize=9, loc="left")
             ax.set_yticks([])
