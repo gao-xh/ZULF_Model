@@ -1201,3 +1201,7 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   (absorption) only; the refit afterwards uses the fit's complex objective. The local step adds the whole objective
   (--residual-refine-anchor 1) so the rest of the spectrum is held (sec-butylamine: without it the objective rose
   0.064 -> 0.24 after the first step).
+- Amendment (2026-10-15, owner): only residual peaks at a spectral line count (at_a_line): inside the data's line
+  cores and with a model line of at least --residual-refine-min-line (0.1) of its component's strongest within
+  0.8 Hz. sec-butylamine: 20.58 / 41.58 / 60.58 / 34.83 Hz (range edge, mains) and 81.0 / 88.25 / 139.25 Hz are left
+  out; the J-band peaks 120.7-131.8 Hz remain.

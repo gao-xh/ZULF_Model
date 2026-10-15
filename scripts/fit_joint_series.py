@@ -1659,11 +1659,24 @@ def plain_residual_peaks(joint, z, k_sigma=4.0, max_width_hz=1.5, smooth_hz=0.05
     return sorted(out, reverse=True)
 
 
+def at_a_line(joint, z, s, frequency_hz, min_relative=0.1, assign_hz=0.8):
+    """A residual peak counts only at a spectral line (owner, 2026-10-15): inside the data's line cores, and with a
+    model line of at least min_relative of its component's strongest line within assign_hz. Edges of the fit range,
+    mains and instrument lines are left out."""
+    f = joint.forwards[s]
+    fq = np.asarray(f.f, float)
+    i = int(np.argmin(np.abs(fq - frequency_hz)))
+    if f.data_signal_mask is not None and not bool(f.data_signal_mask[i]):
+        return False
+    lines = joint.peak_sources(z, s, frequency_hz, assign_hz=assign_hz, min_relative_amplitude=min_relative)["lines"]
+    return bool(lines)
+
+
 def residual_refine(joint, z, lower, upper, key_of, args):
     """Peaks of the plain (unweighted) residual, one at a time (D68): the signal-weighted objective counts a
     systematic misfit beside a strong line little, the plain residual shows it. For each peak (plain_residual_peaks)
-    the --residual-refine-couplings couplings (1J included unless --no-residual-refine-one-bond; peaks with no model
-    line within 0.8 Hz are skipped) that move the lines there most (peak_sources, local effect x
+    the --residual-refine-couplings couplings (1J included unless --no-residual-refine-one-bond; only peaks at a
+    spectral line count: at_a_line) that move the lines there most (peak_sources, local effect x
     selectivity) are fitted to the plain residual in a +-window around it (each within +-range of its value, gains
     solved as in the fit), then everything is refit; kept if the plain rms falls and the objective (hard rows) rises
     by at most --residual-refine-tolerance. Each pass tries up to --residual-refine-peaks peaks and ends at the first
@@ -1689,17 +1702,13 @@ def residual_refine(joint, z, lower, upper, key_of, args):
         for pk in peaks:
             if len(assignable) == args.residual_refine_peaks:
                 break
-            if joint.peak_sources(z, pk[1], pk[2], assign_hz=0.8)["lines"]:
+            if at_a_line(joint, z, pk[1], pk[2], args.residual_refine_min_line):
                 assignable.append(pk)
             else:
                 tried.append((pk[1], pk[2]))
         for height, s, fp in assignable:
             tried.append((s, fp))
-            sources = joint.peak_sources(z, s, fp, assign_hz=0.8)
-            if not sources["lines"]:                    # no model line near: instrument line, impurity; not ours
-                tried.append((s, fp))
-                continue
-            src = sources["couplings"]
+            src = joint.peak_sources(z, s, fp, assign_hz=0.8)["couplings"]
             if args.residual_refine_rank == "split":       # spacings inside the feature (small splittings)
                 key = lambda n: -src[n]["local"] * abs(src[n]["split"]) / (abs(src[n]["shift"]) + abs(src[n]["split"]) + 1e-12)
             else:                                           # local effect x selectivity (moves the feature)
@@ -2437,6 +2446,9 @@ def make_parser():
                          "split-type part of the effect (split: changes the spacings inside the feature)")
     ap.add_argument("--residual-refine-one-bond", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the one-bond couplings may be among the couplings of a peak (default on)")
+    ap.add_argument("--residual-refine-min-line", type=float, default=0.1,
+                    help="residual refine: a peak counts only inside the data's line cores and with a model line of at "
+                         "least this share of its component's strongest line within 0.8 Hz")
     ap.add_argument("--residual-refine-rates", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the decay rates of the lines inside the window are free in the local step "
                          "too (default on)")
