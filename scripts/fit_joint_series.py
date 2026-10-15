@@ -1700,8 +1700,11 @@ def residual_refine(joint, z, lower, upper, key_of, args):
                 tried.append((s, fp))
                 continue
             src = sources["couplings"]
-            ranked = sorted((n for n in src if n in small and src[n]["local"] > 0),
-                            key=lambda n: -src[n]["local"] * src[n]["selectivity"])[:args.residual_refine_couplings]
+            if args.residual_refine_rank == "split":       # spacings inside the feature (small splittings)
+                key = lambda n: -src[n]["local"] * abs(src[n]["split"]) / (abs(src[n]["shift"]) + abs(src[n]["split"]) + 1e-12)
+            else:                                           # local effect x selectivity (moves the feature)
+                key = lambda n: -src[n]["local"] * src[n]["selectivity"]
+            ranked = sorted((n for n in src if n in small and src[n]["local"] > 0), key=key)[:args.residual_refine_couplings]
             if not ranked:
                 continue
             idx = np.array([joint.coupling.index(n) * joint.m + (joint.node_of[s] if joint.shape == "free" else 0)
@@ -2407,6 +2410,9 @@ def make_parser():
     ap.add_argument("--residual-refine-nfev", type=int, default=40, help="residual refine: evaluations of each local fit")
     ap.add_argument("--residual-refine-refit-nfev", type=int, default=40,
                     help="residual refine: evaluations of the full refit after each local step (0: --max-nfev)")
+    ap.add_argument("--residual-refine-rank", default="effect", choices=["effect", "split"],
+                    help="residual refine: rank a peak's couplings by local effect x selectivity (effect) or by the "
+                         "split-type part of the effect (split: changes the spacings inside the feature)")
     ap.add_argument("--residual-refine-one-bond", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the one-bond couplings may be among the couplings of a peak (default on)")
     ap.add_argument("--residual-refine-tolerance", type=float, default=0.02,
