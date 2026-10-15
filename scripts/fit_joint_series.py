@@ -1660,14 +1660,17 @@ def plain_residual_peaks(joint, z, k_sigma=4.0, max_width_hz=1.5, smooth_hz=0.05
 
 
 def at_a_line(joint, z, s, frequency_hz, min_relative=0.1, assign_hz=0.8):
-    """A residual peak counts only at a spectral line (owner, 2026-10-15): inside the data's line cores, and with a
-    model line of at least min_relative of its component's strongest line within assign_hz. Edges of the fit range,
-    mains and instrument lines are left out."""
+    """A residual peak counts only in a spectral-line region (owner, 2026-10-15): inside the data's line cores
+    (signal mask). Edges of the fit range, mains and instrument lines outside the cores are left out. With
+    min_relative > 0 a model line of at least that share of its component's strongest line within assign_hz is also
+    required (off by default: the owner asked for the line region, not the line position)."""
     f = joint.forwards[s]
     fq = np.asarray(f.f, float)
     i = int(np.argmin(np.abs(fq - frequency_hz)))
     if f.data_signal_mask is not None and not bool(f.data_signal_mask[i]):
         return False
+    if min_relative <= 0:
+        return True
     lines = joint.peak_sources(z, s, frequency_hz, assign_hz=assign_hz, min_relative_amplitude=min_relative)["lines"]
     return bool(lines)
 
@@ -2446,9 +2449,9 @@ def make_parser():
                          "split-type part of the effect (split: changes the spacings inside the feature)")
     ap.add_argument("--residual-refine-one-bond", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the one-bond couplings may be among the couplings of a peak (default on)")
-    ap.add_argument("--residual-refine-min-line", type=float, default=0.1,
-                    help="residual refine: a peak counts only inside the data's line cores and with a model line of at "
-                         "least this share of its component's strongest line within 0.8 Hz")
+    ap.add_argument("--residual-refine-min-line", type=float, default=0.0,
+                    help="residual refine: a peak counts only inside the data's line cores; above 0, a model line of at "
+                         "least this share of its component's strongest line within 0.8 Hz is also required")
     ap.add_argument("--residual-refine-rates", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the decay rates of the lines inside the window are free in the local step "
                          "too (default on)")

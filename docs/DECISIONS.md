@@ -1205,3 +1205,7 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   cores and with a model line of at least --residual-refine-min-line (0.1) of its component's strongest within
   0.8 Hz. sec-butylamine: 20.58 / 41.58 / 60.58 / 34.83 Hz (range edge, mains) and 81.0 / 88.25 / 139.25 Hz are left
   out; the J-band peaks 120.7-131.8 Hz remain.
+- Amendment (2026-10-15, owner: "the line region, not the line position"): a residual peak counts when it lies in
+  the data's line cores (signal mask); the model-line condition is off by default (--residual-refine-min-line 0;
+  above 0 it is applied as before). sec-butylamine: 20.58 / 60.58 / 170.0 Hz (outside the cores) are left out;
+  41.58 / 81.0 / 88.25 / 139.25 Hz and the J-band peaks count.
