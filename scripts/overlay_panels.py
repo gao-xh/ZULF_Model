@@ -62,7 +62,8 @@ CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json
 # the pass chosen per data set after comparing the passes (docs/analysis/2026-10-10_overnight_plan.md); others: the
 # latest of v3 / v2 / v1
 # a value may also be a run directory name (a refinement outside run_batch) with the config pass of its structure
-RUNS = {"methyl-2-bromopropionate": ("batch_methyl-2-bromopropionate_v7_longrange", "v6")}
+RUNS = {"methyl-2-bromopropionate": ("batch_methyl-2-bromopropionate_v7_longrange", "v6"),
+        "n-n-dimethylethylenediamine": ("sign_scan/n-n-dimethylethylenediamine_v13_s2sign", "v13")}   # sign scan D65, 2026-10-15
 CHOSEN = {"methyl-2-bromopropionate": "_v6", "serine": "_v11", "n-n-dimethylethylenediamine": "_v13",
           "diethylamine": "_v14", "sec-butylamine": "_v13", "tert-butylamine": "_v14", "ethylenediamine": "_v14",
           "isopropylamine": "_v16", "triethylamine": "_v16",
@@ -102,6 +103,15 @@ def fit_features(run):
     if "--fit-field" in argv or opt("--field"):
         bt, bz = 1e3 * sp.get("field_transverse_ut", 0.0), 1e3 * sp.get("field_z_ut", 0.0)
         out.append(f"residual field {bt:.0f} / {bz:.0f} nT ({'fitted' if '--fit-field' in argv else 'fixed'})")
+    fitj = json.loads((run / "fit.json").read_text())
+    if (fitj.get("shape_refine") or {}).get("accepted"):
+        out.append("shape refine (D67)")
+    if (fitj.get("sign_scan") or {}).get("accepted"):
+        out.append(f"sign scan: {len(fitj['sign_scan']['accepted'])} flipped")
+    elif "sign_scan" in str(run):
+        out.append("from a sign scan (D65)")
+    if (fitj.get("peak_refine") or {}).get("accepted"):
+        out.append("peak refine (D66)")
     if opt("--variant") == "free":
         out.append("free isotopologue amplitudes")
     if opt("--background-order") == "-1":
@@ -364,7 +374,7 @@ def panel(ax, eid, view, site_styles=None):
     ax.text(0.07, 0.22, f"{eid.replace('-', ' ')}", transform=ax.transAxes, fontsize=8 * k ** 0.5, fontweight="bold",
             ha="center", va="top")
     # which pass is drawn, in plain sight (owner, 2026-10-11): the fit folder names the version and stage
-    ax.text(0.07, 0.13, f"version: {run.name.removeprefix(f'batch_{eid}').strip('_') or 'v1'}", transform=ax.transAxes, fontsize=7.5 * k ** 0.5,
+    ax.text(0.07, 0.13, f"version: {run.name.removeprefix(f'batch_{eid}').removeprefix(eid).strip('_') or 'v1'}", transform=ax.transAxes, fontsize=7.5 * k ** 0.5,
             fontweight="bold", color="#8a3b12", ha="center", va="top",
             bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d4682e", lw=0.6))
     features = fit_features(run)

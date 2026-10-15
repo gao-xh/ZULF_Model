@@ -228,3 +228,24 @@ again at every point. Results runs/processed/coupling_scans/{dmeda,secbutyl}_v13
   couplings are the best of their neighbourhood. The misfit points to a missing ingredient (slow N-H exchange for
   sec-butylamine, v26 running; or a component the model lacks), not to wrong small couplings.
 
+
+## Sign scan, shape refine, peak refine (2026-10-15)
+
+Merged acd2d98 (`--sign-scan`, D65, from the cloud session) and added d19147c (`--shape-refine` D67, `--peak-refine`
+D66). Tests on the real spectra (runs/processed/sign_scan/, runs/processed/shape_refine/):
+
+| sample | stage-1 start | sign scan | shape refine | peak refine | stage 2 |
+|---|---|---|---|---|---|
+| lactic acid (control) | 0.1678 | kept (best flip 0.1769) | (queued) | (queued) | - |
+| sec-butylamine | 0.0970 | 0.0965 (3 flipped, near tie) | 0.0957 (kept), then sign scan 0.0941 (2 flipped) | not kept (objective up) | running |
+| DMEDA | 0.196 | **0.121** (J(N2,HC4), J(C4,HN2), J(C1,HC3) flipped) | not kept (0.187 from the s1 start) | not kept | **0.0565** (v13 0.074) |
+
+DMEDA stage 2 from the sign-scan solution (runs/processed/sign_scan/n-n-dimethylethylenediamine_v13_s2sign):
+rms residual J band 0.053 -> 0.032, CH2 bands 0.053 -> 0.042, 2J band 0.027 -> 0.023
+(runs/figures/dmeda_sign_scan_compare.png); the doublet at 130.8 / 131.6 Hz is now resolved. Couplings that
+changed (Hz): J(N2,HC4) 5.95 -> -8.26, J(C4,HN2) 3.60 -> -4.38, J(C1,HC3) -3.50 -> 4.03, J(N2,HC3) 0.99 -> 4.95,
+1J(C1,H) 133.44 -> 131.03, 1J(C3,H) 133.75 -> 132.38. The overlay now draws this fit (scripts/overlay_panels.py RUNS).
+Several N-H couplings are large for their bond count: a conditional numerical result; the sign of the small
+couplings is the best of the scanned combinations, not a determination.
+Peak refine raised the objective on both amines (Powell on the peak positions moved the couplings far; the refit
+did not recover): not useful on these spectra as tuned.
