@@ -1174,3 +1174,20 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
 - Test: tests/test_j_tuner.py ShapeRefineTests (synthetic ethyl, 1J held 0.4 Hz wrong, two small couplings 0.5 Hz
   off: stage A within 0.15 Hz of the truth, a plain local fit of the same couplings is worse; the refit reaches the
   truth within 0.05 Hz).
+
+## D68. Refinement against the peaks of the plain residual (2026-10-15)
+
+- Problem (owner): the objective is signal weighted (noise-scaled, weight 0.2 away from the cores), so a systematic
+  misfit beside a strong line costs little, while the plain residual Re(data - model) shows it (DMEDA 2026-10-15:
+  plain rms 0.032 / 0.042 / 0.023 in the three bands against a noise rms of 0.019, with the weighted objective
+  already low).
+- Decision: `fit_joint_series --residual-refine N` (0 = off). Peaks of |plain residual| (prominence
+  --residual-refine-sigma noise levels, narrower than 1.5 Hz), largest first; for each, the
+  --residual-refine-couplings (3) small couplings (|J| < 20 Hz) that move the lines there most (peak_sources: local
+  effect x selectivity) are fitted to the plain residual within +---residual-refine-window (1.5 Hz) of the peak,
+  each within +---residual-refine-range (1.5 Hz) of its value (gains solved as in the fit); then a full refit. Kept
+  if the plain rms over the data cores falls and the objective (hard rows) rises by at most
+  --residual-refine-tolerance (2 %). A pass ends at the first kept peak and the peaks are found again; at most N
+  passes. fit.json["residual_refine"].
+- Test: tests/test_j_tuner.py ResidualRefineTests (synthetic ethyl, J(C1,HC2) 0.6 Hz off: the largest plain peak
+  brings both small couplings back to the truth, plain rms 0.047 -> 0.002 = noise).

@@ -1621,6 +1621,119 @@ def peak_refine(joint, z, lower, upper, key_of, args):
     return (z_ref if accept else z), record
 
 
+def plain_residual(joint, z, s):
+    """Unweighted absorption residual of spectrum s: Re(data - model) on the fit grid (gains solved as in the fit),
+    the robust noise level on the points outside the data cores, and the points inside them."""
+    f = joint.forwards[s]
+    model = np.asarray(f.predict(joint.spectrum_vector(z, s)).model)
+    r = np.real(np.asarray(f.y) - model)
+    quiet = ~f.data_signal_mask if f.data_signal_mask is not None else np.ones(len(r), bool)
+    q = np.diff(r[quiet]) if quiet.sum() > 10 else np.diff(r)
+    sigma = 1.4826 * float(np.median(np.abs(q - np.median(q)))) / np.sqrt(2)
+    core = f.data_signal_mask if f.data_signal_mask is not None else np.ones(len(r), bool)
+    return r, sigma, core
+
+
+def plain_rms(joint, z):
+    """Mean over spectra of the rms of the plain residual in the data cores, relative to the largest data line."""
+    vals = []
+    for s, f in enumerate(joint.forwards):
+        r, _, core = plain_residual(joint, z, s)
+        vals.append(float(np.sqrt(np.mean(r[core] ** 2)) / np.max(np.abs(np.real(np.asarray(f.y))))))
+    return float(np.mean(vals))
+
+
+def plain_residual_peaks(joint, z, k_sigma=4.0, max_width_hz=1.5, smooth_hz=0.05):
+    """Peaks of |plain residual| standing out by k_sigma noise levels (prominence), narrower than max_width_hz at
+    half prominence: [(height / sigma, spectrum, Hz)], largest first."""
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.signal import find_peaks
+    out = []
+    for s, f in enumerate(joint.forwards):
+        r, sigma, _ = plain_residual(joint, z, s)
+        fq = np.asarray(f.f, float)
+        step = float(np.median(np.diff(fq)))
+        a = np.abs(gaussian_filter1d(r, smooth_hz / step)) / max(sigma, 1e-30)
+        tops, props = find_peaks(a, prominence=k_sigma, width=(None, max_width_hz / step), rel_height=0.5)
+        out.extend((float(h), s, float(fq[t])) for t, h in zip(tops, props["prominences"]))
+    return sorted(out, reverse=True)
+
+
+def residual_refine(joint, z, lower, upper, key_of, args):
+    """Peaks of the plain (unweighted) residual, one at a time (D68): the signal-weighted objective counts a
+    systematic misfit beside a strong line little, the plain residual shows it. For each peak (plain_residual_peaks)
+    the --residual-refine-couplings small couplings that move the lines there most (peak_sources, local effect x
+    selectivity) are fitted to the plain residual in a +-window around it (each within +-range of its value, gains
+    solved as in the fit), then everything is refit; kept if the plain rms falls and the objective (hard rows) rises
+    by at most --residual-refine-tolerance. Each pass tries up to --residual-refine-peaks peaks and ends at the first
+    kept one (the residual has changed: its peaks are found again); --residual-refine passes at most.
+    Returns (z, record)."""
+    global _JOINT_TASK
+    t0 = time.time()
+    if _JOINT_TASK is None:
+        _JOINT_TASK = (joint, lower, upper, args.max_nfev, [], None, False)
+    name = lambda n: key_of.get(n, n)
+    hard = lambda zz: float(np.sum(joint.residual(zz) ** 2))
+    small = {n for k, n in enumerate(joint.coupling) if abs(float(np.mean(joint.coupling_values(z, k)))) < 20.0}
+    record = {"objective_before": hard(z), "plain_rms_before": plain_rms(joint, z), "steps": []}
+    tried = []
+    for p in range(args.residual_refine):
+        peaks = [pk for pk in plain_residual_peaks(joint, z, args.residual_refine_sigma)
+                 if all(abs(pk[2] - q) > args.residual_refine_window or pk[1] != s0 for s0, q in tried)]
+        if not peaks:
+            break
+        accepted_any = False
+        for height, s, fp in peaks[:args.residual_refine_peaks]:
+            tried.append((s, fp))
+            src = joint.peak_sources(z, s, fp, assign_hz=0.8)["couplings"]
+            ranked = sorted((n for n in src if n in small and src[n]["local"] > 0),
+                            key=lambda n: -src[n]["local"] * src[n]["selectivity"])[:args.residual_refine_couplings]
+            if not ranked:
+                continue
+            idx = np.array([joint.coupling.index(n) * joint.m + (joint.node_of[s] if joint.shape == "free" else 0)
+                            for n in ranked])
+            lo = np.maximum(lower[idx], z[idx] - args.residual_refine_range)
+            hi = np.minimum(upper[idx], z[idx] + args.residual_refine_range)
+            fq = np.asarray(joint.forwards[s].f, float)
+            win = np.abs(fq - fp) <= args.residual_refine_window
+            scale = float(np.max(np.abs(np.real(np.asarray(joint.forwards[s].y)))))
+
+            def res(v):
+                zz = z.copy()
+                zz[idx] = v
+                return plain_residual(joint, zz, s)[0][win] / scale
+            sol = least_squares(res, np.clip(z[idx], lo + 1e-9, hi - 1e-9), bounds=(lo, hi), diff_step=0.002,
+                                max_nfev=args.residual_refine_nfev)
+            z_loc = z.copy()
+            z_loc[idx] = sol.x
+            if joint.peaks is not None:
+                joint.peak_smooth = args.peak_smooth
+            refit = _solve_indexed((40_000 + len(record["steps"]), z_loc))
+            if joint.peaks is not None:
+                joint.peak_smooth = 0.0
+            z_new = refit[1]
+            before, rms_before = hard(z), plain_rms(joint, z)
+            after, rms_after = hard(z_new), plain_rms(joint, z_new)
+            keep = rms_after < rms_before and after <= before * (1 + args.residual_refine_tolerance)
+            step = {"pass": p + 1, "spectrum": s, "peak_hz": round(fp, 3), "height_sigma": round(height, 1),
+                    "couplings": {name(n): [float(z[i]), float(z_new[i])] for n, i in zip(ranked, idx)},
+                    "objective": [before, after], "plain_rms": [rms_before, rms_after], "kept": bool(keep)}
+            record["steps"].append(step)
+            print(f"residual refine: pass {p + 1}, peak {fp:.2f} Hz ({height:.1f} sigma), "
+                  f"{', '.join(name(n) for n in ranked)}: plain rms {rms_before:.4f} -> {rms_after:.4f}, objective "
+                  f"{before:.5f} -> {after:.5f} {'kept' if keep else 'not kept'}", flush=True)
+            if keep:                                  # the residual changed: find its peaks again
+                z = z_new
+                accepted_any = True
+                break
+        if not accepted_any:
+            break
+    record.update(objective_after=hard(z), plain_rms_after=plain_rms(joint, z), seconds=round(time.time() - t0))
+    print(f"residual refine: plain rms {record['plain_rms_before']:.4f} -> {record['plain_rms_after']:.4f}, objective "
+          f"{record['objective_before']:.5f} -> {record['objective_after']:.5f}", flush=True)
+    return z, record
+
+
 def _solve_indexed(item):
     """_solve_start for start k, recorded by a fit_monitor.MonitorWriter when monitoring is on (observation only)."""
     k, z = item
@@ -2261,6 +2374,18 @@ def make_parser():
     ap.add_argument("--shape-refine-couplings", default="", help="shape refine: only couplings whose key matches this regex")
     ap.add_argument("--shape-refine-max-shift", type=float, default=1.5, help="shape refine: bound of each band shift (Hz)")
     ap.add_argument("--shape-refine-nfev", type=int, default=60, help="shape refine: least-squares evaluations of stage A")
+    ap.add_argument("--residual-refine", type=int, default=0,
+                    help="passes over the peaks of the plain (unweighted) residual: the small couplings that move the "
+                         "lines at each peak fitted to the plain residual around it, then a full refit; kept if the "
+                         "plain rms falls (D68; 0 = off)")
+    ap.add_argument("--residual-refine-peaks", type=int, default=4, help="residual refine: peaks per pass")
+    ap.add_argument("--residual-refine-couplings", type=int, default=3, help="residual refine: couplings per peak")
+    ap.add_argument("--residual-refine-sigma", type=float, default=4.0, help="residual refine: peak height (noise levels)")
+    ap.add_argument("--residual-refine-window", type=float, default=1.5, help="residual refine: half width of the window (Hz)")
+    ap.add_argument("--residual-refine-range", type=float, default=1.5, help="residual refine: largest move of a coupling (Hz)")
+    ap.add_argument("--residual-refine-nfev", type=int, default=40, help="residual refine: evaluations of each local fit")
+    ap.add_argument("--residual-refine-tolerance", type=float, default=0.02,
+                    help="residual refine: relative rise of the objective still accepted for a lower plain rms")
     ap.add_argument("--peak-refine", action="store_true",
                     help="after the fit (and the sign scan): move the small couplings so the model's peaks sit at the "
                          "data's peaks, then refit everything; kept if the objective is not worse by more than "
@@ -2541,6 +2666,16 @@ def main():
             score = peak_record["objective_refit"]
             solutions.insert(0, (score, z_peak))
             z = z_peak
+    residual_record = None
+    if args.residual_refine > 0:
+        # couplings fitted to the peaks of the plain (unweighted) residual, one peak at a time (D68)
+        if status is not None:
+            status.set(phase="residual refine")
+        z_res, residual_record = residual_refine(joint, z, lower, upper, key_of, args)
+        if residual_record["steps"] and any(st["kept"] for st in residual_record["steps"]):
+            score = residual_record["objective_after"]
+            solutions.insert(0, (score, z_res))
+            z = z_res
     model_line_record = None
     if args.model_line_passes > 0:
         if status is not None:
@@ -2588,7 +2723,7 @@ def main():
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
-              "component_search": component_record, "shape_refine": shape_record, "sign_scan": sign_record, "peak_refine": peak_record, "model_line_passes": model_line_record,
+              "component_search": component_record, "shape_refine": shape_record, "sign_scan": sign_record, "peak_refine": peak_record, "residual_refine": residual_record, "model_line_passes": model_line_record,
               "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz],
               "reduced_coupling_unit": "1e19 N A^-2 m^-3", "precision_hz": joint.precision_hz}
     from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling

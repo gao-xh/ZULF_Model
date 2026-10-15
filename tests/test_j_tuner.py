@@ -463,6 +463,45 @@ class ShapeRefineTests(unittest.TestCase):
             self.assertAlmostEqual(self.value(z_new, key), v, delta=0.05, msg=key)
 
 
+class ResidualRefineTests(unittest.TestCase):
+    """fit_joint_series.residual_refine (D68): couplings fitted to the peaks of the plain residual. Reference: the
+    synthetic spectrum's truth (TRUTH)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmpdir = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls.tmpdir.name)
+        cls.prob, cls.truth_z = _problem(cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        fj._JOINT_TASK = None
+        cls.tmpdir.cleanup()
+
+    def value(self, z, key):
+        joint = self.prob.joint
+        k = joint.coupling.index(next(n for n in joint.coupling if self.prob.key_of.get(n, n) == key))
+        return float(joint.coupling_values(z, k)[0])
+
+    def test_plain_residual_peaks_lead_the_couplings_back(self):
+        prob = self.prob
+        joint = prob.joint
+        self.assertEqual(fj.plain_residual_peaks(joint, self.truth_z, 6.0), [])      # at the truth: noise only
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": TRUTH["J(C1,HC2)"] + 0.6})
+        z_off = np.clip(s.z, prob.lower + 1e-9, prob.upper - 1e-9)
+        self.assertTrue(fj.plain_residual_peaks(joint, z_off, 6.0))
+        args = _args(self.tmp, ["--residual-refine", "3"])
+        args.workers = 1
+        fj._JOINT_TASK = None
+        z_new, rec = fj.residual_refine(joint, z_off, prob.lower, prob.upper, prob.key_of, args)
+        self.assertTrue(any(st["kept"] for st in rec["steps"]))
+        self.assertLess(rec["plain_rms_after"], 0.5 * rec["plain_rms_before"])
+        self.assertAlmostEqual(self.value(z_new, "J(C1,HC2)"), TRUTH["J(C1,HC2)"], delta=0.05)
+        self.assertAlmostEqual(self.value(z_new, "J(HC1,HC2)"), TRUTH["J(HC1,HC2)"], delta=0.05)
+
+
 class GroupIndexTests(unittest.TestCase):
     def test_exchanging_groups_found_in_a_symmetric_component(self):
         # AA'BB' ethylenediamine with the N-H protons kept: J(HC1a,HN1) also maps to the mirror pairs (HC2a-HN2),
