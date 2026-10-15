@@ -143,7 +143,9 @@ Checklist of red flags and comparison rules: `references/checks.md`.
   to 16x.
 - Small couplings: a local fit does not cross J = 0 (two mirror basins, and a
   trap near 0 about +-1-2 Hz wide). Before trusting the small couplings or
-  a fine-structure misfit, run `fit_joint_series --sign-scan` (D65) and
+  a fine-structure misfit, try `--shape-refine` (D67: small couplings fitted to the band shapes with 1J held and
+  the bands free to slide, so they cannot compensate a 1J error), `--peak-refine` (D66: merged peaks) and
+  run `fit_joint_series --sign-scan` (D65) and
   report which signs won; a coupling fitted to about 0 is a warning sign.
 - Blind global search from a model skeleton measures the pipeline; it found
   an envelope fit with unphysical couplings, not the structure.

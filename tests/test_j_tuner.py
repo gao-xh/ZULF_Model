@@ -361,6 +361,108 @@ class SignScanTests(unittest.TestCase):
         self.assertTrue(np.all(z_new >= lo) and np.all(z_new <= hi))
 
 
+class PeakRefineTests(unittest.TestCase):
+    """fit_joint_series.peak_refine (D66): small couplings moved so the model's peaks sit on the data's peaks. The
+    reference is the synthetic spectrum's own truth (TRUTH), not a previous output."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmpdir = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls.tmpdir.name)
+        cls.prob, cls.truth_z = _problem(cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        fj._JOINT_TASK = None
+        cls.tmpdir.cleanup()
+
+    def value(self, z, key):
+        joint = self.prob.joint
+        k = joint.coupling.index(next(n for n in joint.coupling if self.prob.key_of.get(n, n) == key))
+        return float(joint.coupling_values(z, k)[0])
+
+    def test_peak_positions_vanish_at_the_truth_and_the_refine_returns_to_it(self):
+        prob = self.prob
+        joint = prob.joint
+        targets = [fj.data_peaks(joint, 0)[0]]
+        self.assertGreater(len(targets[0]), 4)
+        at_truth = fj.peak_position_residuals(joint, self.truth_z, targets, 0.5)
+        self.assertLess(float(np.sqrt(np.mean(at_truth ** 2))), 0.05)       # data peaks = model peaks (noise only)
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": TRUTH["J(C1,HC2)"] + 0.6, "J(HC1,HC2)": TRUTH["J(HC1,HC2)"] - 0.6})
+        z_off = np.clip(s.z, prob.lower + 1e-9, prob.upper - 1e-9)
+        off = fj.peak_position_residuals(joint, z_off, targets, 0.5)
+        self.assertGreater(float(np.sqrt(np.mean(off ** 2))), 0.05)
+        args = _args(self.tmp, ["--peak-refine", "--peak-refine-couplings", r"^J\((C1,HC2|HC1,HC2)\)$"])
+        args.workers = 1
+        fj._JOINT_TASK = None
+        z_new, rec = fj.peak_refine(joint, z_off, prob.lower, prob.upper, prob.key_of, args)
+        self.assertEqual(sorted(rec["couplings"]), ["J(C1,HC2)", "J(HC1,HC2)"])
+        self.assertLess(rec["peak_rms_peak"], rec["peak_rms_before"])
+        for key in TRUTH:                                                   # the peak fit alone moves them back
+            self.assertAlmostEqual(rec["values_peak"][key], TRUTH[key], delta=0.25, msg=key)
+        self.assertTrue(rec["accepted"])
+        for key in TRUTH:
+            self.assertAlmostEqual(self.value(z_new, key), TRUTH[key], delta=0.05, msg=key)
+
+
+class ShapeRefineTests(unittest.TestCase):
+    """fit_joint_series.shape_refine (D67): with 1J held at a wrong value, the small couplings fitted to the band
+    shapes (bands free to slide) land near the truth, where a plain local fit of the same couplings compensates the
+    wrong 1J. Reference: the synthetic spectrum's truth (TRUTH)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmpdir = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls.tmpdir.name)
+        cls.prob, cls.truth_z = _problem(cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        fj._JOINT_TASK = None
+        cls.tmpdir.cleanup()
+
+    def index(self, key):
+        joint = self.prob.joint
+        return joint.coupling.index(next(n for n in joint.coupling if self.prob.key_of.get(n, n) == key))
+
+    def value(self, z, key):
+        return float(self.prob.joint.coupling_values(z, self.index(key))[0])
+
+    def test_shapes_recover_the_small_couplings_despite_a_wrong_one_bond(self):
+        from scipy.optimize import least_squares
+        prob = self.prob
+        joint = prob.joint
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        one_bond = next(k for k in (prob.key_of.get(n, n) for n in joint.coupling) if abs(self.value(s.z, k)) > 100)
+        s.set_couplings({one_bond: self.value(s.z, one_bond) + 0.4,
+                         "J(C1,HC2)": TRUTH["J(C1,HC2)"] + 0.5, "J(HC1,HC2)": TRUTH["J(HC1,HC2)"] - 0.5})
+        z_off = np.clip(s.z, prob.lower + 1e-9, prob.upper - 1e-9)
+        # the premise: a local fit of the two small couplings alone, 1J held wrong, compensates and misses the truth
+        idx = np.array([self.index(k) * joint.m for k in TRUTH])
+
+        def res(v):
+            zz = z_off.copy()
+            zz[idx] = v
+            return joint.residual(zz)
+        plain = least_squares(res, z_off[idx], max_nfev=200)
+        z_plain = z_off.copy()
+        z_plain[idx] = plain.x
+        err_plain = max(abs(self.value(z_plain, k) - v) for k, v in TRUTH.items())
+        args = _args(self.tmp, ["--shape-refine", "--shape-refine-couplings", r"^J\((C1,HC2|HC1,HC2)\)$"])
+        args.workers = 1
+        fj._JOINT_TASK = None
+        z_new, rec = fj.shape_refine(joint, z_off, prob.lower, prob.upper, prob.key_of, args)
+        err_a = max(abs(rec["values_stage_a"][k] - v) for k, v in TRUTH.items())
+        self.assertLess(err_a, 0.15)
+        self.assertLess(err_a, err_plain)
+        self.assertTrue(rec["accepted"])
+        for key, v in TRUTH.items():
+            self.assertAlmostEqual(self.value(z_new, key), v, delta=0.05, msg=key)
+
+
 class GroupIndexTests(unittest.TestCase):
     def test_exchanging_groups_found_in_a_symmetric_component(self):
         # AA'BB' ethylenediamine with the N-H protons kept: J(HC1a,HN1) also maps to the mirror pairs (HC2a-HN2),

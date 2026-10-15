@@ -1387,6 +1387,237 @@ def sign_scan(joint, z, lower, upper, key_of, args):
     return best_z, lower, upper, record
 
 
+def _band_regions(fq, unit, rel=0.02, gap_hz=12.0):
+    """Grid points of each band of one component: points where |unit| exceeds rel of its maximum, grouped into bands
+    at gaps above gap_hz; every grid point then belongs to the nearest band. Returns a list of index arrays."""
+    a = np.abs(unit)
+    if not np.any(a > 0):
+        return []
+    on = np.flatnonzero(a > rel * a.max())
+    groups = np.split(on, np.flatnonzero(np.diff(fq[on]) > gap_hz) + 1)
+    centres = np.array([0.5 * (fq[g[0]] + fq[g[-1]]) for g in groups])
+    owner = np.argmin(np.abs(fq[:, None] - centres[None, :]), axis=1)
+    return [np.flatnonzero(owner == b) for b in range(len(groups))]
+
+
+def _shifted(fq, unit, regions, shifts):
+    """unit with each band region moved by its own shift (Hz): u(f) -> u(f - delta) on that region."""
+    out = unit.copy()
+    for reg, d in zip(regions, shifts):
+        if d != 0.0:
+            out[reg] = np.interp(fq[reg] - d, fq, unit.real) + 1j * np.interp(fq[reg] - d, fq, unit.imag)
+    return out
+
+
+class ShapeObjective:
+    """Line-shape objective with every band of every component free to slide (D67): the small couplings set the
+    shape of each multiplet, a shift per (spectrum, component, band) absorbs its position, so a wrong 1J (held)
+    cannot be compensated by the small couplings. Rates, phase, delay, field and 1J are held at z; complex gains per
+    amplitude group are solved at every point; the residual is the fit's own weighted residual (real and imaginary)."""
+
+    def __init__(self, joint, z, ks, max_shift_hz):
+        self.joint, self.z = joint, z.copy()
+        self.idx = np.concatenate([np.arange(k * joint.m, (k + 1) * joint.m) for k in ks])
+        self.regions = []
+        for s, fw in enumerate(joint.forwards):
+            units = self.units(s, z)
+            self.regions.append([_band_regions(np.asarray(fw.f, float), u) for u in units])
+        self.nshift = sum(len(r) for rs in self.regions for r in rs)
+        self.max_shift = max_shift_hz
+
+    def units(self, s, z):
+        fw = self.joint.forwards[s]
+        cols = fw.component_columns(fw.p.values(self.joint.spectrum_vector(z, s)))
+        return [col @ np.array([1.0, 0.0]) for col in cols]
+
+    def split(self, v):
+        z = self.z.copy()
+        z[self.idx] = v[:len(self.idx)]
+        return z, v[len(self.idx):]
+
+    def residual(self, v):
+        z, shifts = self.split(v)
+        out, i = [], 0
+        for s, fw in enumerate(self.joint.forwards):
+            fq = np.asarray(fw.f, float)
+            units = self.units(s, z)
+            moved = []
+            for u, regs in zip(units, self.regions[s]):
+                moved.append(_shifted(fq, u, regs, shifts[i:i + len(regs)]))
+                i += len(regs)
+            groups = moved if fw.amp_map is None else [sum(w * u for w, u in zip(fw.amp_map[:, j], moved) if w)
+                                                       for j in range(fw.amp_map.shape[1])]
+            design = np.column_stack(groups) * fw.weight[:, None]
+            target = fw.y * fw.weight
+            a = np.vstack([np.column_stack([design.real, -design.imag]), np.column_stack([design.imag, design.real])])
+            b = np.r_[target.real, target.imag]
+            coef = np.linalg.lstsq(a, b, rcond=1e-10)[0]
+            model = np.column_stack(groups) @ (coef[:len(groups)] + 1j * coef[len(groups):])
+            diff = (model - fw.y) * fw.weight / fw.norm
+            out.append(diff.real if fw.real_only else np.r_[diff.real, diff.imag])
+        return np.concatenate(out)
+
+
+def shape_refine(joint, z, lower, upper, key_of, args):
+    """Stage A (D67): the small couplings (|J| below --shape-refine-max-hz, optional regex --shape-refine-couplings)
+    fitted to the shape of the bands with 1J, rates, phase and field held and every band free to slide
+    (ShapeObjective); stage B: everything refit from there (_solve_indexed), 1J free again. The refit is kept if its
+    objective (hard missing-peak rows) is lower than the current one. Returns (z, record)."""
+    global _JOINT_TASK
+    t0 = time.time()
+    if _JOINT_TASK is None:
+        _JOINT_TASK = (joint, lower, upper, args.max_nfev, [], None, False)
+    ks, _ = sign_scan_couplings(joint, z, key_of, args.shape_refine_max_hz, args.shape_refine_couplings, 2 ** 30)
+    name = lambda k: key_of.get(joint.coupling[k], joint.coupling[k])
+    hard = lambda zz: float(np.sum(joint.residual(zz) ** 2))
+    before = hard(z)
+    record = {"couplings": [name(k) for k in ks], "objective_before": before, "accepted": False}
+    if not ks:
+        record.update(seconds=round(time.time() - t0))
+        print("shape refine: no coupling below the threshold", flush=True)
+        return z, record
+    obj = ShapeObjective(joint, z, ks, args.shape_refine_max_shift)
+    lo = np.r_[lower[obj.idx], -np.full(obj.nshift, obj.max_shift)]
+    hi = np.r_[upper[obj.idx], np.full(obj.nshift, obj.max_shift)]
+    v0 = np.clip(np.r_[z[obj.idx], np.zeros(obj.nshift)], lo + 1e-9, hi - 1e-9)
+    shape_before = float(np.sum(obj.residual(v0) ** 2))
+    sol = least_squares(obj.residual, v0, bounds=(lo, hi), diff_step=0.004, max_nfev=args.shape_refine_nfev,
+                        ftol=1e-10, xtol=1e-8, gtol=1e-10)
+    z_a, shifts = obj.split(sol.x)
+    shape_after = float(2 * sol.cost)
+    print(f"shape refine: {len(ks)} couplings, {obj.nshift} band shifts (|max| {np.max(np.abs(shifts)):.3f} Hz); "
+          f"shape objective {shape_before:.5f} -> {shape_after:.5f} ({sol.nfev} evaluations, {time.time() - t0:.0f} s)",
+          flush=True)
+    if joint.peaks is not None:
+        joint.peak_smooth = args.peak_smooth
+    refit = _solve_indexed((30_000, z_a))
+    if joint.peaks is not None:
+        joint.peak_smooth = 0.0
+    z_b = refit[1]
+    obj_b = hard(z_b)
+    accept = obj_b < before * (1 - 1e-4)
+    print(f"shape refine: refit objective {obj_b:.5f} against {before:.5f} -> {'kept' if accept else 'not kept'}",
+          flush=True)
+    record.update(shape_objective_before=shape_before, shape_objective_after=shape_after,
+                  band_shifts_hz=[float(d) for d in shifts], objective_stage_a=hard(z_a), objective_refit=obj_b,
+                  values_before={name(k): float(np.mean(joint.coupling_values(z, k))) for k in ks},
+                  values_stage_a={name(k): float(np.mean(joint.coupling_values(z_a, k))) for k in ks},
+                  values_refit={name(k): float(np.mean(joint.coupling_values(z_b, k))) for k in ks},
+                  z_refit=[float(v) for v in z_b], accepted=bool(accept), seconds=round(time.time() - t0))
+    return (z_b if accept else z), record
+
+
+def _parabolic_peaks(fq, y, prominence):
+    """Positions (parabolic interpolation on three points) and prominences of the local maxima of y."""
+    from scipy.signal import find_peaks
+    idx, props = find_peaks(y, prominence=prominence)
+    out = []
+    for i, prom in zip(idx, props["prominences"]):
+        if 0 < i < len(y) - 1:
+            a, b, c = y[i - 1], y[i], y[i + 1]
+            den = a - 2 * b + c
+            shift = 0.5 * (a - c) / den if den != 0 else 0.0
+            out.append((float(fq[i] + shift * (fq[i + 1] - fq[i])), float(prom)))
+    return out
+
+
+def data_peaks(joint, s=0, k_sigma=4.0, smooth_hz=0.05):
+    """Peaks of the absorption (real part) of spectrum s: local maxima with a prominence of at least k_sigma noise
+    levels (noise: robust spread on the points outside the data cores). Returns [(Hz, prominence)] and sigma."""
+    from scipy.ndimage import gaussian_filter1d
+    f = joint.forwards[s]
+    fq, y = np.asarray(f.f, float), np.real(np.asarray(f.y))
+    step = float(np.median(np.diff(fq)))
+    ys = gaussian_filter1d(y, smooth_hz / step) if smooth_hz > 0 else y
+    quiet = ~f.data_signal_mask if f.data_signal_mask is not None else np.ones(len(fq), bool)
+    q = np.diff(ys[quiet]) if quiet.sum() > 10 else np.diff(ys)
+    sigma = 1.4826 * float(np.median(np.abs(q - np.median(q)))) / np.sqrt(2)
+    return _parabolic_peaks(fq, ys, k_sigma * sigma), sigma
+
+
+def peak_position_residuals(joint, z, targets, tol_hz, extra_weight=0.5):
+    """Residual vector of the peak positions (D66): for every data peak (per spectrum, [(Hz, prominence)]) the
+    distance to the nearest peak of the model's absorption (gains solved, the fit's own processing), capped at
+    tol_hz and weighted by sqrt(prominence / largest prominence); model peaks as tall as the smallest data peak with
+    no data peak within tol_hz add tol_hz each, weighted by extra_weight (lines the data do not have)."""
+    out = []
+    for s, peaks in enumerate(targets):
+        if not peaks:
+            continue
+        f = joint.forwards[s]
+        fq = np.asarray(f.f, float)
+        model = np.real(np.asarray(f.predict(joint.spectrum_vector(z, s)).model))
+        floor = min(p for _, p in peaks)
+        mpk = _parabolic_peaks(fq, model, 0.5 * floor)
+        mpos = np.array([q for q, _ in mpk]) if mpk else np.array([np.inf])
+        top = max(p for _, p in peaks)
+        for pos, prom in peaks:
+            out.append(np.sqrt(prom / top) * min(float(np.min(np.abs(mpos - pos))), tol_hz))
+        dpos = np.array([q for q, _ in peaks])
+        for q, prom in mpk:
+            if prom >= floor and float(np.min(np.abs(dpos - q))) > tol_hz:
+                out.append(extra_weight * np.sqrt(min(prom / top, 1.0)) * tol_hz)
+    return np.asarray(out, float)
+
+
+def peak_refine(joint, z, lower, upper, key_of, args):
+    """Small couplings refined against the peak positions (D66). The line-shape objective weighs a peak by its
+    area and is flat for merged lines; here the free couplings below --peak-refine-max-hz (optional regex
+    --peak-refine-couplings) are moved so that the model's peaks sit at the data's peaks (peak_position_residuals,
+    Powell, rates / phase / field held, gains solved), then everything is refit (_solve_indexed). The refit is kept
+    if its objective (hard missing-peak rows) is at most (1 + --peak-refine-tolerance) times the current one and its
+    peak-position rms is lower. Returns (z, record)."""
+    global _JOINT_TASK
+    from scipy.optimize import minimize
+    t0 = time.time()
+    if _JOINT_TASK is None:
+        _JOINT_TASK = (joint, lower, upper, args.max_nfev, [], None, False)
+    ks, _ = sign_scan_couplings(joint, z, key_of, args.peak_refine_max_hz, args.peak_refine_couplings, 2 ** 30)
+    name = lambda k: key_of.get(joint.coupling[k], joint.coupling[k])
+    hard = lambda zz: float(np.sum(joint.residual(zz) ** 2))
+    targets = [data_peaks(joint, s, args.peak_refine_sigma)[0] for s in range(joint.ns)]
+    tol = args.peak_refine_tol_hz
+    rms = lambda zz: float(np.sqrt(np.mean(peak_position_residuals(joint, zz, targets, tol) ** 2)))
+    before, rms_before = hard(z), rms(z)
+    record = {"couplings": [name(k) for k in ks], "data_peaks": [[round(q, 3) for q, _ in t] for t in targets],
+              "objective_before": before, "peak_rms_before": rms_before, "accepted": False}
+    if not ks:
+        record.update(seconds=round(time.time() - t0))
+        print("peak refine: no coupling below the threshold", flush=True)
+        return z, record
+    idx = np.concatenate([np.arange(k * joint.m, (k + 1) * joint.m) for k in ks])
+    lo, hi = lower[idx], upper[idx]
+
+    def cost(v):
+        zz = z.copy()
+        zz[idx] = np.clip(v, lo, hi)
+        return float(np.sum(peak_position_residuals(joint, zz, targets, tol) ** 2))
+    res = minimize(cost, np.clip(z[idx], lo + 1e-9, hi - 1e-9), method="Powell", bounds=list(zip(lo, hi)),
+                   options={"maxfev": args.peak_refine_nfev, "xtol": 0.01, "ftol": 1e-6})
+    z_peak = z.copy()
+    z_peak[idx] = np.clip(res.x, lo, hi)
+    rms_peak, obj_peak = rms(z_peak), hard(z_peak)
+    print(f"peak refine: {len(ks)} couplings, {sum(len(t) for t in targets)} data peaks; peak rms {rms_before:.3f} -> "
+          f"{rms_peak:.3f} Hz (objective {before:.5f} -> {obj_peak:.5f}, {res.nfev} evaluations, "
+          f"{time.time() - t0:.0f} s)", flush=True)
+    if joint.peaks is not None:
+        joint.peak_smooth = args.peak_smooth
+    refit = _solve_indexed((20_000, z_peak))
+    if joint.peaks is not None:
+        joint.peak_smooth = 0.0
+    z_ref = refit[1]
+    obj_ref, rms_ref = hard(z_ref), rms(z_ref)
+    accept = obj_ref <= before * (1 + args.peak_refine_tolerance) and rms_ref < rms_before
+    print(f"peak refine: refit objective {obj_ref:.5f}, peak rms {rms_ref:.3f} Hz -> "
+          f"{'kept' if accept else 'not kept'}", flush=True)
+    record.update(values_before={name(k): float(np.mean(joint.coupling_values(z, k))) for k in ks},
+                  values_peak={name(k): float(np.mean(joint.coupling_values(z_peak, k))) for k in ks},
+                  values_refit={name(k): float(np.mean(joint.coupling_values(z_ref, k))) for k in ks},
+                  peak_rms_peak=rms_peak, objective_peak=obj_peak, peak_rms_refit=rms_ref, objective_refit=obj_ref,
+                  accepted=bool(accept), seconds=round(time.time() - t0))
+    return (z_ref if accept else z), record
+
+
 def _solve_indexed(item):
     """_solve_start for start k, recorded by a fit_monitor.MonitorWriter when monitoring is on (observation only)."""
     k, z = item
@@ -2020,6 +2251,26 @@ def make_parser():
                          "trap about +-1-2 Hz wide for a local fit)")
     ap.add_argument("--sign-scan-nfev", type=int, default=30, help="sign scan: evaluations of each short fit")
     ap.add_argument("--sign-scan-keep", type=int, default=3, help="sign scan: best short fits refit fully")
+    ap.add_argument("--shape-refine", action="store_true",
+                    help="after the fit: fit the small couplings to the band shapes with 1J, rates, phase and field "
+                         "held and every band free to slide, then refit everything; kept if better (D67)")
+    ap.add_argument("--shape-refine-max-hz", type=float, default=15.0, help="shape refine: couplings with |J| below this")
+    ap.add_argument("--shape-refine-couplings", default="", help="shape refine: only couplings whose key matches this regex")
+    ap.add_argument("--shape-refine-max-shift", type=float, default=1.5, help="shape refine: bound of each band shift (Hz)")
+    ap.add_argument("--shape-refine-nfev", type=int, default=60, help="shape refine: least-squares evaluations of stage A")
+    ap.add_argument("--peak-refine", action="store_true",
+                    help="after the fit (and the sign scan): move the small couplings so the model's peaks sit at the "
+                         "data's peaks, then refit everything; kept if the objective is not worse by more than "
+                         "--peak-refine-tolerance and the peak positions are closer (D66)")
+    ap.add_argument("--peak-refine-max-hz", type=float, default=15.0, help="peak refine: couplings with |J| below this")
+    ap.add_argument("--peak-refine-couplings", default="", help="peak refine: only couplings whose key matches this regex")
+    ap.add_argument("--peak-refine-tol-hz", type=float, default=0.5,
+                    help="peak refine: a data peak farther than this from every model peak counts as this distance")
+    ap.add_argument("--peak-refine-sigma", type=float, default=4.0,
+                    help="peak refine: data peaks need a prominence of this many noise levels")
+    ap.add_argument("--peak-refine-nfev", type=int, default=600, help="peak refine: evaluations of the peak fit")
+    ap.add_argument("--peak-refine-tolerance", type=float, default=0.02,
+                    help="peak refine: relative rise of the objective still accepted for closer peak positions")
     ap.add_argument("--component-search-hold-gains", action="store_true",
                     help="window fits keep gains, phase and background at the global solution (cost = the window "
                          "part of the whole objective) instead of solving them on the window")
@@ -2255,6 +2506,16 @@ def main():
                 solutions.insert(0, (score_new, z_new))
                 score, z = score_new, z_new
         component_record["end"] = rec
+    shape_record = None
+    if args.shape_refine:
+        # small couplings fitted to the band shapes with 1J held and the bands free to slide, then refit (D67)
+        if status is not None:
+            status.set(phase="shape refine")
+        z_shape, shape_record = shape_refine(joint, z, lower, upper, key_of, args)
+        if shape_record["accepted"]:
+            score = shape_record["objective_refit"]
+            solutions.insert(0, (score, z_shape))
+            z = z_shape
     sign_record = None
     if args.sign_scan:
         # every sign combination of the small couplings as a start (D65); kept only if the full refit wins
@@ -2265,6 +2526,16 @@ def main():
             score = sign_record["objective_after"]
             solutions.insert(0, (score, z_sign))
             z = z_sign
+    peak_record = None
+    if args.peak_refine:
+        # small couplings moved to put the model's peaks on the data's peaks, then refit (D66)
+        if status is not None:
+            status.set(phase="peak refine")
+        z_peak, peak_record = peak_refine(joint, z, lower, upper, key_of, args)
+        if peak_record["accepted"]:
+            score = peak_record["objective_refit"]
+            solutions.insert(0, (score, z_peak))
+            z = z_peak
     model_line_record = None
     if args.model_line_passes > 0:
         if status is not None:
@@ -2312,7 +2583,7 @@ def main():
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
-              "component_search": component_record, "sign_scan": sign_record, "model_line_passes": model_line_record,
+              "component_search": component_record, "shape_refine": shape_record, "sign_scan": sign_record, "peak_refine": peak_record, "model_line_passes": model_line_record,
               "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz],
               "reduced_coupling_unit": "1e19 N A^-2 m^-3", "precision_hz": joint.precision_hz}
     from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling

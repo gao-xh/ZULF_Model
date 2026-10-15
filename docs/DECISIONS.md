@@ -1143,3 +1143,34 @@ is the check).
 Tests: tests/test_j_tuner.py SignScanTests (flip, symmetric bounds, recovery of both 2J signs from the wrong
 basin: objective 0.447 -> 0.00024 = truth); tests/test_joint_series.py test_sign_flip_negates_every_node_of_a_
 monotone_coupling (closed form: J -> -J at every node, others unchanged).
+
+## D66. Peak-position refinement of the small couplings (2026-10-15)
+
+- Problem: the line-shape objective weighs a peak by its area; where lines merge (DMEDA 131 Hz, sec-butylamine
+  124.6 / 125.8 Hz) it is nearly flat in the small couplings, and a local fit leaves resolved data peaks inside one
+  model peak.
+- Decision: `fit_joint_series --peak-refine` (off by default; after the sign scan). Data peaks: local maxima of
+  the absorption with a prominence of --peak-refine-sigma noise levels (parabolic positions). Model peaks: the same
+  on the model (gains solved, the fit's processing). Residual per data peak: distance to the nearest model peak,
+  capped at --peak-refine-tol-hz (0.5), weighted by sqrt(relative prominence); model peaks without a data peak add a
+  half-weight penalty. The couplings below --peak-refine-max-hz (15) are moved by Powell (rates, phase, field and
+  1J held), then everything is refit; kept if the objective rises by at most --peak-refine-tolerance (2 %) and the
+  peak rms falls. fit.json["peak_refine"].
+- Test: tests/test_j_tuner.py PeakRefineTests (synthetic ethyl, two couplings 0.6 Hz off: back to the truth).
+
+## D67. Shape refinement with sliding bands (2026-10-15)
+
+- Problem: with 1J a little off, a fit moves the small couplings to put the lines in place; the small couplings
+  then compensate 1J (the 1-6 Hz jumps of glycerol, serine, the amines). The small couplings mainly set the shape
+  of each multiplet, 1J its position.
+- Decision (owner, 2026-10-15): `fit_joint_series --shape-refine` (off by default; after the end component search,
+  before the sign scan). Stage A: the couplings below --shape-refine-max-hz (15) fitted to the band shapes with 1J,
+  rates, phase and field held; every band of every component (grid points nearest to its line cluster, clusters
+  split at 12 Hz gaps) may slide by its own shift (bound --shape-refine-max-shift 1.5 Hz; per spectrum), complex
+  gains per amplitude group solved (ShapeObjective). Shifts are per component, not per frequency window, because
+  bands of different isotopologues overlap. Stage B: full refit from stage A, 1J free; kept if the objective falls.
+  Rates are held in stage A (line width and splitting trade off); the shift is a translation, which neglects the
+  second-order change of a band's shape with 1J (stage B is a full refit for that reason). fit.json["shape_refine"].
+- Test: tests/test_j_tuner.py ShapeRefineTests (synthetic ethyl, 1J held 0.4 Hz wrong, two small couplings 0.5 Hz
+  off: stage A within 0.15 Hz of the truth, a plain local fit of the same couplings is worse; the refit reaches the
+  truth within 0.05 Hz).
