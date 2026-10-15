@@ -1587,6 +1587,9 @@ def peak_refine(joint, z, lower, upper, key_of, args):
         return z, record
     idx = np.concatenate([np.arange(k * joint.m, (k + 1) * joint.m) for k in ks])
     lo, hi = lower[idx], upper[idx]
+    if args.peak_refine_range > 0:          # move each coupling only near its current value (2026-10-15: unbounded
+        lo = np.maximum(lo, z[idx] - args.peak_refine_range)   # Powell moved them far and the refit did not recover)
+        hi = np.minimum(hi, z[idx] + args.peak_refine_range)
 
     def cost(v):
         zz = z.copy()
@@ -2269,6 +2272,8 @@ def make_parser():
     ap.add_argument("--peak-refine-sigma", type=float, default=4.0,
                     help="peak refine: data peaks need a prominence of this many noise levels")
     ap.add_argument("--peak-refine-nfev", type=int, default=600, help="peak refine: evaluations of the peak fit")
+    ap.add_argument("--peak-refine-range", type=float, default=1.0,
+                    help="peak refine: each coupling moves at most this far (Hz) from its value (0: the fit's bounds)")
     ap.add_argument("--peak-refine-tolerance", type=float, default=0.02,
                     help="peak refine: relative rise of the objective still accepted for closer peak positions")
     ap.add_argument("--component-search-hold-gains", action="store_true",
