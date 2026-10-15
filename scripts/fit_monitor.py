@@ -307,7 +307,14 @@ class SpectrumCache:
         prob = self.get(run)
         joint = prob.joint
         if z is None:
-            z = read_run(run)["starts"][start]["z"]
+            starts = read_run(run)["starts"]
+            z = starts[start]["z"]
+            if z is None:
+                # a start that has no best point yet (e.g. a refine step still in its local fit): show the best point
+                # recorded by any start of the run instead of an error
+                done = [v for v in starts.values() if v.get("z") is not None and v.get("best") is not None]
+                if done:
+                    z = min(done, key=lambda v: v["best"])["z"]
         if z is None:
             raise ValueError("no best point recorded yet")
         with self.lock:
