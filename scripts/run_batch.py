@@ -167,8 +167,12 @@ def process(entry, args):
         cmd = [c if c != str(args.workers) or common[i - 1] != "--workers" else "1" for i, c in enumerate(common)]
         cmd = [c for c in cmd if c != "--one-bond-from-data"]
         env = dict(os.environ, OMP_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", OPENBLAS_NUM_THREADS="1")
+        # stage 2's own rate families (its recorded edges): recomputing them from the stage-2 couplings would give
+        # other families, and the stage-2 rates would no longer fit them (start objective up, 2026-10-15)
+        argv2 = json.loads((s2 / "monitor" / "status.json").read_text())["argv"]
+        edges = argv2[argv2.index("--family-edges") + 1] if "--family-edges" in argv2 else "lines"
         if run(cmd + ["--starts", "1", "--max-nfev", "3", "--rate-bounds", "0.1,40", "--component-search", "off",
-                      "--family-edges", "lines", "--from-joint", str((s2 / "fit.json").relative_to(ROOT)),
+                      "--family-edges", edges, "--from-joint", str((s2 / "fit.json").relative_to(ROOT)),
                       "--residual-refine", str(passes), "--out", str(s3.relative_to(ROOT))], log, env):
             note(eid, status="failed: stage 3")
             return

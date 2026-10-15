@@ -102,6 +102,9 @@ Checklist of red flags and comparison rules: `references/checks.md`.
 
 - Default: complex data, `gain_model="shared_phase"`, delay fitted,
   background_order 1, 3 starts, analytic (Kaufman) Jacobian.
+- Continuing from a fit (a further refinement of the same fit): reuse its recorded `--family-edges` numbers, not
+  `lines`: recomputed from the new couplings the families differ and the fitted rates no longer fit them
+  (sec-butylamine 2026-10-15: start objective 0.0649 -> 0.0715). run_batch stage 3 does this.
 - To rerun a stage from a fit's recorded command (monitor/status.json argv), restore `--family-edges lines`:
   the record holds the edges actually used as numbers, so line-family options (`--line-group-span`,
   `--line-min-distance`, ...) would silently do nothing (2026-10-12).
