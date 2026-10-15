@@ -1715,10 +1715,15 @@ def residual_refine(joint, z, lower, upper, key_of, args):
             win = np.abs(fq - fp) <= args.residual_refine_window
             scale = float(np.max(np.abs(np.real(np.asarray(joint.forwards[s].y)))))
 
+            anchor = np.sqrt(args.residual_refine_anchor)
+
             def res(v):
+                # the window's plain residual, plus the whole objective so the rest of the spectrum is held (the
+                # couplings of a peak move lines in other bands too: sec-butylamine 124 Hz, 0.064 -> 0.24 without)
                 zz = z.copy()
                 zz[idx] = v
-                return plain_residual(joint, zz, s)[0][win] / scale
+                part = plain_residual(joint, zz, s)[0][win] / scale
+                return np.r_[part, anchor * joint.residual(zz)] if anchor > 0 else part
             sol = least_squares(res, np.clip(z[idx], lo + 1e-9, hi - 1e-9), bounds=(lo, hi), diff_step=0.002,
                                 max_nfev=args.residual_refine_nfev)
             z_loc = z.copy()
@@ -2415,6 +2420,9 @@ def make_parser():
                          "split-type part of the effect (split: changes the spacings inside the feature)")
     ap.add_argument("--residual-refine-one-bond", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the one-bond couplings may be among the couplings of a peak (default on)")
+    ap.add_argument("--residual-refine-anchor", type=float, default=1.0,
+                    help="residual refine: weight of the whole objective added to the window's plain residual in the "
+                         "local step (holds the rest of the spectrum; 0 = window only)")
     ap.add_argument("--residual-refine-tolerance", type=float, default=0.02,
                     help="residual refine: relative rise of the objective still accepted for a lower plain rms")
     ap.add_argument("--peak-refine", action="store_true",
