@@ -1708,7 +1708,14 @@ def residual_refine(joint, z, lower, upper, key_of, args):
             z_loc[idx] = sol.x
             if joint.peaks is not None:
                 joint.peak_smooth = args.peak_smooth
-            refit = _solve_indexed((40_000 + len(record["steps"]), z_loc))
+            task = list(_JOINT_TASK)
+            if args.residual_refine_refit_nfev > 0:
+                task[3] = args.residual_refine_refit_nfev        # the refit after a local step need not be long
+            saved, _JOINT_TASK = _JOINT_TASK, tuple(task)
+            try:
+                refit = _solve_indexed((40_000 + len(record["steps"]), z_loc))
+            finally:
+                _JOINT_TASK = saved
             if joint.peaks is not None:
                 joint.peak_smooth = 0.0
             z_new = refit[1]
@@ -2384,6 +2391,8 @@ def make_parser():
     ap.add_argument("--residual-refine-window", type=float, default=1.5, help="residual refine: half width of the window (Hz)")
     ap.add_argument("--residual-refine-range", type=float, default=1.5, help="residual refine: largest move of a coupling (Hz)")
     ap.add_argument("--residual-refine-nfev", type=int, default=40, help="residual refine: evaluations of each local fit")
+    ap.add_argument("--residual-refine-refit-nfev", type=int, default=40,
+                    help="residual refine: evaluations of the full refit after each local step (0: --max-nfev)")
     ap.add_argument("--residual-refine-tolerance", type=float, default=0.02,
                     help="residual refine: relative rise of the objective still accepted for a lower plain rms")
     ap.add_argument("--peak-refine", action="store_true",
