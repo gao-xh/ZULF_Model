@@ -56,6 +56,28 @@ class JointSeriesTests(unittest.TestCase):
         n_res = len(joint.forwards[0].predict(joint.spectrum_vector(z, 0)).residual)   # 2F for complex data
         self.assertEqual(joint.smoothing[0].shape, (n_res, n_res))
 
+    def test_sign_flip_negates_every_node_of_a_monotone_coupling(self):
+        from fit_joint_series import flip_signs
+        model = build_model(template("CH-CH3"))
+        settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))
+        acq = Acquisition.pure(1000.0, 4000)
+        f = np.arange(100.0, 200.0, 0.25)
+        rng = np.random.default_rng(3)
+        obs = [ObservedSpectrum.from_spectrum(f, rng.normal(size=len(f)) + 1j * rng.normal(size=len(f)),
+                                              [(100.0, 200.0)], record=acq) for _ in range(3)]
+        joint = JointSeries(model, settings, obs, [0.1, 0.5, 1.0])
+        table, xs = self._table(joint)
+        z = joint.pack(table + np.array([0.0, 0.3, 0.2])[:, None], xs)
+        z[1:joint.nt:joint.m] = 0.6
+        for k in range(joint.nc):
+            if np.abs(joint.coupling_values(z, k)).mean() < 0.5:
+                continue
+            flipped = flip_signs(joint, z, [k])
+            np.testing.assert_allclose(joint.coupling_values(flipped, k), -joint.coupling_values(z, k), atol=1e-12)
+            for o in range(joint.nc):
+                if o != k:
+                    np.testing.assert_array_equal(joint.coupling_values(flipped, o), joint.coupling_values(z, o))
+
     def test_shared_delay_is_one_value_and_jacobian_matches_finite_differences(self):
         model = build_model(template("CH-CH3"))
         settings = _settings_for(model, "ratios", RefineSettings(band_weighting="none", background_order=-1))

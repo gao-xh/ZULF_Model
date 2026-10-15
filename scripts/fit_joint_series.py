@@ -1260,6 +1260,133 @@ def component_search(joint, prob, z, args, stage):
     return z, record
 
 
+_SIGN_TASK = None
+
+
+def _sign_short_fit(z):
+    """Short least-squares run of one sign combination (module level for the fork pool of sign_scan)."""
+    joint, lower, upper, max_nfev = _SIGN_TASK
+    sol = least_squares(joint.residual, np.clip(z, lower + 1e-9, upper - 1e-9), jac=joint.jacobian,
+                        bounds=(lower, upper), x_scale="jac", max_nfev=max_nfev, ftol=1e-10, xtol=1e-10, gtol=1e-10,
+                        callback=joint.stop_at_precision())
+    return float(2 * sol.cost), sol.x
+
+
+def sign_scan_couplings(joint, z, key_of, max_hz=10.0, pattern="", max_combinations=64):
+    """Couplings whose sign combinations are scanned: free couplings with |J| (mean over the nodes) below max_hz
+    and, when given, a key matching the regex `pattern`. One-bond couplings never qualify. When 2^n exceeds
+    max_combinations, the couplings with the largest |J| are kept and the others listed as left out.
+    Returns (scanned indices, left-out indices), both into joint.coupling."""
+    import re
+    rx = re.compile(pattern) if pattern else None
+    cand = [k for k, n in enumerate(joint.coupling)
+            if abs(float(np.mean(joint.coupling_values(z, k)))) < max_hz and (rx is None or rx.search(key_of.get(n, n)))]
+    cand.sort(key=lambda k: -abs(float(np.mean(joint.coupling_values(z, k)))))
+    n_max = int(np.floor(np.log2(max(max_combinations, 1))))
+    return cand[:n_max], cand[n_max:]
+
+
+def flip_signs(joint, z, ks, min_hz=2.0):
+    """Vector z with the couplings ks (indices into joint.coupling) changed in sign at every node. A coupling whose
+    magnitude is below min_hz is first moved to +-min_hz (J = 0 is a stationary point: a sign there means nothing),
+    keeping its shape over the nodes. Monotone shape: J = v + A c becomes -v - A c (v and A negated)."""
+    z = z.copy()
+    for k in ks:
+        blk = slice(k * joint.m, (k + 1) * joint.m)
+        mean = float(np.mean(joint.coupling_values(z, k)))
+        target = -(np.sign(mean) or 1.0) * max(abs(mean), min_hz)
+        if joint.shape == "free":
+            z[blk] = -(z[blk] - mean) + target
+        else:
+            z[blk.start] = -z[blk.start] + (target + mean)
+            z[blk.start + 1] = -z[blk.start + 1]
+    return z
+
+
+def symmetric_bounds(joint, lower, upper, ks):
+    """Bounds with the coupling values of ks (all nodes; monotone: the level v) widened to +-max(|lo|, |hi|), so a
+    flipped coupling lies inside them. The change A and the shape weights keep theirs."""
+    lower, upper = lower.copy(), upper.copy()
+    for k in ks:
+        idx = range(k * joint.m, (k + 1) * joint.m) if joint.shape == "free" else [k * joint.m]
+        for i in idx:
+            b = max(abs(lower[i]), abs(upper[i]))
+            lower[i], upper[i] = -b, b
+    return lower, upper
+
+
+def sign_scan(joint, z, lower, upper, key_of, args):
+    """Relative signs of the small couplings (D65): local fits do not cross J = 0 reliably (the line positions
+    depend on the sign only through second-order and cross terms, and J near 0 is a stationary ridge), so every
+    sign combination of the scanned couplings (sign_scan_couplings) is offered as a start. Each combination is
+    refit briefly (--sign-scan-nfev, all parameters free, bounds of the scanned couplings made symmetric); the
+    --sign-scan-keep best are refit fully (_solve_indexed) and the best is kept if it beats the current solution
+    on the objective with hard missing-peak rows. Returns (z, lower, upper, record)."""
+    global _SIGN_TASK, _JOINT_TASK
+    from itertools import product
+    t0 = time.time()
+    ks, left = sign_scan_couplings(joint, z, key_of, args.sign_scan_max_hz, args.sign_scan_couplings,
+                                   args.sign_scan_max)
+    name = lambda k: key_of.get(joint.coupling[k], joint.coupling[k])
+    hard = lambda zz: float(np.sum(joint.residual(zz) ** 2))
+    before = hard(z)
+    record = {"couplings": [name(k) for k in ks], "left_out": [name(k) for k in left],
+              "values_before": {name(k): float(np.mean(joint.coupling_values(z, k))) for k in ks},
+              "objective_before": before, "short": [], "refits": [], "accepted": None}
+    if not ks:
+        record.update(objective_after=before, seconds=round(time.time() - t0))
+        print("sign scan: no coupling below the threshold", flush=True)
+        return z, lower, upper, record
+    lower, upper = symmetric_bounds(joint, lower, upper, ks)
+    z = np.clip(z, lower + 1e-9, upper - 1e-9)
+    # a coupling near 0 sits in a trap a local fit does not leave (about +-1-2 Hz wide in the ethyl test): both of
+    # its signs start at +-sign_scan_min_hz, so the unflipped combination is a new start too
+    base = z.copy()
+    small = [k for k in ks if abs(float(np.mean(joint.coupling_values(z, k)))) < args.sign_scan_min_hz]
+    if small:
+        base = flip_signs(joint, flip_signs(joint, z, small, args.sign_scan_min_hz), small, args.sign_scan_min_hz)
+    combos = [c for c in product((False, True), repeat=len(ks)) if any(c) or small]
+    starts = [flip_signs(joint, base, [k for k, f in zip(ks, c) if f], args.sign_scan_min_hz) for c in combos]
+    if joint.peaks is not None:
+        joint.peak_smooth = args.peak_smooth
+    _SIGN_TASK = (joint, lower, upper, args.sign_scan_nfev)
+    if args.workers > 1:
+        import multiprocessing
+        with multiprocessing.get_context("fork").Pool(args.workers) as pool:
+            short = pool.map(_sign_short_fit, starts, chunksize=1)
+    else:
+        short = [_sign_short_fit(st) for st in starts]
+    if joint.peaks is not None:
+        joint.peak_smooth = 0.0
+    ranked = sorted(((hard(zz), c, zz) for (_, zz), c in zip(short, combos)), key=lambda t: t[0])
+    for sc, c, _ in ranked:
+        record["short"].append({"flipped": [name(k) for k, f in zip(ks, c) if f], "objective": sc})
+    print(f"sign scan: {len(ks)} couplings ({', '.join(record['couplings'])}), {len(combos)} combinations, best short "
+          f"fit {ranked[0][0]:.5f} against {before:.5f}  ({time.time() - t0:.0f} s)", flush=True)
+    task = list(_JOINT_TASK) if _JOINT_TASK is not None else [joint, lower, upper, args.max_nfev, [], None, False]
+    task[1], task[2] = lower, upper
+    _JOINT_TASK = tuple(task)
+    best_z, best = z, before
+    for sc, c, zz in ranked[:args.sign_scan_keep]:
+        if joint.peaks is not None:
+            joint.peak_smooth = args.peak_smooth
+        refit = _solve_indexed((10_000 + len(record["refits"]), zz))
+        if joint.peaks is not None:
+            joint.peak_smooth = 0.0
+        score = hard(refit[1])
+        flipped = [name(k) for k, f in zip(ks, c) if f]
+        record["refits"].append({"flipped": flipped, "objective": score})
+        print(f"sign scan: refit with {', '.join(flipped)} flipped: {score:.5f}", flush=True)
+        if score < best * (1 - 1e-4):
+            best_z, best = refit[1], score
+            record["accepted"] = flipped
+    record.update(objective_after=best, seconds=round(time.time() - t0),
+                  values_after={name(k): float(np.mean(joint.coupling_values(best_z, k))) for k in ks})
+    print(f"sign scan: objective {before:.5f} -> {best:.5f}"
+          f"{' (' + ', '.join(record['accepted']) + ' flipped)' if record['accepted'] else ' (signs kept)'}", flush=True)
+    return best_z, lower, upper, record
+
+
 def _solve_indexed(item):
     """_solve_start for start k, recorded by a fit_monitor.MonitorWriter when monitoring is on (observation only)."""
     k, z = item
@@ -1881,6 +2008,18 @@ def make_parser():
                          "the first centre), 'end' searches from the best solution and refits globally if it wins")
     ap.add_argument("--component-search-starts", type=int, default=30, help="random starts per window")
     ap.add_argument("--component-search-nfev", type=int, default=30, help="max_nfev of each window fit")
+    ap.add_argument("--sign-scan", action="store_true",
+                    help="after the fit: every sign combination of the small couplings as a start (D65); a short fit of "
+                         "each, the best --sign-scan-keep refit fully, kept if better (local fits do not cross J = 0)")
+    ap.add_argument("--sign-scan-max-hz", type=float, default=10.0, help="sign scan: couplings with |J| below this")
+    ap.add_argument("--sign-scan-couplings", default="", help="sign scan: only couplings whose key matches this regex")
+    ap.add_argument("--sign-scan-max", type=int, default=64,
+                    help="sign scan: at most this many combinations (the couplings with the largest |J| are kept)")
+    ap.add_argument("--sign-scan-min-hz", type=float, default=2.0,
+                    help="sign scan: a coupling smaller than this starts at +-this value (both signs; J near 0 is a "
+                         "trap about +-1-2 Hz wide for a local fit)")
+    ap.add_argument("--sign-scan-nfev", type=int, default=30, help="sign scan: evaluations of each short fit")
+    ap.add_argument("--sign-scan-keep", type=int, default=3, help="sign scan: best short fits refit fully")
     ap.add_argument("--component-search-hold-gains", action="store_true",
                     help="window fits keep gains, phase and background at the global solution (cost = the window "
                          "part of the whole objective) instead of solving them on the window")
@@ -2116,6 +2255,16 @@ def main():
                 solutions.insert(0, (score_new, z_new))
                 score, z = score_new, z_new
         component_record["end"] = rec
+    sign_record = None
+    if args.sign_scan:
+        # every sign combination of the small couplings as a start (D65); kept only if the full refit wins
+        if status is not None:
+            status.set(phase="sign scan")
+        z_sign, lower, upper, sign_record = sign_scan(joint, z, lower, upper, key_of, args)
+        if sign_record["accepted"] is not None:
+            score = sign_record["objective_after"]
+            solutions.insert(0, (score, z_sign))
+            z = z_sign
     model_line_record = None
     if args.model_line_passes > 0:
         if status is not None:
@@ -2163,7 +2312,7 @@ def main():
               "scores": [s for s, _ in solutions],
               "data_region_residuals": dict(zip([e["id"] for e in series], joint.data_residuals(z))),
               "seconds": round(time.time() - t0), "couplings": {}, "residual_peaks": residual_peak_record,
-              "component_search": component_record, "model_line_passes": model_line_record,
+              "component_search": component_record, "sign_scan": sign_record, "model_line_passes": model_line_record,
               "family_edges_hz": [float(v) for v in joint.params[0].policy.family_edges_hz],
               "reduced_coupling_unit": "1e19 N A^-2 m^-3", "precision_hz": joint.precision_hz}
     from zulf_core.nuclei import REDUCED_COUPLING_UNIT, reduced_coupling

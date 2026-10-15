@@ -333,6 +333,11 @@ tall lines and barely sees it.
       the best solution and refits globally, keeping the result only if it wins. Test: tests/test_j_tuner.py
       ComponentSearchTests (+6 Hz wrong basin found back). Motivated by N-ethylmethylamine 13CH2 (whole
       objective -29 % from a basin the multi-start never reached).
+- [x] Sign scan of the small couplings (D65, `fit_joint_series --sign-scan`, off by default; user 2026-10-15 after
+      the ANATOLIA paper): every sign combination of the couplings below 10 Hz as a start, short fits, full refit of
+      the best three. Tests: SignScanTests (ethyl: both 2J recovered from the wrong basin, 0.447 -> 0.00024 = truth).
+- [ ] Sign scan on the real amines (triethylamine, N-ethylmethylamine, isopropylamine, ethylenediamine): do the
+      fine-structure misfits change? Report which signs won and by how much.
 - [x] Joint fitter: model-line weighting pass (the single-spectrum solver's signal_model_passes), so a model
       line where the data show none is fully penalised (eda_slow83 / eda_slow65: unobserved 15N lines at
       weight 0.2). Done: `--model-line-passes N`, MixtureForward.add_signal_cores (tested against a forward

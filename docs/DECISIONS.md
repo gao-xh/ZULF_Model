@@ -1119,3 +1119,27 @@ the single scan. Methyl 2-bromopropionate: C2 147.0 (refined objective 0.354) st
 in this model the data prefer C2 near 147 Hz and the 155-158 Hz lines may not belong to C2 (a full fit from 153.5 Hz
 is the check).
 
+## D65. Sign scan of the small couplings (2026-10-15)
+
+- Problem: a local fit does not cross J = 0. The line positions depend on the sign of a small coupling only through
+  second-order and cross terms (J_a J_b / Delta E), so +J and -J are two near-mirror basins, and J near 0 is a trap
+  for the fit. Ethyl test (tests/test_j_tuner.py SignScanTests, truth 2J(C1,H2) -4.2, 2J(C2,H1) -4.5 Hz): started
+  at +3.5 / +3.5 Hz the local fit ends at 0.0 / +3.7 Hz with an objective about 1800x the truth; started at +-0.5,
+  +-1 or +2 Hz it ends at -0.08 Hz; from -2 Hz it reaches -4.2 Hz. D25 (RefineSettings.sign_variants) flips only
+  couplings whose bounds exclude zero, one at a time, and only in refine(); the amine 2J sign test (2026-10-05)
+  was one hand-made combination. ANATOLIA (Cheshkov et al., Magn. Reson. Chem. 56, 449 (2018)) reports the same
+  for high-field total-lineshape fits: broadening continuation does not remove sign minima; they refit all 2^9
+  sign combinations of the small couplings of styrene (R-factor 12.7 -> 5.9 %).
+- Decision: `fit_joint_series --sign-scan` (off by default). After the fit (and the end component search), the
+  free couplings with |J| below `--sign-scan-max-hz` (10 Hz; optional regex `--sign-scan-couplings`; at most
+  `--sign-scan-max` combinations, the largest |J| kept) get every sign combination as a start (J -> -J at every
+  node; monotone series: v and A negated). A coupling below `--sign-scan-min-hz` (2 Hz) starts at +- that value
+  in both states, so its unflipped state is a new start too. The bounds of the scanned couplings are made
+  symmetric (+-max(|lo|, |hi|)). Every combination gets a short fit (`--sign-scan-nfev` 30, all parameters free),
+  the `--sign-scan-keep` (3) best a full refit; the best is kept only if it beats the current solution on the hard
+  objective. fit.json["sign_scan"] records the couplings, every combination's short objective, the refits and the
+  accepted flips.
+- Cost: 2^n short fits plus a few full refits (n = 4: 16 short fits). Report which signs won and by how much.
+Tests: tests/test_j_tuner.py SignScanTests (flip, symmetric bounds, recovery of both 2J signs from the wrong
+basin: objective 0.447 -> 0.00024 = truth); tests/test_joint_series.py test_sign_flip_negates_every_node_of_a_
+monotone_coupling (closed form: J -> -J at every node, others unchanged).

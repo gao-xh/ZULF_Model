@@ -297,6 +297,70 @@ class ComponentSearchTests(unittest.TestCase):
         self.assertAlmostEqual(float(prob.joint.coupling_values(z_new, k)[0]), TRUTH["J(C1,HC2)"], delta=0.15)
 
 
+class SignScanTests(unittest.TestCase):
+    """fit_joint_series.sign_scan (D65): small couplings started with the wrong sign, which a local fit does not
+    leave, get their signs back."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmpdir = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls.tmpdir.name)
+        cls.prob, cls.truth_z = _problem(cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        fj._JOINT_TASK = None
+        cls.tmpdir.cleanup()
+
+    def value(self, z, key):
+        joint = self.prob.joint
+        k = joint.coupling.index(next(n for n in joint.coupling if self.prob.key_of.get(n, n) == key))
+        return float(joint.coupling_values(z, k)[0])
+
+    def test_flip_and_symmetric_bounds(self):
+        joint = self.prob.joint
+        k = joint.coupling.index(next(n for n in joint.coupling if self.prob.key_of.get(n, n) == "J(C1,HC2)"))
+        z = fj.flip_signs(joint, self.truth_z, [k])
+        self.assertAlmostEqual(self.value(z, "J(C1,HC2)"), -TRUTH["J(C1,HC2)"], places=12)
+        self.assertAlmostEqual(self.value(z, "J(HC1,HC2)"), TRUTH["J(HC1,HC2)"], places=12)   # others untouched
+        z0 = self.truth_z.copy()
+        z0[k * joint.m:(k + 1) * joint.m] = 0.0
+        self.assertAlmostEqual(self.value(fj.flip_signs(joint, z0, [k], min_hz=0.5), "J(C1,HC2)"), -0.5, places=12)
+        lo, hi = fj.symmetric_bounds(joint, self.prob.lower, self.prob.upper, [k])
+        self.assertEqual(lo[k * joint.m], -hi[k * joint.m])
+        self.assertLess(lo[k * joint.m], -abs(TRUTH["J(C1,HC2)"]))
+        self.assertGreater(hi[k * joint.m], abs(TRUTH["J(C1,HC2)"]))
+        ks, left = fj.sign_scan_couplings(joint, self.truth_z, self.prob.key_of, max_hz=10.0, max_combinations=4)
+        self.assertEqual(len(ks), 2)                                   # 2^2 = 4 combinations at most
+        self.assertTrue(all(abs(self.value(self.truth_z, self.prob.key_of[joint.coupling[i]])) < 10 for i in ks + left))
+
+    def test_wrong_signs_are_recovered(self):
+        from scipy.optimize import least_squares
+        prob = self.prob
+        joint = prob.joint
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": 3.5, "J(C2,HC1)": 3.5})           # truth -4.2 and -4.5 Hz
+        z_bad = np.clip(s.z, prob.lower + 1e-9, prob.upper - 1e-9)
+        truth = float(np.sum(joint.residual(self.truth_z) ** 2))
+        local = least_squares(joint.residual, z_bad, jac=joint.jacobian, bounds=(prob.lower, prob.upper),
+                              x_scale="jac", max_nfev=200, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+        self.assertGreater(2 * local.cost, 100 * truth)                # the premise: a local fit stays wrong
+        args = _args(self.tmp, ["--sign-scan", "--sign-scan-couplings", r"^J\(C"])
+        args.workers = 1
+        fj._JOINT_TASK = None
+        z_new, lo, hi, rec = fj.sign_scan(joint, local.x, prob.lower, prob.upper, prob.key_of, args)
+        self.assertEqual(sorted(rec["couplings"]), ["J(C1,HC2)", "J(C2,HC1)"])
+        # J(C1,HC2) is left near 0 by the local fit: both its signs start at +-2 Hz, so all 2^2 combinations run
+        self.assertLess(abs(self.value(local.x, "J(C1,HC2)")), 2.0)
+        self.assertEqual(len(rec["short"]), 4)
+        self.assertIsNotNone(rec["accepted"])
+        self.assertLess(rec["objective_after"], 2 * truth)
+        self.assertAlmostEqual(self.value(z_new, "J(C1,HC2)"), TRUTH["J(C1,HC2)"], delta=0.1)
+        self.assertAlmostEqual(self.value(z_new, "J(C2,HC1)"), -4.5, delta=0.1)
+        self.assertTrue(np.all(z_new >= lo) and np.all(z_new <= hi))
+
+
 class GroupIndexTests(unittest.TestCase):
     def test_exchanging_groups_found_in_a_symmetric_component(self):
         # AA'BB' ethylenediamine with the N-H protons kept: J(HC1a,HN1) also maps to the mirror pairs (HC2a-HN2),
