@@ -1711,6 +1711,21 @@ def residual_refine(joint, z, lower, upper, key_of, args):
                             for n in ranked])
             lo = np.maximum(lower[idx], z[idx] - args.residual_refine_range)
             hi = np.minimum(upper[idx], z[idx] + args.residual_refine_range)
+            rate_names = []
+            if args.residual_refine_rates:
+                # the decay rates of the lines inside the window are free too: width and splitting trade off, and a
+                # coupling moved with the old widths is pulled to compensate them (owner, 2026-10-15)
+                edges = np.asarray(joint.params[s].policy.family_edges_hz, float)
+                for line in joint.peak_sources(z, s, fp, assign_hz=args.residual_refine_window)["lines"]:
+                    fam = int(np.searchsorted(edges, line["frequency_hz"], side="right")) if len(edges) else 0
+                    n = f"c{line['component']}.log_rate{fam}"
+                    if n not in rate_names and (n in joint.local or n in joint.shared):
+                        rate_names.append(n)
+                ridx = np.array([joint.ntheta + joint.shared.index(n) if n in joint.shared else
+                                 joint.nt + s * joint.nl + joint.local.index(n) for n in rate_names], int)
+                idx = np.r_[idx, ridx]
+                lo = np.r_[lo, lower[ridx]]
+                hi = np.r_[hi, upper[ridx]]
             fq = np.asarray(joint.forwards[s].f, float)
             win = np.abs(fq - fp) <= args.residual_refine_window
             scale = float(np.max(np.abs(np.real(np.asarray(joint.forwards[s].y)))))
@@ -1746,10 +1761,12 @@ def residual_refine(joint, z, lower, upper, key_of, args):
             keep = rms_after < rms_before and after <= before * (1 + args.residual_refine_tolerance)
             step = {"pass": p + 1, "spectrum": s, "peak_hz": round(fp, 3), "height_sigma": round(height, 1),
                     "couplings": {name(n): [float(z[i]), float(z_new[i])] for n, i in zip(ranked, idx)},
+                    "rates": {n: [float(np.exp(z[i])), float(np.exp(z_new[i]))]
+                              for n, i in zip(rate_names, idx[len(ranked):])},
                     "objective": [before, after], "plain_rms": [rms_before, rms_after], "kept": bool(keep)}
             record["steps"].append(step)
             print(f"residual refine: pass {p + 1}, peak {fp:.2f} Hz ({height:.1f} sigma), "
-                  f"{', '.join(name(n) for n in ranked)}: plain rms {rms_before:.4f} -> {rms_after:.4f}, objective "
+                  f"{', '.join(name(n) for n in ranked)}{f' + {len(rate_names)} rates' if rate_names else ''}: plain rms {rms_before:.4f} -> {rms_after:.4f}, objective "
                   f"{before:.5f} -> {after:.5f} {'kept' if keep else 'not kept'}", flush=True)
             if keep:                                  # the residual changed: find its peaks again
                 z = z_new
@@ -2420,6 +2437,9 @@ def make_parser():
                          "split-type part of the effect (split: changes the spacings inside the feature)")
     ap.add_argument("--residual-refine-one-bond", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the one-bond couplings may be among the couplings of a peak (default on)")
+    ap.add_argument("--residual-refine-rates", action=argparse.BooleanOptionalAction, default=True,
+                    help="residual refine: the decay rates of the lines inside the window are free in the local step "
+                         "too (default on)")
     ap.add_argument("--residual-refine-anchor", type=float, default=1.0,
                     help="residual refine: weight of the whole objective added to the window's plain residual in the "
                          "local step (holds the rest of the spectrum; 0 = window only)")

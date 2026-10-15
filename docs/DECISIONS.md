@@ -1196,3 +1196,8 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   model line within 0.8 Hz (mains / instrument lines at 20.6, 41.6, 60.6 Hz) are skipped instead of taking a slot.
 - Stage 3 of scripts/run_batch.py (owner, 2026-10-15): from the stage-2 fit, one start, a few evaluations of the
   main fit, then --residual-refine (default 10 passes), one BLAS thread: runs/processed/batch_<id><tag>_s3/.
+- Amendment (2026-10-15, owner): the local step also frees the decay rates of the lines within the window
+  (--residual-refine-rates, default on; line width and splitting trade off). It works on Re(data - model)
+  (absorption) only; the refit afterwards uses the fit's complex objective. The local step adds the whole objective
+  (--residual-refine-anchor 1) so the rest of the spectrum is held (sec-butylamine: without it the objective rose
+  0.064 -> 0.24 after the first step).
