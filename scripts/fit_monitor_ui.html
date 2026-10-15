@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fit Monitor</title>
 <style>
+/* the status line under the spectrum controls has its own fixed line, so a longer or shorter text never moves the
+   controls or the plot (owner, 2026-10-15: the row jumped on every refresh) */
+.nowrap { white-space: nowrap; }
+.specnote { height: 1.4em; line-height: 1.4em; margin: 2px 0 4px; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 :root {
   --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e2e0;
   --data: #1d1d1f; --model: #d1495b; --resid: #8a8a8f; --good: #2a8a52; --bad: #c0392b; --accent: #3b6fb6;
@@ -76,9 +81,9 @@ pre { margin: 0; max-height: 260px; overflow: auto; font: 11px/1.35 ui-monospace
       <button id="show">Show spectrum</button>
       <label class="muted"><input type="checkbox" id="follow-spec" checked> update with the run</label>
       <select id="part"><option value="re">real</option><option value="im">imaginary</option><option value="abs">magnitude</option></select>
-      <label class="muted">view</label><input type="number" id="vlo" step="0.5"> - <input type="number" id="vhi" step="0.5"> Hz
-      <span class="muted" id="specnote">rendered in the monitor process from the recorded command (the fit is not touched)</span>
+      <span class="nowrap"><label class="muted">view</label> <input type="number" id="vlo" step="0.5"> - <input type="number" id="vhi" step="0.5"> Hz</span>
     </div>
+    <div class="muted specnote" id="specnote">rendered in the monitor process from the recorded command (the fit is not touched)</div>
     <canvas id="spec" height="320"></canvas>
   </section>
   <section>
