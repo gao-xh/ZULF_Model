@@ -501,6 +501,26 @@ class ResidualRefineTests(unittest.TestCase):
         self.assertAlmostEqual(self.value(z_new, "J(C1,HC2)"), TRUTH["J(C1,HC2)"], delta=0.05)
         self.assertAlmostEqual(self.value(z_new, "J(HC1,HC2)"), TRUTH["J(HC1,HC2)"], delta=0.05)
 
+    def test_complex_domain_leads_the_couplings_back(self):
+        prob = self.prob
+        joint = prob.joint
+        self.assertFalse(joint.forwards[0].real_only)            # the synthetic data are complex
+        self.assertEqual(fj.plain_residual_peaks(joint, self.truth_z, 6.0, domain="complex"), [])
+        r, _, _ = fj.plain_residual(joint, self.truth_z, 0, "complex")
+        self.assertTrue(np.iscomplexobj(r))
+        s = jt.TuningSession(prob)
+        s.z = self.truth_z.copy()
+        s.set_couplings({"J(C1,HC2)": TRUTH["J(C1,HC2)"] + 0.6})
+        z_off = np.clip(s.z, prob.lower + 1e-9, prob.upper - 1e-9)
+        args = _args(self.tmp, ["--residual-refine", "3", "--residual-refine-domain", "complex"])
+        args.workers = 1
+        fj._JOINT_TASK = None
+        z_new, rec = fj.residual_refine(joint, z_off, prob.lower, prob.upper, prob.key_of, args)
+        self.assertEqual(rec["domain"], "complex")
+        self.assertTrue(any(st["kept"] for st in rec["steps"]))
+        self.assertLess(rec["plain_rms_after"], 0.5 * rec["plain_rms_before"])
+        self.assertAlmostEqual(self.value(z_new, "J(C1,HC2)"), TRUTH["J(C1,HC2)"], delta=0.05)
+
 
 class GroupIndexTests(unittest.TestCase):
     def test_exchanging_groups_found_in_a_symmetric_component(self):

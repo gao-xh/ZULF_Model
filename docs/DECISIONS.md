@@ -1209,3 +1209,7 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   the data's line cores (signal mask); the model-line condition is off by default (--residual-refine-min-line 0;
   above 0 it is applied as before). sec-butylamine: 20.58 / 60.58 / 170.0 Hz (outside the cores) are left out;
   41.58 / 81.0 / 88.25 / 139.25 Hz and the J-band peaks count.
+- Amendment (2026-10-15, owner): --residual-refine-domain complex works on the complex residual data - model
+  (absorption and dispersion): peaks of its smoothed modulus, the local fit on its real and imaginary parts, the
+  acceptance on the rms of its modulus. Default stays real. Tested on the synthetic ethyl truth like the real
+  domain.
