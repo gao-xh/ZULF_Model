@@ -63,7 +63,8 @@ CONFIGS = ["configs/batch_2026-10-10_v3.json", "configs/batch_2026-10-10_v2.json
 # latest of v3 / v2 / v1
 # a value may also be a run directory name (a refinement outside run_batch) with the config pass of its structure
 RUNS = {"methyl-2-bromopropionate": ("batch_methyl-2-bromopropionate_v7_longrange", "v6"),
-        "n-n-dimethylethylenediamine": ("sign_scan/n-n-dimethylethylenediamine_v13_s2sign", "v13")}   # sign scan D65, 2026-10-15
+        "n-n-dimethylethylenediamine": ("sign_scan/n-n-dimethylethylenediamine_v13_s2sign", "v13"),  # sign scan D65
+        "sec-butylamine": ("shape_refine/sec-butylamine_v13_s2shape", "v13")}   # shape refine D67 + sign scan, 2026-10-15
 CHOSEN = {"methyl-2-bromopropionate": "_v6", "serine": "_v11", "n-n-dimethylethylenediamine": "_v13",
           "diethylamine": "_v14", "sec-butylamine": "_v13", "tert-butylamine": "_v14", "ethylenediamine": "_v14",
           "isopropylamine": "_v16", "triethylamine": "_v16",

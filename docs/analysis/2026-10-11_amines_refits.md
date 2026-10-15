@@ -249,3 +249,20 @@ Several N-H couplings are large for their bond count: a conditional numerical re
 couplings is the best of the scanned combinations, not a determination.
 Peak refine raised the objective on both amines (Powell on the peak positions moved the couplings far; the refit
 did not recover): not useful on these spectra as tuned.
+
+Overnight queue (2026-10-15, runs/processed/shape_refine/; stage 1 with shape refine, sign scan, peak refine, then
+stage 2 from it):
+
+| sample | stage 2 before | stage 2 after | note |
+|---|---|---|---|
+| sec-butylamine | 0.079 (v13) | **0.0649** | shape refine kept (0.0970 -> 0.0957), sign scan flipped J(N1,HC4), J(C4,HC2) |
+| DMEDA | 0.074 (v13) | 0.0648 | worse than the sign-scan route (0.0565), not used |
+| alanine | 0.282 (v9) | 0.332 | worse, not used |
+| lactic acid, glycerol, serine | 0.077 / 0.962 / 0.857 | unchanged | nothing accepted |
+
+sec-butylamine, plain rms residual (no baseline correction, units of the largest J-band line; noise about 0.02):
+J band 114-140 Hz 0.067 -> 0.042, CH2 band 0.023 -> 0.011, methyl 2J band 0.021 -> 0.016; the 124.6 / 125.8 Hz
+doublet is resolved (runs/figures/secbutyl_shape_refine_compare.png). The overlay draws this fit. Peak refine
+(unbounded) was not kept anywhere; it is now bounded (--peak-refine-range 1 Hz). The machine was overloaded at
+12:30 (load 58-74 on 10 cores: several fits with BLAS threads); runs A/B on DMEDA and the sec-butylamine
+sign-scan stage 2 (0.088) were stopped by PID; new runs set OMP_NUM_THREADS=1.
