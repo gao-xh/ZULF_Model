@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans, select_scans, --band-weighting, --line-group-span 2026-10-12; --sign-scan D65, --shape-refine D67, --peak-refine D66, --residual-refine D68 2026-10-15).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans, select_scans, --band-weighting, --line-group-span 2026-10-12; --sign-scan D65, --shape-refine D67, --peak-refine D66, --residual-refine D68, run_batch stage 3 2026-10-15).
 
 ## Map
 
@@ -358,6 +358,7 @@ Unattended batch of quick known-structure fits (many data sets; 2026-10-10):
 | whole-grid spectrum of the z5 average (`make_series_entry.py --exclude 81.5,86`; entry keys `apodization`, `record`, `crop` for a stronger noise filter, `series` suffix) | `runs/series/batch_<id>[<series>]/` |
 | stage 1: one rate per isotopologue, component search, 6 starts | `runs/processed/batch_<id><tag>_s1/` |
 | stage 2 from stage 1: one rate per model line, rates 0.1-40 1/s, 2 starts | `runs/processed/batch_<id><tag>_s2/` |
+| stage 3 from stage 2: small couplings fitted to the peaks of the plain residual, one peak at a time, short refits (`--residual-refine`, D68; run_batch `--residual-refine N`, default 10, 0 = off) | `runs/processed/batch_<id><tag>_s3/` |
 | results table after every entry | `docs/analysis/2026-10-10_batch_results*.md` |
 | diagnostic figures (experiment, the stage-2 fit's own model, residual) | `runs/figures/batch/<id><tag>.png` |
 

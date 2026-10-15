@@ -22,7 +22,11 @@ Per entry (resumable: a step whose output exists is skipped):
      (with --one-bond-from-data the 1J starts are first read from the observed bands, D64),
      field fitted only when the entry says `field` (else zero field): runs/processed/batch_<id><tag>_s1/;
   4. stage 2 fit from stage 1 (--from-joint): one decay rate per model line (--family-edges lines), rate bounds
-     0.1-40 1/s, 2 starts: runs/processed/batch_<id><tag>_s2/.
+     0.1-40 1/s, 2 starts: runs/processed/batch_<id><tag>_s2/;
+  5. stage 3 from stage 2 (owner, 2026-10-15): the small couplings fitted to the peaks of the plain (unweighted)
+     residual, one peak at a time, each followed by a short full refit (fit_joint_series --residual-refine, D68;
+     one start, the main fit only a few evaluations, one BLAS thread): runs/processed/batch_<id><tag>_s3/.
+     --residual-refine N passes (default 10, 0 = no stage 3); an entry may set "residual_refine".
 Waits (up to --wait hours) for an entry's scans folder to appear on the drive. Writes a results table
 (docs/analysis/2026-10-10_batch_results.md by default) after every finished entry; a failed step is recorded and
 the entry skipped. Fit results are conditional numerical results of the given structure, not assignments.
@@ -32,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import subprocess
 import sys
 import threading
@@ -52,11 +57,11 @@ def measurement_of(scans: str):
     return parts[1], parts[2]                      # (measurement, folder as received)
 
 
-def run(cmd, log: Path) -> int:
+def run(cmd, log: Path, env=None) -> int:
     with open(log, "a") as fh:
         fh.write("$ " + " ".join(cmd) + "\n")
         fh.flush()
-        return subprocess.run(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT).returncode
+        return subprocess.run(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT, env=env).returncode
 
 
 def note(eid, **kw):
@@ -154,25 +159,42 @@ def process(entry, args):
                          "--out", str(s2.relative_to(ROOT))], log):
             note(eid, status="failed: stage 2")
             return
-    note(eid, s2=summary(s2 / "fit.json"), status="done", minutes=round((time.time() - t0) / 60))
+    note(eid, s2=summary(s2 / "fit.json"))
+    passes = int(entry.get("residual_refine", args.residual_refine))
+    s3 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s3"
+    if passes > 0 and not (s3 / "fit.json").exists():
+        note(eid, status="stage 3 (residual peaks)")
+        cmd = [c if c != str(args.workers) or common[i - 1] != "--workers" else "1" for i, c in enumerate(common)]
+        cmd = [c for c in cmd if c != "--one-bond-from-data"]
+        env = dict(os.environ, OMP_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", OPENBLAS_NUM_THREADS="1")
+        if run(cmd + ["--starts", "1", "--max-nfev", "3", "--rate-bounds", "0.1,40", "--component-search", "off",
+                      "--family-edges", "lines", "--from-joint", str((s2 / "fit.json").relative_to(ROOT)),
+                      "--residual-refine", str(passes), "--out", str(s3.relative_to(ROOT))], log, env):
+            note(eid, status="failed: stage 3")
+            return
+    if (s3 / "fit.json").exists():
+        note(eid, s3=summary(s3 / "fit.json"))
+    note(eid, status="done", minutes=round((time.time() - t0) / 60))
 
 
 def write_table(path: Path, entries):
     rows = ["# Overnight batch 2026-10-10: results", "",
             "Conditional numerical results of the given structures (scripts/run_batch.py, configs/batch_2026-10-10.json);",
             "stage 1: one rate per isotopologue; stage 2: one rate per model line. J in Hz (J_std: linearised).", "",
-            "| id | status | stage 1 score | stage 2 score / residual | field (nT, transverse / z) | couplings (stage 2) |",
-            "|---|---|---|---|---|---|"]
+            "| id | status | stage 1 score | stage 2 score / residual | stage 3 score / residual | field (nT, transverse / z) | couplings (last stage) |",
+            "|---|---|---|---|---|---|---|"]
     with LOCK:
         for e in entries:
             st = STATE.get(e["id"], {})
-            s1, s2 = st.get("s1"), st.get("s2")
-            f = (s2 or s1 or {}).get("field_nt")
-            jtxt = ", ".join(f"{k} {v[0]:.2f}" for k, v in (s2 or s1 or {}).get("J", {}).items())
+            s1, s2, s3 = st.get("s1"), st.get("s2"), st.get("s3")
+            f = (s3 or s2 or s1 or {}).get("field_nt")
+            jtxt = ", ".join(f"{k} {v[0]:.2f}" for k, v in (s3 or s2 or s1 or {}).get("J", {}).items())
             rows.append(f"| {e['id']} | {st.get('status', 'queued')} | {s1['score']:.4f} |" if s1 else
                         f"| {e['id']} | {st.get('status', 'queued')} | - |")
             res = "-" if not s2 or s2.get("residual") is None else f"{s2['residual']:.3f}"
             rows[-1] += (f" {s2['score']:.4f} / {res} |" if s2 else " - |")
+            res3 = "-" if not s3 or s3.get("residual") is None else f"{s3['residual']:.3f}"
+            rows[-1] += (f" {s3['score']:.4f} / {res3} |" if s3 else " - |")
             rows[-1] += (f" {f[0]:.1f} / {f[1]:.1f} |" if f else " zero field |" if not e.get("field") else " - |")
             rows[-1] += f" {jtxt} |"
     path.write_text("\n".join(rows) + "\n")
@@ -189,6 +211,9 @@ def main():
     ap.add_argument("--one-bond-from-data", action="store_true",
                     help="stage 1 reads the 1J starts from the observed bands (fit_joint_series, D64); an entry can "
                          "also set \"one_bond_from_data\": true")
+    ap.add_argument("--residual-refine", type=int, default=10,
+                    help="stage 3: passes over the peaks of the plain residual (fit_joint_series --residual-refine, "
+                         "D68); 0 = no stage 3")
     ap.add_argument("--skip", default="", help="entry ids reported from their existing results but not run")
     ap.add_argument("--tag", default="", help="suffix of the fit folders and logs (a second pass with other "
                                              "structures reuses the averages and spectra), e.g. _v2")

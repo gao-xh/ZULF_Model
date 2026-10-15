@@ -1662,7 +1662,8 @@ def plain_residual_peaks(joint, z, k_sigma=4.0, max_width_hz=1.5, smooth_hz=0.05
 def residual_refine(joint, z, lower, upper, key_of, args):
     """Peaks of the plain (unweighted) residual, one at a time (D68): the signal-weighted objective counts a
     systematic misfit beside a strong line little, the plain residual shows it. For each peak (plain_residual_peaks)
-    the --residual-refine-couplings small couplings that move the lines there most (peak_sources, local effect x
+    the --residual-refine-couplings couplings (1J included unless --no-residual-refine-one-bond; peaks with no model
+    line within 0.8 Hz are skipped) that move the lines there most (peak_sources, local effect x
     selectivity) are fitted to the plain residual in a +-window around it (each within +-range of its value, gains
     solved as in the fit), then everything is refit; kept if the plain rms falls and the objective (hard rows) rises
     by at most --residual-refine-tolerance. Each pass tries up to --residual-refine-peaks peaks and ends at the first
@@ -1674,7 +1675,8 @@ def residual_refine(joint, z, lower, upper, key_of, args):
         _JOINT_TASK = (joint, lower, upper, args.max_nfev, [], None, False)
     name = lambda n: key_of.get(n, n)
     hard = lambda zz: float(np.sum(joint.residual(zz) ** 2))
-    small = {n for k, n in enumerate(joint.coupling) if abs(float(np.mean(joint.coupling_values(z, k)))) < 20.0}
+    limit = np.inf if args.residual_refine_one_bond else 20.0      # 1J moves a whole band (sec-butylamine 124 Hz)
+    small = {n for k, n in enumerate(joint.coupling) if abs(float(np.mean(joint.coupling_values(z, k)))) < limit}
     record = {"objective_before": hard(z), "plain_rms_before": plain_rms(joint, z), "steps": []}
     tried = []
     for p in range(args.residual_refine):
@@ -1683,9 +1685,21 @@ def residual_refine(joint, z, lower, upper, key_of, args):
         if not peaks:
             break
         accepted_any = False
-        for height, s, fp in peaks[:args.residual_refine_peaks]:
+        assignable = []
+        for pk in peaks:
+            if len(assignable) == args.residual_refine_peaks:
+                break
+            if joint.peak_sources(z, pk[1], pk[2], assign_hz=0.8)["lines"]:
+                assignable.append(pk)
+            else:
+                tried.append((pk[1], pk[2]))
+        for height, s, fp in assignable:
             tried.append((s, fp))
-            src = joint.peak_sources(z, s, fp, assign_hz=0.8)["couplings"]
+            sources = joint.peak_sources(z, s, fp, assign_hz=0.8)
+            if not sources["lines"]:                    # no model line near: instrument line, impurity; not ours
+                tried.append((s, fp))
+                continue
+            src = sources["couplings"]
             ranked = sorted((n for n in src if n in small and src[n]["local"] > 0),
                             key=lambda n: -src[n]["local"] * src[n]["selectivity"])[:args.residual_refine_couplings]
             if not ranked:
@@ -2393,6 +2407,8 @@ def make_parser():
     ap.add_argument("--residual-refine-nfev", type=int, default=40, help="residual refine: evaluations of each local fit")
     ap.add_argument("--residual-refine-refit-nfev", type=int, default=40,
                     help="residual refine: evaluations of the full refit after each local step (0: --max-nfev)")
+    ap.add_argument("--residual-refine-one-bond", action=argparse.BooleanOptionalAction, default=True,
+                    help="residual refine: the one-bond couplings may be among the couplings of a peak (default on)")
     ap.add_argument("--residual-refine-tolerance", type=float, default=0.02,
                     help="residual refine: relative rise of the objective still accepted for a lower plain rms")
     ap.add_argument("--peak-refine", action="store_true",

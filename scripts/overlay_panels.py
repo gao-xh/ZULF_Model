@@ -77,7 +77,7 @@ def latest_fit(eid):
         return ROOT / "runs/processed" / RUNS[eid][0], RUNS[eid][1] + " refined"
     order = [CHOSEN[eid]] if eid in CHOSEN else ["_v3", "_v2", ""]
     for tag in order:
-        for stage in ("s2", "s1"):
+        for stage in ("s3", "s2", "s1"):
             run = ROOT / "runs/processed" / f"batch_{eid}{tag}_{stage}"
             if (run / "fit.json").exists():
                 return run, (tag.strip("_") or "v1") + " " + stage

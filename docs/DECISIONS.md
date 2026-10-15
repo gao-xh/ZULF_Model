@@ -1191,3 +1191,8 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   passes. fit.json["residual_refine"].
 - Test: tests/test_j_tuner.py ResidualRefineTests (synthetic ethyl, J(C1,HC2) 0.6 Hz off: the largest plain peak
   brings both small couplings back to the truth, plain rms 0.047 -> 0.002 = noise).
+- Amendment (2026-10-15, sec-butylamine 124 Hz): the couplings of a peak may include 1J (--residual-refine-one-bond,
+  default on): at 123.8 Hz the most effective coupling is 1J(C4,H4), which moves the whole C4 band. Peaks with no
+  model line within 0.8 Hz (mains / instrument lines at 20.6, 41.6, 60.6 Hz) are skipped instead of taking a slot.
+- Stage 3 of scripts/run_batch.py (owner, 2026-10-15): from the stage-2 fit, one start, a few evaluations of the
+  main fit, then --residual-refine (default 10 passes), one BLAS thread: runs/processed/batch_<id><tag>_s3/.
