@@ -364,8 +364,13 @@ def make_handler(root, cache):
                     view = [float(q["lo"]), float(q["hi"])] if "lo" in q else None
                     return self._send(200, cache.spectrum(q["run"], q["start"], view=view))
                 self._send(404, {"error": "not found"})
-            except Exception as exc:
-                self._send(400, {"error": f"{type(exc).__name__}: {exc}"})
+            except (Exception, SystemExit) as exc:
+                # SystemExit: argparse of a run recorded with an option this monitor process does not know yet
+                # (fit_joint_series changed after the monitor started): restart the monitor
+                msg = f"{type(exc).__name__}: {exc}"
+                if isinstance(exc, SystemExit):
+                    msg = "the run's command has options this monitor does not know; restart the monitor"
+                self._send(400, {"error": msg})
     return Handler
 
 
