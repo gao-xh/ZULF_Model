@@ -266,3 +266,23 @@ doublet is resolved (runs/figures/secbutyl_shape_refine_compare.png). The overla
 (unbounded) was not kept anywhere; it is now bounded (--peak-refine-range 1 Hz). The machine was overloaded at
 12:30 (load 58-74 on 10 cores: several fits with BLAS threads); runs A/B on DMEDA and the sec-butylamine
 sign-scan stage 2 (0.088) were stopped by PID; new runs set OMP_NUM_THREADS=1.
+
+## Residual-peak refine on sec-butylamine (2026-10-15)
+
+Start: the best point of the first residual run (runs/processed/secbutyl_push/best_0620, objective 0.0621 with hard
+missing-peak rows). Rules changed during the day (D68 amendments, commits 72a774c, a686243, 165a34e): peaks count
+in the data's line regions (not at a model line position), an optional complex domain, and freed decay rates held
+within a factor 1.5 in the local step. Before the rate bound the 120.67 Hz step moved the couplings < 0.2 Hz but
+rates 5 -> 15 1/s and 3.4 -> 0.6 1/s and was not kept (0.0655-0.0680).
+
+| run (runs/processed/secbutyl_push/) | ranking | domain | kept step | objective |
+|---|---|---|---|---|
+| bounded_effect | effect, 1J in | real | 123.67 Hz: J(C4,HC4), J(C4,HC2), J(C1,HC1) + 3 rates | 0.0621 -> 0.0615 |
+| bounded_split | split, no 1J | real | 124.33 Hz: J(HC3,HC4), J(C4,HC3), J(C1,HC2), J(HC1,HC2), J(C1,HC3) | 0.0621 -> 0.0616 |
+| bounded_complex | split, no 1J | complex | none (121.17, 132.50 Hz tried) | 0.0621 |
+
+Best: bounded_effect. rms residual (units of the largest J-band line; noise about 0.019): J band 115-142 Hz
+0.042 -> 0.035, zoom 119-129 Hz 0.059 -> 0.046, CH2/CH 0.013 -> 0.012, 2J 0.015 -> 0.012 (stage 2 -> now). The
+123.3 / 123.8 / 124.6 Hz peak-dip-peak is now drawn but the dip stays too shallow; no step at 120.67 or 139.25 Hz
+was kept. Figure: runs/figures/secbutyl_new_methods_compare.png. Conditional numerical result of the given
+structure. Open: the 124 Hz structure may need more than the small couplings (13C@C4 isotopologue lines).
