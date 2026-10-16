@@ -1213,3 +1213,6 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   (absorption and dispersion): peaks of its smoothed modulus, the local fit on its real and imaginary parts, the
   acceptance on the rms of its modulus. Default stays real. Tested on the synthetic ethyl truth like the real
   domain.
+- Amendment (2026-10-15): the freed decay rates stay within --residual-refine-rate-factor (1.5) of their values in
+  the local step. sec-butylamine 120.67 Hz: the couplings moved < 0.2 Hz but free rates went 5 -> 15 1/s and
+  3.4 -> 0.6 1/s; the refit ended at 0.0655-0.0680 from 0.0621 (both not kept).

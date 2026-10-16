@@ -1746,8 +1746,11 @@ def residual_refine(joint, z, lower, upper, key_of, args):
                 ridx = np.array([joint.ntheta + joint.shared.index(n) if n in joint.shared else
                                  joint.nt + s * joint.nl + joint.local.index(n) for n in rate_names], int)
                 idx = np.r_[idx, ridx]
-                lo = np.r_[lo, lower[ridx]]
-                hi = np.r_[hi, upper[ridx]]
+                # each rate within a factor of its value (sec-butylamine 120.67 Hz: free rates went 5 -> 15 1/s and
+                # 3.4 -> 0.6 1/s, broke other lines, and the refit did not recover)
+                span = np.log(args.residual_refine_rate_factor) if args.residual_refine_rate_factor > 1 else np.inf
+                lo = np.r_[lo, np.maximum(lower[ridx], z[ridx] - span)]
+                hi = np.r_[hi, np.minimum(upper[ridx], z[ridx] + span)]
             fq = np.asarray(joint.forwards[s].f, float)
             win = np.abs(fq - fp) <= args.residual_refine_window
             scale = float(np.max(np.abs(np.real(np.asarray(joint.forwards[s].y)))))
@@ -2467,6 +2470,9 @@ def make_parser():
     ap.add_argument("--residual-refine-min-line", type=float, default=0.0,
                     help="residual refine: a peak counts only inside the data's line cores; above 0, a model line of at "
                          "least this share of its component's strongest line within 0.8 Hz is also required")
+    ap.add_argument("--residual-refine-rate-factor", type=float, default=1.5,
+                    help="residual refine: a freed decay rate stays within this factor of its value in the local "
+                         "step (1 or less: only the fit's rate bounds)")
     ap.add_argument("--residual-refine-rates", action=argparse.BooleanOptionalAction, default=True,
                     help="residual refine: the decay rates of the lines inside the window are free in the local step "
                          "too (default on)")
