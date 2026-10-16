@@ -309,3 +309,12 @@ structure. Open: the 124 Hz structure may need more than the small couplings (13
   +5 %. Only 13C@C1 couplings move the window much, and only at a large cost: J(C1,HC3) 2.93 -> 1.68 Hz window
   x0.45, objective x1.96; J(C1,HC2) -3.28 -> -4.03 Hz window x0.60, objective x1.59. Within this model the small
   couplings cannot make the 123.8 Hz dip.
+- Refits with one 13C@C1 coupling held or flipped (from bounded_effect, one start, 30 evaluations, no residual
+  refine; runs/processed/secbutyl_push/{hold_c1hc3_1p68,hold_c1hc2_p4p03,flip_c1hc2}, figure
+  runs/figures/secbutyl_c1_held_refits.png). rms per band (30-112 / J band / 121-126 / CH2-CH / 2J / 262-380 Hz):
+  current 0.061: 0.063 / 0.033 / 0.049 / 0.012 / 0.012 / 0.010;
+  J(C1,HC3) held at 1.68 Hz: 0.0894: 0.063 / 0.076 / 0.108 / 0.016 / 0.029 / 0.011 (J(C1,HC2) -3.28 -> -3.51);
+  J(C1,HC2) held at +4.03 Hz: 0.1545: 0.064 / 0.098 / 0.102 / 0.027 / 0.094 / 0.017;
+  J(C1,HC2) from +3.28 Hz, all free: 0.1789, stays positive (+3.30): 0.063 / 0.101 / 0.094 / 0.027 / 0.114 / 0.020.
+  A positive J(C1,HC2) is ruled out within this model; holding J(C1,HC3) at 1.68 Hz keeps the 123 Hz shape only
+  at the cost of the 124.6 / 125.8 Hz doublet and the 2J band.
