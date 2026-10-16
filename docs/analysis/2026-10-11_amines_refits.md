@@ -302,3 +302,10 @@ structure. Open: the 124 Hz structure may need more than the small couplings (13
   0.004 per subset; the fit gives 0.022). The depth differs between quarters by much more than the noise, not
   monotonically in time (third quarter shallowest); the 2J band agrees across subsets.
 - Open: a second species (needs a structure-spec extension) or a quick test adding shifted 13C@C1/C4 lines.
+- Small-coupling scan against the 123 Hz window (scripts/coupling_scan.py on bounded_effect, window 122.5-124.3 Hz,
+  the 16 couplings with |J| < 20 Hz, +-8 Hz in 0.25 Hz steps, then 2D grids of the best three; rates held, gains
+  solved; runs/processed/secbutyl_push/smallj_scan_123.json). With the objective held within +5 % no coupling
+  lowers the window residual by more than 3 % (J(C3,HC4) -3.96 -> -4.21 Hz); the 2D grids give nothing within
+  +5 %. Only 13C@C1 couplings move the window much, and only at a large cost: J(C1,HC3) 2.93 -> 1.68 Hz window
+  x0.45, objective x1.96; J(C1,HC2) -3.28 -> -4.03 Hz window x0.60, objective x1.59. Within this model the small
+  couplings cannot make the 123.8 Hz dip.
