@@ -286,3 +286,19 @@ Best: bounded_effect. rms residual (units of the largest J-band line; noise abou
 123.3 / 123.8 / 124.6 Hz peak-dip-peak is now drawn but the dip stays too shallow; no step at 120.67 or 139.25 Hz
 was kept. Figure: runs/figures/secbutyl_new_methods_compare.png. Conditional numerical result of the given
 structure. Open: the 124 Hz structure may need more than the small couplings (13C@C4 isotopologue lines).
+
+## The 123 Hz misfit: couplings and scan subsets (2026-10-15)
+
+- 1J(C3,HC3) scan on bounded_effect (rates and other couplings held): sharp minimum at 127.0 Hz (J band residual
+  x10 at +-0.5 Hz; 132.9 Hz, the structure's start value, gives objective 0.20 against 0.061). Not the cause.
+- The 122.7-125.1 Hz lines are those of 13C@C1, 13C@C3 and 13C@C4 and move 1:1 with their 1J. Moving 1J(C1,HC1)
+  by -0.2 Hz and 1J(C4,HC4) by -0.1 Hz fits 122.5-124.3 Hz (rms 0.066 -> 0.033) but breaks the methyl 2J band
+  (0.012 -> 0.081) and 124.3-142 Hz (0.027 -> 0.059): within this model the 123 Hz lines and the 2J band ask for
+  different 1J(C1). Hypothesis (not tested): a second species with slightly different methyl 1J.
+- Scan subsets (scripts/average_scans.py --exclude-z 5 on four time quarters of the 6681 scans, about 1450 kept
+  each; even / odd halves of z5; the same processing as the fit series, checked: max relative difference 5e-5):
+  runs/processed/secbutyl_push/scan_split/make.sh, figure runs/figures/secbutyl_123hz_scan_subsets.png. The
+  123.3 Hz peak / 123.8 Hz dip is in every subset (depth 0.086-0.154 in units of the largest J-band line, noise
+  0.004 per subset; the fit gives 0.022). The depth differs between quarters by much more than the noise, not
+  monotonically in time (third quarter shallowest); the 2J band agrees across subsets.
+- Open: a second species (needs a structure-spec extension) or a quick test adding shifted 13C@C1/C4 lines.
