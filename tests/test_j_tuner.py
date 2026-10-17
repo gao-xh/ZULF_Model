@@ -579,6 +579,25 @@ class ParameterPriorTests(unittest.TestCase):
             self.assertEqual(np.count_nonzero(jac[-1]), 1)
 
 
+    def test_rate_caps_and_tied_families(self):
+        # reference: the bounds and the free names, read back from the built problem
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _problem(tmp)
+            prob = fj.build_problem(_args(tmp, ["--family-edges", "180,220",
+                                                "--rate-caps", json.dumps({"c0.log_rate1": 2.0}),
+                                                "--tie-families", json.dumps([["c1.log_rate0", "c1.log_rate1",
+                                                                                "c1.log_rate2"]])]))
+            joint = prob.joint
+            i = joint.nt + joint.local.index("c0.log_rate1")
+            self.assertAlmostEqual(prob.upper[i], np.log(2.0), places=12)
+            self.assertLessEqual(prob.z0[i], np.log(2.0))
+            self.assertIn("c1.log_rate0", joint.local)
+            self.assertNotIn("c1.log_rate1", joint.local)
+            self.assertNotIn("c1.log_rate2", joint.local)
+            self.assertIn("c0.log_rate2", joint.local)
+
+
     def test_line_prior_rows_and_jacobian(self):
         # reference: a row written out by hand from the series-average couplings, and a finite difference
         with tempfile.TemporaryDirectory() as d:

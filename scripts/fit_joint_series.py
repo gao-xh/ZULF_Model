@@ -313,7 +313,7 @@ class JointSeries:
     """Shared monotonic couplings over several spectra of one structure (see the module docstring)."""
 
     def __init__(self, model, settings, observations, xs, shared=(), shape="monotone", exchange=None, fixed=(),
-                 tie_rates=""):
+                 tie_rates="", tie_families=None):
         self.model, self.settings = model, settings
         self.params = [settings.parameterize(model.interpretation) for _ in observations]
         for p in self.params:                      # couplings held at their structure values (--free-couplings)
@@ -335,6 +335,13 @@ class JointSeries:
                     names = [n for n in p.order if n.startswith(f"c{c}.log_rate")]
                     if len(names) > 1:
                         p.tie(names[0], *names[1:])
+        for group in tie_families or []:
+            # --tie-families (owner, 2026-10-17): the listed rate families share one decay rate (the first's), e.g.
+            # one width for a band so the couplings, not per-line widths, must shape its envelope
+            for p in self.params:
+                names = [n for n in group if n in p.parameters]
+                if len(names) > 1:
+                    p.tie(names[0], *names[1:])
         if exchange:
             for p in self.params:
                 add_nh_exchange(p, model, exchange["labels"], exchange["start"], exchange["bounds"])
@@ -2253,7 +2260,8 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         exchange = {"labels": labels, "start": args.nh_exchange, "bounds": (lo_k, hi_k)}
     joint = JointSeries(model, settings, obs, [e["x"] for e in series],
                         shared=[n.strip() for n in args.shared.split(",") if n.strip()], shape=args.shape,
-                        exchange=exchange, fixed=fixed_keys, tie_rates=getattr(args, "tie_rates", ""))
+                        exchange=exchange, fixed=fixed_keys, tie_rates=getattr(args, "tie_rates", ""),
+                        tie_families=json.loads(args.tie_families) if getattr(args, "tie_families", "") else None)
     joint.precision_hz = float(getattr(args, "precision", 0.01))
     missing = [n for n in args.shared.split(",") if n.strip() and n.strip() not in joint.shared]
     if missing:
@@ -2338,6 +2346,17 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
         print("guard rows: " + ", ".join(f"{len(g['groups'])} bins over {len(g['f'])} points" for g in joint.guard),
               flush=True)
     lower, upper = joint.bounds(args.change_bound)
+    if getattr(args, "rate_caps", ""):
+        # owner, 2026-10-17: upper bounds on chosen decay-rate families ({name: 1/s}), e.g. narrow lines in one band
+        # so a misfit cannot be hidden by widening (is the data's multiplet the envelope of many narrow lines?)
+        for n, cap in json.loads(args.rate_caps).items():
+            cols = ([joint.ntheta + joint.shared.index(n)] if n in joint.shared else
+                    [joint.nt + si * joint.nl + joint.local.index(n) for si in range(joint.ns)] if n in joint.local
+                    else [])
+            for i in cols:
+                upper[i] = min(upper[i], np.log(float(cap)))
+                lower[i] = min(lower[i], upper[i] - 1e-6)
+        print(f"rate caps: {args.rate_caps}", flush=True)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
     # data objective at the start, before any prior row: the scale of the stage-4 priors (D69)
     prior_start = float(np.sum(joint.residual(z0) ** 2)) if getattr(args, "rate_prior", "") else 0.0
@@ -2403,6 +2422,8 @@ def make_parser():
     ap.add_argument("--prior-weight", type=float, default=1.0)
     ap.add_argument("--rate-prior", default="", help="JSON of decay rates (1/s) by parameter name, e.g. from "
                     "line_shape_probe: Gaussian priors on the log rates (stage 4, D69)")
+    ap.add_argument("--rate-caps", default="", help='JSON {"c0.log_rate24": 2.0, ...}: upper bounds (1/s) on '
+                    "chosen decay-rate families")
     ap.add_argument("--rate-prior-sigma", type=float, default=0.3, help="width of the rate priors (log units)")
     ap.add_argument("--line-prior-sigma", type=float, default=0.1,
                     help="width (Hz) of the line-position priors from the --rate-prior file's \"lines\"")
@@ -2616,6 +2637,8 @@ def make_parser():
     ap.add_argument("--smoothing", default="", help="coarse-to-fine schedule of Gaussian smoothing widths (Hz), "
                     "e.g. 1.5,0.8,0.4; the unsmoothed fit always ends every start")
     ap.add_argument("--workers", type=int, default=1, help="processes for the starts (set OMP_NUM_THREADS=1)")
+    ap.add_argument("--tie-families", default="", help='JSON list of lists of rate families, e.g. '
+                    '[["c0.log_rate20", "c0.log_rate21"]]: each list shares one decay rate (its first family)')
     ap.add_argument("--tie-rates", default="", help="regex on component labels (e.g. '^P2:'): every rate family of "
                     "a matching component shares one decay rate (its family 0)")
     ap.add_argument("--model-line-passes", type=int, default=0,

@@ -1245,4 +1245,11 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   only when accepted. Rate priors: probed rates below 0.2 1/s (near the 0.1 floor) are left out. With the
   scaled priors the first stage-4 runs were worse (DMEDA 0.04205 -> 0.04523, sec-butylamine 0.06104 -> 0.06178):
   narrower lines without the probe's line positions; both not kept.
+- Amendment (2026-10-17, owner): stage 4 with line-position priors (linearised in the couplings by the probed
+  groups' df/dJ, --line-prior-sigma 0.1 Hz, --line-prior-weight 0.1) was not kept on either spectrum: the
+  couplings move the probed groups only together (DMEDA every group about -0.07 Hz through 1J(C1,HC1), where the
+  probe wanted -0.45 to +0.20 Hz). New fit options for the follow-up tests: --rate-caps JSON (upper bounds on
+  chosen rate families) and --tie-families JSON (listed families share one rate), so a band's envelope must come
+  from the line positions rather than from per-line widths (owner: fit the envelope with the lines first, then
+  the rates). Tested: bounds and free names read back from a built problem.
 
