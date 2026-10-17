@@ -27,6 +27,10 @@ Per entry (resumable: a step whose output exists is skipped):
      residual, one peak at a time, each followed by a short full refit (fit_joint_series --residual-refine, D68;
      one start, the main fit only a few evaluations, one BLAS thread): runs/processed/batch_<id><tag>_s3/.
      --residual-refine N passes (default 10, 0 = no stage 3); an entry may set "residual_refine".
+  6. stage 4 from stage 3 (else stage 2) (owner, 2026-10-16, D69): the line-shape probe frees the line positions
+     and decay rates around the largest plain-residual peaks; the rates it finds become priors on the log rates
+     in a short refit (scripts/rate_prior_stage.py): runs/processed/batch_<id><tag>_s4/. --stage4 0 or an
+     entry's "stage4": false skips it.
 Waits (up to --wait hours) for an entry's scans folder to appear on the drive. Writes a results table
 (docs/analysis/2026-10-10_batch_results.md by default) after every finished entry; a failed step is recorded and
 the entry skipped. Fit results are conditional numerical results of the given structure, not assignments.
@@ -178,6 +182,16 @@ def process(entry, args):
             return
     if (s3 / "fit.json").exists():
         note(eid, s3=summary(s3 / "fit.json"))
+    s4 = ROOT / "runs/processed" / f"batch_{eid}{args.tag}_s4"
+    base = s3 if (s3 / "fit.json").exists() else s2
+    if args.stage4 and entry.get("stage4", True) and not (s4 / "fit.json").exists():
+        note(eid, status="stage 4 (rate priors)")
+        env = dict(os.environ, OMP_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", OPENBLAS_NUM_THREADS="1")
+        if run([PY, "scripts/rate_prior_stage.py", str(base.relative_to(ROOT)), str(s4.relative_to(ROOT))], log, env):
+            note(eid, status="failed: stage 4")
+            return
+    if (s4 / "fit.json").exists():
+        note(eid, s4=summary(s4 / "fit.json"))
     note(eid, status="done", minutes=round((time.time() - t0) / 60))
 
 
@@ -185,20 +199,22 @@ def write_table(path: Path, entries):
     rows = ["# Overnight batch 2026-10-10: results", "",
             "Conditional numerical results of the given structures (scripts/run_batch.py, configs/batch_2026-10-10.json);",
             "stage 1: one rate per isotopologue; stage 2: one rate per model line. J in Hz (J_std: linearised).", "",
-            "| id | status | stage 1 score | stage 2 score / residual | stage 3 score / residual | field (nT, transverse / z) | couplings (last stage) |",
-            "|---|---|---|---|---|---|---|"]
+            "| id | status | stage 1 score | stage 2 score / residual | stage 3 score / residual | stage 4 score / residual | field (nT, transverse / z) | couplings (last stage) |",
+            "|---|---|---|---|---|---|---|---|"]
     with LOCK:
         for e in entries:
             st = STATE.get(e["id"], {})
-            s1, s2, s3 = st.get("s1"), st.get("s2"), st.get("s3")
-            f = (s3 or s2 or s1 or {}).get("field_nt")
-            jtxt = ", ".join(f"{k} {v[0]:.2f}" for k, v in (s3 or s2 or s1 or {}).get("J", {}).items())
+            s1, s2, s3, s4 = st.get("s1"), st.get("s2"), st.get("s3"), st.get("s4")
+            f = (s4 or s3 or s2 or s1 or {}).get("field_nt")
+            jtxt = ", ".join(f"{k} {v[0]:.2f}" for k, v in (s4 or s3 or s2 or s1 or {}).get("J", {}).items())
             rows.append(f"| {e['id']} | {st.get('status', 'queued')} | {s1['score']:.4f} |" if s1 else
                         f"| {e['id']} | {st.get('status', 'queued')} | - |")
             res = "-" if not s2 or s2.get("residual") is None else f"{s2['residual']:.3f}"
             rows[-1] += (f" {s2['score']:.4f} / {res} |" if s2 else " - |")
             res3 = "-" if not s3 or s3.get("residual") is None else f"{s3['residual']:.3f}"
             rows[-1] += (f" {s3['score']:.4f} / {res3} |" if s3 else " - |")
+            res4 = "-" if not s4 or s4.get("residual") is None else f"{s4['residual']:.3f}"
+            rows[-1] += (f" {s4['score']:.4f} / {res4} |" if s4 else " - |")
             rows[-1] += (f" {f[0]:.1f} / {f[1]:.1f} |" if f else " zero field |" if not e.get("field") else " - |")
             rows[-1] += f" {jtxt} |"
     path.write_text("\n".join(rows) + "\n")
@@ -218,6 +234,8 @@ def main():
     ap.add_argument("--residual-refine", type=int, default=10,
                     help="stage 3: passes over the peaks of the plain residual (fit_joint_series --residual-refine, "
                          "D68); 0 = no stage 3")
+    ap.add_argument("--stage4", type=int, default=1,
+                    help="stage 4: rate priors from the line-shape probe and a short refit (D69); 0 = no stage 4")
     ap.add_argument("--skip", default="", help="entry ids reported from their existing results but not run")
     ap.add_argument("--tag", default="", help="suffix of the fit folders and logs (a second pass with other "
                                              "structures reuses the averages and spectra), e.g. _v2")
@@ -232,7 +250,7 @@ def main():
 
     def job(e):
         if e["id"] in skip:                            # reported from what exists, not run
-            for stage in ("s1", "s2"):
+            for stage in ("s1", "s2", "s3", "s4"):
                 fj = ROOT / "runs/processed" / f"batch_{e['id']}{args.tag}_{stage}" / "fit.json"
                 if fj.exists():
                     note(e["id"], **{stage: summary(fj)})

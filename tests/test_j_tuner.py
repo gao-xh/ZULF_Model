@@ -522,6 +522,62 @@ class ResidualRefineTests(unittest.TestCase):
         self.assertAlmostEqual(self.value(z_new, "J(C1,HC2)"), TRUTH["J(C1,HC2)"], delta=0.05)
 
 
+class LineShapeProbeTests(unittest.TestCase):
+    """Reference: data made by the forward model with one line group moved by a known shift (line_shape_probe
+    edited_lines); the probe must find that shift and leave the other groups in place."""
+
+    def test_probe_recovers_an_injected_line_shift(self):
+        import line_shape_probe as lsp
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            prob, truth_z = _problem(tmp)
+            joint = prob.joint
+            fw = joint.forwards[0]
+            values = joint.params[0].values(joint.spectrum_vector(truth_z, 0))
+            tl = fw.transitions(values, 0, joint.params[0].systems(values)[0])
+            amp = np.abs(tl.amplitudes)
+            top = int(np.argmax(amp))
+            window = (tl.frequencies_hz[top] - 1.2, tl.frequencies_hz[top] + 1.2)
+            groups = lsp.line_groups(tl.frequencies_hz, amp, window)
+            target = max(groups, key=lambda g: amp[g].sum())
+            x = joint.spectrum_vector(truth_z, 0)
+            gains = np.ones(len(prob.model.component_labels), complex)
+            with lsp.edited_lines(fw, {0: [(target, np.array([0.25]))]}):
+                clean = fw.predict(x, fixed_gains=gains).model
+            np.save(tmp / "y.npy", clean)
+            joint = fj.build_problem(_args(tmp)).joint
+            # one free group: groups 0.1 Hz apart trade their shifts against each other
+            res = lsp.probe(joint, truth_z, window, components=[0], groups=1, rate_up=1.0)
+            centre = float(np.average(tl.frequencies_hz[target], weights=amp[target]))
+            self.assertAlmostEqual(res["groups"][0]["frequency_hz"], centre, places=6)
+            self.assertAlmostEqual(res["groups"][0]["shift_hz"], 0.25, delta=0.005)
+            self.assertLess(res["rms_window"][1], 0.01 * res["rms_window"][0])
+            for before, after in res["rates"].values():
+                self.assertAlmostEqual(after, before, delta=0.01 * before)
+
+
+class ParameterPriorTests(unittest.TestCase):
+    def test_rate_prior_rows_and_jacobian(self):
+        # reference: the prior rows written out by hand, and a central finite difference of the residual tail
+        with tempfile.TemporaryDirectory() as d:
+            prob, z = _problem(Path(d))
+            joint = prob.joint
+            n0 = len(joint.residual(z))
+            i = joint.nt + joint.local.index("c0.log_rate0")
+            joint.set_parameter_priors([i], [np.log(1.0)], [0.3], 2.0)
+            r = joint.residual(z)
+            norm = float(np.mean([f.norm for f in joint.forwards]))
+            self.assertEqual(len(r), n0 + 1)
+            self.assertAlmostEqual(r[-1], np.sqrt(2.0) * (z[i] - 0.0) / 0.3 / norm, places=10)
+            jac = joint.jacobian(z)
+            h = 1e-6
+            zp, zm = z.copy(), z.copy()
+            zp[i] += h
+            zm[i] -= h
+            self.assertAlmostEqual(jac[-1, i], (joint.residual(zp)[-1] - joint.residual(zm)[-1]) / (2 * h), places=6)
+            self.assertEqual(np.count_nonzero(jac[-1]), 1)
+
+
 class GroupIndexTests(unittest.TestCase):
     def test_exchanging_groups_found_in_a_symmetric_component(self):
         # AA'BB' ethylenediamine with the N-H protons kept: J(HC1a,HN1) also maps to the mirror pairs (HC2a-HN2),

@@ -1216,3 +1216,24 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
 - Amendment (2026-10-15): the freed decay rates stay within --residual-refine-rate-factor (1.5) of their values in
   the local step. sec-butylamine 120.67 Hz: the couplings moved < 0.2 Hz but free rates went 5 -> 15 1/s and
   3.4 -> 0.6 1/s; the refit ended at 0.0655-0.0680 from 0.0621 (both not kept).
+
+## D69. Line-shape probe and rate priors as stage 4 (2026-10-16)
+
+- Problem (owner): DMEDA 130.9 / 131.75 / 132.75 Hz and sec-butylamine 123.3 / 123.8 Hz are not reproduced by any
+  coupling set of the structures (1J, small-coupling and sign scans, residual refine). Moving the model lines
+  directly, couplings aside, showed what the data want: with the positions of the 8 strongest 13C@C1 line groups
+  and the decay rates of the window free, the DMEDA triplet is reproduced (window rms 0.068 -> 0.028); positions
+  alone are not enough (0.056). In the fits the rates had widened to cover misplaced lines.
+- scripts/line_shape_probe.py (owner: "a tool, line shapes without the J"): in a window, edits the transitions
+  of the chosen components inside the forward model (edited_lines), fits free shifts (+-0.6 Hz) of the strongest
+  line groups and the rate families there (0.1 1/s to 1.5 x the fitted value) to data - model (complex), gains
+  solved as in the fit. Diagnostic only: the moved lines are not coupling values. Test: a line group moved by a
+  known 0.25 Hz in synthetic data is found to 0.005 Hz with the rates unchanged (two groups 0.1 Hz apart trade
+  their shifts, so the test frees one).
+- Stage 4 (owner: rate priors from the probe, after stage 3, stages 1-3 unchanged): scripts/rate_prior_stage.py
+  picks the 3 largest plain-residual peaks in line regions with a model line within 0.8 Hz, +-2 Hz windows
+  (merged), probes each, and refits from the stage-3 result with Gaussian priors on the probed log rates
+  (fit_joint_series --rate-prior FILE, --rate-prior-sigma 0.3, --rate-prior-weight 1; joint.set_parameter_priors,
+  rows and Jacobian tested against a finite difference). The refit keeps the lines where the couplings put them;
+  the priors keep the widths near what the data show. run_batch runs it as stage 4 (`_s4`, `--stage4 0` off).
+

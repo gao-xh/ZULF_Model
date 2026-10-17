@@ -344,6 +344,16 @@ Use occasionally or as the last step, not inside every fit.
 - The residual-peak stage (`--residual-peaks`) still lets assignability flip between rounds and may accept a
   large plain-objective loss; check `fit.json["residual_peaks"]` (rounds, scores) before using its choice.
 - `--trace N` and `scripts/trace_view.py RUN` to watch a fit step by step (slider).
+- **When no coupling set fits a feature** (1J, small-coupling and sign scans, residual refine all fail), ask the
+  data where the lines should be: `scripts/line_shape_probe.py RUN --window lo,hi --figure OUT.png` frees the
+  positions of the strongest line groups and the decay rates in the window (D69). If positions and rates
+  together reproduce the feature but positions alone do not, the fit's rates were widened to cover misplaced
+  lines. DMEDA 130.9 / 131.75 / 132.75 Hz (2026-10-16): the 13C@C1 lines had to gather into three narrow
+  clusters (window rms 0.068 -> 0.028), which the structure's couplings do not produce: a model question, not a
+  tuning one. The probed rates become priors in stage 4 (`scripts/rate_prior_stage.py`, run_batch `_s4`).
+  Two groups closer than about a line width trade their shifts; read single shifts with care. Probed rates at
+  the 0.1 1/s floor or the 1.5 x ceiling are not measurements; check them before trusting the stage-4 refit.
+- Pausing a run: SIGSTOP on the wrapper shell does not stop the fit; stop or pause the python PID.
 
 
 ## From a fitted J network to a structure (Phase 7, docs/J_TO_STRUCTURE.md)

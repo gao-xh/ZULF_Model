@@ -365,6 +365,7 @@ class JointSeries:
         self.nt = self.ntheta + len(self.shared)  # then the shared spectrum parameters
         self.col = {n: i for i, n in enumerate(self.free)}
         self.priors = ([], np.zeros(0), np.zeros(0))
+        self.param_priors = (np.zeros(0, int), np.zeros(0), np.zeros(0))   # z indices, means, scales (D69)
         self.smoothing = None                     # per spectrum: residual transform S = W K W^-1 (or None)
         self.peaks = None                         # per spectrum: index windows around data peak tops (or None)
         self.peak_strength = 0.0
@@ -649,6 +650,13 @@ class JointSeries:
         norm = float(np.mean([f.norm for f in self.forwards]))
         self.priors = (list(couplings), np.asarray(mean, float), np.sqrt(weight) / np.asarray(sigma, float) / norm)
 
+    def set_parameter_priors(self, indices, mean, sigma, weight):
+        """Gaussian priors directly on entries of z (e.g. log decay rates, D69 stage 4): rows
+        sqrt(weight) (z_i - mean_i) / sigma_i / norm, scaled like the coupling priors."""
+        norm = float(np.mean([f.norm for f in self.forwards]))
+        self.param_priors = (np.asarray(indices, int), np.asarray(mean, float),
+                             np.sqrt(weight) / np.asarray(sigma, float) / norm)
+
     def residual(self, z):
         values = [self.coupling_values(z, k) for k in range(self.nc)]
         parts = []
@@ -666,6 +674,9 @@ class JointSeries:
         ks, mean, scale = self.priors
         if ks:
             parts.append((np.array([values[k].mean() for k in ks]) - mean) * scale)
+        pi, pm, ps = self.param_priors
+        if len(pi):
+            parts.append((np.asarray(z, float)[pi] - pm) * ps)
         out = np.concatenate(parts)
         if self.trace is not None:
             self.trace.append((self.trace_label, float(out @ out), np.array(z, float)))
@@ -711,6 +722,11 @@ class JointSeries:
             rows = np.zeros((len(ks), len(z)))
             for r, k in enumerate(ks):
                 rows[r, k * self.m:(k + 1) * self.m] = dvals[k].mean(axis=0) * scale[r]
+            blocks.append(rows)
+        pi, _, ps = self.param_priors
+        if len(pi):
+            rows = np.zeros((len(pi), len(z)))
+            rows[np.arange(len(pi)), pi] = ps
             blocks.append(rows)
         return np.vstack(blocks)
 
@@ -2288,6 +2304,23 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
             mean.append(value)
             sigma.append(s)
     joint.set_priors(ks, mean, sigma, args.prior_weight)
+    if getattr(args, "rate_prior", ""):
+        # stage 4 (D69): decay rates measured with the line positions free (line_shape_probe) as Gaussian priors
+        # on the log rates; {"rates": {name: value 1/s}} or a probe result {"rates": {name: [before, after]}}
+        table_r = json.load(open(args.rate_prior))["rates"]
+        idx, mu = [], []
+        for n, v in table_r.items():
+            value = float(v[-1]) if isinstance(v, (list, tuple)) else float(v)
+            if n in joint.shared:
+                idx.append(joint.ntheta + joint.shared.index(n))
+                mu.append(np.log(value))
+            elif n in joint.local:
+                for si in range(joint.ns):
+                    idx.append(joint.nt + si * joint.nl + joint.local.index(n))
+                    mu.append(np.log(value))
+        joint.set_parameter_priors(idx, mu, np.full(len(idx), args.rate_prior_sigma), args.rate_prior_weight)
+        print(f"rate priors: {len(idx)} log rates (sigma {args.rate_prior_sigma}, weight {args.rate_prior_weight})",
+              flush=True)
     joint.set_peak_penalty(args.peak_penalty, args.peak_prominence, args.peak_tolerance, min_sigma=args.peak_min_sigma,
                            smooth=args.peak_smooth, dips=args.dip_penalty, max_width_hz=args.peak_max_width or None)
     grids = []
@@ -2330,6 +2363,10 @@ def make_parser():
     ap.add_argument("--prior-sigma-hh", type=float, default=0.0)
     ap.add_argument("--prior-sigma-ch", type=float, default=0.0)
     ap.add_argument("--prior-weight", type=float, default=1.0)
+    ap.add_argument("--rate-prior", default="", help="JSON of decay rates (1/s) by parameter name, e.g. from "
+                    "line_shape_probe: Gaussian priors on the log rates (stage 4, D69)")
+    ap.add_argument("--rate-prior-sigma", type=float, default=0.3, help="width of the rate priors (log units)")
+    ap.add_argument("--rate-prior-weight", type=float, default=1.0)
     ap.add_argument("--variant", default="ratios")
     ap.add_argument("--range", default="140,200")
     ap.add_argument("--starts", type=int, default=6)

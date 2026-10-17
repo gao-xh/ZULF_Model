@@ -10,7 +10,7 @@ commit. Diagrams are Mermaid (rendered by GitHub, plain text in git); node label
 An HTML page of the map and W1-W7 is generated from this file: `python scripts/workflow_page.py`
 (writes runs/workflow/index.html; regenerate it after editing this file).
 
-Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans, select_scans, --band-weighting, --line-group-span 2026-10-12; --sign-scan D65, --shape-refine D67, --peak-refine D66, --residual-refine D68, run_batch stage 3 2026-10-15).
+Last reviewed: 2026-10-09 (D56; checked against the code; key algorithms per workflow; sampling rate from the data; whole-grid fit ranges; guard rows D57; per-peak rate families D59; spin-system fits D60; Studio jobs, files and machine load; Studio modes D58; Studio live monitor; molecules D61; checked 2026-10-09; batch fits run_batch / batch_figures 2026-10-10; --fit-sigma, --field-sigma, --one-bond-from-data 2026-10-10; run_batch per-entry window / record / background / average, clipped_scans, select_scans, --band-weighting, --line-group-span 2026-10-12; --sign-scan D65, --shape-refine D67, --peak-refine D66, --residual-refine D68, run_batch stage 3 2026-10-15; line_shape_probe, rate_prior_stage, --rate-prior D69, run_batch stage 4 2026-10-16).
 
 ## Map
 
@@ -343,6 +343,8 @@ Key algorithms (sections 3-9 below give the detail):
   observed band before the fit (D64; `--one-bond-scan` Hz; a margin below 0.1 is flagged ambiguous).
 - Fine structure: line table with dJ derivatives, peak sources, residual peaks, local fits of the couplings that
   move the lines of one band, then a global refit (section 8).
+- Where the data want the lines in one window, couplings aside: `python scripts/line_shape_probe.py RUN --window
+  lo,hi [--figure OUT.png --out OUT.json]` (D69; diagnostic, the moved lines are not coupling values).
 - Reliability: linearised errors are 10-30 x too small; the budget adds the spread of near-equivalent solutions
   (3 % set), processing variants and a recovery test on synthetic data with the real residual (section 9).
 
@@ -359,6 +361,7 @@ Unattended batch of quick known-structure fits (many data sets; 2026-10-10):
 | stage 1: one rate per isotopologue, component search, 6 starts | `runs/processed/batch_<id><tag>_s1/` |
 | stage 2 from stage 1: one rate per model line, rates 0.1-40 1/s, 2 starts | `runs/processed/batch_<id><tag>_s2/` |
 | stage 3 from stage 2: small couplings fitted to the peaks of the plain residual, one peak at a time, short refits (`--residual-refine`, D68; run_batch `--residual-refine N`, default 10, 0 = off) | `runs/processed/batch_<id><tag>_s3/` |
+| stage 4 from stage 3 (else 2): line-shape probe around the largest plain-residual peaks (line positions and rates free, `line_shape_probe.py`), its rates as priors on the log rates (`--rate-prior`), short refit (`rate_prior_stage.py`, D69; run_batch `--stage4 0` = off) | `runs/processed/batch_<id><tag>_s4/` (`rate_prior.json`, `stage4.json`, `probe_*.png`) |
 | results table after every entry | `docs/analysis/2026-10-10_batch_results*.md` |
 | diagnostic figures (experiment, the stage-2 fit's own model, residual) | `runs/figures/batch/<id><tag>.png` |
 
