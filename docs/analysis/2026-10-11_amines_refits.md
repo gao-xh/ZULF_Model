@@ -365,3 +365,31 @@ couplings put them, narrower lines make both fits worse. Stage 4 in this form do
   couplings < 0.02 Hz). sec-butylamine 125.07 Hz wanted -0.37 got -0.08, 124.39 Hz +0.11 / -0.03. The couplings
   can shift the probed lines only together; the data want different shifts for neighbouring groups (some up, some
   down). Prior figures: runs/figures/stage4_priors_{dmeda,secbutyl}.png (runs/figures/stage4_priors.py).
+
+## Overnight 2026-10-17: rate caps, simple-triplet start, envelope-then-rates
+
+All from the stage-3 best (DMEDA D_residual_bounded, sec-butylamine bounded_effect), one start, 60 evaluations,
+no residual refine (runs/processed/{dmeda_push,secbutyl_push}/, figures
+runs/figures/overnight_{dmeda,secbutyl}_variants.png). New options --rate-caps / --tie-families (commit 3c35464).
+Data objective, rms (units of the largest J-band line) J band / problem window / CH2 / 2J:
+
+| run | DMEDA | | sec-butylamine | |
+|---|---|---|---|---|
+| stage 3 | 0.0420 | 0.033 / 0.068 / 0.025 / 0.015 | 0.0610 | 0.033 / 0.069 / 0.012 / 0.012 |
+| 13C@C1 band rates <= 1 1/s | 0.0855 | 0.079 / 0.118 / 0.043 / 0.026 | 0.0784 | 0.062 / 0.144 / 0.018 / 0.025 |
+| rates <= 2 1/s | 0.0583 | 0.060 / 0.091 / 0.029 / 0.017 | 0.0640 | 0.039 / 0.076 / 0.013 / 0.017 |
+| start J(C1,HC3) 1.8, J(C1,HC2) 0.1 | 0.0420 | 0.033 / 0.067 / 0.026 / 0.015 | - | - |
+| same, rates <= 2 1/s | 0.0505 | 0.045 / 0.065 / 0.032 / 0.015 | - | - |
+| envelope A (band rates tied) | 0.0585 | 0.061 / 0.092 / 0.027 / 0.016 | 0.0636 | 0.039 / 0.076 / 0.013 / 0.012 |
+| envelope B (untied from A) | 0.0585 | same as A | 0.0636 | same as A |
+| envelope A, simple start | 0.0584 | 0.057 / 0.096 / 0.031 / 0.021 | - | - |
+| envelope B, simple start | 0.0426 | 0.033 / 0.066 / 0.027 / 0.015 | - | - |
+
+DMEDA window 129.8-133.8 Hz, families c0 20-30 (125-154.5 Hz); sec-butylamine window 122.5-124.5 Hz, family 9
+(120.5-127.4 Hz) of c0/c2/c3 capped, 6-10 tied. The simple-triplet start returns to J(C1,HC3) 4.05, J(C1,HC2)
+0.90 Hz (same objective): the data keep the full coupling network. Narrow lines (caps, one tied rate) make both
+fits worse; the couplings barely move. Pitfall: a fit with --tie-families writes only the leading family's rate
+to fit.json, so a refit without the tie starts the other families at their defaults (first B steps 0.0613 /
+0.0672); fixed by copying the tied value into every family (_expanded starts, B2 runs). The untied B2 refits then
+stayed at A for DMEDA and sec-butylamine (no step taken in 60 evaluations); from the simple start B2 reached 0.0426.
+Conclusion: no variant beats stage 3; within these structures the triplet and the 123 Hz dip are not fitted.
