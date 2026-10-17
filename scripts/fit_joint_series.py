@@ -366,6 +366,7 @@ class JointSeries:
         self.col = {n: i for i, n in enumerate(self.free)}
         self.priors = ([], np.zeros(0), np.zeros(0))
         self.param_priors = (np.zeros(0, int), np.zeros(0), np.zeros(0))   # z indices, means, scales (D69)
+        self.line_priors = None                   # (D: lines x couplings, offset, scale): linear line-position priors
         self.smoothing = None                     # per spectrum: residual transform S = W K W^-1 (or None)
         self.peaks = None                         # per spectrum: index windows around data peak tops (or None)
         self.peak_strength = 0.0
@@ -657,6 +658,12 @@ class JointSeries:
         self.param_priors = (np.asarray(indices, int), np.asarray(mean, float),
                              np.sqrt(weight) * unit / np.asarray(sigma, float))
 
+    def set_line_priors(self, dfdj, offset, sigma_hz, weight, unit):
+        """Line-position priors (D69 stage 4), linear in the couplings: rows sqrt(weight) unit
+        (sum_k dfdj[l, k] Jbar_k + offset[l]) / sigma_hz, Jbar_k the series-average coupling; offset = f0 - target -
+        dfdj @ Jbar(z0), so a row is (linearised line position - target) / sigma."""
+        self.line_priors = (np.asarray(dfdj, float), np.asarray(offset, float), np.sqrt(weight) * unit / sigma_hz)
+
     def residual(self, z):
         values = [self.coupling_values(z, k) for k in range(self.nc)]
         parts = []
@@ -677,6 +684,9 @@ class JointSeries:
         pi, pm, ps = self.param_priors
         if len(pi):
             parts.append((np.asarray(z, float)[pi] - pm) * ps)
+        if self.line_priors is not None:
+            D, off, sc = self.line_priors
+            parts.append((D @ np.array([v.mean() for v in values]) + off) * sc)
         out = np.concatenate(parts)
         if self.trace is not None:
             self.trace.append((self.trace_label, float(out @ out), np.array(z, float)))
@@ -727,6 +737,12 @@ class JointSeries:
         if len(pi):
             rows = np.zeros((len(pi), len(z)))
             rows[np.arange(len(pi)), pi] = ps
+            blocks.append(rows)
+        if self.line_priors is not None:
+            D, _, sc = self.line_priors
+            rows = np.zeros((D.shape[0], len(z)))
+            for k in range(self.nc):
+                rows[:, k * self.m:(k + 1) * self.m] = np.outer(D[:, k], dvals[k].mean(axis=0)) * sc
             blocks.append(rows)
         return np.vstack(blocks)
 
@@ -2323,6 +2339,8 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
               flush=True)
     lower, upper = joint.bounds(args.change_bound)
     z0 = np.clip(z0, lower + 1e-9, upper - 1e-9)
+    # data objective at the start, before any prior row: the scale of the stage-4 priors (D69)
+    prior_start = float(np.sum(joint.residual(z0) ** 2)) if getattr(args, "rate_prior", "") else 0.0
     if getattr(args, "rate_prior", ""):
         # stage 4 (D69): decay rates measured with the line positions free (line_shape_probe) as Gaussian priors
         # on the log rates; {"rates": {name: value 1/s}} or a probe result {"rates": {name: [before, after]}}.
@@ -2340,11 +2358,26 @@ def _finish_problem(args, series, left_out, lo, hi, obs, model, fragment, fixed_
                     idx.append(joint.nt + si * joint.nl + joint.local.index(n))
                     mu.append(np.log(value))
         if idx:
-            start = float(np.sum(joint.residual(z0) ** 2))
             joint.set_parameter_priors(idx, mu, np.full(len(idx), args.rate_prior_sigma), args.rate_prior_weight,
-                                       unit=np.sqrt(start / len(idx)))
+                                       unit=np.sqrt(prior_start / len(idx)))
         print(f"rate priors: {len(idx)} log rates (sigma {args.rate_prior_sigma}, weight {args.rate_prior_weight} "
               "of the start objective at 1 sigma)", flush=True)
+    lines_p = json.load(open(args.rate_prior)).get("lines", []) if getattr(args, "rate_prior", "") else []
+    if lines_p and args.line_prior_weight > 0:
+        # line positions toward the probe's (D69): linearised in the couplings with the probe's df/dJ
+        names = list(joint.coupling)
+        D = np.zeros((len(lines_p), joint.nc))
+        for r, ln in enumerate(lines_p):
+            for n, d in ln["df_dJ"].items():
+                if n in names:
+                    D[r, names.index(n)] = d
+        jbar = np.array([joint.coupling_values(z0, k).mean() for k in range(joint.nc)])
+        offset = np.array([ln["frequency_hz"] - ln["target_hz"] for ln in lines_p]) - D @ jbar
+        w = np.array([np.sqrt(max(ln.get("relative_amplitude", 1.0), 1e-6)) for ln in lines_p])
+        joint.set_line_priors(D * w[:, None], offset * w, args.line_prior_sigma, args.line_prior_weight,
+                              unit=np.sqrt(prior_start / float(np.sum(w ** 2))))
+        print(f"line priors: {len(lines_p)} line groups (sigma {args.line_prior_sigma} Hz, weight "
+              f"{args.line_prior_weight} of the start objective at 1 sigma)", flush=True)
     return SimpleNamespace(series=series, left_out=left_out, lo=lo, hi=hi, obs=obs, model=model,
                            settings=settings, joint=joint, key_of=key_of, centre=centre, xs0=xs0, z0=z0,
                            prior=(ks, mean, sigma), lower=lower, upper=upper)
@@ -2371,6 +2404,10 @@ def make_parser():
     ap.add_argument("--rate-prior", default="", help="JSON of decay rates (1/s) by parameter name, e.g. from "
                     "line_shape_probe: Gaussian priors on the log rates (stage 4, D69)")
     ap.add_argument("--rate-prior-sigma", type=float, default=0.3, help="width of the rate priors (log units)")
+    ap.add_argument("--line-prior-sigma", type=float, default=0.1,
+                    help="width (Hz) of the line-position priors from the --rate-prior file's \"lines\"")
+    ap.add_argument("--line-prior-weight", type=float, default=0.1,
+                    help="all line priors 1 sigma off together cost this fraction of the start objective; 0 = off")
     ap.add_argument("--rate-prior-weight", type=float, default=0.1,
                     help="all rate priors 1 sigma off together cost this fraction of the start objective")
     ap.add_argument("--variant", default="ratios")

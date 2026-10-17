@@ -148,9 +148,21 @@ def probe(joint, z, window, s=0, components=None, groups=8, max_shift=0.6, rate_
         z1 = z_of(sol.x)
         m1 = model(z1)
         after = (rms(m1), obj(z1))
-        moved = [{"component": c, "frequency_hz": fq, "relative_amplitude": a, "lines": int(len(g)),
-                  "shift_hz": float(sol.x[k]), "new_frequency_hz": fq + float(sol.x[k])}
-                 for k, (a, c, g, fq) in enumerate(chosen)]
+        # df/dJ of every moved group (amplitude-weighted over its lines; peak_sources' analytic derivatives), so
+        # a caller can turn the shifts into line-position priors on the couplings (stage 4)
+        src = joint.peak_sources(z, s, 0.5 * (lo + hi), assign_hz=0.5 * (hi - lo) + max_shift,
+                                 min_relative_amplitude=0.0)["lines"]
+        moved = []
+        for k, (a, c, g, fq) in enumerate(chosen):
+            tl = lists[c]
+            amp = np.abs(tl.amplitudes[g])
+            dfdj = {}
+            for fl, wl in zip(tl.frequencies_hz[g], amp):
+                near = [ln for ln in src if ln["component"] == c and abs(ln["frequency_hz"] - fl) < 1e-4]
+                for n, d in (near[0]["df_dJ"] if near else {}).items():
+                    dfdj[n] = dfdj.get(n, 0.0) + wl * d / amp.sum()
+            moved.append({"component": c, "frequency_hz": fq, "relative_amplitude": a, "lines": int(len(g)),
+                          "shift_hz": float(sol.x[k]), "new_frequency_hz": fq + float(sol.x[k]), "df_dJ": dfdj})
         sticks_after = {c: lists[c].frequencies_hz.copy() for c in components}
         for (_, c, g, _), sh in zip(chosen, shifts):
             sticks_after[c][g] += sh[0]

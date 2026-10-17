@@ -551,6 +551,7 @@ class LineShapeProbeTests(unittest.TestCase):
             centre = float(np.average(tl.frequencies_hz[target], weights=amp[target]))
             self.assertAlmostEqual(res["groups"][0]["frequency_hz"], centre, places=6)
             self.assertAlmostEqual(res["groups"][0]["shift_hz"], 0.25, delta=0.005)
+            self.assertTrue(res["groups"][0]["df_dJ"])                      # derivatives for the stage-4 priors
             self.assertLess(res["rms_window"][1], 0.01 * res["rms_window"][0])
             for before, after in res["rates"].values():
                 self.assertAlmostEqual(after, before, delta=0.01 * before)
@@ -576,6 +577,30 @@ class ParameterPriorTests(unittest.TestCase):
             zm[i] -= h
             self.assertAlmostEqual(jac[-1, i], (joint.residual(zp)[-1] - joint.residual(zm)[-1]) / (2 * h), places=6)
             self.assertEqual(np.count_nonzero(jac[-1]), 1)
+
+
+    def test_line_prior_rows_and_jacobian(self):
+        # reference: a row written out by hand from the series-average couplings, and a finite difference
+        with tempfile.TemporaryDirectory() as d:
+            prob, z = _problem(Path(d))
+            joint = prob.joint
+            n0 = len(joint.residual(z))
+            D = np.zeros((1, joint.nc))
+            D[0, 0], D[0, 1] = 0.7, -0.4
+            jbar = np.array([joint.coupling_values(z, k).mean() for k in range(joint.nc)])
+            offset = np.array([0.25]) - D @ jbar             # line 0.25 Hz off its target at z
+            joint.set_line_priors(D, offset, 0.1, 2.0, unit=0.5)
+            r = joint.residual(z)
+            self.assertEqual(len(r), n0 + 1)
+            self.assertAlmostEqual(r[-1], np.sqrt(2.0) * 0.5 * 0.25 / 0.1, places=10)
+            jac = joint.jacobian(z)
+            for i in (0, joint.m):                           # first entries of the blocks of couplings 0 and 1
+                h = 1e-6
+                zp, zm = z.copy(), z.copy()
+                zp[i] += h
+                zm[i] -= h
+                self.assertAlmostEqual(jac[-1, i], (joint.residual(zp)[-1] - joint.residual(zm)[-1]) / (2 * h),
+                                       places=6)
 
 
 class GroupIndexTests(unittest.TestCase):
