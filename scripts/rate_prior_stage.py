@@ -17,8 +17,11 @@ From a finished fit (normally stage 3; stages 1-3 are not changed):
      recorded command (same family edges; one start; `--max-nfev` evaluations; no residual refine; one BLAS
      thread). The line positions of the probe are not used: in the refit the lines sit where the couplings put
      them, and the priors keep the widths near what the data show.
+  4. acceptance: the refit is kept only when the data objective of RUN_FOLDER's problem (no prior rows) falls;
+     OUT_FOLDER/stage4.json gets objective_before / objective_after / accepted (run_batch then reports stage 4 only
+     when accepted; otherwise the input stays the result).
 The refit is a conditional numerical result of the given structure. OUT_FOLDER/stage4.json records the windows,
-the probe results and the prior table.
+the probe results, the prior table and the acceptance.
 """
 import argparse
 import json
@@ -87,7 +90,7 @@ def main():
         lsp.figure(res, out / f"probe_{w[0]:.1f}-{w[1]:.1f}.png", title=run.name)
         probes.append({k: v for k, v in res.items() if not k.startswith("_")})
         for n, (a, b) in res["rates"].items():
-            if b <= 1.02 * 0.1 or b >= 0.98 * args.rate_up * a:      # at the probe's bounds: not a measurement
+            if b < 0.2 or b >= 0.98 * args.rate_up * a:      # at or near the probe's bounds: not a measurement
                 continue
             logs.setdefault(n, []).append(np.log(b))
     rates = {n: float(np.exp(np.mean(v))) for n, v in logs.items()}
@@ -116,7 +119,19 @@ def main():
     env = dict(os.environ, OMP_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", OPENBLAS_NUM_THREADS="1")
     cmd = [sys.executable] + argv
     print("stage 4 refit: " + " ".join(shlex.quote(c) for c in cmd[:3]) + " ...", flush=True)
-    sys.exit(subprocess.call(cmd, cwd=ROOT, env=env))
+    code = subprocess.call(cmd, cwd=ROOT, env=env)
+    if code or not (out / "fit.json").exists():
+        sys.exit(code or 1)
+    # acceptance (owner, 2026-10-17): the data objective of the input's problem (no prior rows) must fall
+    before = float(np.sum(joint.residual(z) ** 2))
+    z4 = np.array(json.load(open(out / "fit.json"))["z_final"], float)
+    after = float(np.sum(joint.residual(z4) ** 2))
+    accepted = after < before
+    record = json.load(open(out / "stage4.json"))
+    record.update(objective_before=before, objective_after=after, accepted=accepted)
+    json.dump(record, open(out / "stage4.json", "w"), indent=1)
+    print(f"stage 4: data objective {before:.5f} -> {after:.5f}: {'kept' if accepted else 'not kept (stage 3 stays)'}",
+          flush=True)
 
 
 if __name__ == "__main__":

@@ -361,7 +361,7 @@ Unattended batch of quick known-structure fits (many data sets; 2026-10-10):
 | stage 1: one rate per isotopologue, component search, 6 starts | `runs/processed/batch_<id><tag>_s1/` |
 | stage 2 from stage 1: one rate per model line, rates 0.1-40 1/s, 2 starts | `runs/processed/batch_<id><tag>_s2/` |
 | stage 3 from stage 2: small couplings fitted to the peaks of the plain residual, one peak at a time, short refits (`--residual-refine`, D68; run_batch `--residual-refine N`, default 10, 0 = off) | `runs/processed/batch_<id><tag>_s3/` |
-| stage 4 from stage 3 (else 2): line-shape probe around the largest plain-residual peaks (line positions and rates free, `line_shape_probe.py`), its rates as priors on the log rates (`--rate-prior`), short refit (`rate_prior_stage.py`, D69; run_batch `--stage4 0` = off) | `runs/processed/batch_<id><tag>_s4/` (`rate_prior.json`, `stage4.json`, `probe_*.png`) |
+| stage 4 from stage 3 (else 2): line-shape probe around the largest plain-residual peaks (line positions and rates free, `line_shape_probe.py`), its rates as priors on the log rates (`--rate-prior`), short refit, kept only when the data objective falls (`rate_prior_stage.py`, D69; run_batch `--stage4 0` = off) | `runs/processed/batch_<id><tag>_s4/` (`rate_prior.json`, `stage4.json`, `probe_*.png`) |
 | results table after every entry | `docs/analysis/2026-10-10_batch_results*.md` |
 | diagnostic figures (experiment, the stage-2 fit's own model, residual) | `runs/figures/batch/<id><tag>.png` |
 

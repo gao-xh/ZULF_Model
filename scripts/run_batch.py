@@ -29,8 +29,8 @@ Per entry (resumable: a step whose output exists is skipped):
      --residual-refine N passes (default 10, 0 = no stage 3); an entry may set "residual_refine".
   6. stage 4 from stage 3 (else stage 2) (owner, 2026-10-16, D69): the line-shape probe frees the line positions
      and decay rates around the largest plain-residual peaks; the rates it finds become priors on the log rates
-     in a short refit (scripts/rate_prior_stage.py): runs/processed/batch_<id><tag>_s4/. --stage4 0 or an
-     entry's "stage4": false skips it.
+     in a short refit (scripts/rate_prior_stage.py): runs/processed/batch_<id><tag>_s4/, kept only when the data
+     objective falls (stage4.json "accepted"). --stage4 0 or an entry's "stage4": false skips it.
 Waits (up to --wait hours) for an entry's scans folder to appear on the drive. Writes a results table
 (docs/analysis/2026-10-10_batch_results.md by default) after every finished entry; a failed step is recorded and
 the entry skipped. Fit results are conditional numerical results of the given structure, not assignments.
@@ -190,8 +190,8 @@ def process(entry, args):
         if run([PY, "scripts/rate_prior_stage.py", str(base.relative_to(ROOT)), str(s4.relative_to(ROOT))], log, env):
             note(eid, status="failed: stage 4")
             return
-    if (s4 / "fit.json").exists():
-        note(eid, s4=summary(s4 / "fit.json"))
+    if (s4 / "fit.json").exists() and json.loads((s4 / "stage4.json").read_text()).get("accepted"):
+        note(eid, s4=summary(s4 / "fit.json"))           # a stage 4 not kept leaves stage 3 as the result
     note(eid, status="done", minutes=round((time.time() - t0) / 60))
 
 
@@ -252,6 +252,8 @@ def main():
         if e["id"] in skip:                            # reported from what exists, not run
             for stage in ("s1", "s2", "s3", "s4"):
                 fj = ROOT / "runs/processed" / f"batch_{e['id']}{args.tag}_{stage}" / "fit.json"
+                if stage == "s4" and fj.exists() and not json.loads((fj.parent / "stage4.json").read_text()).get("accepted"):
+                    continue
                 if fj.exists():
                     note(e["id"], **{stage: summary(fj)})
             note(e["id"], status="done" if "s2" in STATE.get(e["id"], {}) else "skipped (see the second pass)")

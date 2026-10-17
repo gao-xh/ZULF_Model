@@ -1240,4 +1240,9 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
   unchanged): the prior rows were scaled by 1 / norm like the coupling priors, 0.06 % of the objective. Now all
   rate priors 1 sigma off together cost --rate-prior-weight (0.1) x the start objective. Probed rates that end at
   the probe's floor (0.1 1/s) or ceiling (1.5 x) are left out of the priors (sec-butylamine: 3.2 -> 0.12 1/s).
+- Amendment (2026-10-17, owner): stage 4 is kept only when the data objective of its input's problem (no prior
+  rows) falls; stage4.json records objective_before / objective_after / accepted and run_batch reports stage 4
+  only when accepted. Rate priors: probed rates below 0.2 1/s (near the 0.1 floor) are left out. With the
+  scaled priors the first stage-4 runs were worse (DMEDA 0.04205 -> 0.04523, sec-butylamine 0.06104 -> 0.06178):
+  narrower lines without the probe's line positions; both not kept.
 
