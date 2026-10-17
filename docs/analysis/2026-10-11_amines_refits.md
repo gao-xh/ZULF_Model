@@ -334,3 +334,14 @@ structure. Open: the 124 Hz structure may need more than the small couplings (13
   three; runs/processed/dmeda_push/smallj_scan_131.json): no coupling lowers the window residual by more than 5 %
   (J(HC3,HC4) 6.46 -> 6.76 Hz: -5 % at objective x1.56; J(C1,HC3) 4.04 -> 3.94 Hz: -4 % at x1.03). As for the
   sec-butylamine 123 Hz misfit, the small couplings of this structure do not produce the triplet.
+- Triplet diagnostics on D_residual_bounded (13C@C1 transitions edited inside the forward model; not a physical
+  model). Scaling the C1 long-range couplings (with or without the H-H couplings) by 0.5-1.1: best at 1.0. Moving
+  all 13C@C1 lines in 129.5-134.5 Hz toward a centre (131.5-132.0 Hz, scale 0.6-1.3): best at 1.0. Free positions
+  (+-0.6 Hz) of the 8 strongest line groups in 130.2-133.6 Hz: window (129.8-133.8 Hz) rms 0.068 -> 0.056, still
+  one broad envelope (runs/figures/dmeda_triplet_line_moves.png). Positions and the five 13C@C1 rate families of
+  the window free together (rates down to x1.5 up or 0.1 1/s): window rms 0.068 -> 0.028, the triplet reproduced;
+  J band 0.033 -> 0.031, objective 0.0420 -> 0.0450 (the rate families reach outside the window). The groups at
+  130.36 / 130.67 / 130.98 / 131.26 Hz move to 130.78-130.87 Hz, 133.13 Hz to 132.78 Hz (next to 132.76 Hz), the
+  rest within 0.07 Hz; rates 4.86 / 2.88 / 2.34 / 3.13 / 3.42 -> 2.29 / 3.06 / 1.26 / 1.86 / 0.90 1/s
+  (runs/figures/dmeda_triplet_positions_widths.png). The data want three tight line clusters (130.8, 131.9,
+  132.77 Hz) with narrower lines; the structure's couplings spread the lines over 130.4-133.3 Hz.
