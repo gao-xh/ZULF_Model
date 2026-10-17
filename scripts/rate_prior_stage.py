@@ -1,7 +1,7 @@
 """Stage 4 (D69): decay-rate priors from the line-shape probe, then a full refit.
 
     python scripts/rate_prior_stage.py RUN_FOLDER OUT_FOLDER [--windows auto | lo,hi;lo,hi] [--peaks 3]
-        [--half-width 2.0] [--groups 8] [--max-shift 0.6] [--rate-up 1.5] [--sigma 0.3] [--weight 1.0]
+        [--half-width 2.0] [--groups 8] [--max-shift 0.6] [--rate-up 1.5] [--sigma 0.3] [--weight 0.1]
         [--max-nfev 40] [--probe-only]
 
 From a finished fit (normally stage 3; stages 1-3 are not changed):
@@ -10,8 +10,10 @@ From a finished fit (normally stage 3; stages 1-3 are not changed):
      windows merged; or the windows given;
   2. in every window the line-shape probe (scripts/line_shape_probe.py) frees the positions of the strongest line
      groups and the decay-rate families there, so a rate is not widened to cover a misplaced line;
-  3. the probed rates (geometric mean where windows share a family) are written to OUT_FOLDER/rate_prior.json and
-     become Gaussian priors on the log rates (`--sigma` log units, `--weight`) in a refit from RUN_FOLDER with its
+  3. the probed rates (geometric mean where windows share a family; a rate that ends at the probe's floor or
+     ceiling is a bound, not a measurement, and is left out) are written to OUT_FOLDER/rate_prior.json and
+     become Gaussian priors on the log rates (`--sigma` log units; `--weight`: all priors 1 sigma off together
+     cost that fraction of the start objective) in a refit from RUN_FOLDER with its
      recorded command (same family edges; one start; `--max-nfev` evaluations; no residual refine; one BLAS
      thread). The line positions of the probe are not used: in the refit the lines sit where the couplings put
      them, and the priors keep the widths near what the data show.
@@ -61,7 +63,7 @@ def main():
     ap.add_argument("--max-shift", type=float, default=0.6)
     ap.add_argument("--rate-up", type=float, default=1.5)
     ap.add_argument("--sigma", type=float, default=0.3)
-    ap.add_argument("--weight", type=float, default=1.0)
+    ap.add_argument("--weight", type=float, default=0.1)
     ap.add_argument("--max-nfev", type=int, default=40)
     ap.add_argument("--probe-only", action="store_true", help="write the priors, do not refit")
     args = ap.parse_args()
@@ -84,7 +86,9 @@ def main():
               + ", ".join(f"{n} {a:.2f}->{b:.2f}" for n, (a, b) in res["rates"].items()), flush=True)
         lsp.figure(res, out / f"probe_{w[0]:.1f}-{w[1]:.1f}.png", title=run.name)
         probes.append({k: v for k, v in res.items() if not k.startswith("_")})
-        for n, (_, b) in res["rates"].items():
+        for n, (a, b) in res["rates"].items():
+            if b <= 1.02 * 0.1 or b >= 0.98 * args.rate_up * a:      # at the probe's bounds: not a measurement
+                continue
             logs.setdefault(n, []).append(np.log(b))
     rates = {n: float(np.exp(np.mean(v))) for n, v in logs.items()}
     json.dump({"rates": rates}, open(out / "rate_prior.json", "w"), indent=1)

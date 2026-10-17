@@ -1233,7 +1233,11 @@ monotone_coupling (closed form: J -> -J at every node, others unchanged).
 - Stage 4 (owner: rate priors from the probe, after stage 3, stages 1-3 unchanged): scripts/rate_prior_stage.py
   picks the 3 largest plain-residual peaks in line regions with a model line within 0.8 Hz, +-2 Hz windows
   (merged), probes each, and refits from the stage-3 result with Gaussian priors on the probed log rates
-  (fit_joint_series --rate-prior FILE, --rate-prior-sigma 0.3, --rate-prior-weight 1; joint.set_parameter_priors,
+  (fit_joint_series --rate-prior FILE, --rate-prior-sigma 0.3, --rate-prior-weight 0.1; joint.set_parameter_priors,
   rows and Jacobian tested against a finite difference). The refit keeps the lines where the couplings put them;
   the priors keep the widths near what the data show. run_batch runs it as stage 4 (`_s4`, `--stage4 0` off).
+- Amendment (2026-10-16): first runs had no effect (DMEDA 0.04205 -> 0.04190, rates unchanged; sec-butylamine
+  unchanged): the prior rows were scaled by 1 / norm like the coupling priors, 0.06 % of the objective. Now all
+  rate priors 1 sigma off together cost --rate-prior-weight (0.1) x the start objective. Probed rates that end at
+  the probe's floor (0.1 1/s) or ceiling (1.5 x) are left out of the priors (sec-butylamine: 3.2 -> 0.12 1/s).
 
