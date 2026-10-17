@@ -318,3 +318,19 @@ structure. Open: the 124 Hz structure may need more than the small couplings (13
   J(C1,HC2) from +3.28 Hz, all free: 0.1789, stays positive (+3.30): 0.063 / 0.101 / 0.094 / 0.027 / 0.114 / 0.020.
   A positive J(C1,HC2) is ruled out within this model; holding J(C1,HC3) at 1.68 Hz keeps the 123 Hz shape only
   at the cost of the 124.6 / 125.8 Hz doublet and the 2J band.
+
+## DMEDA: residual refine with the new rules, and the 130.9 / 131.75 / 132.75 Hz triplet (2026-10-16)
+
+- The first residual run (dmeda_push/C_residual, old rules: line position, free rates, real) finished on
+  2026-10-15 18:42 at 0.05741 -> 0.04358 (six steps kept: 198.75, 130.83, 132.75, 204.42, 201.08, 197.17 Hz). The
+  SIGSTOP "pause" stopped only the wrapper shell, not the fit; pause a run by the python PID.
+- From it, line regions + rates within x1.5 (dmeda_push/D_residual_bounded, argv with the recorded numeric family
+  edges): 0.04358 -> 0.04230 (204.42 Hz kept: J(C3,HC3), J(C3,HC4), J(C3,HN2) + 4 rates; 130.33 Hz kept with no
+  change; 130.83, 132.75, 195.33, 198.58, 193.50, 21.08, 193.00 Hz not kept).
+- Triplet 130.92 / 131.75 / 132.75 Hz (dips 131.08, 132.42) in the data; the fit has one broad peak at 131.67 Hz
+  (rms 130-133.5 Hz 0.069). All 13 model lines there are 13C@C1 (N-CH3): 130.59, 131.26, 131.72, 132.78 Hz the
+  strongest, rates 2.0-2.7 1/s (with the 1.5 1/s window about 1.1-1.3 Hz wide against 0.8-1.0 Hz spacings); no
+  model line at 130.9 Hz. Small-coupling scan on C_residual (window 130-133.5 Hz, +-3 Hz in 0.1 Hz, 2D of the best
+  three; runs/processed/dmeda_push/smallj_scan_131.json): no coupling lowers the window residual by more than 5 %
+  (J(HC3,HC4) 6.46 -> 6.76 Hz: -5 % at objective x1.56; J(C1,HC3) 4.04 -> 3.94 Hz: -4 % at x1.03). As for the
+  sec-butylamine 123 Hz misfit, the small couplings of this structure do not produce the triplet.
