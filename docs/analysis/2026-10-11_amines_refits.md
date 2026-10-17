@@ -357,3 +357,11 @@ without the prior rows, rms per band:
   Rates near 0.12-0.15 1/s still entered as priors (the bound check only skips values within 2 % of 0.1).
 Conclusion: the probe's narrow widths fit only together with its moved line positions; with the lines where the
 couplings put them, narrower lines make both fits worse. Stage 4 in this form does not help these two spectra.
+- Stage 4 with line-position priors too (commit 77fb859; sigma 0.1 Hz, weight 0.1; rate priors as before),
+  runs/processed/{dmeda_push/E_stage4, secbutyl_push/stage4} (rates-only runs in old/*_ratesonly). Both not kept:
+  DMEDA 0.04205 -> 0.04556 (window 0.057 -> 0.062), sec-butylamine 0.06104 -> 0.06294 (0.048 -> 0.050).
+  Linearised line shifts reached against the probe's: DMEDA 131.26 Hz wanted -0.45 got -0.08, 133.35 Hz -0.44 /
+  -0.08, 130.62 Hz +0.20 / -0.07; every group moved by about -0.07 Hz, from J(C1,HC1) -0.073 Hz (the other
+  couplings < 0.02 Hz). sec-butylamine 125.07 Hz wanted -0.37 got -0.08, 124.39 Hz +0.11 / -0.03. The couplings
+  can shift the probed lines only together; the data want different shifts for neighbouring groups (some up, some
+  down). Prior figures: runs/figures/stage4_priors_{dmeda,secbutyl}.png (runs/figures/stage4_priors.py).
