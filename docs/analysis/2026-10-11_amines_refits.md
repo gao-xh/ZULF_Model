@@ -345,3 +345,15 @@ structure. Open: the 124 Hz structure may need more than the small couplings (13
   rest within 0.07 Hz; rates 4.86 / 2.88 / 2.34 / 3.13 / 3.42 -> 2.29 / 3.06 / 1.26 / 1.86 / 0.90 1/s
   (runs/figures/dmeda_triplet_positions_widths.png). The data want three tight line clusters (130.8, 131.9,
   132.77 Hz) with narrower lines; the structure's couplings spread the lines over 130.4-133.3 Hz.
+
+## Stage 4 (rate priors from the line-shape probe, D69) on DMEDA and sec-butylamine (2026-10-17)
+
+From D_residual_bounded (DMEDA) and bounded_effect (sec-butylamine); runs/processed/{dmeda_push/E_stage4,
+secbutyl_push/stage4} (first runs with 1/norm-scaled priors, no effect, in old/*_normscale). Data objective
+without the prior rows, rms per band:
+- DMEDA: 0.04205 -> 0.04523; J band 0.033 -> 0.041, triplet window 129.8-133.8 Hz 0.068 -> 0.075. The rates moved
+  toward the priors (c0 rate25 3.64 -> 2.85, rate26 4.86 -> 3.62, rate30 3.42 -> 2.55 1/s).
+- sec-butylamine: 0.06104 -> 0.06178; J band 0.033 -> 0.035, 118.7-126.3 Hz 0.047 -> 0.052, CH2 0.012 -> 0.015.
+  Rates near 0.12-0.15 1/s still entered as priors (the bound check only skips values within 2 % of 0.1).
+Conclusion: the probe's narrow widths fit only together with its moved line positions; with the lines where the
+couplings put them, narrower lines make both fits worse. Stage 4 in this form does not help these two spectra.
