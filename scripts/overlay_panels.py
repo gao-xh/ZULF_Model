@@ -270,7 +270,7 @@ def display_baseline(run, view, min_relative=0.05):
     keep = np.asarray(amps) >= min_relative
     lines = [float(v) for v, q in zip(lines, keep) if q]
     widths = [float(w) for w, q in zip(widths, keep) if q]
-    mask = line_mask(f, lines, widths)
+    mask = line_mask(f, lines, m)
     b, st = cv_baseline(f, y, mask)
     bm, st_m = cv_baseline(f, m, mask)
     near = np.zeros(len(f), bool)
@@ -281,19 +281,40 @@ def display_baseline(run, view, min_relative=0.05):
     if common:
         bm, st_m = b, st
     return dict(f=f, data=y, fit=m, base=b, base_fit=bm, settings=st, settings_fit=st_m,
-                route="common" if common else "separate", lines=lines, widths=widths)
+                route="common" if common else "separate", lines=lines, widths=widths,
+                amps=[a for a, q in zip(amps, keep) if q])
 
 
-def line_mask(f, lines_hz, widths_hz, factor=2.0, pad_hz=0.3, max_fwhm_hz=3.0):
-    """Points within factor x FWHM + pad of a model line narrower than max_fwhm_hz: the line regions a display
-    baseline must not follow (overlapping regions join, so the gaps inside a dense band are masked too). Broader
-    "lines" (rates of 10-40 1/s) are how the fit follows slow undulations; they are left to the baseline
-    (triethylamine 150-220 Hz was masked whole by them, 2026-10-17)."""
-    mask = np.zeros(len(f), bool)
-    for v, w in zip(lines_hz, widths_hz):
-        if float(w) <= max_fwhm_hz:
-            mask |= np.abs(f - v) < factor * float(w) + pad_hz
-    return mask
+def line_mask(f, lines_hz, model, narrow_hz=0.6, gap_hz=3.0, pad_hz=1.0, bipolar=0.6):
+    """(narrow, bridged) masks for the display baseline (owner, 2026-10-17). narrow: +-narrow_hz around every
+    line, so the smoother runs through the gaps inside a band of upright peaks (the J bands: their shallow
+    negative pedestal from the drift filter goes, the peaks rise from zero; the version the owner approved).
+    bridged: a band (lines closer than gap_hz, +-pad_hz) whose model is bipolar, its deepest dip at least
+    `bipolar` of its highest peak relative to the band edges (the isopropylamine 2J band): there the dips are
+    line shape, a smoother through the gaps bent the band, so the baseline crosses it straight. Classifying
+    bands by line width (FWHM > 2 Hz) failed both ways the same day: a few broad lines turned a J band into one
+    bridge, and the 2J band did not count as broad by amplitude."""
+    narrow = np.zeros(len(f), bool)
+    for v in lines_hz:
+        narrow |= np.abs(f - v) < narrow_hz
+    bridged = np.zeros(len(f), bool)
+    bands = []
+    for v in sorted(lines_hz):
+        if bands and v - bands[-1][1] < gap_hz:
+            bands[-1][1] = v
+        else:
+            bands.append([v, v])
+    for lo, hi in bands:
+        k = (f >= lo - pad_hz) & (f <= hi + pad_hz)
+        if k.sum() < 5:
+            continue
+        idx = np.flatnonzero(k)
+        level = 0.5 * (model[idx[0]] + model[idx[-1]])
+        seg = model[k] - level
+        top, dip = seg.max(), -seg.min()
+        if top > 0 and dip >= bipolar * top:
+            bridged |= k
+    return narrow, bridged
 
 
 def _runs(mask):
@@ -301,16 +322,15 @@ def _runs(mask):
     return list(zip(edges[0::2], edges[1::2]))
 
 
-def cv_baseline(f, y, mask, smooths=(1.5, 2.0, 3.0, 5.0), folds=5, block_hz=2.0):
-    """Display baseline (owner, 2026-10-17): outside the masked line regions a Whittaker smoother through the
-    data, its smoothness chosen by blocked cross-validation on those points (blocks of block_hz Hz left out in
-    turn), so it follows the humps beside the bands; inside every masked run a straight line between the
-    smoother's values at the run's two ends (a run at the edge of the view: the level at its open end), so the
-    baseline cannot bend or dip under a band (one smoother across the runs either dipped 0.3 of the signal under
-    the lactic-acid bands or, stiff enough not to, left the humps). Smoothness at least 1.5 Hz: a finer smoother
-    followed the noise and the narrow structure the fit misses (glycerol, DMEDA 30-100 Hz), which would hide
-    them in the figure."""
-    free = ~mask
+def cv_baseline(f, y, masks, smooths=(0.7, 1.0, 1.5, 2.0), folds=5, block_hz=2.0, max_run_hz=4.0):
+    """Display baseline (owner, 2026-10-17): a Whittaker smoother through the points outside both masks
+    (line_mask), its smoothness by blocked cross-validation on those points (blocks of block_hz Hz left out in
+    turn); then every run of the bridged mask is bridged by a straight line between the smoother's values at its
+    ends (at the edge of the view: the level at its open end). Tried and rejected the same day: masks of +-2 FWHM
+    for every line (dense J bands masked whole, their negative pedestal kept; broad lines masked 40 Hz stretches
+    that a bridge or a smoother then cut through) and a smoothness floor of 1.5 Hz."""
+    narrow, broad = masks
+    free = ~(narrow | broad)
     if free.sum() < 20:
         return np.full(len(f), float(np.median(y))), dict(pre=0.0, smooth=None, p=None, mask="width")
     block = np.floor((f - f.min()) / block_hz).astype(int) % folds
@@ -325,7 +345,13 @@ def cv_baseline(f, y, mask, smooths=(1.5, 2.0, 3.0, 5.0), folds=5, block_hz=2.0)
         scores.append(np.mean(err) if err else np.inf)
     smooth = smooths[int(np.argmin(scores))]
     b = masked_smoother(f, y, free, smooth)
-    for a, c in _runs(mask):
+    # long unbroken masked runs (no gap for the smoother to use: triethylamine 182-211 Hz, many weak lines) are
+    # bridged straight too; across them the smoother sagged 0.07 and raised false humps
+    long_runs = np.zeros(len(f), bool)
+    for a, c in _runs(narrow):
+        if f[min(c, len(f) - 1)] - f[a] > max_run_hz:
+            long_runs[a:c] = True
+    for a, c in _runs(broad | long_runs):
         if a == 0 and c >= len(f):
             continue
         if a == 0:
@@ -339,8 +365,8 @@ def cv_baseline(f, y, mask, smooths=(1.5, 2.0, 3.0, 5.0), folds=5, block_hz=2.0)
 
 def describe_baseline(st):
     if st.get("mask") == "width":
-        return (f"model lines masked (+-2 FWHM + 0.3 Hz, bridged straight), smoothness {st['smooth']} Hz "
-                "by cross-validation")
+        return (f"lines masked +-0.6 Hz, bipolar bands bridged straight, smoothness {st['smooth']} Hz by "
+                "cross-validation")
     if st.get("mask") is not None:
         return f"lines masked +-{st['mask']} Hz, smoothness {st['smooth']} Hz"
     return f"AsLS smoothness {st['smooth']} Hz, p {st['p']}" + (f", pre-smoothing {st['pre']} Hz" if st["pre"] else "")
@@ -427,7 +453,7 @@ def panel(ax, eid, view, site_styles=None):
     # BASELINE_OVERRIDES are no longer used
     apod = float(json.load(open(ROOT / fit_series(run)))[0].get("record", {}).get("apodization_rate_per_s", 0.0))
     widths = [(r["decay_per_s"] + apod) / np.pi for r in lines]
-    mask = line_mask(f, hz, widths)
+    mask = line_mask(f, hz, m)
     b, settings = cv_baseline(f, y, mask)
     bm, settings_m = cv_baseline(f, m, mask)
     # two routes for the simulation (owner, 2026-10-13: "take both, keep the better"): the experiment's own baseline

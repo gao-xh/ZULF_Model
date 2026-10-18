@@ -91,15 +91,16 @@ OUT.json (J, sigma, parts, class).
 ## Automatic display baseline (owner, 2026-10-17)
 
 One route for every figure: `overlay_panels.display_baseline(run, view)` (overlay panels, showcase figures).
-The fitted lines narrower than 3 Hz FWHM (rate + window) are masked over +-(2 FWHM + 0.3 Hz), overlapping masks
-join (a dense band is masked whole); a Whittaker smoother runs through the rest, smoothness by blocked
-cross-validation with a floor of 1.5 Hz; every masked run is bridged by a straight line. Then the common or the
-separate route for the fit, the smaller drawn difference kept. Check new spectra with
-`python scripts/baseline_check.py OUT.png RUN:lo,hi ...` before using a figure.
-Why each piece: a fixed +-0.6 Hz mask let the smoother dip under the isopropylamine 2J band (lines 3-5 Hz wide);
-one smoother across wide masks dipped 0.3 of the signal under the lactic-acid bands; broad model "lines"
-(10-40 1/s) masked triethylamine 150-220 Hz whole; a smoothness below 1.5 Hz followed the noise and the narrow
-structure the fit misses (glycerol, DMEDA 30-100 Hz) and would hide it. Removing the processing distortion by a
-model rendered without drift filter was tried and rejected (dispersive tails). The manual BASELINE_OVERRIDES
-are no longer used.
-
+- Every fitted line (>= 5 % of its isotopologue) is masked +-0.6 Hz; a Whittaker smoother runs through the rest,
+  smoothness by blocked cross-validation (0.7-2 Hz). In a band of upright peaks (J bands) the smoother uses the
+  gaps between the lines, so the shallow negative pedestal of the drift filter goes and the peaks rise from zero.
+- A band whose model is bipolar (deepest dip >= 0.6 of the highest peak, relative to the band edges; the 2J
+  bands) is crossed by a straight line: there the dips are line shape.
+- Masked runs longer than 4 Hz without a gap are crossed straight too (many weak lines, triethylamine 182-211 Hz).
+- Then the common or the separate route for the fit, the smaller drawn difference kept.
+Check new spectra with `python scripts/baseline_check.py OUT.png RUN:lo,hi ...` and look at them before sending
+a figure. Tried and rejected the same day: masks of +-2 FWHM per line (dense J bands masked whole, pedestal
+kept), classifying bands by line width (a few broad lines turned a J band into one bridge; the 2J band did not
+count as broad by amplitude), a smoothness floor of 1.5 Hz (left the pedestal), one smoother across wide masks
+(dipped 0.3 under the lactic-acid bands), and subtracting the processing distortion via a model without drift
+filter (dispersive tails). The manual BASELINE_OVERRIDES are no longer used.

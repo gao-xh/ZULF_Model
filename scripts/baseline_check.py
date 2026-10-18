@@ -22,7 +22,8 @@ def metrics(r):
     f, y, b = r["f"], r["data"], r["base"]
     top = float(np.abs(y).max()) or 1.0
     import overlay_panels as op
-    mask = op.line_mask(f, r["lines"], r["widths"])
+    narrow, broad = op.line_mask(f, r["lines"], r["fit"])
+    mask = broad
     edges = np.flatnonzero(np.diff(np.r_[0, mask.astype(int), 0]))
     bend, excursion = [], 0.0
     for a, c in zip(edges[0::2], edges[1::2]):
@@ -67,7 +68,8 @@ def main():
         a = axes[2 * i]
         a.plot(f, y / top, color="black", lw=0.6)
         a.plot(f, b / top, color="#3d7cc9", lw=1.2)
-        a.fill_between(f, -1, 1, where=mask, color="#24476e", alpha=0.07, lw=0)
+        a.fill_between(f, -1, 1, where=mask, color="#24476e", alpha=0.10, lw=0)
+        a.fill_between(f, -1, 1, where=op.line_mask(f, r["lines"], r["fit"])[0], color="#d4682e", alpha=0.06, lw=0)
         a.set_ylim(-0.3, 0.3)
         a.set_title(text, loc="left", fontsize=9, color="#c8553d" if flag else "#24476e")
         c = axes[2 * i + 1]
