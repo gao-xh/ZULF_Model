@@ -280,7 +280,19 @@ def display_baseline(run, view, min_relative=0.05):
     common = np.sqrt(np.mean((y - m)[near] ** 2)) <= np.sqrt(np.mean(((y - b) - (m - bm))[near] ** 2))
     if common:
         bm, st_m = b, st
-    return dict(f=f, data=y, fit=m, base=b, base_fit=bm, settings=st, settings_fit=st_m,
+    # each isotopologue's own spectrum with its own display baseline (its lines, the same rules), for figures
+    # that colour the fit by isotopologue (owner, 2026-10-17)
+    pred = fw.predict(joint.spectrum_vector(z, 0))
+    labels = SpectrumCache().get(str(run)).model.component_labels
+    components = []
+    for c, (lab, spec_c) in enumerate(zip(labels, pred.component_spectra)):
+        mc = np.asarray(spec_c).real[k]
+        tl = fw.transitions(values, c, P.systems(values)[c])
+        a = np.abs(tl.amplitudes) / max(np.abs(tl.amplitudes).max(), 1e-30)
+        own = [float(v) for v, q in zip(tl.frequencies_hz, a) if q >= min_relative and view[0] <= v <= view[1]]
+        bc, _ = cv_baseline(f, mc, line_mask(f, own, mc)) if own else (np.zeros(len(f)), None)
+        components.append(dict(label=lab, fit=mc, base=bc))
+    return dict(f=f, data=y, fit=m, base=b, base_fit=bm, settings=st, settings_fit=st_m, components=components,
                 route="common" if common else "separate", lines=lines, widths=widths,
                 amps=[a for a, q in zip(amps, keep) if q])
 
