@@ -138,13 +138,19 @@ def entry_spec(eid, tag):
     raise KeyError(eid)
 
 
-def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
+def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False, widths_hz=None):
     """AsLS baseline chosen for this spectrum: grid of (pre-smoothing, smoothness, p); score = negative area within
     6 Hz of the model lines (relative to the absolute area there) + the mean height loss over the line clusters
     (lines closer than 6 Hz form one cluster). Every cluster counts, not only the highest peaks: a weak, broad band
     (a 2J band next to a strong J band) must not be taken into the baseline (2026-10-11: the simulation's 2J band
     of triethylamine lost two thirds of its height when only the five highest peaks were checked). Returns
-    (baseline, settings)."""
+    (baseline, settings).
+
+    widths_hz (owner, 2026-10-17): the FWHM of every line (fitted rate + window); then the masked smoother also
+    tries masks of +-2 FWHM per line (at least 0.6 Hz), so a broad band (isopropylamine 2J lines 3-5 Hz wide) is
+    masked whole. A fourth score term, the bend, penalises a baseline that curves under the masked lines (rms
+    distance from the straight chord across each masked run, relative to the mean band height): a fixed +-0.6 Hz
+    mask let the smoother dip 0.004 under that 2J band and the old score did not see it."""
     from scipy.ndimage import gaussian_filter1d
     from zulf_processing import asls_baseline
     step = float(np.median(np.diff(f)))
@@ -170,6 +176,26 @@ def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
         for w in cores:
             cores[w] |= np.abs(f - v) < w
     beside = near & ~cores[0.8]
+    if widths_hz is not None:
+        wide = np.zeros(len(f), bool)
+        for v, w in zip(lines_hz, widths_hz):
+            wide |= np.abs(f - v) < max(0.6, 2.0 * float(w))
+        cores["width"] = wide
+    masked_runs = []                               # runs of masked points: where a baseline must not bend
+    mask_all = cores.get("width", cores[0.8])
+    edges = np.flatnonzero(np.diff(np.r_[0, mask_all.astype(int), 0]))
+    for a, b in zip(edges[0::2], edges[1::2]):
+        if b - a >= 3 and a > 0 and b < len(f):
+            masked_runs.append((a - 1, b))
+
+    def bend(bl):
+        if not masked_runs:
+            return 0.0
+        dev = []
+        for a, b in masked_runs:
+            chord = np.interp(f[a:b + 1], [f[a], f[b]], [bl[a], bl[b]])
+            dev.append(np.sqrt(np.mean((bl[a:b + 1] - chord) ** 2)))
+        return float(np.mean(dev) / mean_height)
 
     def score_of(b):
         dc = y - b
@@ -178,7 +204,7 @@ def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
                               if h > 0] or [0.0]))
         hump = float(np.mean(np.abs(dc[beside])) / mean_height) if beside.any() else 0.0
         # the hump term only breaks near-ties: weighted fully it let a flexible AsLS cut the DMEDA main line
-        return neg + loss + 0.3 * hump
+        return neg + loss + 0.3 * hump + bend(b)
 
     best = (np.inf, None, None)
     for pre in ((0.0, 0.15) if "asls" in methods else ()):
@@ -206,6 +232,118 @@ def auto_baseline(f, y, lines_hz, methods=("asls", "masked"), with_score=False):
     if best[1] is None:                                # no candidate of the requested kind: plain AsLS
         return auto_baseline(f, y, lines_hz, ("asls",), with_score)
     return (best[1], best[2], best[0]) if with_score else (best[1], best[2])
+
+
+def display_baseline(run, view, min_relative=0.05):
+    """Display baseline of one fit on its own grid (owner, 2026-10-17: one automatic route for every figure).
+    The model lines in view with their widths (FWHM = (fitted rate + window) / pi) are masked (line_mask; dense
+    bands masked whole); a smoother through the rest, its smoothness by cross-validation (cv_baseline), is the
+    baseline of the experiment and, separately, of the fit; then the fit gets the experiment's
+    baseline (common: the drawn difference is the true residual) or its own (separate), whichever leaves the
+    smaller drawn difference near the lines. Returns dict(f, data, fit, base, base_fit, settings, settings_fit,
+    route, lines, widths); data and fit are the real parts as fitted (no baseline)."""
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "scripts"))
+    from fit_monitor import SpectrumCache
+    run = Path(run)
+    joint = SpectrumCache().get(str(run)).joint
+    fw = joint.forwards[0]
+    z = np.array(json.load(open(run / "fit.json"))["z_final"], float)
+    f = np.asarray(fw.f, float)
+    y = np.asarray(fw.y).real
+    m = np.asarray(fw.predict(joint.spectrum_vector(z, 0)).model).real
+    k = (f >= view[0]) & (f <= view[1])
+    f, y, m = f[k], y[k], m[k]
+    P = joint.params[0]
+    values = P.values(joint.spectrum_vector(z, 0))
+    apod = float(json.load(open(ROOT / fit_series(run)))[0].get("record", {}).get("apodization_rate_per_s", 0.0))
+    edges = np.asarray(P.policy.family_edges_hz, float)
+    lines, widths, amps = [], [], []
+    for c, system in enumerate(P.systems(values)):
+        tl = fw.transitions(values, c, system)
+        rates = P.rates(values, c)
+        fam = np.minimum(np.searchsorted(edges, tl.frequencies_hz, side="right"), len(rates) - 1)
+        inside = (tl.frequencies_hz >= view[0]) & (tl.frequencies_hz <= view[1])
+        lines += list(tl.frequencies_hz[inside])
+        widths += list((rates[fam][inside] + apod) / np.pi)
+        amps += list(np.abs(tl.amplitudes[inside]) / max(np.abs(tl.amplitudes).max(), 1e-30))
+    keep = np.asarray(amps) >= min_relative
+    lines = [float(v) for v, q in zip(lines, keep) if q]
+    widths = [float(w) for w, q in zip(widths, keep) if q]
+    mask = line_mask(f, lines, widths)
+    b, st = cv_baseline(f, y, mask)
+    bm, st_m = cv_baseline(f, m, mask)
+    near = np.zeros(len(f), bool)
+    for v in lines:
+        near |= np.abs(f - v) < 6.0
+    near = near if near.any() else np.ones(len(f), bool)
+    common = np.sqrt(np.mean((y - m)[near] ** 2)) <= np.sqrt(np.mean(((y - b) - (m - bm))[near] ** 2))
+    if common:
+        bm, st_m = b, st
+    return dict(f=f, data=y, fit=m, base=b, base_fit=bm, settings=st, settings_fit=st_m,
+                route="common" if common else "separate", lines=lines, widths=widths)
+
+
+def line_mask(f, lines_hz, widths_hz, factor=2.0, pad_hz=0.3, max_fwhm_hz=3.0):
+    """Points within factor x FWHM + pad of a model line narrower than max_fwhm_hz: the line regions a display
+    baseline must not follow (overlapping regions join, so the gaps inside a dense band are masked too). Broader
+    "lines" (rates of 10-40 1/s) are how the fit follows slow undulations; they are left to the baseline
+    (triethylamine 150-220 Hz was masked whole by them, 2026-10-17)."""
+    mask = np.zeros(len(f), bool)
+    for v, w in zip(lines_hz, widths_hz):
+        if float(w) <= max_fwhm_hz:
+            mask |= np.abs(f - v) < factor * float(w) + pad_hz
+    return mask
+
+
+def _runs(mask):
+    edges = np.flatnonzero(np.diff(np.r_[0, mask.astype(int), 0]))
+    return list(zip(edges[0::2], edges[1::2]))
+
+
+def cv_baseline(f, y, mask, smooths=(1.5, 2.0, 3.0, 5.0), folds=5, block_hz=2.0):
+    """Display baseline (owner, 2026-10-17): outside the masked line regions a Whittaker smoother through the
+    data, its smoothness chosen by blocked cross-validation on those points (blocks of block_hz Hz left out in
+    turn), so it follows the humps beside the bands; inside every masked run a straight line between the
+    smoother's values at the run's two ends (a run at the edge of the view: the level at its open end), so the
+    baseline cannot bend or dip under a band (one smoother across the runs either dipped 0.3 of the signal under
+    the lactic-acid bands or, stiff enough not to, left the humps). Smoothness at least 1.5 Hz: a finer smoother
+    followed the noise and the narrow structure the fit misses (glycerol, DMEDA 30-100 Hz), which would hide
+    them in the figure."""
+    free = ~mask
+    if free.sum() < 20:
+        return np.full(len(f), float(np.median(y))), dict(pre=0.0, smooth=None, p=None, mask="width")
+    block = np.floor((f - f.min()) / block_hz).astype(int) % folds
+    scores = []
+    for sm in smooths:
+        err = []
+        for k in range(folds):
+            train = free & (block != k)
+            test = free & (block == k)
+            if test.any() and train.sum() >= 10:
+                err.append(np.mean((y - masked_smoother(f, y, train, sm))[test] ** 2))
+        scores.append(np.mean(err) if err else np.inf)
+    smooth = smooths[int(np.argmin(scores))]
+    b = masked_smoother(f, y, free, smooth)
+    for a, c in _runs(mask):
+        if a == 0 and c >= len(f):
+            continue
+        if a == 0:
+            b[:c] = b[c]
+        elif c >= len(f):
+            b[a:] = b[a - 1]
+        else:
+            b[a:c] = np.interp(f[a:c], [f[a - 1], f[c]], [b[a - 1], b[c]])
+    return b, dict(pre=0.0, smooth=smooth, p=None, mask="width")
+
+
+def describe_baseline(st):
+    if st.get("mask") == "width":
+        return (f"model lines masked (+-2 FWHM + 0.3 Hz, bridged straight), smoothness {st['smooth']} Hz "
+                "by cross-validation")
+    if st.get("mask") is not None:
+        return f"lines masked +-{st['mask']} Hz, smoothness {st['smooth']} Hz"
+    return f"AsLS smoothness {st['smooth']} Hz, p {st['p']}" + (f", pre-smoothing {st['pre']} Hz" if st["pre"] else "")
 
 
 def masked_smoother(f, y, weight, smooth_hz):
@@ -284,24 +422,14 @@ def panel(ax, eid, view, site_styles=None):
     # the kind of baseline (AsLS or lines masked) is chosen for experiment and simulation together, so both are
     # processed alike; the parameters of that kind are chosen for each separately (owner, 2026-10-10 / 10-12)
     hz = [r["frequency_hz"] for r in lines]
-    if eid in BASELINE_OVERRIDES:
-        w, sm = BASELINE_OVERRIDES[eid]
-        core = np.zeros(len(f), bool)
-        for v in hz:
-            core |= np.abs(f - v) < w
-        tail = f > f.max() - 30
-        b = masked_smoother(f, y, ~core, sm)
-        b = b + np.median((y - b)[tail])
-        bm = masked_smoother(f, m, ~core, sm)
-        bm = bm + np.median((m - bm)[tail])
-        settings = settings_m = dict(pre=0.0, smooth=sm, p=None, mask=w)
-    options = []
-    for kind in ((("asls",), ("masked",)) if eid not in BASELINE_OVERRIDES else ()):
-        b, settings, s_exp = auto_baseline(f, y, hz, kind, with_score=True)
-        bm, settings_m, s_sim = auto_baseline(f, m, hz, kind, with_score=True)
-        options.append((s_exp + s_sim, b, settings, bm, settings_m))
-    if options:
-        _, b, settings, bm, settings_m = min(options, key=lambda o: o[0])
+    # one automatic display baseline for every figure (owner, 2026-10-17): the fitted lines masked by their own
+    # widths, a cross-validated smoother outside, straight bridges inside (line_mask / cv_baseline); the manual
+    # BASELINE_OVERRIDES are no longer used
+    apod = float(json.load(open(ROOT / fit_series(run)))[0].get("record", {}).get("apodization_rate_per_s", 0.0))
+    widths = [(r["decay_per_s"] + apod) / np.pi for r in lines]
+    mask = line_mask(f, hz, widths)
+    b, settings = cv_baseline(f, y, mask)
+    bm, settings_m = cv_baseline(f, m, mask)
     # two routes for the simulation (owner, 2026-10-13: "take both, keep the better"): the experiment's own baseline
     # subtracted from both (common: the drawn difference equals the true residual) or the simulation's own baseline
     # (separate). Keep the one whose drawn experiment - simulation is smaller near the lines.
@@ -386,11 +514,8 @@ def panel(ax, eid, view, site_styles=None):
     def describe(st):
         if st.get("common"):
             return "same baseline as the experiment"
-        if st.get("mask"):
-            return f"lines masked +-{st['mask']} Hz, {st['smooth']} Hz"
-        pre = f"pre {st['pre']} Hz, " if st["pre"] else ""
-        return f"{pre}{st['smooth']} Hz, p {st['p']}"
-    ax.text(0.995, 0.03, f"fit {tag}, score {fit['scores'][0]:.3f}; AsLS experiment {describe(settings)}; "
+        return f"lines masked by width, {st['smooth']} Hz"
+    ax.text(0.995, 0.03, f"fit {tag}, score {fit['scores'][0]:.3f}; baseline experiment {describe(settings)}; "
             f"simulation {describe(settings_m)}", transform=ax.transAxes, fontsize=6.5 * k, color="0.4", ha="right",
             va="bottom")
 
